@@ -1,17 +1,90 @@
-import { getUser, getProfile } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProfileSettings } from "@/components/dashboard/profile-settings"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { User, Calendar, Trophy, Flame, Coins, Users, AlertCircle, TrendingUp, Clock, Star } from "lucide-react"
+import { User, Calendar, Trophy, Flame, Coins, Users, AlertCircle, TrendingUp, Clock, Star, RefreshCw, Loader2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { maskEmail } from "@/lib/utils/mask-email"
+import { Skeleton } from "@/components/ui/skeleton"
 
-function ProfileErrorState() {
+interface Profile {
+  id: string
+  username?: string
+  display_name?: string
+  avatar_url?: string
+  role?: string
+  is_verified?: boolean
+  balance_satoshis: number
+  total_withdrawn_satoshis?: number
+  total_claims?: number
+  claim_streak?: number
+  max_claim_streak?: number
+  referral_count?: number
+  created_at?: string
+  last_claim_at?: string
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+        <p className="text-muted-foreground">View and manage your profile</p>
+      </div>
+
+      {/* Profile Header Skeleton */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+            <Skeleton className="h-20 w-20 sm:h-24 sm:w-24 rounded-full" />
+            <div className="text-center sm:text-left flex-1 space-y-2">
+              <Skeleton className="h-8 w-48 mx-auto sm:mx-0" />
+              <Skeleton className="h-4 w-32 mx-auto sm:mx-0" />
+              <Skeleton className="h-4 w-40 mx-auto sm:mx-0" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats Grid Skeleton */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Card key={i}>
+            <CardContent className="pt-4 pb-4 px-3 sm:px-4">
+              <div className="flex flex-col items-center text-center gap-1">
+                <Skeleton className="h-5 w-5 rounded" />
+                <Skeleton className="h-6 w-16" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Edit Profile Skeleton */}
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-48" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-32" />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function ProfileErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="space-y-6">
       <div>
@@ -23,8 +96,30 @@ function ProfileErrorState() {
         <AlertTitle>Unable to Load Profile</AlertTitle>
         <AlertDescription>
           <p className="mb-3">We couldn&apos;t load your profile data. Please try again.</p>
+          <Button size="sm" onClick={onRetry}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </AlertDescription>
+      </Alert>
+    </div>
+  )
+}
+
+function NotLoggedInState() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+        <p className="text-muted-foreground">View and manage your profile</p>
+      </div>
+      <Alert>
+        <User className="h-4 w-4" />
+        <AlertTitle>Not Logged In</AlertTitle>
+        <AlertDescription>
+          <p className="mb-3">Please log in to view your profile.</p>
           <Button size="sm" asChild>
-            <Link href="/dashboard/profile">Refresh Page</Link>
+            <Link href="/auth/login?redirect=/dashboard/profile">Log In</Link>
           </Button>
         </AlertDescription>
       </Alert>
@@ -39,20 +134,84 @@ function formatSatoshis(satoshis: number): string {
   return `${satoshis.toLocaleString()} sats`
 }
 
-export default async function ProfilePage() {
-  const user = await getUser()
+export default function ProfilePage() {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
 
-  if (!user) redirect("/auth/login?redirect=/dashboard/profile")
+  const loadProfile = async () => {
+    setLoading(true)
+    setError(false)
 
-  const profile = await getProfile(user.id)
+    try {
+      const supabase = createClient()
+
+      // Get current user
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+
+      if (authError || !authUser) {
+        setUser(null)
+        setProfile(null)
+        setLoading(false)
+        return
+      }
+
+      setUser({ id: authUser.id, email: authUser.email })
+
+      // Get profile
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single()
+
+      if (profileError) {
+        console.error("[ProfilePage] Profile error:", profileError)
+        // Create a default profile if it doesn't exist
+        setProfile({
+          id: authUser.id,
+          balance_satoshis: 0,
+          total_claims: 0,
+          claim_streak: 0,
+          max_claim_streak: 0,
+          referral_count: 0,
+          role: "user",
+        })
+      } else {
+        setProfile(profileData)
+      }
+    } catch (err) {
+      console.error("[ProfilePage] Error:", err)
+      setError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadProfile()
+  }, [])
+
+  if (loading) {
+    return <ProfileSkeleton />
+  }
+
+  if (error) {
+    return <ProfileErrorState onRetry={loadProfile} />
+  }
+
+  if (!user) {
+    return <NotLoggedInState />
+  }
 
   if (!profile) {
-    return <ProfileErrorState />
+    return <ProfileErrorState onRetry={loadProfile} />
   }
 
   const memberSince = profile.created_at
     ? formatDistanceToNow(new Date(profile.created_at), { addSuffix: true })
-    : "Unknown"
+    : "Recently"
 
   const lastActive = profile.last_claim_at
     ? formatDistanceToNow(new Date(profile.last_claim_at), { addSuffix: true })
@@ -99,9 +258,14 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
-        <p className="text-muted-foreground">View and manage your profile</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+          <p className="text-muted-foreground">View and manage your profile</p>
+        </div>
+        <Button variant="ghost" size="icon" onClick={loadProfile} title="Refresh">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Profile Header Card */}
@@ -148,7 +312,7 @@ export default async function ProfilePage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {stats.map((stat) => (
-          <Card key={stat.label} className="hover-lift">
+          <Card key={stat.label} className="hover:shadow-md transition-shadow">
             <CardContent className="pt-4 pb-4 px-3 sm:px-4">
               <div className="flex flex-col items-center text-center gap-1">
                 <stat.icon className={`h-5 w-5 ${stat.color}`} />
