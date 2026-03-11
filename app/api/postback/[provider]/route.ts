@@ -22,10 +22,14 @@ const PROVIDER_SECRETS: Record<string, string> = {
   "offerwall-me": process.env.OFFERWALLME_SECRET_KEY || "",
   bicotasks: process.env.BICOTASKS_SECRET_KEY || "",
   adscend: process.env.ADSCEND_SECRET_KEY || "",
+  bitlabs: process.env.BITLABS_SECRET_KEY || "",
+  "ayet-studios": process.env.AYET_STUDIOS_SECRET_KEY || "",
+  "hang-my-ads": process.env.HANG_MY_ADS_SECRET_KEY || "",
+  notik: process.env.NOTIK_SECRET_KEY || "",
 }
 
 const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
-  "cpx-research": [], // Add CPX Research IPs when available
+  "cpx-research": [],
   torox: [],
   lootably: [],
   adgate: [],
@@ -34,6 +38,10 @@ const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
   "offerwall-me": [],
   bicotasks: [],
   adscend: [],
+  bitlabs: [],
+  "ayet-studios": [],
+  "hang-my-ads": [],
+  notik: [],
 }
 
 function getSupabaseAdmin() {
@@ -119,6 +127,36 @@ function validateSignature(provider: string, params: Record<string, string>, sig
       case "adscend": {
         // Adscend uses SHA256 HMAC
         const dataStr = `${params.user_id || params.subid1}${params.click_id}${params.currency_amount}`
+        const expectedSig = createHmac("sha256", secret).update(dataStr).digest("hex")
+        return signature.toLowerCase() === expectedSig.toLowerCase()
+      }
+
+      case "bitlabs": {
+        // BitLabs uses HMAC-SHA1: hmac_sha1(user_id + tx_id, secret)
+        const dataStr = `${params.user_id}${params.tx_id || params.transaction_id}`
+        const expectedSig = createHmac("sha1", secret).update(dataStr).digest("hex")
+        return signature.toLowerCase() === expectedSig.toLowerCase()
+      }
+
+      case "ayet-studios": {
+        // Ayet Studios uses MD5: md5(user_id + amount + transaction_id + secret)
+        const expectedSig = createHash("md5")
+          .update(`${params.external_identifier || params.user_id}${params.amount}${params.transaction_id}${secret}`)
+          .digest("hex")
+        return signature.toLowerCase() === expectedSig.toLowerCase()
+      }
+
+      case "hang-my-ads": {
+        // HangMyAds uses SHA256: sha256(user_id + offer_id + payout + secret)
+        const expectedSig = createHash("sha256")
+          .update(`${params.user_id}${params.offer_id}${params.payout}${secret}`)
+          .digest("hex")
+        return signature.toLowerCase() === expectedSig.toLowerCase()
+      }
+
+      case "notik": {
+        // Notik uses HMAC-SHA256
+        const dataStr = `${params.userId || params.user_id}${params.transactionId || params.transaction_id}${params.reward}`
         const expectedSig = createHmac("sha256", secret).update(dataStr).digest("hex")
         return signature.toLowerCase() === expectedSig.toLowerCase()
       }
@@ -237,6 +275,46 @@ function parsePostbackParams(provider: string, searchParams: URLSearchParams): P
           transactionId: searchParams.get("click_id") || "",
         }
 
+      case "bitlabs":
+        return {
+          userId: searchParams.get("user_id") || "",
+          offerId: searchParams.get("offer_id") || searchParams.get("survey_id") || "",
+          offerName: searchParams.get("offer_name") || "BitLabs Survey",
+          credits: Number.parseFloat(searchParams.get("reward") || searchParams.get("amount") || "0"),
+          transactionId: searchParams.get("tx_id") || searchParams.get("transaction_id") || "",
+          ip: searchParams.get("ip") || "",
+        }
+
+      case "ayet-studios":
+        return {
+          userId: searchParams.get("external_identifier") || searchParams.get("user_id") || "",
+          offerId: searchParams.get("offer_id") || searchParams.get("campaign_id") || "",
+          offerName: searchParams.get("offer_name") || searchParams.get("campaign_name") || "Ayet Studios Offer",
+          credits: Number.parseFloat(searchParams.get("amount") || searchParams.get("payout") || "0"),
+          transactionId: searchParams.get("transaction_id") || "",
+          ip: searchParams.get("ip") || "",
+        }
+
+      case "hang-my-ads":
+        return {
+          userId: searchParams.get("user_id") || "",
+          offerId: searchParams.get("offer_id") || "",
+          offerName: searchParams.get("offer_name") || "HangMyAds Offer",
+          credits: Number.parseFloat(searchParams.get("payout") || searchParams.get("amount") || "0"),
+          transactionId: searchParams.get("transaction_id") || "",
+          ip: searchParams.get("ip") || "",
+        }
+
+      case "notik":
+        return {
+          userId: searchParams.get("userId") || searchParams.get("user_id") || "",
+          offerId: searchParams.get("offerId") || searchParams.get("offer_id") || "",
+          offerName: searchParams.get("offerName") || searchParams.get("offer_name") || "Notik Offer",
+          credits: Number.parseFloat(searchParams.get("reward") || searchParams.get("amount") || "0"),
+          transactionId: searchParams.get("transactionId") || searchParams.get("transaction_id") || "",
+          ip: searchParams.get("ip") || "",
+        }
+
       default:
         return null
     }
@@ -268,6 +346,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       "offerwall-me",
       "bicotasks",
       "adscend",
+      "bitlabs",
+      "ayet-studios",
+      "hang-my-ads",
+      "notik",
     ]
     if (!validProviders.includes(provider)) {
       console.warn(`[Postback] Invalid provider attempt: ${provider} from IP: ${requestIP}`)
