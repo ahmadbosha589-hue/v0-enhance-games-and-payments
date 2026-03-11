@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Play, 
-  Pause, 
-  RotateCw, 
-  ArrowDown, 
-  ArrowLeft, 
+import {
+  Play,
+  Pause,
+  RotateCw,
+  ArrowDown,
+  ArrowLeft,
   ArrowRight,
   ChevronDown,
   Zap,
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils"
 
 const BOARD_WIDTH = 10
 const BOARD_HEIGHT = 20
-const CELL_SIZE = 24
+const CELL_SIZE = 20 // Reduced for better mobile fit
 
 // Multiple color schemes for variety
 const COLOR_SCHEMES = [
@@ -127,7 +127,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([])
   const [showAchievement, setShowAchievement] = useState<string | null>(null)
   const [perfectClear, setPerfectClear] = useState(false)
-  
+
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const eventTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -169,7 +169,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
   useEffect(() => {
     if (particles.length === 0) return
     const interval = setInterval(() => {
-      setParticles(prev => 
+      setParticles(prev =>
         prev
           .map(p => ({
             ...p,
@@ -198,10 +198,10 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
   // Hold piece function
   const holdCurrentPiece = useCallback(() => {
     if (!currentPiece || !canHold || isPaused || gameOver) return
-    
+
     const currentType = currentPiece.type
     setCanHold(false)
-    
+
     if (holdPiece) {
       const piece = tetrominos[holdPiece]
       setCurrentPiece({
@@ -221,7 +221,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
       })
       setNextPieces(prev => prev.slice(1))
     }
-    
+
     setHoldPiece(currentType)
     setMoves(m => m + 1)
   }, [currentPiece, canHold, isPaused, gameOver, holdPiece, tetrominos, nextPieces, getRandomPiece])
@@ -240,12 +240,12 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
   const triggerRandomEvent = useCallback(() => {
     const roll = Math.random()
     let cumulative = 0
-    
+
     for (const event of RANDOM_EVENTS) {
       cumulative += event.chance
       if (roll < cumulative) {
         setActiveEvent({ type: event.type, message: event.message, icon: event.icon })
-        
+
         if (event.type === "speed_boost") {
           setSpeedModifier(0.5)
           if (eventTimeoutRef.current) clearTimeout(eventTimeoutRef.current)
@@ -351,26 +351,26 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
         clearedRows.push(i)
       }
     })
-    
+
     const newBoard = boardState.filter((_, i) => !clearedRows.includes(i))
     const cleared = clearedRows.length
-    
+
     while (newBoard.length < BOARD_HEIGHT) {
       newBoard.unshift(Array(BOARD_WIDTH).fill(null))
     }
-    
+
     // Check for perfect clear (empty board)
     const isPerfectClear = newBoard.every(row => row.every(cell => cell === null))
     if (isPerfectClear && cleared > 0) {
       setPerfectClear(true)
       setTimeout(() => setPerfectClear(false), 2000)
     }
-    
+
     if (cleared > 0) {
       // Flash animation for cleared rows
       setFlashRows(clearedRows)
       setTimeout(() => setFlashRows([]), 200)
-      
+
       // Spawn particles for each cleared cell
       clearedRows.forEach(rowIndex => {
         for (let x = 0; x < BOARD_WIDTH; x++) {
@@ -380,18 +380,18 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
           }
         }
       })
-      
+
       const messageData = LINE_CLEAR_MESSAGES[Math.min(cleared - 1, 3)]
       setLineClearMessage(messageData)
       setTimeout(() => setLineClearMessage(null), 1500)
-      
+
       // Update stats
       setStats(prev => ({
         ...prev,
         totalLines: prev.totalLines + cleared,
         tetrises: cleared === 4 ? prev.tetrises + 1 : prev.tetrises
       }))
-      
+
       // Combo system
       const now = Date.now()
       if (now - lastClearTime < 3000) {
@@ -404,14 +404,14 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
         setCombo(1)
       }
       setLastClearTime(now)
-      
+
       // Screen shake for tetris
       if (cleared >= 4) {
         setShakeBoard(true)
         setTimeout(() => setShakeBoard(false), 300)
       }
     }
-    
+
     return { newBoard, cleared, clearedRows }
   }, [lastClearTime, spawnParticles])
 
@@ -421,7 +421,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
       currentPiece.shape.map(row => row[i]).reverse()
     )
     const newPiece = { ...currentPiece, shape: rotated }
-    
+
     // Wall kick - try to adjust position if rotation causes collision
     for (const offset of [0, 1, -1, 2, -2]) {
       const testPiece = { ...newPiece, x: newPiece.x + offset }
@@ -453,19 +453,19 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
     const droppedPiece = { ...currentPiece, y: newY }
     const mergedBoard = mergePiece(droppedPiece, board)
     const { newBoard, cleared } = clearLines(mergedBoard)
-    
+
     const dropScore = (newY - currentPiece.y) * 2
     const lineScore = (cleared > 0 ? LINE_CLEAR_MESSAGES[Math.min(cleared - 1, 3)].points : 0) * level * scoreMultiplier
     const comboBonus = combo > 1 ? combo * 50 : 0
     const perfectClearBonus = perfectClear ? 1000 : 0
     const newScore = score + dropScore + lineScore + comboBonus + perfectClearBonus
-    
+
     setBoard(newBoard)
     setScore(newScore)
     setLines(l => l + cleared)
     setMoves(m => m + 1)
     onScoreUpdate(newScore)
-    
+
     if (cleared > 0 && (lines + cleared) % 10 === 0) {
       const newLevel = Math.min(level + 1, 15)
       setLevel(newLevel)
@@ -479,7 +479,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
       x: Math.floor((BOARD_WIDTH - tetrominos[nextPieces[0] || "I"].shape[0].length) / 2),
       y: 0
     }
-    
+
     if (checkCollision(newSpawnedPiece, newBoard)) {
       setGameOver(true)
       onGameEnd(newScore, moves + 1)
@@ -496,27 +496,27 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
     if (!isActive || isPaused || gameOver || !currentPiece) return
 
     const speed = Math.max(100, 1000 - (level - 1) * 100) * speedModifier
-    
+
     // Random event trigger
     if (Math.random() < 0.08) {
       triggerRandomEvent()
     }
-    
+
     gameLoopRef.current = setInterval(() => {
       if (!movePiece(0, 1)) {
         // Piece landed
         const mergedBoard = mergePiece(currentPiece, board)
         const { newBoard, cleared } = clearLines(mergedBoard)
-        
+
         const lineScore = (cleared > 0 ? LINE_CLEAR_MESSAGES[Math.min(cleared - 1, 3)].points : 0) * level * scoreMultiplier
         const comboBonus = combo > 1 ? combo * 50 : 0
         const newScore = score + lineScore + 10 + comboBonus
-        
+
         setBoard(newBoard)
         setScore(newScore)
         setLines(l => l + cleared)
         onScoreUpdate(newScore)
-        
+
         if (cleared > 0 && (lines + cleared) % 10 === 0) {
           const newLevel = Math.min(level + 1, 15)
           setLevel(newLevel)
@@ -530,7 +530,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
           x: Math.floor((BOARD_WIDTH - tetrominos[nextPieces[0] || "I"].shape[0].length) / 2),
           y: 0
         }
-        
+
         if (checkCollision(newSpawnedPiece, newBoard)) {
           setGameOver(true)
           onGameEnd(newScore, moves)
@@ -560,7 +560,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isActive || gameOver) return
-      
+
       switch (e.key) {
         case "ArrowLeft":
         case "a":
@@ -616,12 +616,97 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isActive, gameOver, movePiece, rotatePiece, hardDrop, holdCurrentPiece])
 
+  // Touch/swipe controls for mobile - improved with continuous gesture support
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
+  const lastMoveRef = useRef<number>(0)
+
+  useEffect(() => {
+    const board = boardRef.current
+    if (!board) return
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (!isActive || gameOver || isPaused) return
+      e.preventDefault()
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        time: Date.now()
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isActive || gameOver || isPaused || !touchStartRef.current) return
+      e.preventDefault()
+
+      const touch = e.touches[0]
+      const dx = touch.clientX - touchStartRef.current.x
+      const dy = touch.clientY - touchStartRef.current.y
+      const now = Date.now()
+
+      // Throttle moves to 100ms
+      if (now - lastMoveRef.current < 100) return
+
+      const moveThreshold = 35
+
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > moveThreshold) {
+        // Horizontal swipe
+        if (dx > 0) {
+          movePiece(1, 0)
+        } else {
+          movePiece(-1, 0)
+        }
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: now }
+        lastMoveRef.current = now
+      } else if (dy > moveThreshold) {
+        // Swipe down = soft drop
+        movePiece(0, 1)
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: now }
+        lastMoveRef.current = now
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isActive || gameOver || isPaused || !touchStartRef.current) return
+
+      const touch = e.changedTouches[0]
+      const dx = touch.clientX - touchStartRef.current.x
+      const dy = touch.clientY - touchStartRef.current.y
+      const dt = Date.now() - touchStartRef.current.time
+
+      // Quick tap = rotate
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20 && dt < 250) {
+        rotatePiece()
+        touchStartRef.current = null
+        return
+      }
+
+      // Fast swipe down = hard drop
+      if (dy > 100 && dt < 400) {
+        hardDrop()
+        touchStartRef.current = null
+        return
+      }
+
+      touchStartRef.current = null
+    }
+
+    board.addEventListener("touchstart", handleTouchStart, { passive: false })
+    board.addEventListener("touchmove", handleTouchMove, { passive: false })
+    board.addEventListener("touchend", handleTouchEnd, { passive: true })
+
+    return () => {
+      board.removeEventListener("touchstart", handleTouchStart)
+      board.removeEventListener("touchmove", handleTouchMove)
+      board.removeEventListener("touchend", handleTouchEnd)
+    }
+  }, [isActive, gameOver, isPaused, movePiece, rotatePiece, hardDrop])
+
   // Render the board with current piece and ghost piece
   const renderBoard = () => {
-    const displayBoard: { color: string | null; isGhost?: boolean; isFlash?: boolean }[][] = board.map((row, rowIndex) => 
+    const displayBoard: { color: string | null; isGhost?: boolean; isFlash?: boolean }[][] = board.map((row, rowIndex) =>
       row.map(cell => ({ color: cell, isGhost: false, isFlash: flashRows.includes(rowIndex) }))
     )
-    
+
     // Draw ghost piece first
     const ghostY = getGhostPosition()
     if (currentPiece && ghostY !== null && ghostY !== currentPiece.y) {
@@ -638,7 +723,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
         }
       }
     }
-    
+
     // Draw current piece
     if (currentPiece) {
       const color = tetrominos[currentPiece.type].color
@@ -673,7 +758,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
                   width: size,
                   height: size,
                   backgroundColor: cell ? piece.color : "transparent",
-                  boxShadow: cell ? `inset 0 0 ${size/2}px rgba(255,255,255,0.3)` : "none"
+                  boxShadow: cell ? `inset 0 0 ${size / 2}px rgba(255,255,255,0.3)` : "none"
                 }}
               />
             ))}
@@ -702,15 +787,16 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Board */}
-      <div 
+      <div
         ref={boardRef}
         className={cn(
+          "touch-none select-none",
           "relative bg-gray-900 rounded-lg p-2 border-2 border-gray-700 transition-transform",
           shakeBoard && "animate-pulse"
         )}
-        style={{ 
+        style={{
           width: BOARD_WIDTH * CELL_SIZE + 16,
           minWidth: BOARD_WIDTH * CELL_SIZE + 16,
           transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 3 : -3}px)` : "none"
@@ -718,9 +804,9 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
         tabIndex={0}
       >
         {/* Grid */}
-        <div 
+        <div
           className="grid gap-[1px] relative"
-          style={{ 
+          style={{
             gridTemplateColumns: `repeat(${BOARD_WIDTH}, ${CELL_SIZE}px)`,
             gridTemplateRows: `repeat(${BOARD_HEIGHT}, ${CELL_SIZE}px)`
           }}
@@ -735,8 +821,8 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
               )}
               style={{
                 backgroundColor: cell.isFlash ? "#fff" : (cell.color || "#1a1a2e"),
-                boxShadow: cell.color && !cell.isGhost 
-                  ? `inset 0 0 6px rgba(255,255,255,0.3), 0 0 2px ${cell.color}` 
+                boxShadow: cell.color && !cell.isGhost
+                  ? `inset 0 0 6px rgba(255,255,255,0.3), 0 0 2px ${cell.color}`
                   : "none",
                 border: cell.isGhost ? `2px dashed ${cell.color}` : "none"
               }}
@@ -889,9 +975,9 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
           <p className="text-gray-400 text-xs mb-2 font-medium">Controls</p>
           <div className="grid grid-cols-3 gap-1">
             <div />
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className="h-8 w-8"
               onClick={rotatePiece}
               disabled={!isActive || gameOver}
@@ -899,27 +985,27 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
               <RotateCw className="h-3 w-3" />
             </Button>
             <div />
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className="h-8 w-8"
               onClick={() => movePiece(-1, 0)}
               disabled={!isActive || gameOver}
             >
               <ArrowLeft className="h-3 w-3" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className="h-8 w-8"
               onClick={hardDrop}
               disabled={!isActive || gameOver}
             >
               <ChevronDown className="h-3 w-3" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className="h-8 w-8"
               onClick={() => movePiece(1, 0)}
               disabled={!isActive || gameOver}
@@ -927,9 +1013,9 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
               <ArrowRight className="h-3 w-3" />
             </Button>
             <div />
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className="h-8 w-8"
               onClick={() => movePiece(0, 1)}
               disabled={!isActive || gameOver}
@@ -939,18 +1025,18 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
             <div />
           </div>
           <div className="flex gap-1 mt-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex-1 h-7 text-xs"
               onClick={() => setIsPaused(p => !p)}
               disabled={!isActive || gameOver}
             >
               {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex-1 h-7 text-xs"
               onClick={holdCurrentPiece}
               disabled={!isActive || gameOver || !canHold}

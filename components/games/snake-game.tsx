@@ -3,21 +3,21 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { 
-  ArrowUp, 
-  ArrowDown, 
-  ArrowLeft, 
-  ArrowRight, 
-  Play, 
+import {
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Play,
   Pause,
   RotateCcw,
   Sparkles
 } from "lucide-react"
 
 const BOARD_SIZE = 20
-const CELL_SIZE = 16
-const INITIAL_SPEED = 150
-const SPEED_INCREASE = 5
+const CELL_SIZE = 14
+const INITIAL_SPEED = 140
+const SPEED_INCREASE = 4
 
 type Direction = "UP" | "DOWN" | "LEFT" | "RIGHT"
 type Position = { x: number; y: number }
@@ -53,16 +53,17 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
   const [gameOver, setGameOver] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [speed, setSpeed] = useState(INITIAL_SPEED)
-  const [highScore, setHighScore] = useState(0)
-  const [particles, setParticles] = useState<{ x: number; y: number; id: number }[]>([])
   const [combo, setCombo] = useState(0)
   const [lastEatTime, setLastEatTime] = useState(0)
   const [speedBoost, setSpeedBoost] = useState(false)
   const [slowMode, setSlowMode] = useState(false)
-  
-  const gameLoopRef = useRef<NodeJS.Timeout | null>(null)
+  const [flashEffect, setFlashEffect] = useState(false)
+
+  const gameLoopRef = useRef<number | null>(null)
+  const lastUpdateRef = useRef<number>(0)
   const directionRef = useRef(direction)
-  const particleIdRef = useRef(0)
+  const directionQueueRef = useRef<Direction[]>([])
+  const boardRef = useRef<HTMLDivElement>(null)
 
   const getRandomFoodType = (): FoodType => {
     const rand = Math.random()
@@ -82,17 +83,13 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
         y: Math.floor(Math.random() * BOARD_SIZE)
       }
     } while (snake.some(segment => segment.x === newPos.x && segment.y === newPos.y))
-    
+
     const type = getRandomFoodType()
-    return {
-      ...newPos,
-      type,
-      points: FOOD_TYPES[type].points
-    }
+    return { ...newPos, type, points: FOOD_TYPES[type].points }
   }, [snake])
 
   const spawnBonusFood = useCallback(() => {
-    if (Math.random() < 0.15 && !bonusFood) {
+    if (Math.random() < 0.12 && !bonusFood) {
       let newPos: Position
       do {
         newPos = {
@@ -103,7 +100,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
         snake.some(segment => segment.x === newPos.x && segment.y === newPos.y) ||
         (food.x === newPos.x && food.y === newPos.y)
       )
-      
+
       setBonusFood({
         ...newPos,
         type: "golden",
@@ -113,20 +110,15 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
     }
   }, [snake, food, bonusFood])
 
-  const addParticles = useCallback((x: number, y: number) => {
-    const newParticles = Array.from({ length: 8 }, () => ({
-      x: x * CELL_SIZE + CELL_SIZE / 2,
-      y: y * CELL_SIZE + CELL_SIZE / 2,
-      id: particleIdRef.current++
-    }))
-    setParticles(prev => [...prev, ...newParticles])
-    setTimeout(() => {
-      setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)))
-    }, 500)
-  }, [])
-
   const moveSnake = useCallback(() => {
     if (!isActive || isPaused || gameOver) return
+
+    // Process direction queue
+    if (directionQueueRef.current.length > 0) {
+      const nextDir = directionQueueRef.current.shift()!
+      directionRef.current = nextDir
+      setDirection(nextDir)
+    }
 
     setSnake(prevSnake => {
       const head = { ...prevSnake[0] }
@@ -139,14 +131,14 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
         case "RIGHT": head.x += 1; break
       }
 
-      // Check wall collision
+      // Wall collision
       if (head.x < 0 || head.x >= BOARD_SIZE || head.y < 0 || head.y >= BOARD_SIZE) {
         setGameOver(true)
         onGameEnd(score, moves)
         return prevSnake
       }
 
-      // Check self collision
+      // Self collision
       if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
         setGameOver(true)
         onGameEnd(score, moves)
@@ -157,25 +149,26 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
       let ate = false
       let ateBonus = false
 
-      // Check food collision
+      // Food collision
       if (head.x === food.x && head.y === food.y) {
         ate = true
         const now = Date.now()
         const comboBonus = now - lastEatTime < 3000 ? combo + 1 : 1
         setCombo(comboBonus)
         setLastEatTime(now)
-        
+
         const points = food.points * (1 + (comboBonus - 1) * 0.1)
         const newScore = score + Math.floor(points)
         setScore(newScore)
         onScoreUpdate(newScore)
         setMoves(m => m + 1)
-        addParticles(head.x, head.y)
-        
-        // Handle special food effects
+        setFlashEffect(true)
+        setTimeout(() => setFlashEffect(false), 150)
+
+        // Special food effects
         if (food.type === "speed") {
           setSpeedBoost(true)
-          setSpeed(s => Math.max(50, s - 30))
+          setSpeed(s => Math.max(60, s - 30))
           setTimeout(() => {
             setSpeedBoost(false)
             setSpeed(INITIAL_SPEED - Math.floor(score / 100) * SPEED_INCREASE)
@@ -188,23 +181,23 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
             setSpeed(INITIAL_SPEED - Math.floor(score / 100) * SPEED_INCREASE)
           }, 5000)
         }
-        
+
         setFood(generateFood())
         spawnBonusFood()
-        
-        // Increase speed
+
         if (newScore % 100 === 0 && speed > 80) {
           setSpeed(s => Math.max(80, s - SPEED_INCREASE))
         }
       }
 
-      // Check bonus food collision
+      // Bonus food collision
       if (bonusFood && head.x === bonusFood.x && head.y === bonusFood.y) {
         ateBonus = true
         const newScore = score + bonusFood.points
         setScore(newScore)
         onScoreUpdate(newScore)
-        addParticles(head.x, head.y)
+        setFlashEffect(true)
+        setTimeout(() => setFlashEffect(false), 150)
         setBonusFood(null)
       }
 
@@ -214,25 +207,38 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
 
       return newSnake
     })
-  }, [isActive, isPaused, gameOver, food, bonusFood, score, moves, combo, lastEatTime, speed, generateFood, spawnBonusFood, addParticles, onGameEnd, onScoreUpdate])
+  }, [isActive, isPaused, gameOver, food, bonusFood, score, moves, combo, lastEatTime, speed, generateFood, spawnBonusFood, onGameEnd, onScoreUpdate])
 
-  // Game loop
+  // Game loop using requestAnimationFrame for smooth animation
   useEffect(() => {
     if (!isActive || isPaused || gameOver) {
-      if (gameLoopRef.current) clearInterval(gameLoopRef.current)
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current)
+        gameLoopRef.current = null
+      }
       return
     }
 
-    gameLoopRef.current = setInterval(moveSnake, speed)
+    const gameLoop = (timestamp: number) => {
+      if (timestamp - lastUpdateRef.current >= speed) {
+        moveSnake()
+        lastUpdateRef.current = timestamp
+      }
+      gameLoopRef.current = requestAnimationFrame(gameLoop)
+    }
+
+    gameLoopRef.current = requestAnimationFrame(gameLoop)
 
     return () => {
-      if (gameLoopRef.current) clearInterval(gameLoopRef.current)
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current)
+      }
     }
   }, [isActive, isPaused, gameOver, speed, moveSnake])
 
   // Bonus food expiration
   useEffect(() => {
-    if (bonusFood && bonusFood.expireAt) {
+    if (bonusFood?.expireAt) {
       const timeout = bonusFood.expireAt - Date.now()
       if (timeout <= 0) {
         setBonusFood(null)
@@ -243,65 +249,144 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
     }
   }, [bonusFood])
 
+  // Queue direction change
+  const queueDirection = useCallback((newDir: Direction) => {
+    const opposites: Record<Direction, Direction> = {
+      UP: "DOWN", DOWN: "UP", LEFT: "RIGHT", RIGHT: "LEFT"
+    }
+
+    const lastDir = directionQueueRef.current.length > 0
+      ? directionQueueRef.current[directionQueueRef.current.length - 1]
+      : directionRef.current
+
+    if (newDir !== opposites[lastDir] && newDir !== lastDir) {
+      directionQueueRef.current.push(newDir)
+      // Keep queue short
+      if (directionQueueRef.current.length > 2) {
+        directionQueueRef.current.shift()
+      }
+    }
+  }, [])
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isActive || gameOver) return
 
-      switch (e.key) {
-        case "ArrowUp":
-        case "w":
-        case "W":
-          e.preventDefault()
-          if (directionRef.current !== "DOWN") {
-            setDirection("UP")
-            directionRef.current = "UP"
-          }
-          break
-        case "ArrowDown":
-        case "s":
-        case "S":
-          e.preventDefault()
-          if (directionRef.current !== "UP") {
-            setDirection("DOWN")
-            directionRef.current = "DOWN"
-          }
-          break
-        case "ArrowLeft":
-        case "a":
-        case "A":
-          e.preventDefault()
-          if (directionRef.current !== "RIGHT") {
-            setDirection("LEFT")
-            directionRef.current = "LEFT"
-          }
-          break
-        case "ArrowRight":
-        case "d":
-        case "D":
-          e.preventDefault()
-          if (directionRef.current !== "LEFT") {
-            setDirection("RIGHT")
-            directionRef.current = "RIGHT"
-          }
-          break
-        case "p":
-        case "P":
-        case " ":
-          e.preventDefault()
-          setIsPaused(p => !p)
-          break
+      const keyMap: Record<string, Direction> = {
+        ArrowUp: "UP", w: "UP", W: "UP",
+        ArrowDown: "DOWN", s: "DOWN", S: "DOWN",
+        ArrowLeft: "LEFT", a: "LEFT", A: "LEFT",
+        ArrowRight: "RIGHT", d: "RIGHT", D: "RIGHT",
+      }
+
+      if (keyMap[e.key]) {
+        e.preventDefault()
+        queueDirection(keyMap[e.key])
+      } else if (e.key === "p" || e.key === "P" || e.key === " ") {
+        e.preventDefault()
+        setIsPaused(p => !p)
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isActive, gameOver])
+  }, [isActive, gameOver, queueDirection])
+
+  // Touch controls with better swipe detection
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
+  const lastSwipeRef = useRef<number>(0)
+
+  useEffect(() => {
+    const board = boardRef.current
+    if (!board) return
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (!isActive || gameOver) return
+      e.preventDefault()
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+        time: Date.now()
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isActive || gameOver || !touchStartRef.current) return
+      e.preventDefault()
+
+      const touch = e.touches[0]
+      const dx = touch.clientX - touchStartRef.current.x
+      const dy = touch.clientY - touchStartRef.current.y
+      const now = Date.now()
+
+      // Throttle to prevent too many direction changes
+      if (now - lastSwipeRef.current < 100) return
+
+      const minSwipe = 30
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > minSwipe) {
+          queueDirection("RIGHT")
+          touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: now }
+          lastSwipeRef.current = now
+        } else if (dx < -minSwipe) {
+          queueDirection("LEFT")
+          touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: now }
+          lastSwipeRef.current = now
+        }
+      } else {
+        if (dy > minSwipe) {
+          queueDirection("DOWN")
+          touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: now }
+          lastSwipeRef.current = now
+        } else if (dy < -minSwipe) {
+          queueDirection("UP")
+          touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: now }
+          lastSwipeRef.current = now
+        }
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isActive || gameOver || !touchStartRef.current) return
+
+      const touch = e.changedTouches[0]
+      const dx = touch.clientX - touchStartRef.current.x
+      const dy = touch.clientY - touchStartRef.current.y
+      const dt = Date.now() - touchStartRef.current.time
+      const minSwipe = 25
+
+      // Quick swipe at end
+      if (dt < 300) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          if (dx > minSwipe) queueDirection("RIGHT")
+          else if (dx < -minSwipe) queueDirection("LEFT")
+        } else {
+          if (dy > minSwipe) queueDirection("DOWN")
+          else if (dy < -minSwipe) queueDirection("UP")
+        }
+      }
+
+      touchStartRef.current = null
+    }
+
+    board.addEventListener("touchstart", handleTouchStart, { passive: false })
+    board.addEventListener("touchmove", handleTouchMove, { passive: false })
+    board.addEventListener("touchend", handleTouchEnd, { passive: true })
+
+    return () => {
+      board.removeEventListener("touchstart", handleTouchStart)
+      board.removeEventListener("touchmove", handleTouchMove)
+      board.removeEventListener("touchend", handleTouchEnd)
+    }
+  }, [isActive, gameOver, queueDirection])
 
   const resetGame = () => {
     setSnake([{ x: 10, y: 10 }])
     setDirection("RIGHT")
     directionRef.current = "RIGHT"
+    directionQueueRef.current = []
     setFood(generateFood())
     setBonusFood(null)
     setScore(0)
@@ -316,75 +401,86 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
 
   const handleDirection = (dir: Direction) => {
     if (gameOver || isPaused) return
-    const opposites: Record<Direction, Direction> = {
-      UP: "DOWN", DOWN: "UP", LEFT: "RIGHT", RIGHT: "LEFT"
-    }
-    if (directionRef.current !== opposites[dir]) {
-      setDirection(dir)
-      directionRef.current = dir
-    }
+    queueDirection(dir)
   }
 
+  const boardWidth = BOARD_SIZE * CELL_SIZE
+  const boardHeight = BOARD_SIZE * CELL_SIZE
+
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Board */}
-      <div className="relative bg-gray-900 rounded-lg p-2 border-2 border-gray-700">
-        <div 
-          className="grid gap-0 relative"
-          style={{ 
-            gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
-            gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`
-          }}
+      <div
+        ref={boardRef}
+        className="relative rounded-lg p-2 border-2 border-gray-700 touch-none select-none overflow-hidden"
+        style={{
+          background: flashEffect ? "rgba(34, 197, 94, 0.2)" : "rgb(17, 24, 39)",
+          transition: "background 100ms ease"
+        }}
+      >
+        <svg
+          width={boardWidth}
+          height={boardHeight}
+          viewBox={`0 0 ${boardWidth} ${boardHeight}`}
+          className="block"
         >
-          {/* Board grid */}
-          {Array.from({ length: BOARD_SIZE * BOARD_SIZE }).map((_, i) => {
-            const x = i % BOARD_SIZE
-            const y = Math.floor(i / BOARD_SIZE)
-            const isSnake = snake.some(s => s.x === x && s.y === y)
-            const isHead = snake[0].x === x && snake[0].y === y
-            const isFood = food.x === x && food.y === y
-            const isBonusFood = bonusFood?.x === x && bonusFood?.y === y
-            
+          {/* Grid */}
+          <defs>
+            <pattern id="grid" width={CELL_SIZE} height={CELL_SIZE} patternUnits="userSpaceOnUse">
+              <rect width={CELL_SIZE} height={CELL_SIZE} fill="transparent" stroke="rgba(55,65,81,0.5)" strokeWidth="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+
+          {/* Snake body */}
+          {snake.map((segment, i) => {
+            const isHead = i === 0
+            const opacity = 1 - (i / snake.length) * 0.4
             return (
-              <div
+              <rect
                 key={i}
-                className={`
-                  transition-all duration-75
-                  ${isHead ? "bg-emerald-400 rounded-md shadow-lg shadow-emerald-500/50" : ""}
-                  ${isSnake && !isHead ? "bg-emerald-500 rounded-sm" : ""}
-                  ${isFood ? `rounded-full animate-pulse` : ""}
-                  ${isBonusFood ? "rounded-full animate-bounce" : ""}
-                  ${!isSnake && !isFood && !isBonusFood ? "bg-gray-800/50" : ""}
-                `}
+                x={segment.x * CELL_SIZE + 1}
+                y={segment.y * CELL_SIZE + 1}
+                width={CELL_SIZE - 2}
+                height={CELL_SIZE - 2}
+                rx={isHead ? 4 : 2}
+                fill={isHead ? "#34d399" : "#10b981"}
+                opacity={opacity}
                 style={{
-                  width: CELL_SIZE,
-                  height: CELL_SIZE,
-                  backgroundColor: isFood 
-                    ? FOOD_TYPES[food.type].color 
-                    : isBonusFood 
-                      ? "#ffd700" 
-                      : undefined,
-                  boxShadow: isFood || isBonusFood 
-                    ? `0 0 10px ${isFood ? FOOD_TYPES[food.type].color : "#ffd700"}` 
-                    : undefined
+                  filter: isHead ? "drop-shadow(0 0 4px rgba(52, 211, 153, 0.6))" : undefined
                 }}
               />
             )
           })}
-          
-          {/* Particles */}
-          {particles.map(p => (
-            <div
-              key={p.id}
-              className="absolute w-2 h-2 rounded-full bg-yellow-400 animate-ping"
+
+          {/* Food */}
+          <circle
+            cx={food.x * CELL_SIZE + CELL_SIZE / 2}
+            cy={food.y * CELL_SIZE + CELL_SIZE / 2}
+            r={CELL_SIZE / 2 - 2}
+            fill={FOOD_TYPES[food.type].color}
+            style={{
+              filter: `drop-shadow(0 0 6px ${FOOD_TYPES[food.type].color})`
+            }}
+          >
+            <animate attributeName="r" values={`${CELL_SIZE / 2 - 3};${CELL_SIZE / 2 - 1};${CELL_SIZE / 2 - 3}`} dur="0.8s" repeatCount="indefinite" />
+          </circle>
+
+          {/* Bonus food */}
+          {bonusFood && (
+            <circle
+              cx={bonusFood.x * CELL_SIZE + CELL_SIZE / 2}
+              cy={bonusFood.y * CELL_SIZE + CELL_SIZE / 2}
+              r={CELL_SIZE / 2 - 1}
+              fill="#ffd700"
               style={{
-                left: p.x,
-                top: p.y,
-                transform: "translate(-50%, -50%)"
+                filter: "drop-shadow(0 0 8px #ffd700)"
               }}
-            />
-          ))}
-        </div>
+            >
+              <animate attributeName="opacity" values="1;0.6;1" dur="0.5s" repeatCount="indefinite" />
+            </circle>
+          )}
+        </svg>
 
         {/* Pause Overlay */}
         {isPaused && !gameOver && (
@@ -392,7 +488,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
             <div className="text-center">
               <Pause className="h-12 w-12 text-white mx-auto mb-2" />
               <p className="text-white font-bold">PAUSED</p>
-              <p className="text-gray-400 text-sm">Press P to resume</p>
+              <p className="text-gray-400 text-sm">Tap to resume</p>
             </div>
           </div>
         )}
@@ -446,76 +542,66 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps
           <p className="text-gray-400 text-xs mb-3 font-medium text-center">Controls</p>
           <div className="grid grid-cols-3 gap-1 w-fit mx-auto">
             <div />
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("UP")}
             >
               <ArrowUp className="h-4 w-4" />
             </Button>
             <div />
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("LEFT")}
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 active:scale-95"
               onClick={() => setIsPaused(p => !p)}
             >
               {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("RIGHT")}
             >
               <ArrowRight className="h-4 w-4" />
             </Button>
             <div />
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("DOWN")}
             >
               <ArrowDown className="h-4 w-4" />
             </Button>
             <div />
           </div>
+          <p className="text-gray-500 text-xs mt-2 text-center">Swipe on board to move</p>
         </Card>
 
         {/* Food Legend */}
         <Card className="p-3 bg-gray-900 border-gray-700">
           <p className="text-gray-400 text-xs mb-2 font-medium">Food Types</p>
           <div className="space-y-1.5 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500" />
-              <span className="text-gray-300">Normal +10</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="text-gray-300">Bonus +25</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-yellow-500" />
-              <span className="text-gray-300">Golden +50</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500" />
-              <span className="text-gray-300">Speed +15</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-purple-500" />
-              <span className="text-gray-300">Slow +15</span>
-            </div>
+            {Object.entries(FOOD_TYPES).map(([type, config]) => (
+              <div key={type} className="flex items-center gap-2">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: config.color }}
+                />
+                <span className="text-gray-300 capitalize">{type} +{config.points}</span>
+              </div>
+            ))}
           </div>
         </Card>
       </div>

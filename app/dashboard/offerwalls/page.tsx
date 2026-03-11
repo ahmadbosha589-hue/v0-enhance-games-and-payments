@@ -132,6 +132,10 @@ async function OfferwallProviders({ userId }: { userId: string }) {
       "offerwall-me": `https://offerwall.me/offerwall/YOUR_APP_ID?user_id=${userId}`,
       bicotasks: `https://bicotasks.com/offerwall/YOUR_APP_ID?user_id=${userId}`,
       adscend: `https://asmwall.com/YOUR_APP_ID?userId=${userId}`,
+      bitlabs: `https://api.bitlabs.ai/v1/offers/${userId}?token=YOUR_APP_ID`,
+      "ayet-studios": `https://www.ayetstudios.com/offers/web_offerwall/YOUR_APP_ID?external_identifier=${userId}`,
+      "hang-my-ads": `https://www.hangmyads.com/offerwall/YOUR_APP_ID?user_id=${userId}`,
+      notik: `https://notik.me/web/YOUR_APP_ID?userId=${userId}`,
     }
     return urls[slug] || "#"
   }
