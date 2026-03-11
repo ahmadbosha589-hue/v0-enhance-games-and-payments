@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Puzzle, RefreshCw, CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { RefreshCw, CheckCircle, XCircle, Loader2, GripVertical } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface SliderPuzzleChallengeProps {
@@ -20,34 +20,54 @@ export interface SliderBehaviorData {
   isHumanLike: boolean
 }
 
-const PUZZLE_WIDTH = 280
-const SLIDER_SIZE = 44
-const TARGET_TOLERANCE = 12
+const PUZZLE_WIDTH = 300
+const PUZZLE_HEIGHT = 160
+const PIECE_SIZE = 50
+const TARGET_TOLERANCE = 8
 const MAX_ATTEMPTS = 3
 
+// Background patterns for variety
+const PATTERNS = [
+  "from-blue-500/20 via-purple-500/20 to-pink-500/20",
+  "from-emerald-500/20 via-teal-500/20 to-cyan-500/20",
+  "from-orange-500/20 via-amber-500/20 to-yellow-500/20",
+  "from-rose-500/20 via-pink-500/20 to-fuchsia-500/20",
+  "from-indigo-500/20 via-blue-500/20 to-sky-500/20",
+]
+
 export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) {
-  const [targetPosition, setTargetPosition] = useState(0)
+  const [targetX, setTargetX] = useState(0)
+  const [targetY, setTargetY] = useState(0)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [status, setStatus] = useState<"pending" | "verifying" | "correct" | "incorrect">("pending")
   const [attempts, setAttempts] = useState(0)
+  const [pattern, setPattern] = useState(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const sliderRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const startXRef = useRef(0)
   const startTimeRef = useRef(0)
   const movementsRef = useRef<{ x: number; y: number; t: number }[]>([])
   const offsetRef = useRef(0)
 
-  // Generate random target position
+  // Generate random puzzle
   const generatePuzzle = useCallback(() => {
-    const maxPos = PUZZLE_WIDTH - SLIDER_SIZE - 50
-    const minPos = 80
-    const newTarget = Math.floor(Math.random() * (maxPos - minPos)) + minPos
-    setTargetPosition(newTarget)
+    // Random target position on X axis (where the cutout will be)
+    const minX = 100
+    const maxX = PUZZLE_WIDTH - PIECE_SIZE - 30
+    const newTargetX = Math.floor(Math.random() * (maxX - minX)) + minX
+
+    // Random Y position for vertical variety
+    const minY = 20
+    const maxY = PUZZLE_HEIGHT - PIECE_SIZE - 20
+    const newTargetY = Math.floor(Math.random() * (maxY - minY)) + minY
+
+    setTargetX(newTargetX)
+    setTargetY(newTargetY)
     setSliderPosition(0)
     setStatus("pending")
+    setPattern(Math.floor(Math.random() * PATTERNS.length))
     movementsRef.current = []
   }, [])
 
@@ -74,8 +94,7 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
     const trackRect = trackRef.current?.getBoundingClientRect()
 
     if (trackRect) {
-      // Calculate offset from slider center
-      offsetRef.current = clientX - trackRect.left - sliderPosition - SLIDER_SIZE / 2
+      offsetRef.current = clientX - trackRect.left - sliderPosition - 24
     }
 
     startXRef.current = clientX
@@ -94,11 +113,8 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
 
     if (!trackRect) return
 
-    // Calculate new position relative to track
-    let newPosition = clientX - trackRect.left - SLIDER_SIZE / 2 - offsetRef.current
-
-    // Clamp position
-    const maxSlide = PUZZLE_WIDTH - SLIDER_SIZE
+    let newPosition = clientX - trackRect.left - 24 - offsetRef.current
+    const maxSlide = PUZZLE_WIDTH - PIECE_SIZE
     newPosition = Math.max(0, Math.min(maxSlide, newPosition))
 
     // Record movement
@@ -117,21 +133,16 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
     if (!isDragging || status !== "pending") return
     setIsDragging(false)
 
-    // Don't verify if slider wasn't moved much
-    if (sliderPosition < 20) {
-      return
-    }
+    if (sliderPosition < 15) return
 
     setStatus("verifying")
 
     const duration = Date.now() - startTimeRef.current
     const movements = movementsRef.current
-
-    // Simple human check - relaxed for all devices
     const isHumanLike = movements.length >= 2 && duration >= 80
 
     setTimeout(() => {
-      const isCorrect = Math.abs(sliderPosition - targetPosition) <= TARGET_TOLERANCE
+      const isCorrect = Math.abs(sliderPosition - targetX) <= TARGET_TOLERANCE
 
       const behaviorData: SliderBehaviorData = {
         startX: 0,
@@ -145,7 +156,7 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
 
       if (isCorrect) {
         setStatus("correct")
-        setTimeout(() => onVerify(true, behaviorData), 500)
+        setTimeout(() => onVerify(true, behaviorData), 600)
       } else {
         const newAttempts = attempts + 1
         setAttempts(newAttempts)
@@ -154,32 +165,22 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
         if (newAttempts >= MAX_ATTEMPTS) {
           setTimeout(() => onVerify(false, behaviorData), 600)
         } else {
-          setTimeout(() => {
-            generatePuzzle()
-          }, 1000)
+          setTimeout(() => generatePuzzle(), 1200)
         }
       }
-    }, 300)
-  }, [isDragging, status, sliderPosition, targetPosition, attempts, onVerify, generatePuzzle])
+    }, 400)
+  }, [isDragging, status, sliderPosition, targetX, attempts, onVerify, generatePuzzle])
 
-  // Add global event listeners for drag
+  // Global event listeners
   useEffect(() => {
     if (!isDragging) return
 
-    const handleMove = (e: MouseEvent | TouchEvent) => {
-      handleDragMove(e)
-    }
+    const handleMove = (e: MouseEvent | TouchEvent) => handleDragMove(e)
+    const handleEnd = () => handleDragEnd()
 
-    const handleEnd = () => {
-      handleDragEnd()
-    }
-
-    // Mouse events
     document.addEventListener("mousemove", handleMove, { passive: false })
     document.addEventListener("mouseup", handleEnd)
     document.addEventListener("mouseleave", handleEnd)
-
-    // Touch events
     document.addEventListener("touchmove", handleMove, { passive: false })
     document.addEventListener("touchend", handleEnd)
     document.addEventListener("touchcancel", handleEnd)
@@ -194,75 +195,196 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
     }
   }, [isDragging, handleDragMove, handleDragEnd])
 
-  // Calculate match percentage for visual feedback
-  const distance = Math.abs(sliderPosition - targetPosition)
-  const isClose = distance < TARGET_TOLERANCE * 2
+  // Visual feedback calculations
+  const distance = Math.abs(sliderPosition - targetX)
+  const isClose = distance < TARGET_TOLERANCE * 3
   const isVeryClose = distance < TARGET_TOLERANCE
 
+  // Puzzle piece SVG path for the notch
+  const puzzlePiecePath = `
+    M 0 10
+    L 0 0
+    L ${PIECE_SIZE - 10} 0
+    L ${PIECE_SIZE - 10} 5
+    C ${PIECE_SIZE - 10} 5, ${PIECE_SIZE} 5, ${PIECE_SIZE} 15
+    C ${PIECE_SIZE} 25, ${PIECE_SIZE - 10} 25, ${PIECE_SIZE - 10} 25
+    L ${PIECE_SIZE - 10} ${PIECE_SIZE}
+    L 0 ${PIECE_SIZE}
+    L 0 35
+    C 0 35, 10 35, 10 25
+    C 10 15, 0 15, 0 15
+    Z
+  `
+
   return (
-    <Card className="w-full max-w-sm p-5 space-y-4">
+    <Card className="w-full max-w-[340px] p-4 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Puzzle className="h-5 w-5 text-primary" />
-          <span className="font-semibold">Slide to Verify</span>
+          <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
+            <svg className="h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.315 8.685a.98.98 0 0 1 .837-.276c.47.07.802.48.968.925a2.501 2.501 0 1 0 3.214-3.214c-.446-.166-.855-.497-.925-.968a.979.979 0 0 1 .276-.837l1.61-1.61a2.404 2.404 0 0 1 1.705-.707c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z" />
+            </svg>
+          </div>
+          <span className="font-semibold text-sm">Complete the Puzzle</span>
         </div>
         {status === "pending" && (
           <Button
             variant="ghost"
             size="icon"
             onClick={generatePuzzle}
-            className="h-8 w-8"
+            className="h-7 w-7"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground text-center">
-        Drag the slider to match the target area
-      </p>
-
-      {/* Puzzle Area */}
+      {/* Puzzle Image Area */}
       <div
         ref={containerRef}
-        className="relative h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/20 overflow-hidden select-none"
-        style={{ width: PUZZLE_WIDTH }}
+        className="relative rounded-lg overflow-hidden select-none border border-border/50"
+        style={{ width: PUZZLE_WIDTH, height: PUZZLE_HEIGHT }}
       >
-        {/* Grid background */}
-        <div className="absolute inset-0 grid grid-cols-7 grid-rows-3 opacity-20">
-          {Array.from({ length: 21 }).map((_, i) => (
-            <div key={i} className="border border-foreground/10" />
-          ))}
+        {/* Background with gradient pattern */}
+        <div className={cn(
+          "absolute inset-0 bg-gradient-to-br",
+          PATTERNS[pattern]
+        )}>
+          {/* Decorative shapes */}
+          <div className="absolute inset-0">
+            <div className="absolute top-4 left-8 w-16 h-16 rounded-full bg-foreground/5" />
+            <div className="absolute bottom-6 right-12 w-20 h-20 rounded-full bg-foreground/5" />
+            <div className="absolute top-1/2 left-1/3 w-12 h-12 rotate-45 bg-foreground/5" />
+            <div className="absolute bottom-4 left-16 w-8 h-8 rounded-full bg-foreground/5" />
+            <div className="absolute top-8 right-20 w-10 h-10 rotate-12 bg-foreground/5" />
+          </div>
+
+          {/* Grid lines for visual interest */}
+          <svg className="absolute inset-0 w-full h-full opacity-10">
+            <defs>
+              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+          </svg>
         </div>
 
-        {/* Target area */}
+        {/* Cutout hole (target area) - where piece should go */}
         <div
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 h-12 w-12 rounded-lg border-2 transition-all duration-200",
-            status === "correct"
-              ? "border-green-500 bg-green-500/40"
-              : status === "incorrect"
-                ? "border-red-500 bg-red-500/40"
-                : isVeryClose && isDragging
-                  ? "border-green-400 bg-green-400/30 scale-105"
-                  : isClose && isDragging
-                    ? "border-yellow-400 bg-yellow-400/20"
-                    : "border-primary/60 bg-primary/20"
+            "absolute transition-all duration-200",
+            status === "correct" && "opacity-0"
           )}
-          style={{ left: targetPosition }}
+          style={{
+            left: targetX,
+            top: targetY,
+            width: PIECE_SIZE,
+            height: PIECE_SIZE,
+          }}
         >
-          <div className="absolute inset-0 flex items-center justify-center">
-            {status === "correct" && <CheckCircle className="h-6 w-6 text-green-500" />}
-            {status === "incorrect" && <XCircle className="h-6 w-6 text-red-500" />}
-            {status === "verifying" && <Loader2 className="h-5 w-5 text-primary animate-spin" />}
-          </div>
+          <svg width={PIECE_SIZE + 10} height={PIECE_SIZE + 10} className="absolute -left-1 -top-1">
+            <defs>
+              <clipPath id="cutout">
+                <path d={puzzlePiecePath} />
+              </clipPath>
+            </defs>
+            <rect
+              x="0"
+              y="0"
+              width={PIECE_SIZE + 10}
+              height={PIECE_SIZE + 10}
+              fill="rgba(0,0,0,0.4)"
+              clipPath="url(#cutout)"
+            />
+            <path
+              d={puzzlePiecePath}
+              fill="none"
+              stroke="rgba(255,255,255,0.3)"
+              strokeWidth="1"
+            />
+          </svg>
+        </div>
+
+        {/* Draggable puzzle piece */}
+        <div
+          className={cn(
+            "absolute transition-transform duration-75",
+            isDragging && "scale-105",
+            status === "correct" && "opacity-100",
+            status === "incorrect" && "opacity-80"
+          )}
+          style={{
+            left: sliderPosition,
+            top: targetY,
+            width: PIECE_SIZE,
+            height: PIECE_SIZE,
+            pointerEvents: "none",
+          }}
+        >
+          <svg width={PIECE_SIZE + 10} height={PIECE_SIZE + 10} className="absolute -left-1 -top-1 drop-shadow-lg">
+            <defs>
+              <clipPath id="piece">
+                <path d={puzzlePiecePath} />
+              </clipPath>
+              <linearGradient id="pieceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.7" />
+              </linearGradient>
+            </defs>
+            <g clipPath="url(#piece)">
+              <rect
+                x="0"
+                y="0"
+                width={PIECE_SIZE + 10}
+                height={PIECE_SIZE + 10}
+                fill="url(#pieceGradient)"
+              />
+              {/* Inner detail */}
+              <rect
+                x="5"
+                y="5"
+                width={PIECE_SIZE - 10}
+                height={PIECE_SIZE - 10}
+                fill="none"
+                stroke="rgba(255,255,255,0.3)"
+                strokeWidth="1"
+                rx="4"
+              />
+            </g>
+            <path
+              d={puzzlePiecePath}
+              fill="none"
+              stroke={isVeryClose ? "hsl(var(--primary))" : "rgba(255,255,255,0.5)"}
+              strokeWidth={isVeryClose ? "2" : "1.5"}
+              className={cn(isVeryClose && "drop-shadow-[0_0_8px_hsl(var(--primary))]")}
+            />
+          </svg>
+
+          {/* Status icon on piece */}
+          {status === "correct" && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <CheckCircle className="h-6 w-6 text-white drop-shadow-lg" />
+            </div>
+          )}
+          {status === "incorrect" && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <XCircle className="h-6 w-6 text-white drop-shadow-lg" />
+            </div>
+          )}
+          {status === "verifying" && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 className="h-5 w-5 text-white animate-spin" />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Slider track */}
+      {/* Slider Track */}
       <div
         ref={trackRef}
-        className="relative h-14 bg-muted rounded-lg overflow-hidden select-none"
+        className="relative h-12 bg-muted rounded-lg overflow-hidden select-none"
         style={{
           width: PUZZLE_WIDTH,
           touchAction: "none"
@@ -271,66 +393,81 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
         {/* Progress fill */}
         <div
           className={cn(
-            "absolute inset-y-0 left-0 transition-all duration-75",
-            isVeryClose && isDragging ? "bg-green-500/30" : "bg-primary/20"
+            "absolute inset-y-0 left-0 transition-colors duration-150 rounded-l-lg",
+            status === "correct"
+              ? "bg-green-500/30"
+              : status === "incorrect"
+                ? "bg-red-500/30"
+                : isVeryClose
+                  ? "bg-green-500/20"
+                  : isClose
+                    ? "bg-yellow-500/20"
+                    : "bg-primary/15"
           )}
-          style={{ width: sliderPosition + SLIDER_SIZE / 2 }}
+          style={{ width: sliderPosition + 24 }}
         />
+
+        {/* Arrow hints */}
+        {status === "pending" && sliderPosition < 10 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-1 text-muted-foreground/60 animate-pulse pl-12">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+              <span className="text-xs font-medium">Slide to fit the piece</span>
+            </div>
+          </div>
+        )}
 
         {/* Slider handle */}
         <div
-          ref={sliderRef}
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 h-11 w-11 rounded-lg",
-            "bg-gradient-to-br from-primary to-primary/70 shadow-lg",
+            "absolute top-1/2 -translate-y-1/2 h-10 w-12 rounded-md",
+            "bg-gradient-to-r from-primary to-primary/80",
             "flex items-center justify-center text-primary-foreground",
-            "cursor-grab active:cursor-grabbing",
-            "transition-transform hover:scale-105",
-            isDragging && "scale-110 shadow-xl ring-2 ring-primary/50",
-            status !== "pending" && "pointer-events-none opacity-70"
+            "cursor-grab active:cursor-grabbing shadow-md",
+            "transition-all duration-100",
+            isDragging && "scale-105 shadow-lg ring-2 ring-primary/40",
+            status === "correct" && "bg-gradient-to-r from-green-500 to-green-600",
+            status === "incorrect" && "bg-gradient-to-r from-red-500 to-red-600",
+            status !== "pending" && "pointer-events-none"
           )}
           style={{
-            left: sliderPosition + 2,
+            left: sliderPosition,
             touchAction: "none",
             userSelect: "none",
-            WebkitUserSelect: "none"
           }}
           onMouseDown={handleDragStart}
           onTouchStart={handleDragStart}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
+          <GripVertical className="h-5 w-5 opacity-80" />
         </div>
-
-        {/* Instructions */}
-        {status === "pending" && sliderPosition < 15 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none pl-14">
-            <span className="text-sm text-muted-foreground font-medium">
-              Slide to complete
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Status */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Attempt {attempts + 1} of {MAX_ATTEMPTS}</span>
-        {status === "correct" && (
-          <span className="text-green-600 font-semibold">Verified!</span>
-        )}
-        {status === "incorrect" && attempts < MAX_ATTEMPTS && (
-          <span className="text-amber-500 font-medium">Try again...</span>
-        )}
-        {status === "incorrect" && attempts >= MAX_ATTEMPTS && (
-          <span className="text-red-500 font-medium">Failed</span>
-        )}
-        {status === "pending" && isDragging && isVeryClose && (
-          <span className="text-green-500 font-medium">Release now!</span>
-        )}
-        {status === "pending" && isDragging && isClose && !isVeryClose && (
-          <span className="text-yellow-500 font-medium">Almost there...</span>
-        )}
+      {/* Status footer */}
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">
+          Attempt {attempts + 1}/{MAX_ATTEMPTS}
+        </span>
+        <div className="h-4">
+          {status === "correct" && (
+            <span className="text-green-600 font-medium flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" /> Verified
+            </span>
+          )}
+          {status === "incorrect" && attempts < MAX_ATTEMPTS && (
+            <span className="text-amber-500 font-medium">Try again</span>
+          )}
+          {status === "incorrect" && attempts >= MAX_ATTEMPTS && (
+            <span className="text-red-500 font-medium">Verification failed</span>
+          )}
+          {status === "pending" && isDragging && isVeryClose && (
+            <span className="text-green-500 font-medium animate-pulse">Release to verify!</span>
+          )}
+          {status === "pending" && isDragging && isClose && !isVeryClose && (
+            <span className="text-yellow-500 font-medium">Getting close...</span>
+          )}
+        </div>
       </div>
     </Card>
   )
