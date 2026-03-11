@@ -8,7 +8,7 @@
 import { headers } from "next/headers"
 import { createAdminClient } from "@/lib/supabase/server"
 import { detectVPN } from "./vpn-detection"
-import { verifyAdblockServerSide, type AdblockFortressResult } from "./server-fortress"
+import { verifyHoneypotResults, type HoneypotVerificationResult } from "./server-fortress"
 import { detectVPNFortress, type VPNFortressResult } from "./vpn-fortress"
 import type { VPNDetectionResult } from "./vpn-detection"
 
@@ -21,7 +21,7 @@ export interface ServerValidationResult {
   vpnFortressResult?: VPNFortressResult
   botScore: number
   adblockDetected: boolean
-  adblockFortressResult?: AdblockFortressResult
+  adblockFortressResult?: HoneypotVerificationResult
   shouldLogout: boolean
   banReason?: string
   confidence: "low" | "medium" | "high" | "absolute"
@@ -660,40 +660,49 @@ export async function validateSecurityServerSide(
   
   // Layer 7: FORTRESS Adblock Server-Side Verification (v4.0)
   // This is the ultimate verification - purely server-side, cannot be bypassed
-  let adblockFortressResult: AdblockFortressResult | undefined
+  let adblockFortressResult: HoneypotVerificationResult | undefined
   let fortressVerified = false
   let serverOnlyDetection = false
   
   try {
-    adblockFortressResult = await verifyAdblockServerSide(userId, {
-      sessionId: payload.fingerprint || `session-${Date.now()}`,
-      clientReportedStatus: "unknown",
-      requestTimestamp: Date.now(),
-    })
-    
-    fortressVerified = true
-    
-    if (adblockFortressResult.isBlocking) {
-      // Server detected blocking that client didn't report
-      serverOnlyDetection = !adblockFortressResult.clientReported
+    // Use honeypot results from client if available
+    if (payload.detectedThreats && payload.detectedThreats.length > 0) {
+      const honeypotResults = payload.detectedThreats
+        .filter(threat => threat.startsWith("hp_") || threat.startsWith("ctrl_"))
+        .map(probeId => ({
+          probeId,
+          loaded: false,
+          timing: 0,
+          responseCode: 0,
+        }))
       
-      // Add fortress-detected flags
-      totalScore += adblockFortressResult.confidence === "absolute" ? 60 : 
-                    adblockFortressResult.confidence === "high" ? 45 : 
-                    adblockFortressResult.confidence === "medium" ? 30 : 15
-      
-      if (adblockFortressResult.blockedProbes.length > 0) {
-        allFlags.push(`fortress_blocked_${adblockFortressResult.blockedProbes.length}_probes`)
-      }
-      
-      adblockFortressResult.detectionMethods.forEach(method => {
-        allFlags.push(`fortress_${method}`)
-      })
-      
-      if (serverOnlyDetection) {
-        allFlags.push("fortress_server_only_detection")
-        // Extra penalty for trying to hide adblock from client
-        totalScore += 25
+      if (honeypotResults.length > 0) {
+        adblockFortressResult = verifyHoneypotResults(honeypotResults)
+        fortressVerified = true
+        
+        if (adblockFortressResult.isAdblockDetected) {
+          // Server detected blocking
+          serverOnlyDetection = true
+          
+          // Add fortress-detected flags based on confidence
+          totalScore += adblockFortressResult.confidence >= 95 ? 60 : 
+                        adblockFortressResult.confidence >= 80 ? 45 : 
+                        adblockFortressResult.confidence >= 60 ? 30 : 15
+          
+          if (adblockFortressResult.blockedProbes.length > 0) {
+            allFlags.push(`fortress_blocked_${adblockFortressResult.blockedProbes.length}_probes`)
+          }
+          
+          adblockFortressResult.methods.forEach(method => {
+            allFlags.push(`fortress_${method}`)
+          })
+          
+          if (serverOnlyDetection) {
+            allFlags.push("fortress_server_only_detection")
+            // Extra penalty for trying to hide adblock from client
+            totalScore += 25
+          }
+        }
       }
     }
   } catch {
