@@ -417,14 +417,12 @@ function validateBehavior(payload: ClientSecurityPayload): { score: number; flag
   
   // Verify behavior score isn't spoofed (should be realistic)
   if (payload.behaviorScore !== undefined) {
-    if (payload.behaviorScore === 100) {
-      // Perfect score is suspicious
-      score += 20
-      flags.push("perfect_behavior_score")
-    } else if (payload.behaviorScore < 0 || payload.behaviorScore > 100) {
-      score += 50
+    // Only flag impossible values - perfect score of 100 CAN happen for legitimate users
+    if (payload.behaviorScore < 0 || payload.behaviorScore > 100) {
+      score += 30 // Reduced from 50 - could be a bug
       flags.push("invalid_behavior_score")
     }
+    // Removed perfect_behavior_score flag - causes too many false positives
   }
   
   // Verify verification wasn't too fast
@@ -469,24 +467,52 @@ function validateBehavior(payload: ClientSecurityPayload): { score: number; flag
   }
   
   // Check for threat detections from client
+  // IMPORTANT: Reduce false positives by requiring multiple strong indicators
   if (payload.detectedThreats && payload.detectedThreats.length > 0) {
-    // The client detected threats - verify they're being reported honestly
-    // A smart bot might not report its own detection, so having detections is actually good
-    // But we still want to act on them
-    payload.detectedThreats.forEach(threat => {
-      if (threat.toLowerCase().includes("webdriver") || 
-          threat.toLowerCase().includes("selenium") ||
-          threat.toLowerCase().includes("automation")) {
-        score += 80
-        flags.push("client_detected_automation")
-      }
-      if (threat.toLowerCase().includes("userscript") ||
-          threat.toLowerCase().includes("tampermonkey") ||
-          threat.toLowerCase().includes("greasemonkey")) {
-        score += 70
-        flags.push("client_detected_userscript")
-      }
-    })
+    const threatLower = payload.detectedThreats.map(t => t.toLowerCase())
+    
+    // Only flag CONFIRMED automation frameworks - not extensions or dev tools
+    const automationThreats = threatLower.filter(threat => 
+      threat.includes("webdriver") || 
+      threat.includes("selenium") ||
+      threat.includes("puppeteer") ||
+      threat.includes("playwright") ||
+      threat.includes("phantomjs")
+    )
+    
+    // Need at least 2 automation indicators OR 1 very strong one to flag
+    if (automationThreats.length >= 2) {
+      score += 60
+      flags.push("multiple_automation_indicators")
+    } else if (automationThreats.some(t => t.includes("webdriver") && t.includes("true"))) {
+      // Only flag if explicitly detected as true, not just presence of property
+      score += 50
+      flags.push("webdriver_confirmed")
+    }
+    
+    // For userscripts - ONLY flag if combined with other suspicious behavior
+    // Many legitimate users have password managers, ad blockers, etc.
+    const userscriptThreats = threatLower.filter(threat =>
+      threat.includes("tampermonkey") ||
+      threat.includes("greasemonkey") ||
+      threat.includes("violentmonkey")
+    )
+    
+    // Only flag userscripts if they're gaming-related or have automation keywords
+    const gamingUserscripts = userscriptThreats.filter(threat =>
+      threat.includes("auto") ||
+      threat.includes("bot") ||
+      threat.includes("cheat") ||
+      threat.includes("hack") ||
+      threat.includes("faucet") ||
+      threat.includes("claim")
+    )
+    
+    if (gamingUserscripts.length > 0) {
+      score += 40 // Reduced from 70
+      flags.push("gaming_userscript_detected")
+    }
+    // Don't penalize generic userscript managers - too many false positives
   }
   
   return { score, flags }
