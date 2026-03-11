@@ -83,6 +83,15 @@ interface WithdrawalRecord {
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
+interface CryptoPrice {
+  symbol: string
+  name: string
+  price: number
+  change24h: number
+  volume24h: string
+  marketCap: string
+}
+
 // Popular coins with icons
 const COIN_ICONS: Record<string, { color: string; bgColor: string }> = {
   BTC: { color: "text-orange-500", bgColor: "bg-orange-500/10" },
@@ -213,8 +222,29 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
 
   const { data: coinsData, isLoading: isLoadingCoins } = useSWR("/api/ccpayment/withdraw?coins=true", fetcher)
   const { data: historyData, mutate: refreshHistory } = useSWR("/api/ccpayment/withdraw", fetcher)
+  
+  // Fetch real crypto prices
+  const { data: pricesData } = useSWR<{ prices: Record<string, CryptoPrice> }>(
+    "/api/crypto/prices",
+    fetcher,
+    { refreshInterval: 60000 }
+  )
 
-  const coins: CoinInfo[] = coinsData?.coins || DEFAULT_COINS
+  // Merge real prices into coins
+  const coins: CoinInfo[] = useMemo(() => {
+    const baseCoins = coinsData?.coins || DEFAULT_COINS
+    return baseCoins.map((coin: CoinInfo) => {
+      const priceData = pricesData?.prices?.[coin.symbol]
+      if (priceData) {
+        return {
+          ...coin,
+          price: priceData.price.toString(),
+          change24h: priceData.change24h,
+        }
+      }
+      return coin
+    })
+  }, [coinsData, pricesData])
   const withdrawals: WithdrawalRecord[] = historyData?.withdrawals || []
 
   const filteredCoins = useMemo(() => {
