@@ -168,16 +168,11 @@ export default function ProfilePage() {
 
       if (profileError) {
         console.error("[ProfilePage] Profile error:", profileError)
-        // Create a default profile if it doesn't exist
-        setProfile({
-          id: authUser.id,
-          balance_satoshis: 0,
-          total_claims: 0,
-          claim_streak: 0,
-          max_claim_streak: 0,
-          referral_count: 0,
-          role: "user",
-        })
+
+        // If profile doesn't exist (PGRST116 = no rows), set error state
+        // The profile should be auto-created by a trigger on auth signup
+        setProfile(null)
+        setError(true)
       } else {
         setProfile(profileData)
       }
