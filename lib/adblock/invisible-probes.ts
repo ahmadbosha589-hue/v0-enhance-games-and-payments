@@ -32,7 +32,7 @@ export async function runBeaconProbe(): Promise<boolean> {
       }
     }
 
-    return blockedCount >= 2 // At least 2 blocked = likely ad blocker
+    return blockedCount >= 3 // At least 3 blocked = likely ad blocker (stricter)
   } catch {
     return false
   }
@@ -81,14 +81,15 @@ export async function runPrefetchProbe(): Promise<boolean> {
 
       function checkComplete() {
         if (completedCount + blockedCount >= prefetchUrls.length) {
-          resolve(blockedCount >= 2)
+          // Require ALL to be blocked for detection (stricter)
+          resolve(blockedCount >= prefetchUrls.length)
         }
       }
 
-      // Timeout fallback
+      // Timeout fallback - don't assume blocking on timeout
       setTimeout(() => {
-        resolve(blockedCount >= 1)
-      }, 2000)
+        resolve(blockedCount >= 2)
+      }, 3000)
     } catch {
       resolve(false)
     }
@@ -150,9 +151,9 @@ export async function runCssBackgroundProbe(): Promise<boolean> {
         style.remove()
         probeContainer.remove()
 
-        // If fewer than 2 loaded, likely blocked
-        resolve(loadedCount < 2)
-      }, 1500)
+        // If NONE loaded, likely blocked (stricter - was < 2)
+        resolve(loadedCount === 0)
+      }, 2000)
     } catch {
       resolve(false)
     }
@@ -208,7 +209,8 @@ export async function runWorkerProbe(): Promise<boolean> {
         worker.terminate()
         URL.revokeObjectURL(workerUrl)
 
-        resolve(blockedCount >= 2)
+        // Require more blocked for detection to reduce FP
+        resolve(blockedCount >= 3)
       }
 
       worker.onerror = () => {
@@ -244,7 +246,7 @@ export async function runIntersectionProbe(): Promise<boolean> {
     try {
       // Create ad-like elements
       const container = document.createElement("div")
-      container.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;overflow:hidden;opacity:0.01;"
+      container.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;overflow:hidden;opacity:0.01;pointer-events:none;"
 
       const adElement = document.createElement("div")
       adElement.className = "ad-banner advertisement sponsored-content"
@@ -252,7 +254,14 @@ export async function runIntersectionProbe(): Promise<boolean> {
       adElement.style.cssText = "width:300px;height:250px;background:#f0f0f0;"
       adElement.setAttribute("data-ad-slot", "test")
 
+      // Also create a control element that should NOT be hidden
+      const controlElement = document.createElement("div")
+      controlElement.className = "content-wrapper main-content"
+      controlElement.id = "main_content_wrapper"
+      controlElement.style.cssText = "width:300px;height:250px;background:#f0f0f0;"
+
       container.appendChild(adElement)
+      container.appendChild(controlElement)
       document.body.appendChild(container)
 
       let wasVisible = false
@@ -276,19 +285,30 @@ export async function runIntersectionProbe(): Promise<boolean> {
       // Wait and check if element was hidden by ad blocker
       setTimeout(() => {
         observer.disconnect()
-        container.remove()
 
         // Check if element was removed or hidden
-        const computedStyle = window.getComputedStyle(adElement)
-        const isHidden =
-          computedStyle.display === "none" ||
-          computedStyle.visibility === "hidden" ||
-          computedStyle.opacity === "0" ||
+        const adComputedStyle = window.getComputedStyle(adElement)
+        const controlComputedStyle = window.getComputedStyle(controlElement)
+
+        const isAdHidden =
+          adComputedStyle.display === "none" ||
+          adComputedStyle.visibility === "hidden" ||
+          adComputedStyle.opacity === "0" ||
           adElement.offsetParent === null ||
           becameHidden
 
-        resolve(isHidden)
-      }, 1500)
+        const isControlHidden =
+          controlComputedStyle.display === "none" ||
+          controlComputedStyle.visibility === "hidden" ||
+          controlComputedStyle.opacity === "0" ||
+          controlElement.offsetParent === null
+
+        container.remove()
+
+        // Only report as blocked if ad is hidden BUT control is visible
+        // This prevents false positives from CSS/layout issues
+        resolve(isAdHidden && !isControlHidden)
+      }, 2000) // Increased timeout
     } catch {
       resolve(false)
     }
@@ -301,6 +321,7 @@ export async function runIntersectionProbe(): Promise<boolean> {
 
 export async function runWebRtcProbe(): Promise<boolean> {
   if (typeof RTCPeerConnection === "undefined") {
+    // WebRTC not supported - NOT a sign of blocking, just browser limitation
     return false
   }
 
@@ -311,25 +332,36 @@ export async function runWebRtcProbe(): Promise<boolean> {
       })
 
       let hasIce = false
+      let candidateCount = 0
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           hasIce = true
+          candidateCount++
         }
       }
 
       pc.createDataChannel("probe")
       pc.createOffer()
         .then((offer) => pc.setLocalDescription(offer))
-        .catch(() => {})
+        .catch(() => {
+          // Offer creation failed - could be privacy setting, not blocking
+          pc.close()
+          resolve(false)
+        })
 
+      // Give more time for ICE candidates to arrive
+      // Network conditions can delay ICE gathering
       setTimeout(() => {
         pc.close()
-        // If no ICE candidates, WebRTC might be blocked
-        resolve(!hasIce)
-      }, 2000)
+        // Only report as blocked if we got ZERO candidates
+        // AND the connection was properly established
+        // This reduces false positives from slow networks
+        resolve(!hasIce && candidateCount === 0)
+      }, 4000) // Increased timeout to reduce false positives
     } catch {
-      resolve(true) // Error likely means blocking
+      // Errors can happen for many reasons - don't assume blocking
+      resolve(false)
     }
   })
 }
@@ -409,7 +441,7 @@ export async function runAllInvisibleProbes(): Promise<InvisibleProbeResult> {
     workerBlocked,
     intersectionHidden,
     webRtcBlocked,
-    overallBlocked: blockedCount >= 3, // At least 3 probes blocked
+    overallBlocked: blockedCount >= 4, // At least 4 probes blocked (stricter to reduce FP)
     confidence,
     probeCount,
     blockedCount,

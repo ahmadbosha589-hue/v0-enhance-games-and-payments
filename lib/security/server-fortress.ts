@@ -101,7 +101,7 @@ interface ChallengeData {
 const challengeStore = new Map<string, ChallengeData>()
 const challengeRateLimit = new Map<string, { count: number; resetAt: number }>()
 
-export function generateChallenge(userId: string, fingerprint?: string): { 
+export function generateChallenge(userId: string, fingerprint?: string): {
   challengeId: string
   nonce: string
   timestamp: number
@@ -111,7 +111,7 @@ export function generateChallenge(userId: string, fingerprint?: string): {
   const rateKey = userId
   const now = Date.now()
   const rateData = challengeRateLimit.get(rateKey)
-  
+
   if (rateData) {
     if (now < rateData.resetAt) {
       if (rateData.count >= 10) {
@@ -128,69 +128,69 @@ export function generateChallenge(userId: string, fingerprint?: string): {
   const challengeId = crypto.randomUUID()
   const nonce = crypto.randomBytes(32).toString("hex")
   const timestamp = now
-  
-  challengeStore.set(challengeId, { 
-    userId, 
-    timestamp, 
-    nonce, 
+
+  challengeStore.set(challengeId, {
+    userId,
+    timestamp,
+    nonce,
     fingerprint: fingerprint || "",
     difficulty: POW_DIFFICULTY
   })
-  
+
   // Aggressive cleanup
   for (const [id, challenge] of challengeStore.entries()) {
     if (now - challenge.timestamp > CHALLENGE_TTL_MS * 1.5) {
       challengeStore.delete(id)
     }
   }
-  
+
   return { challengeId, nonce, timestamp, difficulty: POW_DIFFICULTY }
 }
 
 export function verifyChallenge(
-  challengeId: string, 
-  clientNonce: string, 
-  proof: string, 
+  challengeId: string,
+  clientNonce: string,
+  proof: string,
   userId: string,
   clientFingerprint?: string
 ): { valid: boolean; reason: string } {
   const challenge = challengeStore.get(challengeId)
-  
+
   if (!challenge) {
     return { valid: false, reason: "challenge_not_found" }
   }
-  
+
   // Immediately delete - one-time use
   challengeStore.delete(challengeId)
-  
+
   if (challenge.userId !== userId) {
     return { valid: false, reason: "user_mismatch" }
   }
-  
+
   if (Date.now() - challenge.timestamp > CHALLENGE_TTL_MS) {
     return { valid: false, reason: "challenge_expired" }
   }
-  
+
   // Optional fingerprint binding
   if (challenge.fingerprint && clientFingerprint && challenge.fingerprint !== clientFingerprint) {
     return { valid: false, reason: "fingerprint_mismatch" }
   }
-  
+
   // Verify proof-of-work: Hash must start with N zeros
   const proofData = `${challengeId}:${challenge.nonce}:${clientNonce}:${userId}`
   const hash = crypto.createHash("sha256").update(proofData + proof).digest("hex")
-  
+
   const requiredPrefix = "0".repeat(challenge.difficulty)
   if (!hash.startsWith(requiredPrefix)) {
     return { valid: false, reason: "invalid_pow" }
   }
-  
+
   // Verify HMAC signature
   const expectedProof = crypto
     .createHmac("sha512", CHALLENGE_SECRET)
     .update(`${challengeId}:${challenge.nonce}:${clientNonce}:${userId}:${hash.slice(0, 16)}`)
     .digest("hex")
-  
+
   try {
     if (!crypto.timingSafeEqual(Buffer.from(proof, "hex"), Buffer.from(expectedProof, "hex"))) {
       return { valid: false, reason: "invalid_signature" }
@@ -198,7 +198,7 @@ export function verifyChallenge(
   } catch {
     return { valid: false, reason: "invalid_proof_format" }
   }
-  
+
   return { valid: true, reason: "valid" }
 }
 
@@ -236,7 +236,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   { id: "hp_rubicon", url: "/api/ads/rubicon.js", type: "ad", weight: 93, expectedTiming: { min: 10, max: 500 }, requiredForDetection: false },
   { id: "hp_appnexus", url: "/api/ads/appnexus.js", type: "ad", weight: 93, expectedTiming: { min: 10, max: 500 }, requiredForDetection: false },
   { id: "hp_openx", url: "/api/ads/openx.js", type: "ad", weight: 92, expectedTiming: { min: 10, max: 500 }, requiredForDetection: false },
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // TIER 2: TRACKING PIXEL HONEYPOTS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -246,7 +246,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   { id: "hp_impression", url: "/api/ads/impression.gif", type: "tracking", weight: 88, expectedTiming: { min: 5, max: 300 }, requiredForDetection: false },
   { id: "hp_tracker", url: "/api/ads/tracker.js", type: "tracking", weight: 87, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_view", url: "/api/ads/view.gif", type: "tracking", weight: 85, expectedTiming: { min: 5, max: 300 }, requiredForDetection: false },
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // TIER 3: ANALYTICS HONEYPOTS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -257,7 +257,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   { id: "hp_hotjar", url: "/api/ads/hotjar.js", type: "analytics", weight: 78, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_mixpanel", url: "/api/ads/mixpanel.js", type: "analytics", weight: 76, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_segment", url: "/api/ads/segment.js", type: "analytics", weight: 75, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // TIER 4: SOCIAL/PIXEL HONEYPOTS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -265,7 +265,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   { id: "hp_twitter_pixel", url: "/api/ads/twitter-pixel.js", type: "social", weight: 82, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_linkedin", url: "/api/ads/linkedin-insight.js", type: "social", weight: 80, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_tiktok", url: "/api/ads/tiktok-pixel.js", type: "social", weight: 78, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // TIER 5: NETWORK LEVEL DETECTION
   // ═══════════════════════════════════════════════════════════════════════════
@@ -273,7 +273,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   { id: "hp_ad_image", url: "/api/ads/ad-image.png", type: "network", weight: 90, expectedTiming: { min: 5, max: 300 }, requiredForDetection: false, dynamicPath: true },
   { id: "hp_sponsored", url: "/api/ads/sponsored.js", type: "network", weight: 88, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false, dynamicPath: true },
   { id: "hp_promo", url: "/api/ads/promo-banner.jpg", type: "network", weight: 85, expectedTiming: { min: 5, max: 300 }, requiredForDetection: false, dynamicPath: true },
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // v6.0 TIER 6: ADVANCED HONEYPOTS (MAXIMUM DETECTION)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -295,7 +295,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   { id: "hp_preroll", url: "/api/ads/preroll.js", type: "ad", weight: 84, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_midroll", url: "/api/ads/midroll.js", type: "ad", weight: 82, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_video_ad", url: "/api/ads/video-ad.js", type: "ad", weight: 85, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
-  
+
   // v6.0 Additional tracking/analytics probes
   { id: "hp_snapchat", url: "/api/ads/snapchat-pixel.js", type: "social", weight: 75, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_pinterest", url: "/api/ads/pinterest-tag.js", type: "social", weight: 74, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
@@ -305,7 +305,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   { id: "hp_triplelift", url: "/api/ads/triplelift.js", type: "ad", weight: 87, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_teads", url: "/api/ads/teads.js", type: "ad", weight: 86, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_33across", url: "/api/ads/33across.js", type: "ad", weight: 85, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // CONTROL PROBES - MUST ALWAYS LOAD (False positive detection)
   // CRITICAL: If any control fails, detection is ABORTED to prevent FP
@@ -322,7 +322,7 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
 export function getHoneypotProbes(sessionId?: string) {
   // Generate dynamic paths for probes that support it
   const hash = sessionId ? crypto.createHash("md5").update(sessionId).digest("hex").slice(0, 8) : ""
-  
+
   return HONEYPOT_PROBES.map(probe => {
     if (probe.dynamicPath && hash) {
       return {
@@ -351,7 +351,7 @@ export function verifyHoneypotResults(
   const blockedProbes: string[] = []
   const methods: string[] = []
   const categoriesBlocked = new Set<string>()
-  
+
   let adProbesTotal = 0
   let adProbesBlocked = 0
   let requiredProbesBlocked = 0
@@ -359,11 +359,11 @@ export function verifyHoneypotResults(
   let totalWeight = 0
   let blockedWeight = 0
   let timingAnomaly = false
-  
+
   for (const result of results) {
     const probe = HONEYPOT_PROBES.find(p => p.id === result.probeId)
     if (!probe) continue
-    
+
     if (probe.type === "control") {
       // Control probes MUST always load - if not, abort detection
       if (!result.loaded) {
@@ -377,14 +377,14 @@ export function verifyHoneypotResults(
     } else {
       adProbesTotal++
       totalWeight += probe.weight
-      
+
       if (!result.loaded) {
         adProbesBlocked++
         blockedWeight += probe.weight
         blockedProbes.push(result.probeId)
         categoriesBlocked.add(probe.type)
         methods.push(`honeypot_${probe.type}_blocked`)
-        
+
         if (probe.requiredForDetection) {
           requiredProbesBlocked++
         }
@@ -403,11 +403,11 @@ export function verifyHoneypotResults(
       }
     }
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // v6.0 ENHANCED FALSE POSITIVE PROTECTION (AN ATOM BEFORE FP)
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   // CRITICAL: If ANY control probe is blocked, DO NOT flag as adblock
   // This is the PRIMARY mechanism for zero false positives
   // Controls should NEVER be blocked by any legitimate adblocker
@@ -423,44 +423,44 @@ export function verifyHoneypotResults(
       weightedScore: 0,
     }
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // v6.0 ULTRA-STRICT DETECTION LOGIC (MAXIMUM POWER | ZERO FP)
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const blockRatio = adProbesTotal > 0 ? adProbesBlocked / adProbesTotal : 0
   const weightedRatio = totalWeight > 0 ? blockedWeight / totalWeight : 0
-  
+
   // STRICT DETECTION REQUIREMENTS (v6.0 enhanced):
   // 1. At least 4 ad probes blocked (increased from 3 for more confidence)
   // 2. At least 3 REQUIRED probes blocked (definite adblock targets)
   // 3. Block ratio >= 35% (stricter threshold)
   // 4. Multiple categories blocked (3+ for strong detection)
   // 5. Weighted ratio >= 25% (high-value targets blocked)
-  const hasStrongEvidence = 
-    adProbesBlocked >= 4 && 
-    requiredProbesBlocked >= 3 && 
+  const hasStrongEvidence =
+    adProbesBlocked >= 4 &&
+    requiredProbesBlocked >= 3 &&
     blockRatio >= 0.35 &&
     categoriesBlocked.size >= 3 &&
     weightedRatio >= 0.25
-  
+
   // MODERATE detection - still requires multiple confirmations
-  const hasModerateEvidence = 
-    adProbesBlocked >= 5 && 
-    requiredProbesBlocked >= 2 && 
+  const hasModerateEvidence =
+    adProbesBlocked >= 5 &&
+    requiredProbesBlocked >= 2 &&
     blockRatio >= 0.30 &&
     categoriesBlocked.size >= 2
-  
+
   // VERY STRONG detection - overwhelming evidence
-  const hasOverwhelmingEvidence = 
-    adProbesBlocked >= 8 && 
-    requiredProbesBlocked >= 4 && 
+  const hasOverwhelmingEvidence =
+    adProbesBlocked >= 8 &&
+    requiredProbesBlocked >= 4 &&
     blockRatio >= 0.50 &&
     categoriesBlocked.size >= 4
-  
+
   // Final detection - require at least moderate evidence
   const isDetected = hasStrongEvidence || hasModerateEvidence || hasOverwhelmingEvidence
-  
+
   // Calculate confidence based on evidence strength
   let confidence = 0
   if (isDetected) {
@@ -474,22 +474,22 @@ export function verifyHoneypotResults(
       // Moderate evidence = moderate confidence
       confidence = Math.min(35 + (weightedRatio * 45), 88)
     }
-    
+
     // Bonus for more categories blocked
     confidence += Math.min(categoriesBlocked.size * 2.5, 10)
-    
+
     // Bonus for many probes blocked
     confidence += Math.min(adProbesBlocked * 1.2, 12)
-    
+
     // Penalty for timing anomaly (could indicate client manipulation)
     if (timingAnomaly) {
       confidence = Math.max(confidence - 12, 35)
     }
-    
+
     // Never 100% - always leave room for edge cases (an atom before FP)
     confidence = Math.min(confidence, 96)
   }
-  
+
   return {
     isAdblockDetected: isDetected,
     confidence,
@@ -543,14 +543,14 @@ export interface RequestFingerprint {
 
 export async function getRequestFingerprint(): Promise<RequestFingerprint> {
   const headersList = await headers()
-  
+
   const forwarded = headersList.get("x-forwarded-for")
-  const ipAddress = forwarded 
-    ? forwarded.split(",")[0].trim() 
-    : headersList.get("x-real-ip") 
-      || headersList.get("cf-connecting-ip") 
-      || "127.0.0.1"
-  
+  const ipAddress = forwarded
+    ? forwarded.split(",")[0].trim()
+    : headersList.get("x-real-ip")
+    || headersList.get("cf-connecting-ip")
+    || "127.0.0.1"
+
   return {
     ipAddress,
     userAgent: headersList.get("user-agent"),
@@ -607,57 +607,57 @@ async function analyzeUserBehavior(
   const factors: Record<string, boolean | number | string> = {}
   const patterns: string[] = []
   let anomalyScore = 0
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 1: REQUEST PATTERN ANALYSIS
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const { data: recentActivity } = await supabase
     .from("user_activity_log")
     .select("*")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(200)
-  
+
   if (!recentActivity || recentActivity.length < 5) {
     factors.insufficientHistory = true
     return { anomalyScore: 0, factors, patterns, isBot: false, isSuspicious: false }
   }
-  
+
   // Analyze request intervals
   const intervals: number[] = []
   for (let i = 1; i < Math.min(recentActivity.length, 50); i++) {
-    const interval = new Date(recentActivity[i-1].created_at).getTime() - 
-                    new Date(recentActivity[i].created_at).getTime()
+    const interval = new Date(recentActivity[i - 1].created_at).getTime() -
+      new Date(recentActivity[i].created_at).getTime()
     intervals.push(interval)
   }
-  
+
   const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length
   const minInterval = Math.min(...intervals)
   const maxInterval = Math.max(...intervals)
   const intervalVariance = intervals.reduce((sum, i) => sum + Math.pow(i - avgInterval, 2), 0) / intervals.length
-  
+
   // Bot detection: Too-fast or too-regular requests
   if (minInterval < 50) {
     anomalyScore += 25
     factors.suspiciouslyFastRequests = true
     patterns.push("bot_like_speed")
   }
-  
+
   // Very low variance = automated behavior
   if (intervalVariance < 1000 && intervals.length >= 10) {
     anomalyScore += 15
     factors.regularIntervals = true
     patterns.push("automated_pattern")
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 2: IP CONSISTENCY ANALYSIS
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const recentIPs = recentActivity.slice(0, 50).map(a => a.ip_address).filter(Boolean)
   const uniqueIPs = new Set(recentIPs)
-  
+
   if (uniqueIPs.size > 10) {
     anomalyScore += 20
     factors.manyUniqueIPs = uniqueIPs.size
@@ -666,50 +666,50 @@ async function analyzeUserBehavior(
     anomalyScore += 10
     factors.multipleIPs = uniqueIPs.size
   }
-  
+
   // Check for rapid IP switching
   let ipSwitches = 0
   for (let i = 1; i < Math.min(recentIPs.length, 20); i++) {
-    if (recentIPs[i] !== recentIPs[i-1]) {
+    if (recentIPs[i] !== recentIPs[i - 1]) {
       ipSwitches++
     }
   }
-  
+
   if (ipSwitches > 5) {
     anomalyScore += 15
     factors.rapidIPSwitching = ipSwitches
     patterns.push("rapid_ip_switching")
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 3: USER AGENT CONSISTENCY
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const recentUAs = recentActivity.slice(0, 50).map(a => a.user_agent).filter(Boolean)
   const uniqueUAs = new Set(recentUAs)
-  
+
   if (uniqueUAs.size > 5) {
     anomalyScore += 15
     factors.manyUserAgents = uniqueUAs.size
     patterns.push("ua_rotation")
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 4: FRAUD FLAG HISTORY
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const { data: fraudFlags } = await supabase
     .from("fraud_flags")
     .select("flag_type, severity, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(50)
-  
+
   if (fraudFlags) {
     const adblockFlags = fraudFlags.filter(f => f.flag_type === "adblock" || f.flag_type === "adblock_user")
     const vpnFlags = fraudFlags.filter(f => f.flag_type === "vpn_detected")
     const botFlags = fraudFlags.filter(f => f.flag_type === "bot_detected")
-    
+
     if (adblockFlags.length >= 3) {
       anomalyScore += 25
       factors.repeatAdblockOffender = true
@@ -719,52 +719,52 @@ async function analyzeUserBehavior(
       anomalyScore += 10
       factors.previousAdblockFlag = true
     }
-    
+
     if (vpnFlags.length >= 1) {
       anomalyScore += 15
       factors.previousVPNDetection = true
       patterns.push("vpn_history")
     }
-    
+
     if (botFlags.length >= 1) {
       anomalyScore += 20
       factors.previousBotFlag = true
       patterns.push("bot_history")
     }
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 5: SESSION BEHAVIOR
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("created_at, total_claims, total_earned, fraud_score")
     .eq("id", userId)
     .single()
-  
+
   if (profile) {
     const accountAgeMs = Date.now() - new Date(profile.created_at).getTime()
     const accountAgeDays = accountAgeMs / (1000 * 60 * 60 * 24)
-    
+
     // New account with suspicious patterns
     if (accountAgeDays < 1 && anomalyScore > 20) {
       anomalyScore += 15
       factors.newAccountSuspicious = true
       patterns.push("new_account_suspicious")
     }
-    
+
     // Previous fraud score
     if (profile.fraud_score && profile.fraud_score >= 50) {
       anomalyScore += Math.min(profile.fraud_score * 0.3, 25)
       factors.existingFraudScore = profile.fraud_score
     }
   }
-  
+
   // Determine final status
   const isBot = anomalyScore >= 60 || patterns.includes("bot_like_speed")
   const isSuspicious = anomalyScore >= 30
-  
+
   return { anomalyScore, factors, patterns, isBot, isSuspicious }
 }
 
@@ -783,23 +783,23 @@ interface HoneypotRequestLog {
 const honeypotRequestLog = new Map<string, Map<string, HoneypotRequestLog>>()
 
 export function logHoneypotRequest(
-  sessionId: string, 
-  probeId: string, 
+  sessionId: string,
+  probeId: string,
   loaded: boolean,
   additionalData?: { responseCode?: number; timing?: number; headers?: Record<string, string> }
 ) {
   if (!honeypotRequestLog.has(sessionId)) {
     honeypotRequestLog.set(sessionId, new Map())
   }
-  
-  honeypotRequestLog.get(sessionId)!.set(probeId, { 
-    timestamp: Date.now(), 
+
+  honeypotRequestLog.get(sessionId)!.set(probeId, {
+    timestamp: Date.now(),
     loaded,
     responseCode: additionalData?.responseCode,
     timing: additionalData?.timing,
     headers: additionalData?.headers,
   })
-  
+
   // Aggressive cleanup - 5 minutes
   const now = Date.now()
   for (const [sid, probes] of honeypotRequestLog.entries()) {
@@ -824,7 +824,7 @@ async function checkCrossSessionFingerprints(
   fingerprint: RequestFingerprint
 ): Promise<{ isLinked: boolean; linkedUsers: string[]; confidence: number }> {
   const supabase = createAdminClient()
-  
+
   // Create fingerprint hash (privacy-preserving)
   const fpData = [
     fingerprint.userAgent || "",
@@ -833,9 +833,9 @@ async function checkCrossSessionFingerprints(
     fingerprint.secChUaPlatform || "",
     fingerprint.acceptEncoding || "",
   ].join("|")
-  
+
   const fpHash = crypto.createHash("sha256").update(fpData).digest("hex")
-  
+
   // Check for other users with same fingerprint
   const { data: similarProfiles } = await supabase
     .from("profiles")
@@ -843,11 +843,11 @@ async function checkCrossSessionFingerprints(
     .eq("fingerprint_hash", fpHash)
     .neq("id", userId)
     .limit(10)
-  
+
   if (!similarProfiles || similarProfiles.length === 0) {
     return { isLinked: false, linkedUsers: [], confidence: 0 }
   }
-  
+
   // Check if IPs also match
   const { data: currentUserIPs } = await supabase
     .from("user_activity_log")
@@ -855,10 +855,10 @@ async function checkCrossSessionFingerprints(
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(10)
-  
+
   const userIPs = new Set(currentUserIPs?.map(a => a.ip_address) || [])
   const linkedUsers: string[] = []
-  
+
   for (const profile of similarProfiles) {
     const { data: profileIPs } = await supabase
       .from("user_activity_log")
@@ -866,9 +866,9 @@ async function checkCrossSessionFingerprints(
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
       .limit(10)
-    
+
     const otherIPs = new Set(profileIPs?.map(a => a.ip_address) || [])
-    
+
     // Check for IP overlap
     for (const ip of userIPs) {
       if (otherIPs.has(ip)) {
@@ -877,7 +877,7 @@ async function checkCrossSessionFingerprints(
       }
     }
   }
-  
+
   return {
     isLinked: linkedUsers.length > 0,
     linkedUsers,
@@ -897,11 +897,11 @@ export async function performServerVerification(
   const factors: Record<string, boolean | number | string> = {}
   const methods: string[] = []
   let serverScore = 0
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 1: CRYPTOGRAPHIC CHALLENGE VERIFICATION
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   if (request.challengeResponse) {
     const challengeResult = verifyChallenge(
       request.challengeResponse.challengeId,
@@ -909,13 +909,13 @@ export async function performServerVerification(
       request.challengeResponse.proof,
       request.userId
     )
-    
+
     factors.challengeValid = challengeResult.valid
     if (!challengeResult.valid) {
       factors.challengeFailReason = challengeResult.reason
       serverScore += 25 // Higher penalty for challenge failure
       methods.push("challenge_failed")
-      
+
       // Challenge replay or manipulation = immediate high suspicion
       if (challengeResult.reason === "challenge_not_found" || challengeResult.reason === "invalid_pow") {
         serverScore += 15
@@ -926,26 +926,26 @@ export async function performServerVerification(
     factors.noChallenge = true
     serverScore += 5 // Small penalty for missing challenge
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 2: SERVER-SIDE HONEYPOT VERIFICATION (PRIMARY)
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const serverHoneypotResults = getServerHoneypotResults(request.sessionId)
-  
+
   let honeypotScore = 0
   let honeypotConfidence = 0
   let controlsBlockedServer = false
   let serverBlockedProbes = 0
   let serverTotalProbes = 0
-  
+
   if (serverHoneypotResults && serverHoneypotResults.size > 0) {
     factors.serverHoneypotVerified = true
-    
+
     // Server-side verification - MOST RELIABLE
     for (const probe of HONEYPOT_PROBES) {
       const result = serverHoneypotResults.get(probe.id)
-      
+
       if (probe.type === "control") {
         if (!result || !result.loaded) {
           controlsBlockedServer = true
@@ -958,13 +958,14 @@ export async function performServerVerification(
         }
       }
     }
-    
+
     const serverBlockRatio = serverTotalProbes > 0 ? serverBlockedProbes / serverTotalProbes : 0
-    
-    // Server verification requires multiple blocked probes
-    if (!controlsBlockedServer && serverBlockedProbes >= 4 && serverBlockRatio >= 0.35) {
-      honeypotScore = Math.min(50 + (serverBlockRatio * 45), 90)
-      honeypotConfidence = Math.min(55 + (serverBlockRatio * 40), 95)
+
+    // Server verification requires multiple blocked probes - v8.0: stricter thresholds
+    // Require 6+ blocked probes (up from 4) and 45%+ ratio (up from 35%)
+    if (!controlsBlockedServer && serverBlockedProbes >= 6 && serverBlockRatio >= 0.45) {
+      honeypotScore = Math.min(45 + (serverBlockRatio * 40), 85) // Lower base scores
+      honeypotConfidence = Math.min(50 + (serverBlockRatio * 35), 90) // Lower max confidence
       methods.push("server_honeypot_blocked")
       factors.serverBlockRatio = serverBlockRatio
       factors.serverBlockedCount = serverBlockedProbes
@@ -972,14 +973,14 @@ export async function performServerVerification(
   } else {
     factors.noServerHoneypotData = true
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 3: CLIENT HONEYPOT CROSS-VALIDATION (SECONDARY)
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   if (request.honeypotResults && request.honeypotResults.length > 0) {
     const clientHoneypotResult = verifyHoneypotResults(request.honeypotResults)
-    
+
     if (clientHoneypotResult.controlsBlocked) {
       // Control blocked = ABORT (potential false positive)
       factors.clientControlBlocked = true
@@ -998,11 +999,11 @@ export async function performServerVerification(
         message: "Verification aborted - control probes blocked (potential network issue)",
       }
     }
-    
+
     factors.clientHoneypotConfidence = clientHoneypotResult.confidence
     factors.clientBlockedCount = clientHoneypotResult.blockedProbes.length
     factors.clientCategoriesBlocked = clientHoneypotResult.categoriesBlocked.length
-    
+
     // Cross-validate with server results
     if (serverHoneypotResults && clientHoneypotResult.isAdblockDetected) {
       // Both server and client agree = STRONG confidence
@@ -1016,51 +1017,51 @@ export async function performServerVerification(
       honeypotConfidence = clientHoneypotResult.confidence * 0.5
       methods.push("client_honeypot_only")
     }
-    
+
     // Timing anomaly detection
     if (clientHoneypotResult.timingAnomaly) {
       factors.timingAnomaly = true
       honeypotConfidence = Math.max(honeypotConfidence - 10, 0)
     }
   }
-  
+
   serverScore += honeypotScore
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 4: CLIENT SIGNAL ANALYSIS (CORROBORATION ONLY)
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   if (request.clientSignals && request.clientSignals.length > 0) {
     const categories = new Set(request.clientSignals.map(s => s.category))
     const highWeightSignals = request.clientSignals.filter(s => s.weight >= 75)
     const baitSignals = request.clientSignals.filter(s => s.category === "bait")
-    
+
     factors.clientSignalCategories = categories.size
     factors.clientHighWeightSignals = highWeightSignals.length
     factors.clientBaitSignals = baitSignals.length
-    
+
     // Client signals ONLY add score if they corroborate server findings
     if (honeypotScore >= 35 && categories.size >= 3 && highWeightSignals.length >= 2) {
       serverScore += Math.min(request.clientConfidence || 0, 15) * 0.4
       methods.push("client_corroborated")
     }
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 5: BEHAVIORAL ANALYSIS
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const behaviorAnalysis = await analyzeUserBehavior(request.userId, fingerprint)
   serverScore += behaviorAnalysis.anomalyScore
-  
+
   for (const [key, value] of Object.entries(behaviorAnalysis.factors)) {
     factors[`behavior_${key}`] = value
   }
-  
+
   for (const pattern of behaviorAnalysis.patterns) {
     methods.push(`behavior_${pattern}`)
   }
-  
+
   if (behaviorAnalysis.isBot) {
     serverScore += 30
     factors.isBotLikeBehavior = true
@@ -1069,65 +1070,66 @@ export async function performServerVerification(
     serverScore += 10
     factors.isSuspiciousBehavior = true
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 6: CROSS-SESSION FINGERPRINT CHECK
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const crossSessionResult = await checkCrossSessionFingerprints(request.userId, fingerprint)
-  
+
   if (crossSessionResult.isLinked) {
     factors.linkedAccounts = crossSessionResult.linkedUsers.length
     factors.linkedAccountIds = crossSessionResult.linkedUsers.join(",")
     serverScore += Math.min(crossSessionResult.linkedUsers.length * 10, 25)
     methods.push("multi_account_correlation")
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 7: HISTORICAL PATTERN MATCHING
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const supabase = createAdminClient()
-  
+
   const { data: detectionHistory } = await supabase
     .from("adblock_analytics")
     .select("*")
     .eq("user_id", request.userId)
     .order("created_at", { ascending: false })
     .limit(20)
-  
+
   if (detectionHistory && detectionHistory.length > 0) {
-    const recentDetections = detectionHistory.filter(d => d.adblock_detected)
-    
-    if (recentDetections.length >= 5) {
-      // Chronic offender
-      serverScore += 25
+    // v8.0: Only count server-verified detections for history
+    const recentDetections = detectionHistory.filter(d => d.adblock_detected && d.server_verified)
+
+    if (recentDetections.length >= 7) { // Up from 5
+      // Chronic offender - must have many server-verified detections
+      serverScore += 20 // Reduced from 25
       factors.chronicOffender = true
       factors.previousDetections = recentDetections.length
       methods.push("history_chronic_offender")
-    } else if (recentDetections.length >= 3) {
-      serverScore += 15
+    } else if (recentDetections.length >= 5) { // Up from 3
+      serverScore += 12 // Reduced from 15
       factors.repeatOffender = true
       factors.previousDetections = recentDetections.length
       methods.push("history_repeat_offender")
     }
-    
+
     // Check blocker type consistency
     const blockerTypes = recentDetections
       .map(d => d.blocker_type)
       .filter(Boolean)
-    
+
     if (blockerTypes.length >= 3 && new Set(blockerTypes).size === 1) {
       serverScore += 8
       factors.consistentBlockerType = blockerTypes[0]
       methods.push("history_consistent_blocker")
     }
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 8: PRIVACY BROWSER CORRELATION
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   const ua = fingerprint.userAgent?.toLowerCase() || ""
   const privacyBrowsers = [
     { pattern: "brave", weight: 12, name: "Brave" },
@@ -1138,7 +1140,7 @@ export async function performServerVerification(
     { pattern: "librewolf", weight: 15, name: "LibreWolf" },
     { pattern: "ungoogled", weight: 12, name: "Ungoogled Chromium" },
   ]
-  
+
   for (const browser of privacyBrowsers) {
     if (ua.includes(browser.pattern)) {
       factors.privacyBrowser = browser.name
@@ -1150,7 +1152,7 @@ export async function performServerVerification(
       break
     }
   }
-  
+
   // DNT header correlation
   if (fingerprint.dnt === "1") {
     factors.dntEnabled = true
@@ -1158,14 +1160,14 @@ export async function performServerVerification(
       serverScore += 3
     }
   }
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // v6.0 FINAL SCORING & DECISION (MAXIMUM POWER | ZERO FALSE POSITIVES)
   // ═══════════════════════════════════════════════════════════════════════════
-  
+
   // Normalize score
   serverScore = Math.min(serverScore, 100)
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
   // ULTRA-STRICT REQUIREMENTS FOR ZERO FALSE POSITIVES:
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1175,62 +1177,64 @@ export async function performServerVerification(
   // 4. Cross-validation between server and client data
   // 5. Historical pattern matching for repeat offenders
   // ═══════════════════════════════════════════════════════════════════════════
-  
-  // Strong evidence from server honeypots
-  const hasStrongServerEvidence = 
-    honeypotScore >= 50 && 
-    !controlsBlockedServer && 
-    methods.filter(m => m.includes("honeypot") || m.includes("server")).length >= 2
-  
-  // Cross-validated evidence (server + client agree)
-  const hasCrossValidatedEvidence = 
-    factors.crossValidated === true && 
-    honeypotScore >= 40 && 
+
+  // Strong evidence from server honeypots (v8.0: stricter thresholds)
+  const hasStrongServerEvidence =
+    honeypotScore >= 60 && // Up from 50
+    !controlsBlockedServer &&
+    methods.filter(m => m.includes("honeypot") || m.includes("server")).length >= 3 // Up from 2
+
+  // Cross-validated evidence (server + client agree) - v8.0: stricter
+  const hasCrossValidatedEvidence =
+    factors.crossValidated === true &&
+    honeypotScore >= 55 && // Up from 40
     !controlsBlockedServer
-  
-  // Historical chronic offender with current suspicious behavior
-  const isChronicOffenderActive = 
-    factors.chronicOffender === true && 
-    behaviorAnalysis.isSuspicious && 
-    honeypotScore >= 30
-  
-  // Repeat offender with strong current evidence
-  const isRepeatOffenderActive = 
-    factors.repeatOffender === true && 
-    honeypotScore >= 40 && 
-    behaviorAnalysis.anomalyScore >= 25
-  
+
+  // Historical chronic offender with current suspicious behavior - v8.0: stricter
+  const isChronicOffenderActive =
+    factors.chronicOffender === true &&
+    behaviorAnalysis.isSuspicious &&
+    honeypotScore >= 45 && // Up from 30
+    serverBlockedProbes >= 6 // Need substantial blocked probes too
+
+  // Repeat offender with strong current evidence - v8.0: stricter
+  const isRepeatOffenderActive =
+    factors.repeatOffender === true &&
+    honeypotScore >= 55 && // Up from 40
+    behaviorAnalysis.anomalyScore >= 35 // Up from 25
+
   // FINAL DETECTION DECISION - require overwhelming evidence
-  const isAdblockDetected = 
+  const isAdblockDetected =
     hasStrongServerEvidence ||
     hasCrossValidatedEvidence ||
     isChronicOffenderActive ||
     isRepeatOffenderActive
-  
+
   // Risk level calculation with stricter thresholds
   let riskLevel: "none" | "low" | "medium" | "high" | "critical" = "none"
   if (serverScore >= 88) riskLevel = "critical"
   else if (serverScore >= 68) riskLevel = "high"
   else if (serverScore >= 48) riskLevel = "medium"
   else if (serverScore >= 28) riskLevel = "low"
-  
+
   // ═══════════════════════════════════════════════════════════════════════════
-  // BLOCKING DECISION (AN ATOM BEFORE FALSE POSITIVE)
+  // v8.0 BLOCKING DECISION (ZERO FALSE POSITIVES - MAXIMUM STRICTNESS)
   // ═══════════════════════════════════════════════════════════════════════════
-  // Only block when we have INCONTROVERTIBLE evidence:
-  // - Multiple server-side confirmations (4+ methods)
-  // - High confidence from honeypot verification (70%+)
-  // - High server score (65+)
+  // Only block when we have ABSOLUTELY INCONTROVERTIBLE evidence:
+  // - Multiple server-side confirmations (5+ methods - up from 4)
+  // - Very high confidence from honeypot verification (80%+ - up from 70%)
+  // - Very high server score (75+ - up from 65)
   // - Controls NEVER blocked (critical FP protection)
-  // - Cross-validation or historical pattern
-  const shouldBlock = 
-    isAdblockDetected && 
-    serverScore >= 65 && 
-    honeypotConfidence >= 70 &&
-    methods.length >= 4 &&
+  // - MUST have cross-validation AND strong server evidence
+  const shouldBlock =
+    isAdblockDetected &&
+    serverScore >= 75 && // Stricter: was 65
+    honeypotConfidence >= 80 && // Stricter: was 70
+    methods.length >= 5 && // Stricter: was 4
     !controlsBlockedServer &&
-    (factors.crossValidated === true || factors.chronicOffender === true || hasStrongServerEvidence)
-  
+    hasStrongServerEvidence && // MUST have strong server evidence
+    (factors.crossValidated === true || factors.chronicOffender === true) // AND cross-validation or chronic
+
   // Final confidence - conservative calculation
   let confidence = honeypotConfidence
   if (behaviorAnalysis.isSuspicious) confidence += 4
@@ -1239,7 +1243,7 @@ export async function performServerVerification(
   if (factors.repeatOffender) confidence += 4
   // Never 100% - always leave room for edge cases (an atom before FP)
   confidence = Math.min(confidence, 96)
-  
+
   // Log verification
   log.info("Server Fortress v6.0 verification complete", {
     userId: request.userId,
@@ -1252,7 +1256,7 @@ export async function performServerVerification(
     methods: methods.slice(0, 10),
     duration: Date.now() - startTime,
   })
-  
+
   return {
     verified: true,
     isAdblockDetected,
@@ -1265,9 +1269,9 @@ export async function performServerVerification(
     factors,
     shouldBlock,
     riskLevel,
-    message: shouldBlock 
-      ? "Adblock detected with very high server-side confidence" 
-      : isAdblockDetected 
+    message: shouldBlock
+      ? "Adblock detected with very high server-side confidence"
+      : isAdblockDetected
         ? "Adblock detected but below blocking threshold"
         : "No adblock detected",
   }

@@ -83,7 +83,7 @@ export function getCrossSessionState(): CrossSessionState {
 
       return state
     }
-  } catch {}
+  } catch { }
 
   return createDefaultState()
 }
@@ -111,7 +111,7 @@ function saveCrossSessionState(state: CrossSessionState): void {
   try {
     state.lastUpdated = Date.now()
     localStorage.setItem(CROSS_SESSION_KEY, JSON.stringify(state))
-  } catch {}
+  } catch { }
 }
 
 // Record a detection session
@@ -184,6 +184,7 @@ function calculateCumulativeScore(sessions: SessionScore[]): number {
 }
 
 // Get the probabilistic blocking probability based on history
+// v8.0: Made much more conservative to reduce false positives
 export function getCrossSessionProbability(): {
   probability: number
   confidence: number
@@ -193,29 +194,40 @@ export function getCrossSessionProbability(): {
 } {
   const state = getCrossSessionState()
 
-  // Base probability from cumulative score
-  let probability = state.cumulativeScore / 100
+  // Base probability from cumulative score - scaled down
+  let probability = (state.cumulativeScore / 100) * 0.8 // Scale down base probability
 
-  // Adjust based on session count (more sessions = more confidence)
-  const sessionConfidence = Math.min(1, state.sessions.length / 5) // Max confidence at 5 sessions
+  // Only count server-verified sessions for probability boost
+  const verifiedSessions = state.sessions.filter(s => s.serverVerified)
+  const sessionConfidence = Math.min(1, verifiedSessions.length / 7) // Max confidence at 7 verified sessions (was 5)
 
-  // Adjust based on block history
+  // Apply session confidence as a multiplier
+  probability = probability * sessionConfidence
+
+  // Only boost if blocked with server verification
   if (state.persistentFlags.hasBeenBlocked) {
-    // If previously blocked, increase probability
-    probability = Math.min(1, probability + 0.2)
+    const verifiedBlockCount = state.sessions.filter(s => s.wasBlocked && s.serverVerified).length
 
-    // If blocked multiple times, further increase
-    if (state.persistentFlags.blockCount >= 3) {
+    // Only increase if we have verified blocks
+    if (verifiedBlockCount >= 2) {
+      probability = Math.min(1, probability + 0.1) // Reduced from 0.2
+    }
+
+    // If blocked many times with verification, further increase
+    if (verifiedBlockCount >= 4) {
       probability = Math.min(1, probability + 0.1)
     }
   }
 
-  // Check for recent blocking
-  if (state.persistentFlags.lastBlockedAt) {
-    const hoursSinceBlock = (Date.now() - new Date(state.persistentFlags.lastBlockedAt).getTime()) / (1000 * 60 * 60)
-    if (hoursSinceBlock < 24) {
-      probability = Math.min(1, probability + 0.15)
-    }
+  // Check for recent verified blocking (not just any blocking)
+  const recentVerifiedBlocks = state.sessions.filter(s => {
+    if (!s.wasBlocked || !s.serverVerified) return false
+    const hoursSinceBlock = (Date.now() - s.timestamp) / (1000 * 60 * 60)
+    return hoursSinceBlock < 24
+  })
+
+  if (recentVerifiedBlocks.length >= 2) {
+    probability = Math.min(1, probability + 0.1)
   }
 
   return {
@@ -228,19 +240,22 @@ export function getCrossSessionProbability(): {
 }
 
 // Check if user should be immediately flagged based on history
+// v8.0: Made MUCH stricter to reduce false positives
 export function shouldImmediatelyFlag(): boolean {
   const state = getCrossSessionState()
 
-  // If blocked 3+ times with server verification, immediate flag
-  if (state.persistentFlags.blockCount >= 3) {
+  // If blocked 5+ times with server verification, immediate flag (was 3)
+  if (state.persistentFlags.blockCount >= 5) {
     const verifiedBlocks = state.sessions.filter((s) => s.wasBlocked && s.serverVerified).length
-    if (verifiedBlocks >= 2) {
+    // Require 4 verified blocks (was 2)
+    if (verifiedBlocks >= 4) {
       return true
     }
   }
 
-  // If cumulative score is very high (90%+), immediate flag
-  if (state.cumulativeScore >= 90 && state.sessions.length >= 3) {
+  // If cumulative score is extremely high (95%+) with many sessions, immediate flag
+  // Was 90% with 3 sessions - now requires more evidence
+  if (state.cumulativeScore >= 95 && state.sessions.length >= 5) {
     return true
   }
 
@@ -252,5 +267,5 @@ export function clearCrossSessionData(): void {
   if (typeof window === "undefined") return
   try {
     localStorage.removeItem(CROSS_SESSION_KEY)
-  } catch {}
+  } catch { }
 }

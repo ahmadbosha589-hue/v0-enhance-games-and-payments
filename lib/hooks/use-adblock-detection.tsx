@@ -295,39 +295,39 @@ const CONFIG = {
   /** WebRTC connection timeout (ms) */
   WEBRTC_TIMEOUT_MS: 4500,
 
-  // ===== v6.0 DETECTION THRESHOLDS - MAXIMUM POWER | ZERO FP =====
+  // ===== v8.0 DETECTION THRESHOLDS - ZERO FALSE POSITIVES =====
   /** Minimum number of detection methods required (increased for stronger evidence) */
-  MIN_METHODS_REQUIRED: 4, // Up from 3 (v6.0)
+  MIN_METHODS_REQUIRED: 5, // Up from 4 (v8.0 - stricter)
   /** Minimum number of different categories required (stricter corroboration) */
-  MIN_CATEGORIES_REQUIRED: 3, // Up from 2 (v6.0)
+  MIN_CATEGORIES_REQUIRED: 3, // Requires 3 different categories
   /** Minimum weighted confidence threshold (%) */
-  MIN_CONFIDENCE_THRESHOLD: 55, // Up from 50 (v6.0)
-  /** Minimum consecutive detection cycles (faster detection with more signals) */
-  MIN_CONSECUTIVE_DETECTIONS: 2, // Faster flagging when evidence is strong
+  MIN_CONFIDENCE_THRESHOLD: 65, // Up from 55 (v8.0 - higher bar)
+  /** Minimum consecutive detection cycles (more cycles = fewer FP) */
+  MIN_CONSECUTIVE_DETECTIONS: 4, // Up from 2 (v8.0 - critical for FP reduction)
   /** Minimum number of high-weight methods required */
-  MIN_HIGH_WEIGHT_METHODS: 2, // Up from 1 (v6.0)
+  MIN_HIGH_WEIGHT_METHODS: 2, // Requires 2 high-weight signals
   /** Minimum Bayesian probability required */
-  MIN_BAYESIAN_PROBABILITY: 0.65, // Up from 0.6 (v6.0)
+  MIN_BAYESIAN_PROBABILITY: 0.75, // Up from 0.65 (v8.0 - stricter)
   /** Weight threshold for "high weight" methods */
-  HIGH_WEIGHT_THRESHOLD: 75, // Up from 70 (v6.0)
+  HIGH_WEIGHT_THRESHOLD: 80, // Up from 75 (v8.0 - stricter)
 
-  // ===== v6.0 BAIT TEST THRESHOLDS (more sensitive) =====
+  // ===== v8.0 BAIT TEST THRESHOLDS (stricter to reduce FP) =====
   /** Minimum ratio of blocked bait images for detection */
-  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.22, // Slightly more sensitive (v6.0)
+  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.35, // Stricter (v8.0 - need more blocked)
   /** Minimum ratio of hidden bait elements for detection */
-  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.12, // More sensitive (v6.0)
+  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.25, // Stricter (v8.0 - need more hidden)
   /** Minimum ratio of blocked fetch requests for detection */
-  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.18, // More sensitive (v6.0)
+  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.30, // Stricter (v8.0)
   /** Minimum ratio of blocked DNS requests for detection */
-  MIN_DNS_BLOCKED_RATIO: 0.28,
+  MIN_DNS_BLOCKED_RATIO: 0.40, // Stricter (v8.0)
 
   // ===== CONTROL TEST CONFIGURATION (critical for zero FP) =====
   /** Minimum number of baits that must be hidden for detection */
-  MIN_BAIT_HIDDEN_FOR_DETECTION: 3, // Up from 2 (v6.0 - stronger evidence)
+  MIN_BAIT_HIDDEN_FOR_DETECTION: 4, // Up from 3 (v8.0 - stronger evidence required)
   /** Whether control element must be visible (CRITICAL - never disable) */
   CONTROL_MUST_BE_VISIBLE: true,
   /** Number of control elements to use (more controls = better FP protection) */
-  CONTROL_ELEMENT_COUNT: 3, // Up from 2 (v6.0)
+  CONTROL_ELEMENT_COUNT: 4, // Up from 3 (v8.0 - more control validation)
 
   // ===== RETRY CONFIGURATION =====
   /** Maximum retries per detection method */
@@ -349,21 +349,21 @@ const CONFIG = {
   /** v6.0 NEW: Weight for behavioral analysis method */
   BEHAVIORAL_ANALYSIS_WEIGHT: 22,
 
-  // ===== v6.0 STATISTICAL THRESHOLDS (more precise) =====
+  // ===== v8.0 STATISTICAL THRESHOLDS (stricter for zero FP) =====
   /** Maximum coefficient of variation for timing analysis */
-  TIMING_MAX_CV: 0.08, // Stricter (v6.0)
+  TIMING_MAX_CV: 0.05, // Stricter (v8.0 - lower variance required)
   /** Minimum entropy for timing analysis */
-  TIMING_MIN_ENTROPY: 2.2, // Higher (v6.0)
+  TIMING_MIN_ENTROPY: 2.8, // Higher (v8.0 - more entropy required)
   /** Minimum memory delta for extension detection (bytes) */
-  MEMORY_MIN_DELTA: 4 * 1024 * 1024, // Lower threshold (v6.0)
+  MEMORY_MIN_DELTA: 8 * 1024 * 1024, // Higher threshold (v8.0 - 8MB to reduce FP)
   /** Cross-session probability threshold for immediate flagging */
-  CROSS_SESSION_PROBABILITY_THRESHOLD: 0.55, // More sensitive (v6.0)
+  CROSS_SESSION_PROBABILITY_THRESHOLD: 0.75, // Stricter (v8.0 - higher threshold)
   /** Minimum confidence for entropy correlation */
-  ENTROPY_MIN_CONFIDENCE: 38, // More sensitive (v6.0)
+  ENTROPY_MIN_CONFIDENCE: 55, // Stricter (v8.0 - higher confidence required)
   /** Minimum blocked routes for rotating route detection */
-  ROTATING_ROUTE_MIN_BLOCKED: 4, // Faster detection (v6.0)
-  /** v6.0 NEW: Minimum blocked honeypot probes for server detection */
-  MIN_SERVER_HONEYPOT_BLOCKED: 5,
+  ROTATING_ROUTE_MIN_BLOCKED: 6, // Stricter (v8.0 - need more blocked)
+  /** v8.0: Minimum blocked honeypot probes for server detection */
+  MIN_SERVER_HONEYPOT_BLOCKED: 7, // Stricter (v8.0)
 } as const
 
 // =============================================================================
@@ -2954,8 +2954,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
           // Server verification
           result.serverVerified = await verifyWithServer(allSignals, identifiedBlocker)
 
-          // Final determination - require server verification OR very high confidence
-          if (result.serverVerified || (newConsecutive >= 5 && bayesianProbability >= 0.75)) {
+          // Final determination - require server verification AND high confidence
+          // OR extremely high confidence with many consecutive detections
+          if (result.serverVerified || (newConsecutive >= 7 && bayesianProbability >= 0.85 && weightedConfidence >= 75)) {
             result.isBlocking = true
 
             // Flag user in session
