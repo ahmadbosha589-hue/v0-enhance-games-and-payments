@@ -3,11 +3,13 @@ import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { WithdrawalForm } from "@/components/dashboard/withdrawal-form"
 import { WithdrawalHistory } from "@/components/dashboard/withdrawal-history"
+import { CCPaymentWithdrawalForm } from "@/components/dashboard/ccpayment-withdrawal-form"
 import { WITHDRAWAL_CONFIG } from "@/lib/constants/config"
 import { formatSatoshisDisplay } from "@/lib/utils/format"
-import { Wallet, AlertCircle, Info, Shield, Zap } from "lucide-react"
+import { Wallet, AlertCircle, Info, Shield, Zap, Bitcoin, CreditCard } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 
 function ProfileErrorState() {
@@ -104,69 +106,146 @@ export default async function WithdrawalsPage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
-        {/* Balance Card */}
-        <Card className="lg:col-span-1 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                <Wallet className="h-4 w-4 text-primary" />
-              </div>
-              Available Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <p className="text-3xl sm:text-4xl font-bold tracking-tight">
-                  {formatSatoshisDisplay(profile.balance_satoshis)}
-                </p>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  Min. withdrawal: {formatSatoshisDisplay(WITHDRAWAL_CONFIG.minimumSatoshis)}
-                </p>
-              </div>
+      {/* Withdrawal Methods Tabs */}
+      <Tabs defaultValue="faucetpay" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="faucetpay" className="gap-2">
+            <CreditCard className="h-4 w-4" />
+            FaucetPay
+          </TabsTrigger>
+          <TabsTrigger value="ccpayment" className="gap-2">
+            <Bitcoin className="h-4 w-4" />
+            CCPayment
+          </TabsTrigger>
+        </TabsList>
 
-              <div className="space-y-3 border-t pt-4">
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-muted-foreground">Daily Limit</span>
-                  <span className="font-medium">{formatSatoshisDisplay(WITHDRAWAL_CONFIG.dailyLimitSatoshis)}</span>
-                </div>
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-muted-foreground">Network Fee</span>
-                  <span className="font-medium">{WITHDRAWAL_CONFIG.feePercentage}%</span>
-                </div>
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-muted-foreground">Processing</span>
-                  <span className="font-medium text-green-500">Instant</span>
-                </div>
-              </div>
+        {/* FaucetPay Tab */}
+        <TabsContent value="faucetpay" className="space-y-6">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+            {/* Balance Card */}
+            <Card className="lg:col-span-1 border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                    <Wallet className="h-4 w-4 text-primary" />
+                  </div>
+                  Available Balance
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-3xl sm:text-4xl font-bold tracking-tight">
+                      {formatSatoshisDisplay(profile.balance_satoshis)}
+                    </p>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                      Min. withdrawal: {formatSatoshisDisplay(WITHDRAWAL_CONFIG.minimumSatoshis)}
+                    </p>
+                  </div>
 
-              {!canWithdraw && (
-                <div className="rounded-lg bg-muted/50 p-3 text-center">
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    You need{" "}
-                    {formatSatoshisDisplay(WITHDRAWAL_CONFIG.minimumSatoshis - Number(profile.balance_satoshis))} more
-                    to withdraw
-                  </p>
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-muted-foreground">Daily Limit</span>
+                      <span className="font-medium">{formatSatoshisDisplay(WITHDRAWAL_CONFIG.dailyLimitSatoshis)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-muted-foreground">Network Fee</span>
+                      <span className="font-medium">{WITHDRAWAL_CONFIG.feePercentage}%</span>
+                    </div>
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-muted-foreground">Processing</span>
+                      <span className="font-medium text-green-500">Instant</span>
+                    </div>
+                  </div>
+
+                  {!canWithdraw && (
+                    <div className="rounded-lg bg-muted/50 p-3 text-center">
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        You need{" "}
+                        {formatSatoshisDisplay(WITHDRAWAL_CONFIG.minimumSatoshis - Number(profile.balance_satoshis))} more
+                        to withdraw
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </CardContent>
+            </Card>
+
+            {/* Withdrawal Form */}
+            <Card className="lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base sm:text-lg">Request Withdrawal</CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
+                  Enter the amount you want to withdraw to FaucetPay
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <WithdrawalForm profile={profile} canWithdraw={canWithdraw && !!hasFaucetPay} />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* CCPayment Tab */}
+        <TabsContent value="ccpayment" className="space-y-6">
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+            {/* Balance Card */}
+            <Card className="lg:col-span-1 border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-transparent">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
+                    <Bitcoin className="h-4 w-4 text-orange-500" />
+                  </div>
+                  Crypto Withdrawal
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-3xl sm:text-4xl font-bold tracking-tight">
+                      {formatSatoshisDisplay(profile.balance_satoshis)}
+                    </p>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                      Withdraw to 50+ cryptocurrencies
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-muted-foreground">Min. Withdrawal</span>
+                      <span className="font-medium">10,000 sats</span>
+                    </div>
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-muted-foreground">Networks</span>
+                      <span className="font-medium">BTC, ETH, TRC20, etc.</span>
+                    </div>
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span className="text-muted-foreground">Processing</span>
+                      <span className="font-medium text-green-500">1-30 min</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {["BTC", "ETH", "USDT", "SOL", "XRP", "DOGE"].map((coin) => (
+                      <span
+                        key={coin}
+                        className="px-2 py-0.5 bg-muted rounded text-xs font-mono"
+                      >
+                        {coin}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* CCPayment Withdrawal Form */}
+            <div className="lg:col-span-2">
+              <CCPaymentWithdrawalForm profile={profile} canWithdraw={canWithdraw} />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Withdrawal Form */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base sm:text-lg">Request Withdrawal</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">
-              Enter the amount you want to withdraw to FaucetPay
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WithdrawalForm profile={profile} canWithdraw={canWithdraw && !!hasFaucetPay} />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Withdrawal History */}
       <Card>
