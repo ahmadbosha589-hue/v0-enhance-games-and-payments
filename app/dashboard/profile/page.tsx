@@ -147,6 +147,14 @@ export default function ProfilePage() {
     try {
       const supabase = createClient()
 
+      // Handle case where Supabase client couldn't be created
+      if (!supabase) {
+        console.error("[ProfilePage] Supabase client not available")
+        setError(true)
+        setLoading(false)
+        return
+      }
+
       // Get current user
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
 
