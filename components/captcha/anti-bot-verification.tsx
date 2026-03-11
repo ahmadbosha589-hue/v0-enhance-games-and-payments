@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Shield, Bot, Calculator, ImageIcon, CheckCircle, Loader2, Cpu, Puzzle, AlertTriangle, Lock } from "lucide-react"
-import { TurnstileWidget } from "./turnstile-widget"
+import { HCaptchaWidget } from "./hcaptcha-widget"
 import { MathChallenge } from "./math-challenge"
 import { ImageChallenge } from "./image-challenge"
 import { ProofOfWorkChallenge } from "./proof-of-work-challenge"
@@ -21,6 +21,8 @@ import { toast } from "sonner"
 // =====================================================
 
 interface AntiBotVerificationProps {
+  hcaptchaSiteKey?: string
+  /** @deprecated Use hcaptchaSiteKey instead */
   turnstileSiteKey?: string
   onComplete: (token: string, metadata?: VerificationMetadata) => void
   onFail: (reason: string) => void
@@ -50,21 +52,24 @@ interface StepStatus {
   pow: "pending" | "active" | "complete" | "skipped"
 }
 
-export function AntiBotVerification({ 
-  turnstileSiteKey, 
-  onComplete, 
+export function AntiBotVerification({
+  hcaptchaSiteKey,
+  turnstileSiteKey, // deprecated, falls back to hcaptchaSiteKey
+  onComplete,
   onFail,
   difficulty = "normal",
   requireProofOfWork = false,
 }: AntiBotVerificationProps) {
-  const hasTurnstile = !!turnstileSiteKey
+  // Support both hcaptchaSiteKey and legacy turnstileSiteKey
+  const captchaSiteKey = hcaptchaSiteKey || turnstileSiteKey
+  const hasCaptcha = !!captchaSiteKey
   const startTime = useRef(Date.now())
-  
+
   // Bot detection
   const [botCheckPassed, setBotCheckPassed] = useState(false)
   const [botCheckFailed, setBotCheckFailed] = useState(false)
   const botDetectionRef = useRef<BotDetectionResult | null>(null)
-  
+
   // Use the ultimate anti-bot detection
   const botDetection = useUltimateAntiBot((result) => {
     botDetectionRef.current = result
@@ -74,23 +79,23 @@ export function AntiBotVerification({
       onFail("Bot/automation detected: " + result.detectedThreats.join(", "))
     }
   })
-  
+
   // Determine initial step
   const getInitialStep = (): VerificationStep => {
     if (botDetection.isBot) return "blocked"
     return "bot-check"
   }
-  
+
   const [currentStep, setCurrentStep] = useState<VerificationStep>(getInitialStep())
   const [stepStatus, setStepStatus] = useState<StepStatus>({
     botCheck: "active",
-    turnstile: hasTurnstile ? "pending" : "skipped",
+    turnstile: hasCaptcha ? "pending" : "skipped",
     slider: "pending",
     math: "pending",
     image: difficulty === "hard" || difficulty === "extreme" ? "pending" : "skipped",
     pow: requireProofOfWork || difficulty === "extreme" ? "pending" : "skipped",
   })
-  
+
   const [verificationToken, setVerificationToken] = useState<string>("")
   const [sliderBehavior, setSliderBehavior] = useState<SliderBehaviorData | null>(null)
   const [powSolution, setPowSolution] = useState<{ nonce: number; hash: string; duration: number } | null>(null)
@@ -98,17 +103,17 @@ export function AntiBotVerification({
   // Initial bot check
   useEffect(() => {
     if (currentStep !== "bot-check") return
-    
+
     const checkTimer = setTimeout(() => {
       if (!botDetection.isBot && botDetection.score < 50) {
         setBotCheckPassed(true)
         setStepStatus(prev => ({
           ...prev,
           botCheck: "complete",
-          turnstile: hasTurnstile ? "active" : "skipped",
-          slider: hasTurnstile ? "pending" : "active",
+          turnstile: hasCaptcha ? "active" : "skipped",
+          slider: hasCaptcha ? "pending" : "active",
         }))
-        setCurrentStep(hasTurnstile ? "turnstile" : "slider")
+        setCurrentStep(hasCaptcha ? "turnstile" : "slider")
       } else if (botDetection.score >= 50) {
         setBotCheckFailed(true)
         setStepStatus(prev => ({ ...prev, botCheck: "failed" }))
@@ -116,9 +121,9 @@ export function AntiBotVerification({
         onFail("Suspicious activity detected")
       }
     }, 2000) // Allow 2 seconds for initial detection
-    
+
     return () => clearTimeout(checkTimer)
-  }, [currentStep, botDetection.isBot, botDetection.score, hasTurnstile, onFail])
+  }, [currentStep, botDetection.isBot, botDetection.score, hasCaptcha, onFail])
 
   const handleTurnstileVerify = (token: string) => {
     setVerificationToken(token)
@@ -153,7 +158,7 @@ export function AntiBotVerification({
         image: needsImage ? "active" : "skipped",
         pow: !needsImage && stepStatus.pow !== "skipped" ? "active" : stepStatus.pow,
       }))
-      
+
       if (needsImage) {
         setCurrentStep("image")
       } else if (stepStatus.pow !== "skipped") {
@@ -175,7 +180,7 @@ export function AntiBotVerification({
         image: "complete",
         pow: needsPow ? "active" : "skipped",
       }))
-      
+
       if (needsPow) {
         setCurrentStep("pow")
       } else {
@@ -200,7 +205,7 @@ export function AntiBotVerification({
 
   const completeVerification = () => {
     setCurrentStep("complete")
-    
+
     // Generate combined verification token with metadata
     const metadata: VerificationMetadata = {
       turnstileToken: verificationToken || undefined,
@@ -212,7 +217,7 @@ export function AntiBotVerification({
       totalDuration: Date.now() - startTime.current,
       timestamp: Date.now(),
     }
-    
+
     // Create a combined token
     const combinedToken = btoa(JSON.stringify({
       t: verificationToken || `local_${Date.now()}`,
@@ -221,7 +226,7 @@ export function AntiBotVerification({
       d: metadata.totalDuration,
       pow: powSolution?.hash?.substring(0, 16),
     }))
-    
+
     setTimeout(() => onComplete(combinedToken, metadata), 500)
   }
 
@@ -244,7 +249,7 @@ export function AntiBotVerification({
   // Calculate steps to show
   const visibleSteps = [
     { key: "botCheck" as const, label: "Security", show: true },
-    { key: "turnstile" as const, label: "Cloudflare", show: hasTurnstile },
+    { key: "turnstile" as const, label: "hCaptcha", show: hasCaptcha },
     { key: "slider" as const, label: "Slider", show: true },
     { key: "math" as const, label: "Math", show: true },
     { key: "image" as const, label: "Image", show: stepStatus.image !== "skipped" },
@@ -280,7 +285,7 @@ export function AntiBotVerification({
             <div className="text-center space-y-2">
               <p className="text-lg font-semibold text-destructive">Bot/Automation Detected</p>
               <p className="text-sm text-muted-foreground max-w-xs">
-                Our security system has detected automated activity, userscripts, or bot usage. 
+                Our security system has detected automated activity, userscripts, or bot usage.
                 Access has been denied.
               </p>
               {botDetection.detectedThreats.length > 0 && (
@@ -385,15 +390,15 @@ export function AntiBotVerification({
               className="flex flex-col items-center gap-4 py-4"
             >
               <div className="text-center space-y-2">
-                <p className="text-sm font-medium">Step 1: Cloudflare Verification</p>
+                <p className="text-sm font-medium">Step 1: hCaptcha Verification</p>
                 <p className="text-xs text-muted-foreground">Complete the security check below</p>
               </div>
-              <TurnstileWidget
-                siteKey={turnstileSiteKey || ""}
+              <HCaptchaWidget
+                siteKey={captchaSiteKey || ""}
                 onVerify={handleTurnstileVerify}
                 onError={handleTurnstileError}
                 onExpire={handleTurnstileError}
-                theme="auto"
+                theme="dark"
               />
             </motion.div>
           )}
@@ -409,7 +414,7 @@ export function AntiBotVerification({
               <div className="text-center space-y-1">
                 <p className="text-sm font-medium flex items-center justify-center gap-2">
                   <Puzzle className="h-4 w-4" />
-                  Step {hasTurnstile ? "2" : "1"}: Slider Challenge
+                  Step {hasCaptcha ? "2" : "1"}: Slider Challenge
                 </p>
                 <p className="text-xs text-muted-foreground">Move the slider naturally to verify</p>
               </div>
@@ -432,9 +437,9 @@ export function AntiBotVerification({
                 </p>
                 <p className="text-xs text-muted-foreground">Solve the math problem below</p>
               </div>
-              <MathChallenge 
-                onVerify={handleMathComplete} 
-                difficulty={difficulty === "extreme" ? "hard" : difficulty === "hard" ? "medium" : "easy"} 
+              <MathChallenge
+                onVerify={handleMathComplete}
+                difficulty={difficulty === "extreme" ? "hard" : difficulty === "hard" ? "medium" : "easy"}
               />
             </motion.div>
           )}
@@ -473,7 +478,7 @@ export function AntiBotVerification({
                 </p>
                 <p className="text-xs text-muted-foreground">Complete computational verification</p>
               </div>
-              <ProofOfWorkChallenge 
+              <ProofOfWorkChallenge
                 onVerify={handlePowComplete}
                 difficulty={difficulty === "extreme" ? 5 : 4}
                 maxTime={difficulty === "extreme" ? 60 : 30}
@@ -509,7 +514,7 @@ export function AntiBotVerification({
           Protected by multi-layer bot detection with behavioral analysis
         </div>
       </CardContent>
-      
+
       <style jsx global>{`
         @keyframes progress {
           0% { width: 0%; }

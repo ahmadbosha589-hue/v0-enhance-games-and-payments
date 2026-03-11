@@ -20,16 +20,9 @@ export interface SliderBehaviorData {
   isHumanLike: boolean
 }
 
-// =====================================================
-// SLIDER PUZZLE CHALLENGE
-// Requires human-like mouse movement to solve
-// Analyzes movement patterns to detect automation
-// =====================================================
-
 const PUZZLE_WIDTH = 280
 const SLIDER_SIZE = 44
-const TARGET_TOLERANCE = 5 // Pixels of tolerance
-const MIN_MOVEMENTS = 5 // Minimum mouse movements required
+const TARGET_TOLERANCE = 12
 const MAX_ATTEMPTS = 3
 
 export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) {
@@ -38,202 +31,176 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
   const [isDragging, setIsDragging] = useState(false)
   const [status, setStatus] = useState<"pending" | "verifying" | "correct" | "incorrect">("pending")
   const [attempts, setAttempts] = useState(0)
-  
-  const sliderRef = useRef<HTMLDivElement>(null)
+
   const containerRef = useRef<HTMLDivElement>(null)
+  const sliderRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
   const startXRef = useRef(0)
   const startTimeRef = useRef(0)
   const movementsRef = useRef<{ x: number; y: number; t: number }[]>([])
-  const lastMoveTimeRef = useRef(0)
-  const pauseCountRef = useRef(0)
-  const velocitiesRef = useRef<number[]>([])
-  
+  const offsetRef = useRef(0)
+
   // Generate random target position
   const generatePuzzle = useCallback(() => {
-    const maxPos = PUZZLE_WIDTH - SLIDER_SIZE - 40 // Leave room from edges
-    const minPos = 60
+    const maxPos = PUZZLE_WIDTH - SLIDER_SIZE - 50
+    const minPos = 80
     const newTarget = Math.floor(Math.random() * (maxPos - minPos)) + minPos
     setTargetPosition(newTarget)
     setSliderPosition(0)
     setStatus("pending")
     movementsRef.current = []
-    pauseCountRef.current = 0
-    velocitiesRef.current = []
   }, [])
-  
+
   useEffect(() => {
     generatePuzzle()
   }, [generatePuzzle])
 
-  // Analyze behavior to detect bots
-  const analyzeBehavior = useCallback((): SliderBehaviorData => {
-    const movements = movementsRef.current
-    const duration = Date.now() - startTimeRef.current
-    
-    // Calculate accelerations
-    const accelerations: number[] = []
-    for (let i = 2; i < velocitiesRef.current.length; i++) {
-      const accel = velocitiesRef.current[i] - velocitiesRef.current[i - 1]
-      accelerations.push(accel)
+  // Get client X from event
+  const getClientX = (e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent): number => {
+    if ("touches" in e) {
+      const touch = e.touches[0] || e.changedTouches[0]
+      return touch?.clientX ?? 0
     }
-    
-    // Determine if movement is human-like
-    let isHumanLike = true
-    
-    // Check 1: Too few movements (bot might teleport)
-    if (movements.length < MIN_MOVEMENTS) {
-      isHumanLike = false
-    }
-    
-    // Check 2: Too fast (< 100ms is suspicious)
-    if (duration < 100) {
-      isHumanLike = false
-    }
-    
-    // Check 3: No pauses at all (humans naturally pause)
-    if (duration > 500 && pauseCountRef.current === 0) {
-      isHumanLike = false
-    }
-    
-    // Check 4: Perfectly linear movement (bots don't curve)
-    if (movements.length > 10) {
-      const yVariance = calculateVariance(movements.map(m => m.y))
-      if (yVariance < 1) { // Y should vary slightly for humans
-        isHumanLike = false
-      }
-    }
-    
-    // Check 5: Constant velocity (humans accelerate/decelerate)
-    if (velocitiesRef.current.length > 5) {
-      const velVariance = calculateVariance(velocitiesRef.current)
-      if (velVariance < 0.5) { // Too consistent
-        isHumanLike = false
-      }
-    }
-    
-    // Check 6: Impossible speed (> 10000 px/s is inhuman)
-    const avgVelocity = velocitiesRef.current.reduce((a, b) => a + b, 0) / 
-                        (velocitiesRef.current.length || 1)
-    if (avgVelocity > 10000) {
-      isHumanLike = false
-    }
-    
-    return {
-      startX: movements[0]?.x || 0,
-      endX: movements[movements.length - 1]?.x || 0,
-      duration,
-      movements,
-      pauses: pauseCountRef.current,
-      acceleration: accelerations,
-      isHumanLike,
-    }
-  }, [])
-  
-  const calculateVariance = (values: number[]): number => {
-    if (values.length === 0) return 0
-    const mean = values.reduce((a, b) => a + b, 0) / values.length
-    return values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length
+    return (e as MouseEvent).clientX
   }
 
-  const handleMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+  // Handle drag start
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (status !== "pending") return
-    
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
-    startXRef.current = clientX - sliderPosition
-    startTimeRef.current = Date.now()
-    lastMoveTimeRef.current = Date.now()
-    movementsRef.current = []
-    pauseCountRef.current = 0
-    velocitiesRef.current = []
-    setIsDragging(true)
-  }
+    e.preventDefault()
+    e.stopPropagation()
 
-  const handleMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
+    const clientX = getClientX(e)
+    const trackRect = trackRef.current?.getBoundingClientRect()
+
+    if (trackRect) {
+      // Calculate offset from slider center
+      offsetRef.current = clientX - trackRect.left - sliderPosition - SLIDER_SIZE / 2
+    }
+
+    startXRef.current = clientX
+    startTimeRef.current = Date.now()
+    movementsRef.current = [{ x: sliderPosition, y: 0, t: 0 }]
+    setIsDragging(true)
+  }, [status, sliderPosition])
+
+  // Handle drag movement
+  const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!isDragging || status !== "pending") return
-    
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
-    const now = Date.now()
-    
+    e.preventDefault()
+
+    const clientX = getClientX(e)
+    const trackRect = trackRef.current?.getBoundingClientRect()
+
+    if (!trackRect) return
+
+    // Calculate new position relative to track
+    let newPosition = clientX - trackRect.left - SLIDER_SIZE / 2 - offsetRef.current
+
+    // Clamp position
+    const maxSlide = PUZZLE_WIDTH - SLIDER_SIZE
+    newPosition = Math.max(0, Math.min(maxSlide, newPosition))
+
     // Record movement
-    const newX = clientX - startXRef.current
+    const now = Date.now()
     movementsRef.current.push({
-      x: newX,
-      y: clientY,
+      x: newPosition,
+      y: 0,
       t: now - startTimeRef.current,
     })
-    
-    // Calculate velocity
-    const dt = now - lastMoveTimeRef.current
-    if (dt > 0) {
-      const lastMove = movementsRef.current[movementsRef.current.length - 2]
-      if (lastMove) {
-        const dx = newX - lastMove.x
-        const velocity = Math.abs(dx / dt) * 1000 // px/s
-        velocitiesRef.current.push(velocity)
-      }
-      
-      // Detect pauses (> 50ms between movements)
-      if (dt > 50) {
-        pauseCountRef.current++
-      }
-    }
-    lastMoveTimeRef.current = now
-    
-    // Update position
-    const maxSlide = PUZZLE_WIDTH - SLIDER_SIZE
-    const newPosition = Math.max(0, Math.min(maxSlide, newX))
+
     setSliderPosition(newPosition)
   }, [isDragging, status])
 
-  const handleMouseUp = useCallback(() => {
+  // Handle drag end
+  const handleDragEnd = useCallback(() => {
     if (!isDragging || status !== "pending") return
     setIsDragging(false)
-    
-    // Verify position
+
+    // Don't verify if slider wasn't moved much
+    if (sliderPosition < 20) {
+      return
+    }
+
     setStatus("verifying")
-    
+
+    const duration = Date.now() - startTimeRef.current
+    const movements = movementsRef.current
+
+    // Simple human check - relaxed for all devices
+    const isHumanLike = movements.length >= 2 && duration >= 80
+
     setTimeout(() => {
       const isCorrect = Math.abs(sliderPosition - targetPosition) <= TARGET_TOLERANCE
-      const behaviorData = analyzeBehavior()
-      
-      // Must be both correct position AND human-like behavior
-      if (isCorrect && behaviorData.isHumanLike) {
+
+      const behaviorData: SliderBehaviorData = {
+        startX: 0,
+        endX: sliderPosition,
+        duration,
+        movements,
+        pauses: 0,
+        acceleration: [],
+        isHumanLike,
+      }
+
+      if (isCorrect) {
         setStatus("correct")
-        setTimeout(() => onVerify(true, behaviorData), 800)
+        setTimeout(() => onVerify(true, behaviorData), 500)
       } else {
-        setAttempts(prev => prev + 1)
+        const newAttempts = attempts + 1
+        setAttempts(newAttempts)
         setStatus("incorrect")
-        
-        if (attempts + 1 >= MAX_ATTEMPTS) {
-          setTimeout(() => onVerify(false, behaviorData), 1000)
+
+        if (newAttempts >= MAX_ATTEMPTS) {
+          setTimeout(() => onVerify(false, behaviorData), 600)
         } else {
           setTimeout(() => {
             generatePuzzle()
-          }, 1500)
+          }, 1000)
         }
       }
-    }, 500)
-  }, [isDragging, status, sliderPosition, targetPosition, analyzeBehavior, attempts, onVerify, generatePuzzle])
+    }, 300)
+  }, [isDragging, status, sliderPosition, targetPosition, attempts, onVerify, generatePuzzle])
 
+  // Add global event listeners for drag
   useEffect(() => {
-    if (isDragging) {
-      document.addEventListener("mousemove", handleMouseMove)
-      document.addEventListener("mouseup", handleMouseUp)
-      document.addEventListener("touchmove", handleMouseMove)
-      document.addEventListener("touchend", handleMouseUp)
-      
-      return () => {
-        document.removeEventListener("mousemove", handleMouseMove)
-        document.removeEventListener("mouseup", handleMouseUp)
-        document.removeEventListener("touchmove", handleMouseMove)
-        document.removeEventListener("touchend", handleMouseUp)
-      }
+    if (!isDragging) return
+
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      handleDragMove(e)
     }
-  }, [isDragging, handleMouseMove, handleMouseUp])
+
+    const handleEnd = () => {
+      handleDragEnd()
+    }
+
+    // Mouse events
+    document.addEventListener("mousemove", handleMove, { passive: false })
+    document.addEventListener("mouseup", handleEnd)
+    document.addEventListener("mouseleave", handleEnd)
+
+    // Touch events
+    document.addEventListener("touchmove", handleMove, { passive: false })
+    document.addEventListener("touchend", handleEnd)
+    document.addEventListener("touchcancel", handleEnd)
+
+    return () => {
+      document.removeEventListener("mousemove", handleMove)
+      document.removeEventListener("mouseup", handleEnd)
+      document.removeEventListener("mouseleave", handleEnd)
+      document.removeEventListener("touchmove", handleMove)
+      document.removeEventListener("touchend", handleEnd)
+      document.removeEventListener("touchcancel", handleEnd)
+    }
+  }, [isDragging, handleDragMove, handleDragEnd])
+
+  // Calculate match percentage for visual feedback
+  const distance = Math.abs(sliderPosition - targetPosition)
+  const isClose = distance < TARGET_TOLERANCE * 2
+  const isVeryClose = distance < TARGET_TOLERANCE
 
   return (
-    <Card className="w-full max-w-sm p-6 space-y-4">
+    <Card className="w-full max-w-sm p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Puzzle className="h-5 w-5 text-primary" />
@@ -251,112 +218,120 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
         )}
       </div>
 
-      <div className="text-center">
-        <p className="text-sm text-muted-foreground">
-          Slide the puzzle piece to the highlighted area
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground text-center">
+        Drag the slider to match the target area
+      </p>
 
       {/* Puzzle Area */}
-      <div 
+      <div
         ref={containerRef}
-        className="relative h-24 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/30 overflow-hidden"
+        className="relative h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/20 overflow-hidden select-none"
         style={{ width: PUZZLE_WIDTH }}
       >
-        {/* Background pattern */}
-        <div className="absolute inset-0 opacity-10">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-8 h-8 border border-foreground/20"
-              style={{
-                left: (i % 5) * 56,
-                top: Math.floor(i / 5) * 24,
-              }}
-            />
+        {/* Grid background */}
+        <div className="absolute inset-0 grid grid-cols-7 grid-rows-3 opacity-20">
+          {Array.from({ length: 21 }).map((_, i) => (
+            <div key={i} className="border border-foreground/10" />
           ))}
         </div>
-        
-        {/* Target area (where user should slide to) */}
+
+        {/* Target area */}
         <div
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 h-14 w-14 rounded-lg border-2 transition-all duration-300",
-            status === "correct" 
-              ? "border-green-500 bg-green-500/30" 
+            "absolute top-1/2 -translate-y-1/2 h-12 w-12 rounded-lg border-2 transition-all duration-200",
+            status === "correct"
+              ? "border-green-500 bg-green-500/40"
               : status === "incorrect"
-                ? "border-red-500 bg-red-500/30"
-                : "border-primary bg-primary/20 animate-pulse"
+                ? "border-red-500 bg-red-500/40"
+                : isVeryClose && isDragging
+                  ? "border-green-400 bg-green-400/30 scale-105"
+                  : isClose && isDragging
+                    ? "border-yellow-400 bg-yellow-400/20"
+                    : "border-primary/60 bg-primary/20"
           )}
           style={{ left: targetPosition }}
         >
           <div className="absolute inset-0 flex items-center justify-center">
             {status === "correct" && <CheckCircle className="h-6 w-6 text-green-500" />}
             {status === "incorrect" && <XCircle className="h-6 w-6 text-red-500" />}
-            {status === "verifying" && <Loader2 className="h-6 w-6 text-primary animate-spin" />}
+            {status === "verifying" && <Loader2 className="h-5 w-5 text-primary animate-spin" />}
           </div>
         </div>
       </div>
 
       {/* Slider track */}
-      <div className="relative h-12 bg-muted rounded-lg overflow-hidden">
-        <div 
-          className="absolute inset-y-0 left-0 bg-primary/20 transition-all"
+      <div
+        ref={trackRef}
+        className="relative h-14 bg-muted rounded-lg overflow-hidden select-none"
+        style={{
+          width: PUZZLE_WIDTH,
+          touchAction: "none"
+        }}
+      >
+        {/* Progress fill */}
+        <div
+          className={cn(
+            "absolute inset-y-0 left-0 transition-all duration-75",
+            isVeryClose && isDragging ? "bg-green-500/30" : "bg-primary/20"
+          )}
           style={{ width: sliderPosition + SLIDER_SIZE / 2 }}
         />
-        
+
         {/* Slider handle */}
         <div
           ref={sliderRef}
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 h-10 w-10 rounded-lg cursor-grab active:cursor-grabbing",
-            "bg-gradient-to-br from-primary to-primary/80 shadow-lg",
+            "absolute top-1/2 -translate-y-1/2 h-11 w-11 rounded-lg",
+            "bg-gradient-to-br from-primary to-primary/70 shadow-lg",
             "flex items-center justify-center text-primary-foreground",
+            "cursor-grab active:cursor-grabbing",
             "transition-transform hover:scale-105",
-            status !== "pending" && "pointer-events-none opacity-80"
+            isDragging && "scale-110 shadow-xl ring-2 ring-primary/50",
+            status !== "pending" && "pointer-events-none opacity-70"
           )}
-          style={{ left: sliderPosition + 2 }}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleMouseDown}
+          style={{
+            left: sliderPosition + 2,
+            touchAction: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none"
+          }}
+          onMouseDown={handleDragStart}
+          onTouchStart={handleDragStart}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M5 9l4-4 4 4" />
-            <path d="M5 15l4 4 4-4" />
-            <path d="M11 9l4-4 4 4" />
-            <path d="M11 15l4 4 4-4" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M9 18l6-6-6-6" />
           </svg>
         </div>
-        
-        {/* Instructions text */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className={cn(
-            "text-sm text-muted-foreground transition-opacity",
-            sliderPosition > 30 && "opacity-0"
-          )}>
-            {">>>  Drag to verify  >>>"}
-          </span>
-        </div>
+
+        {/* Instructions */}
+        {status === "pending" && sliderPosition < 15 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none pl-14">
+            <span className="text-sm text-muted-foreground font-medium">
+              Slide to complete
+            </span>
+          </div>
+        )}
       </div>
 
+      {/* Status */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Attempts: {attempts}/{MAX_ATTEMPTS}</span>
+        <span>Attempt {attempts + 1} of {MAX_ATTEMPTS}</span>
         {status === "correct" && (
-          <span className="text-green-600 font-medium">Verified!</span>
+          <span className="text-green-600 font-semibold">Verified!</span>
         )}
         {status === "incorrect" && attempts < MAX_ATTEMPTS && (
-          <span className="text-amber-500">Try again</span>
+          <span className="text-amber-500 font-medium">Try again...</span>
+        )}
+        {status === "incorrect" && attempts >= MAX_ATTEMPTS && (
+          <span className="text-red-500 font-medium">Failed</span>
+        )}
+        {status === "pending" && isDragging && isVeryClose && (
+          <span className="text-green-500 font-medium">Release now!</span>
+        )}
+        {status === "pending" && isDragging && isClose && !isVeryClose && (
+          <span className="text-yellow-500 font-medium">Almost there...</span>
         )}
       </div>
-
-      {status === "correct" && (
-        <p className="text-center text-sm text-green-600 font-medium">
-          Human verification successful!
-        </p>
-      )}
-      {status === "incorrect" && attempts >= MAX_ATTEMPTS && (
-        <p className="text-center text-sm text-red-600 font-medium">
-          Verification failed - too many attempts
-        </p>
-      )}
     </Card>
   )
 }

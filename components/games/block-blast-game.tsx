@@ -172,7 +172,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
     matches.forEach(key => {
       const [x, y] = key.split(",").map(Number)
       const cell = newBoard[y][x]
-      
+
       if (cell.special === "bomb") {
         // Clear surrounding cells (3x3 area)
         for (let dy = -1; dy <= 1; dy++) {
@@ -253,11 +253,11 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
 
   const processMatches = useCallback(async (boardState: Board, comboCount: number, currentIdCounter: number) => {
     const matches = findMatches(boardState)
-    
+
     if (matches.size === 0) {
       setCombo(0)
       setIsAnimating(false)
-      
+
       if (!hasValidMoves(boardState) || movesLeft <= 0) {
         setGameOver(true)
         onGameEnd(score, moves)
@@ -287,7 +287,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
 
     // Remove matches and fill
     const { newBoard, newIdCounter, bonusPoints } = removeMatches(boardState, matches, currentIdCounter)
-    
+
     if (bonusPoints > 0) {
       const bonusScore = newScore + bonusPoints * activeMultiplier
       setScore(bonusScore)
@@ -313,7 +313,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
     // Check if adjacent
     const dx = Math.abs(x - selectedCell.x)
     const dy = Math.abs(y - selectedCell.y)
-    
+
     if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
       // Swap cells
       const newBoard = board.map(row => row.map(cell => ({ ...cell })))
@@ -328,7 +328,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
         setMoves(m => m + 1)
         setMovesLeft(m => m - 1)
         setSelectedCell(null)
-        
+
         // Process matches
         setTimeout(() => {
           processMatches(newBoard, 0, cellIdCounter)
@@ -369,17 +369,17 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-start">
       {/* Game Board */}
-      <div 
+      <div
         className={`relative bg-gray-900 rounded-lg p-3 border-2 border-gray-700 transition-transform ${shakeBoard ? "animate-pulse" : ""}`}
-        style={{ 
+        style={{
           width: BOARD_SIZE * CELL_SIZE + 24,
           minWidth: BOARD_SIZE * CELL_SIZE + 24,
           transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 2 : -2}px)` : "none"
         }}
       >
-        <div 
+        <div
           className="grid gap-1"
-          style={{ 
+          style={{
             gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
             gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`
           }}
@@ -389,13 +389,13 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
             const y = Math.floor(i / BOARD_SIZE)
             const isSelected = selectedCell?.x === x && selectedCell?.y === y
             const isMatched = matchedCells.has(`${x},${y}`)
-            
+
             return (
               <button
                 key={cell.id}
                 onClick={() => handleCellClick(x, y)}
                 disabled={!isActive || isAnimating || gameOver}
-className={`
+                className={`
                   rounded-lg transition-all duration-200 relative
                   ${isSelected ? "ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110 z-10" : ""}
                   ${isMatched ? "scale-0 opacity-0" : "scale-100 opacity-100"}
@@ -417,7 +417,7 @@ className={`
                 }}
               />
             )
-})}
+          })}
         </div>
 
         {/* Event Message */}
@@ -442,7 +442,7 @@ className={`
             <p className="text-white font-bold text-sm">{activeMultiplier}x</p>
           </div>
         )}
-        
+
         {/* Game Over Overlay */}
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
@@ -504,7 +504,7 @@ className={`
         <Card className="p-3 bg-gray-900 border-gray-700">
           <p className="text-gray-400 text-xs mb-2">Target: 500 points</p>
           <div className="w-full bg-gray-800 rounded-full h-2">
-            <div 
+            <div
               className="bg-gradient-to-r from-green-500 to-emerald-400 h-2 rounded-full transition-all duration-300"
               style={{ width: `${Math.min(100, (score / 500) * 100)}%` }}
             />
