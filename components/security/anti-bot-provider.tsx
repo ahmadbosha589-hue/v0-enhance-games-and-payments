@@ -1,14 +1,14 @@
 "use client"
 
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react"
+import { createContext, useContext, useRef, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useUltimateAntiBot, type BotDetectionResult } from "@/hooks/use-ultimate-anti-bot"
 
 // =====================================================
-// ANTI-BOT PROTECTION PROVIDER
-// Wraps the application to provide bot detection and
-// automatic logout functionality
+// ANTI-BOT PROTECTION PROVIDER v5.0
+// ZERO FALSE POSITIVE EDITION
+// Only takes action with ABSOLUTE certainty
 // =====================================================
 
 interface AntiBotContextValue {
@@ -25,6 +25,7 @@ const AntiBotContext = createContext<AntiBotContextValue>({
     score: 0,
     shouldLogout: false,
     timestamp: Date.now(),
+    confidence: "low",
   },
   isBlocked: false,
 })
@@ -42,27 +43,43 @@ export function AntiBotProvider({ children, onLogout }: AntiBotProviderProps) {
   const router = useRouter()
   const hasLoggedOut = useRef(false)
   const blockOverlayShown = useRef(false)
+  const warningShown = useRef(false)
 
   const handleBotDetected = async (result: BotDetectionResult) => {
     // Prevent multiple logout attempts
     if (hasLoggedOut.current) return
 
-    console.error("[AntiBot] Bot/Automation detected:", {
+    // CRITICAL: Only take action with ABSOLUTE confidence
+    // This prevents ALL false positives
+    if (result.confidence !== "absolute") {
+      // Just log for monitoring, don't take action
+      console.log("[AntiBot] Detection (no action - low confidence):", {
+        score: result.score,
+        confidence: result.confidence,
+        threats: result.detectedThreats,
+      })
+      return
+    }
+
+    console.error("[AntiBot] CONFIRMED Bot/Automation detected:", {
       score: result.score,
+      confidence: result.confidence,
       threats: result.detectedThreats,
       threatLevel: result.threatLevel,
     })
 
-    // Show warning for suspicious activity
-    if (result.isSuspicious && !result.shouldLogout) {
-      toast.warning("Suspicious activity detected", {
-        description: "Your session is being monitored for security purposes.",
-        duration: 8000,
+    // Show warning ONCE for suspicious activity (doesn't logout)
+    // Only show if we haven't already and not logging out
+    if (result.isSuspicious && !result.shouldLogout && !warningShown.current) {
+      warningShown.current = true
+      toast.warning("Unusual activity detected", {
+        description: "Please continue using the site normally.",
+        duration: 5000,
       })
     }
 
-    // Force logout for confirmed bots
-    if (result.shouldLogout) {
+    // Force logout ONLY for CONFIRMED bots with ABSOLUTE confidence
+    if (result.shouldLogout && result.confidence === "absolute") {
       hasLoggedOut.current = true
 
       // Show blocking overlay
@@ -72,7 +89,7 @@ export function AntiBotProvider({ children, onLogout }: AntiBotProviderProps) {
       }
 
       toast.error("Security violation detected", {
-        description: "Automated activity, userscript, or bot usage detected. You have been logged out.",
+        description: "Automated browser detected. Please use a standard browser.",
         duration: 15000,
       })
 
@@ -85,6 +102,7 @@ export function AntiBotProvider({ children, onLogout }: AntiBotProviderProps) {
             threats: result.detectedThreats,
             score: result.score,
             threatLevel: result.threatLevel,
+            confidence: result.confidence,
             timestamp: result.timestamp,
           }),
         })
@@ -108,7 +126,7 @@ export function AntiBotProvider({ children, onLogout }: AntiBotProviderProps) {
       try {
         localStorage.clear()
         sessionStorage.clear()
-        
+
         // Clear cookies
         document.cookie.split(";").forEach(cookie => {
           const name = cookie.split("=")[0].trim()
@@ -127,115 +145,25 @@ export function AntiBotProvider({ children, onLogout }: AntiBotProviderProps) {
 
   const detection = useUltimateAntiBot(handleBotDetected)
 
-  // Setup additional protection measures
-  useEffect(() => {
-    // Disable right-click context menu (optional, but reduces casual tampering)
-    const handleContextMenu = (e: MouseEvent) => {
-      // Allow in development
-      if (process.env.NODE_ENV === "development") return
-      
-      // Only block on sensitive areas
-      const target = e.target as HTMLElement
-      if (target.closest("[data-protected]")) {
-        e.preventDefault()
-      }
-    }
+  // =====================================================
+  // REMOVED: Aggressive protections that caused false positives
+  // =====================================================
+  // We NO LONGER:
+  // - Block keyboard shortcuts (F12, Ctrl+Shift+I, etc.)
+  //   Reason: Power users and developers legitimately use these
+  // - Block right-click context menu
+  //   Reason: Users need context menus for accessibility
+  // - Override eval() and Function constructor
+  //   Reason: Breaks legitimate libraries and extensions
+  // - Detect debugger statement usage
+  //   Reason: Developers debugging issues shouldn't be blocked
+  //
+  // These "protections" caused more harm than good and made
+  // the site unusable for many legitimate users.
 
-    // Block keyboard shortcuts that could be used for dev tools
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (process.env.NODE_ENV === "development") return
-
-      // Block F12
-      if (e.key === "F12") {
-        e.preventDefault()
-        detection.detectedThreats.push("F12 key blocked")
-      }
-
-      // Block Ctrl+Shift+I (Dev Tools)
-      if (e.ctrlKey && e.shiftKey && e.key === "I") {
-        e.preventDefault()
-      }
-
-      // Block Ctrl+Shift+J (Console)
-      if (e.ctrlKey && e.shiftKey && e.key === "J") {
-        e.preventDefault()
-      }
-
-      // Block Ctrl+Shift+C (Inspect)
-      if (e.ctrlKey && e.shiftKey && e.key === "C") {
-        e.preventDefault()
-      }
-
-      // Block Ctrl+U (View Source)
-      if (e.ctrlKey && e.key === "u") {
-        e.preventDefault()
-      }
-    }
-
-    // Detect and block eval
-    const originalEval = window.eval
-    try {
-      Object.defineProperty(window, "eval", {
-        get() {
-          console.warn("[AntiBot] eval() access detected")
-          return function() {
-            throw new Error("eval() is disabled for security")
-          }
-        },
-        configurable: false,
-      })
-    } catch {
-      // eval protection failed, continue
-    }
-
-    // Block Function constructor abuse
-    const OriginalFunction = Function
-    try {
-      ; (window as any).Function = function(...args: any[]) {
-        console.warn("[AntiBot] Function constructor access detected")
-        throw new Error("Function constructor is disabled for security")
-      }
-    } catch {
-      // Function protection failed, continue
-    }
-
-    document.addEventListener("contextmenu", handleContextMenu)
-    document.addEventListener("keydown", handleKeyDown)
-
-    return () => {
-      document.removeEventListener("contextmenu", handleContextMenu)
-      document.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [detection])
-
-  // Detect debugger statement usage
-  useEffect(() => {
-    const detectDebugger = () => {
-      const start = performance.now()
-      // This will pause if debugger is active
-      ;(() => { debugger })()
-      const end = performance.now()
-      
-      // If it took more than 100ms, debugger was active
-      if (end - start > 100) {
-        handleBotDetected({
-          ...detection,
-          isBot: true,
-          shouldLogout: true,
-          detectedThreats: [...detection.detectedThreats, "Debugger detected"],
-          score: detection.score + 50,
-        })
-      }
-    }
-
-    // Only in production
-    if (process.env.NODE_ENV === "production") {
-      const interval = setInterval(detectDebugger, 3000)
-      return () => clearInterval(interval)
-    }
-  }, [detection])
-
-  const isBlocked = detection.isBot || detection.shouldLogout
+  // CRITICAL: Only show blocked screen with ABSOLUTE confidence
+  // This prevents ALL false positive blocks
+  const isBlocked = detection.shouldLogout && detection.confidence === "absolute"
 
   return (
     <AntiBotContext.Provider value={{ detection, isBlocked }}>
@@ -267,29 +195,29 @@ function showBlockingOverlay(result: BotDetectionResult) {
     color: white;
     font-family: system-ui, -apple-system, sans-serif;
   `
-  
+
   overlay.innerHTML = `
     <div style="text-align: center; max-width: 500px; padding: 2rem;">
-      <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
+      <div style="font-size: 4rem; margin-bottom: 1rem;">&#128302;</div>
       <h1 style="font-size: 1.5rem; margin-bottom: 1rem; color: #ef4444;">
-        Security Violation Detected
+        Automated Browser Detected
       </h1>
       <p style="color: #9ca3af; margin-bottom: 1.5rem; line-height: 1.6;">
-        Our security system has detected automated activity, userscripts, 
-        or bot usage on your account. This violates our terms of service.
+        Our security system has detected that you are using an automated browser 
+        (Selenium, Puppeteer, Playwright, or similar automation tool).
       </p>
       <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
         <p style="color: #fca5a5; font-size: 0.875rem;">
-          Threat Level: <strong>${result.threatLevel.toUpperCase()}</strong><br/>
-          Security Score: <strong>${result.score}/100</strong>
+          Detection Confidence: <strong>ABSOLUTE</strong><br/>
+          Detected: <strong>${result.detectedThreats.slice(0, 2).join(", ") || "Automation Framework"}</strong>
         </p>
       </div>
       <p style="color: #6b7280; font-size: 0.875rem;">
-        You are being logged out automatically.<br/>
+        Please use a standard web browser to access this site.<br/>
         Contact support if you believe this is an error.
       </p>
       <div style="margin-top: 2rem;">
-        <div style="width: 200px; height: 4px; background: #374151; border-radius: 2px; overflow: hidden;">
+        <div style="width: 200px; height: 4px; background: #374151; border-radius: 2px; overflow: hidden; margin: 0 auto;">
           <div style="width: 0; height: 100%; background: #ef4444; animation: loading 2s ease-in-out forwards;"></div>
         </div>
       </div>
@@ -300,7 +228,7 @@ function showBlockingOverlay(result: BotDetectionResult) {
       }
     </style>
   `
-  
+
   document.body.appendChild(overlay)
 }
 
@@ -323,31 +251,34 @@ function BlockedScreen({ detection }: { detection: BotDetectionResult }) {
             />
           </svg>
         </div>
-        
+
         <h1 className="mb-2 text-2xl font-bold text-destructive">
-          Access Blocked
+          Automated Browser Detected
         </h1>
-        
+
         <p className="mb-6 text-muted-foreground">
-          Automated activity or security violation detected. 
-          Your session has been terminated.
+          Our security system has detected that you are using an automated browser.
+          Please use a standard web browser to access this site.
         </p>
-        
-        <div className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-          <p className="text-sm text-destructive">
-            <strong>Detected threats:</strong>
-          </p>
-          <ul className="mt-2 text-left text-xs text-muted-foreground">
-            {detection.detectedThreats.slice(0, 5).map((threat, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <span className="text-destructive">-</span> {threat}
-              </li>
-            ))}
-          </ul>
-        </div>
-        
+
+        {detection.detectedThreats.length > 0 && (
+          <div className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+            <p className="text-sm text-destructive">
+              <strong>Detected:</strong>
+            </p>
+            <ul className="mt-2 text-left text-xs text-muted-foreground">
+              {detection.detectedThreats.slice(0, 3).map((threat, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="text-destructive">-</span> {threat}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <p className="text-sm text-muted-foreground">
-          If you believe this is an error, please contact support.
+          If you are using a standard browser and believe this is an error,
+          please clear your browser cache and try again, or contact support.
         </p>
       </div>
     </div>
