@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { RotateCcw, Sparkles, Bird } from "lucide-react"
 
-const CANVAS_WIDTH = 320
-const CANVAS_HEIGHT = 480
+const CANVAS_WIDTH = 300
+const CANVAS_HEIGHT = 420
 const BIRD_SIZE = 30
 const PIPE_WIDTH = 50
 const PIPE_GAP = 140
@@ -68,11 +68,11 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
 
   const jump = useCallback(() => {
     if (gameOver) return
-    
+
     if (!gameStarted) {
       setGameStarted(true)
     }
-    
+
     setBirdVelocity(JUMP_STRENGTH)
     setMoves(m => m + 1)
   }, [gameOver, gameStarted])
@@ -111,7 +111,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
       // Update bird position
       const newVelocity = velocityRef.current + currentGravity
       const newBirdY = Math.min(Math.max(birdYRef.current + newVelocity, 0), CANVAS_HEIGHT - BIRD_SIZE)
-      
+
       setBirdVelocity(newVelocity)
       setBirdY(newBirdY)
 
@@ -131,10 +131,10 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
         const maxHeight = CANVAS_HEIGHT - PIPE_GAP - minHeight
         const topHeight = Math.floor(Math.random() * (maxHeight - minHeight)) + minHeight
         const hasCoin = Math.random() < 0.4
-        
-        setPipes(prev => [...prev, { 
-          x: CANVAS_WIDTH, 
-          topHeight, 
+
+        setPipes(prev => [...prev, {
+          x: CANVAS_WIDTH,
+          topHeight,
           passed: false,
           hasCoin,
           coinCollected: false
@@ -151,11 +151,11 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
         const updatedPipes = prev
           .map(pipe => {
             const newX = pipe.x - currentPipeSpeed
-            
+
             // Check collision
             const pipeLeft = newX
             const pipeRight = newX + PIPE_WIDTH
-            
+
             if (birdRight > pipeLeft && birdLeft < pipeRight) {
               // Check top pipe collision
               if (birdTop < pipe.topHeight) {
@@ -173,12 +173,12 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
                   onGameEnd(scoreRef.current, movesRef.current)
                 }
               }
-              
+
               // Check coin collision
               if (pipe.hasCoin && !pipe.coinCollected) {
                 const coinY = pipe.topHeight + PIPE_GAP / 2
                 const coinX = newX + PIPE_WIDTH / 2
-                const dist = Math.sqrt(Math.pow(birdLeft + BIRD_SIZE/2 - coinX, 2) + Math.pow(birdTop + BIRD_SIZE/2 - coinY, 2))
+                const dist = Math.sqrt(Math.pow(birdLeft + BIRD_SIZE / 2 - coinX, 2) + Math.pow(birdTop + BIRD_SIZE / 2 - coinY, 2))
                 if (dist < BIRD_SIZE) {
                   pipe.coinCollected = true
                   setCoins(c => c + 1)
@@ -196,12 +196,12 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
               setCombo(newCombo)
               setShowCombo(true)
               setTimeout(() => setShowCombo(false), 500)
-              
+
               const comboBonus = Math.min(newCombo * 5, 50)
               const newScore = scoreRef.current + 10 + comboBonus
               setScore(newScore)
               onScoreUpdate(newScore)
-              
+
               // Increase difficulty
               if (scoreRef.current > 0 && scoreRef.current % 100 === 0) {
                 setDifficulty(d => Math.min(d + 1, 5))
@@ -250,7 +250,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
         sunset: ["#FF6B6B", "#FFE66D"],
         night: ["#1a1a2e", "#16213e"]
       }
-      
+
       const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT)
       gradient.addColorStop(0, bgColors[dayTime][0])
       gradient.addColorStop(1, bgColors[dayTime][1])
@@ -275,13 +275,13 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
         pipeGradient.addColorStop(0, "#2d8b3b")
         pipeGradient.addColorStop(0.5, "#4ade80")
         pipeGradient.addColorStop(1, "#2d8b3b")
-        
+
         ctx.fillStyle = pipeGradient
-        
+
         // Top pipe
         ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.topHeight)
         ctx.fillRect(pipe.x - 5, pipe.topHeight - 20, PIPE_WIDTH + 10, 20)
-        
+
         // Bottom pipe
         const bottomY = pipe.topHeight + PIPE_GAP
         ctx.fillRect(pipe.x, bottomY, PIPE_WIDTH, CANVAS_HEIGHT - bottomY)
@@ -291,7 +291,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
         if (pipe.hasCoin && !pipe.coinCollected) {
           const coinY = pipe.topHeight + PIPE_GAP / 2
           const coinX = pipe.x + PIPE_WIDTH / 2
-          
+
           ctx.fillStyle = "#fbbf24"
           ctx.beginPath()
           ctx.arc(coinX, coinY, 12, 0, Math.PI * 2)
@@ -306,23 +306,23 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
       // Draw bird
       const birdX = 50
       const birdAngle = Math.min(Math.max(velocityRef.current * 3, -30), 90) * Math.PI / 180
-      
+
       ctx.save()
-      ctx.translate(birdX + BIRD_SIZE/2, birdYRef.current + BIRD_SIZE/2)
+      ctx.translate(birdX + BIRD_SIZE / 2, birdYRef.current + BIRD_SIZE / 2)
       ctx.rotate(birdAngle)
-      
+
       // Bird body
       ctx.fillStyle = powerUpRef.current === "shield" ? "#60a5fa" : "#fbbf24"
       ctx.beginPath()
-      ctx.ellipse(0, 0, BIRD_SIZE/2, BIRD_SIZE/2.5, 0, 0, Math.PI * 2)
+      ctx.ellipse(0, 0, BIRD_SIZE / 2, BIRD_SIZE / 2.5, 0, 0, Math.PI * 2)
       ctx.fill()
-      
+
       // Wing
       ctx.fillStyle = powerUpRef.current === "shield" ? "#3b82f6" : "#f59e0b"
       ctx.beginPath()
       ctx.ellipse(-2, 5, 10, 6, -0.3, 0, Math.PI * 2)
       ctx.fill()
-      
+
       // Eye
       ctx.fillStyle = "#fff"
       ctx.beginPath()
@@ -332,7 +332,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
       ctx.beginPath()
       ctx.arc(10, -3, 3, 0, Math.PI * 2)
       ctx.fill()
-      
+
       // Beak
       ctx.fillStyle = "#ef4444"
       ctx.beginPath()
@@ -350,7 +350,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
         ctx.arc(0, 0, BIRD_SIZE * 0.8, 0, Math.PI * 2)
         ctx.stroke()
       }
-      
+
       ctx.restore()
 
       // Draw ground
@@ -390,7 +390,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
     // Draw bird
     ctx.fillStyle = "#fbbf24"
     ctx.beginPath()
-    ctx.arc(50 + BIRD_SIZE/2, CANVAS_HEIGHT/2 + BIRD_SIZE/2, BIRD_SIZE/2, 0, Math.PI * 2)
+    ctx.arc(50 + BIRD_SIZE / 2, CANVAS_HEIGHT / 2 + BIRD_SIZE / 2, BIRD_SIZE / 2, 0, Math.PI * 2)
     ctx.fill()
   }, [])
 
@@ -408,15 +408,27 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
   }, [jump])
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Canvas */}
-      <div className="relative">
+      <div className="relative touch-none select-none">
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          onClick={jump}
-          className="rounded-lg border-2 border-gray-700 cursor-pointer"
+          onClick={(e) => {
+            e.preventDefault()
+            jump()
+          }}
+          onTouchStart={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            jump()
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault()
+          }}
+          className="rounded-lg border-2 border-gray-700 cursor-pointer select-none"
+          style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
         />
 
         {/* Start Overlay */}
@@ -488,7 +500,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
               <p className="text-gray-400 text-xs">Difficulty</p>
               <div className="flex gap-1 mt-1">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div 
+                  <div
                     key={i}
                     className={`w-4 h-2 rounded ${i < difficulty ? "bg-red-500" : "bg-gray-700"}`}
                   />

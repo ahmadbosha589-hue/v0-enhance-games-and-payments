@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Play, Pause, ArrowLeft, ArrowRight, Fuel, Trophy } from "lucide-react"
 
-const CANVAS_WIDTH = 320
-const CANVAS_HEIGHT = 480
+const CANVAS_WIDTH = 300
+const CANVAS_HEIGHT = 420
 const CAR_WIDTH = 40
 const CAR_HEIGHT = 60
 const OBSTACLE_WIDTH = 40
@@ -93,7 +93,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
     const color = obstacleColors[Math.floor(Math.random() * obstacleColors.length)]
     // Random speed variation for obstacles
     const speedVariation = 0.5 + Math.random() * 1.5
-    
+
     const newObstacle: Obstacle = {
       x: (newLane * LANE_WIDTH) + (LANE_WIDTH - OBSTACLE_WIDTH) / 2,
       y: -OBSTACLE_HEIGHT,
@@ -102,7 +102,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
       color,
       speed: speedVariation
     }
-    
+
     setObstacles(prev => [...prev, newObstacle])
   }, [])
 
@@ -135,7 +135,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
 
   const activatePowerUp = useCallback((type: keyof typeof POWER_UPS) => {
     setActivePowerUp(type)
-    
+
     if (type === "shield") {
       setIsInvincible(true)
     } else if (type === "magnet") {
@@ -145,7 +145,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
     } else if (type === "doubleCoins") {
       setCoinMultiplier(2)
     }
-    
+
     setTimeout(() => {
       setActivePowerUp(null)
       if (type === "shield") setIsInvincible(false)
@@ -171,7 +171,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isActive || gameOver) return
-      
+
       switch (e.key) {
         case "ArrowLeft":
         case "a":
@@ -197,6 +197,67 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isActive, gameOver, moveLeft, moveRight])
+
+  // Touch/swipe controls for mobile
+  const touchStartRef = useRef<{ x: number; time: number } | null>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (!isActive || gameOver || isPaused) return
+      e.preventDefault()
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        time: Date.now()
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isActive || gameOver || isPaused || !touchStartRef.current) return
+      e.preventDefault()
+
+      const touch = e.touches[0]
+      const dx = touch.clientX - touchStartRef.current.x
+      const swipeThreshold = 40
+
+      // Continuous swipe detection
+      if (dx > swipeThreshold) {
+        moveRight()
+        touchStartRef.current = { x: touch.clientX, time: Date.now() }
+      } else if (dx < -swipeThreshold) {
+        moveLeft()
+        touchStartRef.current = { x: touch.clientX, time: Date.now() }
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!touchStartRef.current) return
+
+      const touch = e.changedTouches[0]
+      const dx = touch.clientX - touchStartRef.current.x
+      const dt = Date.now() - touchStartRef.current.time
+
+      // Quick swipe at end
+      if (dt < 200) {
+        if (dx > 30) moveRight()
+        else if (dx < -30) moveLeft()
+      }
+
+      touchStartRef.current = null
+    }
+
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: false })
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false })
+    canvas.addEventListener("touchend", handleTouchEnd, { passive: true })
+
+    return () => {
+      canvas.removeEventListener("touchstart", handleTouchStart)
+      canvas.removeEventListener("touchmove", handleTouchMove)
+      canvas.removeEventListener("touchend", handleTouchEnd)
+    }
+  }, [isActive, gameOver, isPaused, moveLeft, moveRight])
 
   // Game loop
   useEffect(() => {
@@ -255,7 +316,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
           .map(coin => {
             let newX = coin.x
             let newY = coin.y + currentSpeed + 2
-            
+
             // Magnet effect pulls coins toward player
             if (hasMagnet && !coin.collected) {
               const dx = playerX + CAR_WIDTH / 2 - (coin.x + 10)
@@ -266,7 +327,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
                 newY += dy * 0.05
               }
             }
-            
+
             return { ...coin, x: newX, y: newY }
           })
           .filter(coin => coin.y < CANVAS_HEIGHT + 50 && !coin.collected)
@@ -315,14 +376,14 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
               })
               return prev.filter(o => o !== obs)
             }
-            
+
             // Near miss detection - obstacle passed by player closely
             const nearMissMargin = 15
-            const isNearMiss = 
-              obsTop > playerBottom && 
+            const isNearMiss =
+              obsTop > playerBottom &&
               obsTop < playerBottom + 20 &&
-              Math.abs((obsLeft + OBSTACLE_WIDTH/2) - (playerLeft + CAR_WIDTH/2)) < LANE_WIDTH * 0.8
-            
+              Math.abs((obsLeft + OBSTACLE_WIDTH / 2) - (playerLeft + CAR_WIDTH / 2)) < LANE_WIDTH * 0.8
+
             if (isNearMiss && Date.now() - lastNearMissRef.current > 500) {
               lastNearMissRef.current = Date.now()
               const bonus = 25
@@ -338,7 +399,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
           return prev
         })
       }
-      
+
       // Distance milestones
       const currentMilestone = Math.floor(distance / 500) * 500
       if (currentMilestone > 0 && currentMilestone !== milestone && currentMilestone > (milestone || 0)) {
@@ -376,7 +437,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
             return { ...coin, collected: true }
           }
           return coin
-})
+        })
       })
 
       // Check power-up collisions
@@ -401,7 +462,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
           return pu
         })
       })
-      
+
       // Increase speed over time
       if (frameCount % 300 === 0 && currentSpeed < 15) {
         setSpeed(s => Math.min(s + 0.5, 15))
@@ -413,7 +474,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
       gameLoopRef.current = requestAnimationFrame(gameLoop)
     }
 
-const drawGame = (ctx: CanvasRenderingContext2D) => {
+    const drawGame = (ctx: CanvasRenderingContext2D) => {
       // Weather-based background colors
       const bgColors: Record<WeatherType, string> = {
         clear: "#374151",
@@ -421,11 +482,11 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
         night: "#0f172a",
         sunset: "#4a1a2c"
       }
-      
+
       // Clear canvas with weather color
       ctx.fillStyle = bgColors[weather]
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
-      
+
       // Draw road
       ctx.fillStyle = weather === "night" ? "#1e293b" : "#374151"
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
@@ -434,7 +495,7 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
       ctx.strokeStyle = "#fbbf24"
       ctx.lineWidth = 4
       ctx.setLineDash([30, 20])
-      
+
       for (let i = 1; i < LANE_COUNT; i++) {
         ctx.beginPath()
         ctx.moveTo(i * LANE_WIDTH, -40 + roadOffset)
@@ -455,7 +516,7 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
       ctx.lineTo(CANVAS_WIDTH - 3, CANVAS_HEIGHT)
       ctx.stroke()
 
-// Draw coins with size based on value
+      // Draw coins with size based on value
       coins.filter(c => !c.collected).forEach(coin => {
         const size = coin.value >= 50 ? 14 : coin.value >= 25 ? 12 : 10
         ctx.fillStyle = coin.value >= 100 ? "#c084fc" : coin.value >= 50 ? "#4ade80" : "#fbbf24"
@@ -493,11 +554,11 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
         }
         ctx.fillText(symbols[pu.type], pu.x + 12, pu.y + 16)
       })
-      
+
       // Draw obstacles
       obstacles.forEach(obs => {
         ctx.fillStyle = obs.color
-        
+
         if (obs.type === "car") {
           // Car body
           ctx.fillRect(obs.x + 5, obs.y, OBSTACLE_WIDTH - 10, OBSTACLE_HEIGHT)
@@ -536,15 +597,15 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
         // Car body
         ctx.fillStyle = "#3b82f6"
         ctx.fillRect(playerX + 5, playerY, CAR_WIDTH - 10, CAR_HEIGHT)
-        
+
         // Car front
         ctx.fillStyle = "#60a5fa"
         ctx.fillRect(playerX + 8, playerY + CAR_HEIGHT - 15, CAR_WIDTH - 16, 10)
-        
+
         // Windows
         ctx.fillStyle = "#1e3a5f"
         ctx.fillRect(playerX + 10, playerY + 8, CAR_WIDTH - 20, 18)
-        
+
         // Wheels
         ctx.fillStyle = "#1f2937"
         ctx.fillRect(playerX, playerY + 5, 8, 15)
@@ -612,14 +673,15 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
   }, [])
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Canvas */}
-      <div className="relative">
+      <div className="relative select-none">
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="rounded-lg border-2 border-gray-700 bg-gray-800"
+          className="rounded-lg border-2 border-gray-700 bg-gray-800 touch-none select-none"
+          style={{ touchAction: "none" }}
         />
 
         {/* Near Miss Bonus */}
@@ -687,13 +749,13 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
                 <p className="text-gray-400 text-xs">Lives</p>
                 <div className="flex gap-1">
                   {Array(3).fill(0).map((_, i) => (
-                    <div 
+                    <div
                       key={i}
                       className={`w-4 h-4 rounded-full ${i < lives ? "bg-red-500" : "bg-gray-700"}`}
                     />
                   ))}
-</div>
-            </div>
+                </div>
+              </div>
             </div>
             {/* Active Power-up */}
             {activePowerUp && (
@@ -793,7 +855,7 @@ const drawGame = (ctx: CanvasRenderingContext2D) => {
             <Fuel className="h-4 w-4 text-amber-500" />
             <div className="flex-1">
               <div className="w-full bg-gray-800 rounded-full h-2">
-                <div 
+                <div
                   className="bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${(speed / 15) * 100}%` }}
                 />

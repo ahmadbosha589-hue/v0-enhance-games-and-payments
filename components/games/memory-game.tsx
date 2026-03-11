@@ -55,13 +55,13 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
   const initializeGame = useCallback(() => {
     const selectedIcons = CARD_ICONS.slice(0, config.pairs)
     const cardPairs = [...selectedIcons, ...selectedIcons]
-    
+
     // Fisher-Yates shuffle
     for (let i = cardPairs.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [cardPairs[i], cardPairs[j]] = [cardPairs[j], cardPairs[i]]
     }
-    
+
     setCards(cardPairs.map((icon, index) => ({
       id: index,
       icon,
@@ -120,7 +120,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
       const isQuickMatch = now - lastMatchTime < 3000
       const newCombo = isQuickMatch ? combo + 1 : 1
       const newStreak = streak + 1
-      
+
       setCombo(newCombo)
       setStreak(newStreak)
       setLastMatchTime(now)
@@ -133,8 +133,8 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
       const points = basePoints + comboBonus + timeBonus + streakBonus
 
       setTimeout(() => {
-        setCards(prev => prev.map(card => 
-          card.id === first || card.id === second 
+        setCards(prev => prev.map(card =>
+          card.id === first || card.id === second
             ? { ...card, isMatched: true, isFlipped: true }
             : card
         ))
@@ -151,11 +151,11 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
           }
           return newPairs
         })
-        
+
         const newScore = score + points
         setScore(newScore)
         onScoreUpdate(newScore)
-        
+
         setFlippedCards([])
         setIsChecking(false)
         setMatchAnimation([])
@@ -164,10 +164,10 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
       // No match
       setPerfectGame(false)
       setCombo(0)
-      
+
       setTimeout(() => {
-        setCards(prev => prev.map(card => 
-          card.id === first || card.id === second 
+        setCards(prev => prev.map(card =>
+          card.id === first || card.id === second
             ? { ...card, isFlipped: false }
             : card
         ))
@@ -183,11 +183,11 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
     if (cards[cardId].isFlipped || cards[cardId].isMatched) return
     if (flippedCards.includes(cardId)) return
 
-    setCards(prev => prev.map(card => 
+    setCards(prev => prev.map(card =>
       card.id === cardId ? { ...card, isFlipped: true } : card
     ))
     setFlippedCards(prev => [...prev, cardId])
-    
+
     if (flippedCards.length === 1) {
       setMoves(m => m + 1)
     }
@@ -195,27 +195,27 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
 
   const useHint = () => {
     if (hintsUsed >= 3 || gameOver) return
-    
+
     // Find an unmatched pair and briefly show them
     const unmatchedCards = cards.filter(c => !c.isMatched)
     const icons = [...new Set(unmatchedCards.map(c => c.icon))]
     const randomIcon = icons[Math.floor(Math.random() * icons.length)]
     const pairCards = cards.filter(c => c.icon === randomIcon && !c.isMatched)
-    
+
     setShowHint(true)
-    setCards(prev => prev.map(card => 
+    setCards(prev => prev.map(card =>
       pairCards.some(p => p.id === card.id) ? { ...card, isFlipped: true } : card
     ))
     setHintsUsed(h => h + 1)
     setPerfectGame(false)
-    
+
     // Deduct points for hint
     setScore(s => Math.max(0, s - 50))
-    
+
     setTimeout(() => {
-      setCards(prev => prev.map(card => 
-        pairCards.some(p => p.id === card.id) && !card.isMatched 
-          ? { ...card, isFlipped: false } 
+      setCards(prev => prev.map(card =>
+        pairCards.some(p => p.id === card.id) && !card.isMatched
+          ? { ...card, isFlipped: false }
           : card
       ))
       setShowHint(false)
@@ -229,12 +229,12 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Board */}
-      <div className="relative bg-gray-900 rounded-lg p-4 border-2 border-gray-700">
-        <div 
-          className="grid gap-2"
-          style={{ 
+      <div className="relative bg-gray-900 rounded-lg p-3 sm:p-4 border-2 border-gray-700 touch-none select-none">
+        <div
+          className="grid gap-1.5 sm:gap-2"
+          style={{
             gridTemplateColumns: `repeat(${config.cols}, 1fr)`,
           }}
         >
@@ -242,9 +242,20 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
             <button
               key={card.id}
               onClick={() => handleCardClick(card.id)}
+              onTouchStart={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!isChecking && !card.isFlipped && !card.isMatched) {
+                  handleCardClick(card.id)
+                }
+              }}
               disabled={!isActive || gameOver || isChecking || card.isFlipped || card.isMatched}
               className={cn(
-                "w-14 h-14 sm:w-16 sm:h-16 rounded-lg transition-all duration-300 transform",
+                "w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg transition-all duration-300 transform text-xl sm:text-2xl",
                 "flex items-center justify-center text-2xl font-bold",
                 "disabled:cursor-not-allowed",
                 card.isFlipped || card.isMatched
@@ -341,8 +352,8 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
         </Card>
 
         {/* Hint Button */}
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="w-full"
           onClick={useHint}
           disabled={hintsUsed >= 3 || gameOver || showHint}
@@ -367,7 +378,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGamePro
         <Card className="p-3 bg-gray-900 border-gray-700">
           <p className="text-gray-400 text-xs mb-2">Progress</p>
           <div className="w-full bg-gray-800 rounded-full h-2">
-            <div 
+            <div
               className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full transition-all duration-300"
               style={{ width: `${(matchedPairs / config.pairs) * 100}%` }}
             />
