@@ -1,0 +1,18 @@
+export default {
+  title: "Zacznij zarabiać już dziś",
+  subtitle: "Dołącz do tysięcy użytkowników zarabiających darmowe tokeny RO",
+  description: "Rejestracja jest darmowa i zajmuje tylko kilka minut. Karta kredytowa nie jest wymagana.",
+  getStarted: "Rozpocznij teraz",
+  learnMore: "Dowiedz się więcej",
+  noCreditCard: "Karta kredytowa nie jest wymagana",
+  freeForever: "Na zawsze za darmo",
+  instantSetup: "Natychmiastowa konfiguracja",
+  joinNow: "Dołącz teraz",
+  startEarning: "Zacznij zarabiać",
+  claimNow: "Odbierz teraz",
+  signUpFree: "Zarejestruj się za darmo",
+  limitedOffer: "Ograniczona oferta",
+  bonusTokens: "Tokeny bonusowe",
+  newUserBonus: "Bonus dla nowego użytkownika",
+  referralBonus: "Bonus za polecenie",
+}

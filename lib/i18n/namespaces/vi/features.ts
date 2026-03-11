@@ -1,0 +1,18 @@
+export default {
+  title: "Tính Năng",
+  subtitle: "Tại sao nên chọn faucet của chúng tôi",
+  feature1Title: "Nhận tiền điện tử miễn phí",
+  feature1Description: "Nhận tiền điện tử miễn phí mỗi giờ mà không cần đầu tư.",
+  feature2Title: "Thanh toán tức thì",
+  feature2Description: "Rút tiền thu nhập của bạn trực tiếp vào ví với việc xử lý nhanh chóng.",
+  feature3Title: "Chương trình giới thiệu",
+  feature3Description: "Kiếm thêm bằng cách mời bạn bè tham gia nền tảng.",
+  feature4Title: "Nền tảng an toàn",
+  feature4Description: "Nền tảng của bạn được bảo vệ với các biện pháp bảo mật hàng đầu ngành.",
+  feature5Title: "Nhiều loại tiền điện tử",
+  feature5Description: "Chọn từ các loại tiền điện tử phổ biến khác nhau để nhận.",
+  feature6Title: "Hỗ trợ 24/7",
+  feature6Description: "Đội ngũ hỗ trợ luôn sẵn sàng giúp đỡ bạn bất cứ lúc nào.",
+  learnMore: "Tìm hiểu thêm",
+  getStarted: "Bắt đầu ngay",
+}

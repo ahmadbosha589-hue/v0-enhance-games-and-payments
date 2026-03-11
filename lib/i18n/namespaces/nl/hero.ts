@@ -1,0 +1,21 @@
+export default {
+  title: "Verdien Gratis Cryptocurrency",
+  subtitle: "Sluit je aan bij duizenden gebruikers die RO tokens claimen en beloningen verdienen",
+  description:
+    "FaucetRO is de gemakkelijkste manier om gratis RO tokens te verdienen. Claim dagelijks, nodig vrienden uit en zie je saldo groeien terwijl je stijgt op de ranglijst.",
+  claimNow: "Nu Claimen",
+  learnMore: "Meer informatie",
+  getStarted: "Aan de slag",
+  watchVideo: "Video bekijken",
+  totalClaimed: "Totaal Geclaimd",
+  activeUsers: "Actieve Gebruikers",
+  countriesServed: "Landen Bereikt",
+  totalPayout: "Totale Uitbetaling",
+  trustedBy: "Vertrouwd Wereldwijd",
+  featured: "Uitgelicht",
+  joinCommunity: "Word lid van de gemeenschap",
+  startEarning: "Begin nu met verdienen",
+  noCreditCard: "Geen creditcard nodig",
+  freeForever: "Voor altijd gratis",
+  instantSetup: "Directe installatie",
+}

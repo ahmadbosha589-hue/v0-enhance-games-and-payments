@@ -1,0 +1,25 @@
+export const hero = {
+  title: "รับ Ragnarok Online Zeny ฟรี",
+  subtitle: "ก๊อกน้ำคริปโตที่เร็วและเชื่อถือได้สำหรับผู้เล่น RO",
+  description: "รับ Zeny ฟรีทุกๆ 5 นาที ถอนได้ทันที ไม่มีขั้นต่ำ เริ่มสะสมวันนี้!",
+  cta: "เริ่มรับเหรียญ",
+  ctaSecondary: "เรียนรู้เพิ่มเติม",
+  stats: {
+    totalClaimed: "รับไปแล้วทั้งหมด",
+    totalUsers: "ผู้ใช้ทั้งหมด",
+    claimsToday: "รับวันนี้",
+    onlineNow: "ออนไลน์ตอนนี้",
+  },
+  features: {
+    fast: "รวดเร็ว",
+    fastDesc: "รับทุก 5 นาที",
+    secure: "ปลอดภัย",
+    secureDesc: "ระบบยืนยันตัวตนขั้นสูง",
+    instant: "ทันที",
+    instantDesc: "ถอนโดยไม่มีความล่าช้า",
+    free: "ฟรี",
+    freeDesc: "ไม่มีค่าธรรมเนียมแอบแฝง",
+  },
+  trusted: "ได้รับความไว้วางใจจากผู้เล่นกว่า {count} คน",
+  announcement: "ใหม่: ระบบโบนัสการแนะนำเปิดให้บริการแล้ว!",
+}

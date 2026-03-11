@@ -1,0 +1,16 @@
+export const stats = {
+  title: "Statistik Platform",
+  subtitle: "Angka real-time FaucetRO",
+  totalUsers: "Total Pengguna",
+  totalClaims: "Total Klaim",
+  totalDistributed: "Total Didistribusikan",
+  activeToday: "Aktif Hari Ini",
+  claimsToday: "Klaim Hari Ini",
+  withdrawalsToday: "Penarikan Hari Ini",
+  avgClaimTime: "Waktu Rata-rata per Klaim",
+  uptime: "Uptime",
+  serverStatus: "Status Server",
+  online: "Online",
+  offline: "Offline",
+  maintenance: "Pemeliharaan",
+}

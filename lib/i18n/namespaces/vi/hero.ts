@@ -1,0 +1,21 @@
+export default {
+  title: "Kiếm Tiền Điện Tử Miễn Phí",
+  subtitle: "Tham gia cùng hàng nghìn người dùng nhận token RO và kiếm phần thưởng",
+  description:
+    "FaucetRO là cách dễ nhất để kiếm token RO miễn phí. Nhận hàng ngày, mời bạn bè và xem số dư của bạn tăng lên.",
+  claimNow: "Nhận ngay",
+  learnMore: "Tìm hiểu thêm",
+  getStarted: "Bắt đầu",
+  watchVideo: "Xem video",
+  totalClaimed: "Tổng đã nhận",
+  activeUsers: "Người dùng hoạt động",
+  countriesServed: "Quốc gia phục vụ",
+  totalPayout: "Tổng thanh toán",
+  trustedBy: "Được tin tưởng toàn cầu",
+  featured: "Nổi bật",
+  joinCommunity: "Tham gia cộng đồng",
+  startEarning: "Bắt đầu kiếm tiền ngay",
+  noCreditCard: "Không cần thẻ tín dụng",
+  freeForever: "Miễn phí mãi mãi",
+  instantSetup: "Thiết lập tức thì",
+}

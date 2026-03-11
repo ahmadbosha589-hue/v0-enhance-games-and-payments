@@ -1,0 +1,18 @@
+export default {
+  title: "Begin Vandaag Met Verdienen",
+  subtitle: "Sluit je aan bij duizenden gebruikers die gratis RO tokens verdienen",
+  description: "Registratie is gratis en duurt slechts een paar minuten. Geen creditcard nodig.",
+  getStarted: "Nu Starten",
+  learnMore: "Meer informatie",
+  noCreditCard: "Geen creditcard nodig",
+  freeForever: "Voor altijd gratis",
+  instantSetup: "Directe installatie",
+  joinNow: "Nu Deelnemen",
+  startEarning: "Begin met Verdienen",
+  claimNow: "Nu Claimen",
+  signUpFree: "Gratis Registreren",
+  limitedOffer: "Beperkte Aanbieding",
+  bonusTokens: "Bonus Tokens",
+  newUserBonus: "Nieuwe Gebruikersbonus",
+  referralBonus: "Verwijzingsbonus",
+}

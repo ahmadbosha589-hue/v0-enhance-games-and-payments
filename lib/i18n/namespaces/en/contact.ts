@@ -1,0 +1,37 @@
+export default {
+  title: "Contact Us",
+  description: "Have questions or need help? We're here for you. Reach out and we'll respond as soon as possible.",
+  email: {
+    title: "Email Support",
+  },
+  chat: {
+    title: "Live Chat",
+    link: "Join our Discord",
+  },
+  form: {
+    title: "Send us a Message",
+    description: "Fill out the form below and we'll get back to you within 24 hours.",
+    name: "Your Name",
+    namePlaceholder: "Enter your name",
+    email: "Email Address",
+    emailPlaceholder: "Enter your email",
+    subject: "Subject",
+    subjectPlaceholder: "Select a topic",
+    message: "Message",
+    messagePlaceholder: "How can we help you?",
+    submit: "Send Message",
+    sending: "Sending...",
+    subject_general: "General Inquiry",
+    subject_support: "Technical Support",
+    subject_account: "Account Issues",
+    subject_withdrawal: "Withdrawal Help",
+    subject_feedback: "Feedback & Suggestions",
+    subject_partnership: "Partnership Inquiry",
+    subject_other: "Other",
+  },
+  success: {
+    title: "Message Sent!",
+    description: "Thank you for contacting us. We'll get back to you within 24 hours.",
+    another: "Send Another Message",
+  },
+}

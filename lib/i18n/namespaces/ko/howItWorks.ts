@@ -1,0 +1,15 @@
+export default {
+  title: "작동 방식",
+  subtitle: "3단계로 수익 시작",
+  step1Title: "계정 생성",
+  step1Desc: "무료 계정을 만들어 시작하세요",
+  step2Title: "USDT 청구",
+  step2Desc: "1시간마다 무료 USDT를 청구하세요",
+  step3Title: "출금",
+  step3Desc: "잔액을 지갑으로 출금하세요",
+  getStartedNow: "지금 시작하기",
+  watchTutorial: "튜토리얼 보기",
+  freeToJoin: "무료 가입",
+  noDeposit: "입금 불필요",
+  instantStart: "즉시 시작",
+}

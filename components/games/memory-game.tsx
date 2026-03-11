@@ -1,0 +1,382 @@
+"use client"
+
+import { useState, useEffect, useCallback, useRef } from "react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { RotateCcw, Timer, Sparkles, Trophy, Brain } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const CARD_ICONS = [
+  "🎮", "🎯", "🏆", "💎", "🚀", "⚡", "🔥", "💰",
+  "🌟", "🎲", "🃏", "👑", "💫", "🎪", "🎨", "🎭"
+]
+
+interface MemoryCard {
+  id: number
+  icon: string
+  isFlipped: boolean
+  isMatched: boolean
+}
+
+interface MemoryGameProps {
+  onGameEnd: (score: number, moves: number) => void
+  onScoreUpdate: (score: number) => void
+  isActive: boolean
+}
+
+const GRID_SIZES = {
+  easy: { cols: 4, rows: 3, pairs: 6, timeBonus: 1000 },
+  medium: { cols: 4, rows: 4, pairs: 8, timeBonus: 800 },
+  hard: { cols: 6, rows: 4, pairs: 12, timeBonus: 600 }
+}
+
+export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGameProps) {
+  const [difficulty] = useState<keyof typeof GRID_SIZES>("medium")
+  const [cards, setCards] = useState<MemoryCard[]>([])
+  const [flippedCards, setFlippedCards] = useState<number[]>([])
+  const [matchedPairs, setMatchedPairs] = useState(0)
+  const [moves, setMoves] = useState(0)
+  const [score, setScore] = useState(0)
+  const [timeLeft, setTimeLeft] = useState(120)
+  const [gameOver, setGameOver] = useState(false)
+  const [isChecking, setIsChecking] = useState(false)
+  const [combo, setCombo] = useState(0)
+  const [lastMatchTime, setLastMatchTime] = useState(0)
+  const [streak, setStreak] = useState(0)
+  const [showHint, setShowHint] = useState(false)
+  const [hintsUsed, setHintsUsed] = useState(0)
+  const [perfectGame, setPerfectGame] = useState(true)
+  const [matchAnimation, setMatchAnimation] = useState<number[]>([])
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const config = GRID_SIZES[difficulty]
+
+  // Initialize game
+  const initializeGame = useCallback(() => {
+    const selectedIcons = CARD_ICONS.slice(0, config.pairs)
+    const cardPairs = [...selectedIcons, ...selectedIcons]
+    
+    // Fisher-Yates shuffle
+    for (let i = cardPairs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cardPairs[i], cardPairs[j]] = [cardPairs[j], cardPairs[i]]
+    }
+    
+    setCards(cardPairs.map((icon, index) => ({
+      id: index,
+      icon,
+      isFlipped: false,
+      isMatched: false
+    })))
+    setFlippedCards([])
+    setMatchedPairs(0)
+    setMoves(0)
+    setScore(0)
+    setTimeLeft(120)
+    setGameOver(false)
+    setCombo(0)
+    setStreak(0)
+    setHintsUsed(0)
+    setPerfectGame(true)
+    setMatchAnimation([])
+  }, [config.pairs])
+
+  useEffect(() => {
+    if (isActive) {
+      initializeGame()
+    }
+  }, [isActive, initializeGame])
+
+  // Timer
+  useEffect(() => {
+    if (!isActive || gameOver || timeLeft <= 0) return
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          setGameOver(true)
+          onGameEnd(score, moves)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [isActive, gameOver, score, moves, onGameEnd])
+
+  // Check for matches
+  useEffect(() => {
+    if (flippedCards.length !== 2) return
+
+    setIsChecking(true)
+    const [first, second] = flippedCards
+
+    if (cards[first].icon === cards[second].icon) {
+      // Match found
+      const now = Date.now()
+      const isQuickMatch = now - lastMatchTime < 3000
+      const newCombo = isQuickMatch ? combo + 1 : 1
+      const newStreak = streak + 1
+      
+      setCombo(newCombo)
+      setStreak(newStreak)
+      setLastMatchTime(now)
+      setMatchAnimation([first, second])
+
+      const basePoints = 100
+      const comboBonus = newCombo > 1 ? (newCombo - 1) * 25 : 0
+      const timeBonus = Math.floor(timeLeft * 0.5)
+      const streakBonus = newStreak > 3 ? newStreak * 10 : 0
+      const points = basePoints + comboBonus + timeBonus + streakBonus
+
+      setTimeout(() => {
+        setCards(prev => prev.map(card => 
+          card.id === first || card.id === second 
+            ? { ...card, isMatched: true, isFlipped: true }
+            : card
+        ))
+        setMatchedPairs(prev => {
+          const newPairs = prev + 1
+          if (newPairs === config.pairs) {
+            // Game won!
+            const finalBonus = perfectGame ? 500 : 0
+            const newScore = score + points + finalBonus
+            setScore(newScore)
+            onScoreUpdate(newScore)
+            setGameOver(true)
+            onGameEnd(newScore, moves)
+          }
+          return newPairs
+        })
+        
+        const newScore = score + points
+        setScore(newScore)
+        onScoreUpdate(newScore)
+        
+        setFlippedCards([])
+        setIsChecking(false)
+        setMatchAnimation([])
+      }, 500)
+    } else {
+      // No match
+      setPerfectGame(false)
+      setCombo(0)
+      
+      setTimeout(() => {
+        setCards(prev => prev.map(card => 
+          card.id === first || card.id === second 
+            ? { ...card, isFlipped: false }
+            : card
+        ))
+        setFlippedCards([])
+        setIsChecking(false)
+      }, 1000)
+    }
+  }, [flippedCards, cards, score, combo, streak, timeLeft, lastMatchTime, config.pairs, moves, perfectGame, onGameEnd, onScoreUpdate])
+
+  const handleCardClick = (cardId: number) => {
+    if (!isActive || gameOver || isChecking) return
+    if (flippedCards.length >= 2) return
+    if (cards[cardId].isFlipped || cards[cardId].isMatched) return
+    if (flippedCards.includes(cardId)) return
+
+    setCards(prev => prev.map(card => 
+      card.id === cardId ? { ...card, isFlipped: true } : card
+    ))
+    setFlippedCards(prev => [...prev, cardId])
+    
+    if (flippedCards.length === 1) {
+      setMoves(m => m + 1)
+    }
+  }
+
+  const useHint = () => {
+    if (hintsUsed >= 3 || gameOver) return
+    
+    // Find an unmatched pair and briefly show them
+    const unmatchedCards = cards.filter(c => !c.isMatched)
+    const icons = [...new Set(unmatchedCards.map(c => c.icon))]
+    const randomIcon = icons[Math.floor(Math.random() * icons.length)]
+    const pairCards = cards.filter(c => c.icon === randomIcon && !c.isMatched)
+    
+    setShowHint(true)
+    setCards(prev => prev.map(card => 
+      pairCards.some(p => p.id === card.id) ? { ...card, isFlipped: true } : card
+    ))
+    setHintsUsed(h => h + 1)
+    setPerfectGame(false)
+    
+    // Deduct points for hint
+    setScore(s => Math.max(0, s - 50))
+    
+    setTimeout(() => {
+      setCards(prev => prev.map(card => 
+        pairCards.some(p => p.id === card.id) && !card.isMatched 
+          ? { ...card, isFlipped: false } 
+          : card
+      ))
+      setShowHint(false)
+    }, 1500)
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-4 items-start">
+      {/* Game Board */}
+      <div className="relative bg-gray-900 rounded-lg p-4 border-2 border-gray-700">
+        <div 
+          className="grid gap-2"
+          style={{ 
+            gridTemplateColumns: `repeat(${config.cols}, 1fr)`,
+          }}
+        >
+          {cards.map((card) => (
+            <button
+              key={card.id}
+              onClick={() => handleCardClick(card.id)}
+              disabled={!isActive || gameOver || isChecking || card.isFlipped || card.isMatched}
+              className={cn(
+                "w-14 h-14 sm:w-16 sm:h-16 rounded-lg transition-all duration-300 transform",
+                "flex items-center justify-center text-2xl font-bold",
+                "disabled:cursor-not-allowed",
+                card.isFlipped || card.isMatched
+                  ? "bg-gradient-to-br from-cyan-500 to-blue-600 rotate-0 scale-100"
+                  : "bg-gradient-to-br from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700",
+                card.isMatched && "ring-2 ring-green-500 shadow-lg shadow-green-500/30",
+                matchAnimation.includes(card.id) && "animate-bounce",
+                !card.isFlipped && !card.isMatched && "hover:scale-105"
+              )}
+              style={{
+                transformStyle: "preserve-3d",
+              }}
+            >
+              {(card.isFlipped || card.isMatched) && (
+                <span className="animate-scale-in">{card.icon}</span>
+              )}
+              {!card.isFlipped && !card.isMatched && (
+                <span className="text-gray-600">?</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Game Over Overlay */}
+        {gameOver && (
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
+            <div className="text-center p-6">
+              {matchedPairs === config.pairs ? (
+                <>
+                  <Trophy className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-green-500 mb-2">YOU WIN!</p>
+                  {perfectGame && (
+                    <p className="text-yellow-400 text-sm mb-2">Perfect Game! +500 Bonus</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Timer className="h-12 w-12 text-red-500 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-red-500 mb-2">TIME&apos;S UP!</p>
+                </>
+              )}
+              <p className="text-white mb-1">Score: {score.toLocaleString()}</p>
+              <p className="text-gray-400 text-sm mb-4">Moves: {moves} | Pairs: {matchedPairs}/{config.pairs}</p>
+              <Button onClick={initializeGame} variant="outline" size="sm">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Play Again
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Side Panel */}
+      <div className="flex flex-col gap-3 min-w-[160px]">
+        {/* Stats */}
+        <Card className="p-4 bg-gray-900 border-gray-700">
+          <div className="space-y-3">
+            <div>
+              <p className="text-gray-400 text-xs">Score</p>
+              <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
+            </div>
+            <div className="flex gap-4">
+              <div>
+                <p className="text-gray-400 text-xs">Moves</p>
+                <p className="font-bold text-lg text-blue-400">{moves}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-xs">Pairs</p>
+                <p className="font-bold text-lg text-green-400">{matchedPairs}/{config.pairs}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Time Left</p>
+              <p className={cn(
+                "font-bold text-lg font-mono",
+                timeLeft <= 30 ? "text-red-400 animate-pulse" : "text-amber-400"
+              )}>
+                {formatTime(timeLeft)}
+              </p>
+            </div>
+            {combo > 1 && (
+              <div className="flex items-center gap-2 text-amber-400">
+                <Sparkles className="h-4 w-4" />
+                <span className="font-bold">{combo}x Combo!</span>
+              </div>
+            )}
+            {streak > 2 && (
+              <div className="flex items-center gap-2 text-purple-400">
+                <Trophy className="h-4 w-4" />
+                <span className="font-bold">{streak} Streak!</span>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Hint Button */}
+        <Button 
+          variant="outline" 
+          className="w-full"
+          onClick={useHint}
+          disabled={hintsUsed >= 3 || gameOver || showHint}
+        >
+          <Brain className="h-4 w-4 mr-2" />
+          Hint ({3 - hintsUsed} left)
+        </Button>
+
+        {/* How to Play */}
+        <Card className="p-3 bg-gray-900 border-gray-700">
+          <p className="text-gray-400 text-xs mb-2 font-medium">How to Play</p>
+          <ul className="text-xs text-gray-500 space-y-1">
+            <li>Click cards to flip them</li>
+            <li>Find matching pairs</li>
+            <li>Quick matches = combo bonus</li>
+            <li>Beat the clock!</li>
+            <li>Perfect game = 500 bonus</li>
+          </ul>
+        </Card>
+
+        {/* Progress */}
+        <Card className="p-3 bg-gray-900 border-gray-700">
+          <p className="text-gray-400 text-xs mb-2">Progress</p>
+          <div className="w-full bg-gray-800 rounded-full h-2">
+            <div 
+              className="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(matchedPairs / config.pairs) * 100}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-1 text-center">
+            {config.pairs - matchedPairs} pairs remaining
+          </p>
+        </Card>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,38 @@
+export const leaderboard = {
+  title: "ลีดเดอร์บอร์ด",
+  subtitle: "ผู้รับสูงสุดในแพลตฟอร์มของเรา",
+  tabs: {
+    daily: "รายวัน",
+    weekly: "รายสัปดาห์",
+    monthly: "รายเดือน",
+    allTime: "ตลอดกาล",
+  },
+  columns: {
+    rank: "อันดับ",
+    user: "ผู้ใช้",
+    claims: "จำนวนครั้ง",
+    amount: "จำนวน",
+    referrals: "แนะนำ",
+  },
+  yourRank: "อันดับของคุณ",
+  notRanked: "ยังไม่มีอันดับ",
+  claimToRank: "เริ่มรับเพื่อปรากฏในลีดเดอร์บอร์ด",
+  topClaimers: "ผู้รับสูงสุด",
+  topReferrers: "ผู้แนะนำสูงสุด",
+  prizes: {
+    title: "รางวัลประจำสัปดาห์",
+    first: "อันดับ 1",
+    second: "อันดับ 2",
+    third: "อันดับ 3",
+    top10: "อันดับ 4-10",
+    winner: "ผู้ชนะ",
+  },
+  countdown: {
+    endsIn: "สิ้นสุดใน",
+    days: "วัน",
+    hours: "ชั่วโมง",
+    minutes: "นาที",
+    seconds: "วินาที",
+  },
+  empty: "ยังไม่มีข้อมูล",
+}

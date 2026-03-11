@@ -1,0 +1,18 @@
+export const features = {
+  title: "الميزات",
+  subtitle: "لماذا تختار FaucetCoin",
+  feature1Title: "مطالبات مجانية",
+  feature1Desc: "احصل على توكنز مجانية كل ساعة بدون استثمار",
+  feature2Title: "سحوبات فورية",
+  feature2Desc: "اسحب أرباحك فوراً إلى محفظتك",
+  feature3Title: "برنامج الإحالة",
+  feature3Desc: "اكسب عمولات بدعوة أصدقائك",
+  feature4Title: "معاملات آمنة",
+  feature4Desc: "تقنية البلوكشين للأمان",
+  feature5Title: "دعم على مدار الساعة",
+  feature5Desc: "فريق الدعم متاح دائماً لمساعدتك",
+  feature6Title: "متوافق مع الجوال",
+  feature6Desc: "طالب بالتوكنز من أي جهاز",
+  learnMore: "اعرف المزيد",
+  getStarted: "ابدأ الآن",
+}

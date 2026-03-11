@@ -1,0 +1,38 @@
+export const leaderboard = {
+  title: "Papan Peringkat",
+  subtitle: "Pengklaim teratas di platform kami",
+  tabs: {
+    daily: "Harian",
+    weekly: "Mingguan",
+    monthly: "Bulanan",
+    allTime: "Sepanjang Waktu",
+  },
+  columns: {
+    rank: "Peringkat",
+    user: "Pengguna",
+    claims: "Klaim",
+    amount: "Jumlah",
+    referrals: "Referral",
+  },
+  yourRank: "Peringkat Anda",
+  notRanked: "Belum masuk peringkat",
+  claimToRank: "Mulai klaim untuk masuk papan peringkat",
+  topClaimers: "Pengklaim Teratas",
+  topReferrers: "Referrer Teratas",
+  prizes: {
+    title: "Hadiah Mingguan",
+    first: "Juara 1",
+    second: "Juara 2",
+    third: "Juara 3",
+    top10: "Peringkat 4-10",
+    winner: "Pemenang",
+  },
+  countdown: {
+    endsIn: "Berakhir dalam",
+    days: "Hari",
+    hours: "Jam",
+    minutes: "Menit",
+    seconds: "Detik",
+  },
+  empty: "Belum ada data",
+}
