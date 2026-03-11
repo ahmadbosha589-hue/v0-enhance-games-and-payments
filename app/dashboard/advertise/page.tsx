@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,10 +10,14 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -25,6 +29,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { 
   Megaphone, 
   Wallet, 
@@ -43,16 +53,143 @@ import {
   CreditCard,
   Zap,
   Globe,
-  BarChart3
+  BarChart3,
+  Target,
+  Users,
+  ArrowUpRight,
+  Copy,
+  QrCode,
+  History,
+  Settings,
+  Sparkles,
+  Shield,
+  TrendingDown,
+  Filter,
+  RefreshCw,
+  ChevronRight,
+  ExternalLink,
+  Image as ImageIcon,
+  FileText,
+  Bell,
+  Star,
+  Rocket,
+  Award,
+  PieChart
 } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from "swr"
 import { cn } from "@/lib/utils"
 
-interface AdNetwork {
-  name: string
-  minBudget: number
-  cpm: number
+// Ad Network configurations
+const AD_NETWORKS = {
+  "google-ads": {
+    name: "Google Ads",
+    description: "Search, Display & YouTube advertising",
+    icon: Globe,
+    color: "from-blue-500 to-blue-600",
+    bgColor: "bg-blue-500/10",
+    minBudget: 50,
+    cpm: 2.50,
+    features: ["Search Ads", "Display Network", "YouTube", "Gmail"],
+    avgCtr: "2.5%",
+    recommended: true
+  },
+  "facebook-ads": {
+    name: "Meta Ads",
+    description: "Facebook & Instagram advertising",
+    icon: Globe,
+    color: "from-indigo-500 to-purple-600",
+    bgColor: "bg-indigo-500/10",
+    minBudget: 25,
+    cpm: 3.00,
+    features: ["Facebook Feed", "Instagram", "Stories", "Reels"],
+    avgCtr: "1.8%",
+    recommended: true
+  },
+  "tiktok-ads": {
+    name: "TikTok Ads",
+    description: "Short-form video advertising",
+    icon: Zap,
+    color: "from-pink-500 to-rose-600",
+    bgColor: "bg-pink-500/10",
+    minBudget: 20,
+    cpm: 1.50,
+    features: ["In-Feed", "TopView", "Spark Ads", "Branded Effects"],
+    avgCtr: "3.2%",
+    recommended: false
+  },
+  "twitter-ads": {
+    name: "X (Twitter) Ads",
+    description: "Promoted tweets and trends",
+    icon: Globe,
+    color: "from-slate-600 to-slate-800",
+    bgColor: "bg-slate-500/10",
+    minBudget: 30,
+    cpm: 4.00,
+    features: ["Promoted Tweets", "Trends", "Followers", "Video"],
+    avgCtr: "1.5%",
+    recommended: false
+  },
+  "banner-network": {
+    name: "Display Network",
+    description: "Banner ads on 10,000+ websites",
+    icon: BarChart3,
+    color: "from-amber-500 to-orange-600",
+    bgColor: "bg-amber-500/10",
+    minBudget: 10,
+    cpm: 0.50,
+    features: ["Banner Ads", "Rich Media", "Retargeting", "Programmatic"],
+    avgCtr: "0.5%",
+    recommended: false
+  },
+  "native-ads": {
+    name: "Native Ads",
+    description: "Content-style native advertising",
+    icon: FileText,
+    color: "from-emerald-500 to-green-600",
+    bgColor: "bg-emerald-500/10",
+    minBudget: 15,
+    cpm: 1.00,
+    features: ["Content Widgets", "In-Feed", "Recommendation", "Outbrain/Taboola"],
+    avgCtr: "1.2%",
+    recommended: false
+  },
+  "push-notifications": {
+    name: "Push Notifications",
+    description: "Browser push notification ads",
+    icon: Bell,
+    color: "from-cyan-500 to-teal-600",
+    bgColor: "bg-cyan-500/10",
+    minBudget: 5,
+    cpm: 0.30,
+    features: ["Browser Push", "In-Page Push", "Calendar Push", "Native Push"],
+    avgCtr: "4.5%",
+    recommended: false
+  },
+  "popup-ads": {
+    name: "Pop Traffic",
+    description: "Pop-under and interstitial ads",
+    icon: Eye,
+    color: "from-red-500 to-rose-600",
+    bgColor: "bg-red-500/10",
+    minBudget: 5,
+    cpm: 0.20,
+    features: ["Pop-Under", "Interstitial", "Tab-Under", "Direct Link"],
+    avgCtr: "0.3%",
+    recommended: false
+  },
+  "crypto-ads": {
+    name: "Crypto Networks",
+    description: "Crypto-focused advertising",
+    icon: Award,
+    color: "from-orange-500 to-amber-500",
+    bgColor: "bg-orange-500/10",
+    minBudget: 25,
+    cpm: 2.00,
+    features: ["Coinzilla", "A-Ads", "Bitmedia", "CoinTraffic"],
+    avgCtr: "1.0%",
+    recommended: true
+  }
 }
 
 interface Campaign {
@@ -69,29 +206,49 @@ interface Campaign {
   status: string
   impressions: number
   clicks: number
+  conversions: number
   cpm: number
+  ctr: number
   created_at: string
+  targeting?: {
+    countries: string[]
+    devices: string[]
+    os: string[]
+  }
+}
+
+interface DepositRecord {
+  id: string
+  amount_usd: number
+  status: string
+  coin_id?: string
+  created_at: string
+  pay_address?: string
 }
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
-const NETWORK_ICONS: Record<string, typeof Megaphone> = {
-  "google-ads": Globe,
-  "facebook-ads": Globe,
-  "tiktok-ads": Zap,
-  "twitter-ads": Globe,
-  "banner-network": BarChart3,
-  "native-ads": Eye,
-  "push-notifications": Megaphone,
-  "popup-ads": Eye
-}
+// Crypto deposit options
+const DEPOSIT_COINS = [
+  { id: "BTC", name: "Bitcoin", color: "text-orange-500", bgColor: "bg-orange-500/10" },
+  { id: "ETH", name: "Ethereum", color: "text-blue-500", bgColor: "bg-blue-500/10" },
+  { id: "USDT", name: "Tether", color: "text-green-500", bgColor: "bg-green-500/10" },
+  { id: "USDC", name: "USD Coin", color: "text-blue-400", bgColor: "bg-blue-400/10" },
+  { id: "LTC", name: "Litecoin", color: "text-gray-400", bgColor: "bg-gray-400/10" },
+  { id: "SOL", name: "Solana", color: "text-purple-500", bgColor: "bg-purple-500/10" },
+]
 
 export default function AdvertisePage() {
+  const [activeTab, setActiveTab] = useState("campaigns")
   const [isDepositOpen, setIsDepositOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [depositAmount, setDepositAmount] = useState("")
+  const [depositCoin, setDepositCoin] = useState("USDT")
   const [isDepositing, setIsDepositing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [depositAddress, setDepositAddress] = useState<string | null>(null)
+  const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null)
+  const [campaignFilter, setCampaignFilter] = useState<string>("all")
   
   // Campaign form state
   const [campaignForm, setCampaignForm] = useState({
@@ -101,7 +258,12 @@ export default function AdvertisePage() {
     dailyBudget: "",
     targetUrl: "",
     title: "",
-    description: ""
+    description: "",
+    targeting: {
+      countries: [] as string[],
+      devices: ["desktop", "mobile", "tablet"],
+      os: ["windows", "macos", "ios", "android"]
+    }
   })
 
   const { data: balanceData, mutate: refreshBalance } = useSWR(
@@ -110,17 +272,35 @@ export default function AdvertisePage() {
     { refreshInterval: 10000 }
   )
   
-  const { data: networksData } = useSWR("/api/advertise?networks=true", fetcher)
-  
   const { data: campaignsData, mutate: refreshCampaigns } = useSWR(
     "/api/advertise", 
     fetcher,
     { refreshInterval: 30000 }
   )
 
-  const networks: Record<string, AdNetwork> = networksData?.networks || {}
+  const { data: depositsData, mutate: refreshDeposits } = useSWR(
+    "/api/ccpayment/deposit",
+    fetcher,
+    { refreshInterval: 30000 }
+  )
+
   const campaigns: Campaign[] = campaignsData?.campaigns || []
   const balance = balanceData?.balance || 0
+  const deposits: DepositRecord[] = depositsData?.deposits || []
+
+  // Filtered campaigns
+  const filteredCampaigns = useMemo(() => {
+    if (campaignFilter === "all") return campaigns
+    return campaigns.filter(c => c.status === campaignFilter)
+  }, [campaigns, campaignFilter])
+
+  // Stats calculations
+  const activeCampaigns = campaigns.filter(c => c.status === "active")
+  const totalSpent = campaigns.reduce((sum, c) => sum + (c.spent || 0), 0)
+  const totalImpressions = campaigns.reduce((sum, c) => sum + (c.impressions || 0), 0)
+  const totalClicks = campaigns.reduce((sum, c) => sum + (c.clicks || 0), 0)
+  const totalConversions = campaigns.reduce((sum, c) => sum + (c.conversions || 0), 0)
+  const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : "0.00"
 
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) < 5) {
@@ -136,27 +316,22 @@ export default function AdvertisePage() {
         body: JSON.stringify({
           amount: parseFloat(depositAmount),
           currency: "USD",
+          coinId: depositCoin,
           purpose: "advertising"
         })
       })
 
       const data = await response.json()
       if (data.success) {
-        toast.success("Deposit initiated", {
-          description: "Complete the payment to add funds"
+        toast.success("Deposit address generated!", {
+          description: "Send the exact amount to the address shown"
         })
-        setIsDepositOpen(false)
-        setDepositAmount("")
-        // Open payment URL if provided
-        if (data.order?.payAddress) {
-          toast.info("Send payment to the address provided", {
-            description: `Amount: ${data.order.paymentAmount} ${data.order.currency}`
-          })
-        }
+        setDepositAddress(data.order?.payAddress || null)
+        refreshDeposits()
       } else {
         toast.error(data.error || "Failed to create deposit")
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to create deposit")
     } finally {
       setIsDepositing(false)
@@ -164,7 +339,7 @@ export default function AdvertisePage() {
   }
 
   const handleCreateCampaign = async () => {
-    const { name, network, budget, dailyBudget, targetUrl, title, description } = campaignForm
+    const { name, network, budget, dailyBudget, targetUrl, title, description, targeting } = campaignForm
 
     if (!name || !network || !budget || !dailyBudget || !targetUrl || !title) {
       toast.error("Please fill in all required fields")
@@ -179,7 +354,7 @@ export default function AdvertisePage() {
       return
     }
 
-    const networkConfig = networks[network]
+    const networkConfig = AD_NETWORKS[network as keyof typeof AD_NETWORKS]
     if (networkConfig && budgetNum < networkConfig.minBudget) {
       toast.error(`Minimum budget for ${networkConfig.name} is $${networkConfig.minBudget}`)
       return
@@ -197,26 +372,28 @@ export default function AdvertisePage() {
           dailyBudget: dailyBudgetNum,
           targetUrl,
           title,
-          description
+          description,
+          targeting
         })
       })
 
       const data = await response.json()
       if (data.success) {
         toast.success("Campaign created!", {
-          description: "Your campaign will be reviewed and activated shortly"
+          description: "Your campaign will be reviewed and activated within 24 hours"
         })
         setIsCreateOpen(false)
         setCampaignForm({
           name: "", network: "", budget: "", dailyBudget: "",
-          targetUrl: "", title: "", description: ""
+          targetUrl: "", title: "", description: "",
+          targeting: { countries: [], devices: ["desktop", "mobile", "tablet"], os: ["windows", "macos", "ios", "android"] }
         })
         refreshCampaigns()
         refreshBalance()
       } else {
         toast.error(data.error || "Failed to create campaign")
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to create campaign")
     } finally {
       setIsCreating(false)
@@ -239,34 +416,34 @@ export default function AdvertisePage() {
       } else {
         toast.error(data.error || "Action failed")
       }
-    } catch (error) {
+    } catch {
       toast.error("Action failed")
     }
   }
 
   const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof Clock }> = {
-      active: { variant: "default", icon: Play },
-      pending: { variant: "secondary", icon: Clock },
-      paused: { variant: "outline", icon: Pause },
-      stopped: { variant: "destructive", icon: Square },
-      completed: { variant: "secondary", icon: CheckCircle2 }
+    const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof Clock; color: string }> = {
+      active: { variant: "default", icon: Play, color: "text-green-500" },
+      pending: { variant: "secondary", icon: Clock, color: "text-yellow-500" },
+      paused: { variant: "outline", icon: Pause, color: "text-blue-500" },
+      stopped: { variant: "destructive", icon: Square, color: "text-red-500" },
+      completed: { variant: "secondary", icon: CheckCircle2, color: "text-gray-500" }
     }
     const config = statusConfig[status] || statusConfig.pending
     const Icon = config.icon
 
     return (
       <Badge variant={config.variant} className="gap-1">
-        <Icon className="h-3 w-3" />
+        <Icon className={cn("h-3 w-3", config.color)} />
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     )
   }
 
-  const activeCampaigns = campaigns.filter(c => c.status === "active")
-  const totalSpent = campaigns.reduce((sum, c) => sum + (c.spent || 0), 0)
-  const totalImpressions = campaigns.reduce((sum, c) => sum + (c.impressions || 0), 0)
-  const totalClicks = campaigns.reduce((sum, c) => sum + (c.clicks || 0), 0)
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success("Copied to clipboard")
+  }
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -275,119 +452,270 @@ export default function AdvertisePage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
             <Megaphone className="h-7 w-7 text-primary" />
-            Advertise
+            Advertising Center
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Promote your business across multiple ad networks
+            Reach millions across 8+ premium ad networks with crypto
           </p>
         </div>
         <div className="flex gap-2">
           <Dialog open={isDepositOpen} onOpenChange={setIsDepositOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <CreditCard className="h-4 w-4 mr-2" />
+              <Button variant="outline" className="gap-2">
+                <Wallet className="h-4 w-4" />
                 Deposit
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
-                <DialogTitle>Deposit Advertising Funds</DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Deposit Advertising Funds
+                </DialogTitle>
                 <DialogDescription>
-                  Add funds to your advertising balance using cryptocurrency
+                  Add funds using cryptocurrency via CCPayment
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Amount (USD)</Label>
-                  <Input
-                    type="number"
-                    placeholder="10.00"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    min="5"
-                    step="0.01"
-                  />
-                  <p className="text-xs text-muted-foreground">Minimum deposit: $5</p>
-                </div>
-                <div className="flex gap-2">
-                  {[10, 25, 50, 100, 250].map((amount) => (
-                    <Button
-                      key={amount}
-                      variant={depositAmount === amount.toString() ? "secondary" : "outline"}
-                      size="sm"
-                      onClick={() => setDepositAmount(amount.toString())}
+              <div className="space-y-6 pt-4">
+                {!depositAddress ? (
+                  <>
+                    {/* Amount Selection */}
+                    <div className="space-y-2">
+                      <Label>Amount (USD)</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter amount"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        min="5"
+                        step="0.01"
+                        className="text-lg font-mono"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {[10, 25, 50, 100, 250, 500].map((amount) => (
+                          <Button
+                            key={amount}
+                            variant={depositAmount === amount.toString() ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => setDepositAmount(amount.toString())}
+                          >
+                            ${amount}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Coin Selection */}
+                    <div className="space-y-2">
+                      <Label>Pay with</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {DEPOSIT_COINS.map((coin) => (
+                          <button
+                            key={coin.id}
+                            type="button"
+                            onClick={() => setDepositCoin(coin.id)}
+                            className={cn(
+                              "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all",
+                              depositCoin === coin.id 
+                                ? "border-primary bg-primary/5" 
+                                : "hover:bg-muted/50"
+                            )}
+                          >
+                            <div className={cn("p-2 rounded-full", coin.bgColor)}>
+                              <span className={cn("text-xs font-bold", coin.color)}>{coin.id}</span>
+                            </div>
+                            <span className="text-xs">{coin.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Button 
+                      className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/80" 
+                      onClick={handleDeposit}
+                      disabled={isDepositing || !depositAmount}
                     >
-                      ${amount}
+                      {isDepositing ? (
+                        <>
+                          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                          Generating Address...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="h-5 w-5 mr-2" />
+                          Generate {depositCoin} Address
+                        </>
+                      )}
                     </Button>
-                  ))}
-                </div>
-                <Button 
-                  className="w-full" 
-                  onClick={handleDeposit}
-                  disabled={isDepositing || !depositAmount}
-                >
-                  {isDepositing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Wallet className="h-4 w-4 mr-2" />
-                      Deposit ${depositAmount || "0"}
-                    </>
-                  )}
-                </Button>
+                  </>
+                ) : (
+                  <>
+                    {/* Payment Address Display */}
+                    <div className="text-center space-y-4">
+                      <div className="p-4 bg-muted rounded-lg">
+                        <QrCode className="h-32 w-32 mx-auto mb-4 text-primary" />
+                        <p className="text-sm text-muted-foreground mb-2">Send exactly:</p>
+                        <p className="text-2xl font-bold text-primary">${depositAmount} in {depositCoin}</p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Payment Address</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            value={depositAddress} 
+                            readOnly 
+                            className="font-mono text-xs"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            onClick={() => copyToClipboard(depositAddress)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-amber-500">
+                        <Clock className="h-4 w-4" />
+                        <span>Address expires in 60 minutes</span>
+                      </div>
+
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={() => {
+                          setDepositAddress(null)
+                          setDepositAmount("")
+                          refreshBalance()
+                        }}
+                      >
+                        Create New Deposit
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* Recent Deposits */}
+                {deposits.length > 0 && !depositAddress && (
+                  <div className="space-y-2 pt-4 border-t">
+                    <Label className="flex items-center gap-2">
+                      <History className="h-4 w-4" />
+                      Recent Deposits
+                    </Label>
+                    <ScrollArea className="h-[120px]">
+                      <div className="space-y-2">
+                        {deposits.slice(0, 5).map((dep) => (
+                          <div 
+                            key={dep.id}
+                            className="flex items-center justify-between p-2 rounded bg-muted/50 text-sm"
+                          >
+                            <div>
+                              <span className="font-medium">${dep.amount_usd}</span>
+                              <span className="text-muted-foreground ml-2">
+                                {new Date(dep.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <Badge 
+                              variant={dep.status === "completed" ? "default" : 
+                                      dep.status === "pending" ? "secondary" : "destructive"}
+                            >
+                              {dep.status}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
               </div>
             </DialogContent>
           </Dialog>
 
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
+              <Button className="gap-2 bg-gradient-to-r from-primary to-primary/80">
+                <Plus className="h-4 w-4" />
                 Create Campaign
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create Advertising Campaign</DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
+                  <Rocket className="h-5 w-5 text-primary" />
+                  Create Advertising Campaign
+                </DialogTitle>
                 <DialogDescription>
-                  Set up your campaign to reach your target audience
+                  Set up your campaign across premium ad networks
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 pt-4">
+              <div className="space-y-6 pt-4">
+                {/* Network Selection */}
+                <div className="space-y-3">
+                  <Label>Select Ad Network *</Label>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {Object.entries(AD_NETWORKS).map(([key, net]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setCampaignForm(f => ({ ...f, network: key }))}
+                        className={cn(
+                          "relative flex flex-col p-4 rounded-lg border text-left transition-all",
+                          campaignForm.network === key 
+                            ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                            : "hover:bg-muted/50"
+                        )}
+                      >
+                        {net.recommended && (
+                          <Badge className="absolute top-2 right-2 text-[10px]" variant="secondary">
+                            <Star className="h-3 w-3 mr-1" />
+                            Recommended
+                          </Badge>
+                        )}
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className={cn("p-2 rounded-lg bg-gradient-to-br", net.color)}>
+                            <net.icon className="h-4 w-4 text-white" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">{net.name}</p>
+                            <p className="text-xs text-muted-foreground">{net.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {net.features.slice(0, 3).map((f, i) => (
+                            <Badge key={i} variant="outline" className="text-[10px]">
+                              {f}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex justify-between mt-3 text-xs text-muted-foreground">
+                          <span>Min: ${net.minBudget}</span>
+                          <span>CPM: ${net.cpm}</span>
+                          <span>Avg CTR: {net.avgCtr}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Campaign Details */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Campaign Name *</Label>
                     <Input
-                      placeholder="My Campaign"
+                      placeholder="My Awesome Campaign"
                       value={campaignForm.name}
                       onChange={(e) => setCampaignForm(f => ({ ...f, name: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Ad Network *</Label>
-                    <Select 
-                      value={campaignForm.network}
-                      onValueChange={(v) => setCampaignForm(f => ({ ...f, network: v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select network" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(networks).map(([key, net]) => (
-                          <SelectItem key={key} value={key}>
-                            <div className="flex items-center gap-2">
-                              <span>{net.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                (Min: ${net.minBudget})
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Target URL *</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://your-website.com"
+                      value={campaignForm.targetUrl}
+                      onChange={(e) => setCampaignForm(f => ({ ...f, targetUrl: e.target.value }))}
+                    />
                   </div>
                 </div>
 
@@ -396,11 +724,14 @@ export default function AdvertisePage() {
                     <Label>Total Budget ($) *</Label>
                     <Input
                       type="number"
-                      placeholder="50.00"
+                      placeholder="100.00"
                       value={campaignForm.budget}
                       onChange={(e) => setCampaignForm(f => ({ ...f, budget: e.target.value }))}
                       min="5"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Available: ${balance.toFixed(2)}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label>Daily Budget ($) *</Label>
@@ -415,75 +746,136 @@ export default function AdvertisePage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Target URL *</Label>
-                  <Input
-                    type="url"
-                    placeholder="https://your-website.com"
-                    value={campaignForm.targetUrl}
-                    onChange={(e) => setCampaignForm(f => ({ ...f, targetUrl: e.target.value }))}
-                  />
-                </div>
-
-                <div className="space-y-2">
                   <Label>Ad Title *</Label>
                   <Input
-                    placeholder="Your amazing product"
+                    placeholder="Your compelling headline"
                     value={campaignForm.title}
                     onChange={(e) => setCampaignForm(f => ({ ...f, title: e.target.value }))}
                     maxLength={100}
                   />
+                  <p className="text-xs text-muted-foreground text-right">
+                    {campaignForm.title.length}/100
+                  </p>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Ad Description</Label>
                   <Textarea
-                    placeholder="Describe your product or service..."
+                    placeholder="Describe your offer, product or service..."
                     value={campaignForm.description}
                     onChange={(e) => setCampaignForm(f => ({ ...f, description: e.target.value }))}
                     maxLength={500}
                     rows={3}
                   />
+                  <p className="text-xs text-muted-foreground text-right">
+                    {campaignForm.description.length}/500
+                  </p>
                 </div>
 
-                {campaignForm.network && networks[campaignForm.network] && (
-                  <div className="rounded-lg border bg-muted/30 p-4">
-                    <p className="text-sm font-medium mb-2">Estimated Reach</p>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground text-xs">CPM</p>
-                        <p className="font-medium">${networks[campaignForm.network].cpm}</p>
+                {/* Advanced Targeting */}
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="targeting">
+                    <AccordionTrigger className="text-sm">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4" />
+                        Advanced Targeting Options
                       </div>
-                      <div>
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label>Devices</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {["desktop", "mobile", "tablet"].map((device) => (
+                            <Badge
+                              key={device}
+                              variant={campaignForm.targeting.devices.includes(device) ? "default" : "outline"}
+                              className="cursor-pointer"
+                              onClick={() => {
+                                const devices = campaignForm.targeting.devices.includes(device)
+                                  ? campaignForm.targeting.devices.filter(d => d !== device)
+                                  : [...campaignForm.targeting.devices, device]
+                                setCampaignForm(f => ({ 
+                                  ...f, 
+                                  targeting: { ...f.targeting, devices }
+                                }))
+                              }}
+                            >
+                              {device.charAt(0).toUpperCase() + device.slice(1)}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Operating Systems</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {["windows", "macos", "ios", "android", "linux"].map((os) => (
+                            <Badge
+                              key={os}
+                              variant={campaignForm.targeting.os.includes(os) ? "default" : "outline"}
+                              className="cursor-pointer"
+                              onClick={() => {
+                                const osArr = campaignForm.targeting.os.includes(os)
+                                  ? campaignForm.targeting.os.filter(o => o !== os)
+                                  : [...campaignForm.targeting.os, os]
+                                setCampaignForm(f => ({ 
+                                  ...f, 
+                                  targeting: { ...f.targeting, os: osArr }
+                                }))
+                              }}
+                            >
+                              {os.toUpperCase()}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+
+                {/* Estimated Reach */}
+                {campaignForm.network && campaignForm.budget && (
+                  <div className="rounded-lg border bg-gradient-to-br from-primary/5 to-transparent p-4">
+                    <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-primary" />
+                      Estimated Performance
+                    </p>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div className="text-center">
                         <p className="text-muted-foreground text-xs">Est. Impressions</p>
-                        <p className="font-medium">
-                          {campaignForm.budget 
-                            ? ((parseFloat(campaignForm.budget) / networks[campaignForm.network].cpm) * 1000).toLocaleString()
-                            : "0"
-                          }
+                        <p className="text-xl font-bold text-primary">
+                          {Math.floor((parseFloat(campaignForm.budget) / AD_NETWORKS[campaignForm.network as keyof typeof AD_NETWORKS]?.cpm) * 1000).toLocaleString()}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-muted-foreground text-xs">Your Balance</p>
-                        <p className="font-medium">${balance.toFixed(2)}</p>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Est. Clicks</p>
+                        <p className="text-xl font-bold">
+                          {Math.floor((parseFloat(campaignForm.budget) / AD_NETWORKS[campaignForm.network as keyof typeof AD_NETWORKS]?.cpm) * 1000 * 0.02).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Campaign Duration</p>
+                        <p className="text-xl font-bold">
+                          ~{Math.ceil(parseFloat(campaignForm.budget) / parseFloat(campaignForm.dailyBudget || "10"))} days
+                        </p>
                       </div>
                     </div>
                   </div>
                 )}
 
                 <Button 
-                  className="w-full" 
+                  className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/80" 
                   onClick={handleCreateCampaign}
                   disabled={isCreating}
                 >
                   {isCreating ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Creating...
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Creating Campaign...
                     </>
                   ) : (
                     <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Campaign
+                      <Rocket className="h-5 w-5 mr-2" />
+                      Launch Campaign
                     </>
                   )}
                 </Button>
@@ -494,7 +886,7 @@ export default function AdvertisePage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -509,7 +901,7 @@ export default function AdvertisePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-green-500/10">
@@ -523,175 +915,408 @@ export default function AdvertisePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-500/10">
                 <Eye className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Impressions</p>
+                <p className="text-xs text-muted-foreground">Impressions</p>
                 <p className="text-2xl font-bold">{totalImpressions.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10">
                 <MousePointer className="h-5 w-5 text-amber-500" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Total Clicks</p>
+                <p className="text-xs text-muted-foreground">Clicks</p>
                 <p className="text-2xl font-bold">{totalClicks.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <PieChart className="h-5 w-5 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Avg CTR</p>
+                <p className="text-2xl font-bold">{avgCtr}%</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Ad Networks */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Available Ad Networks</CardTitle>
-          <CardDescription>Choose from multiple advertising platforms</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {Object.entries(networks).map(([key, net]) => {
-              const Icon = NETWORK_ICONS[key] || Globe
-              return (
-                <div
-                  key={key}
-                  className="p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <Icon className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="font-medium text-sm">{net.name}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Min: ${net.minBudget}</span>
-                    <span>CPM: ${net.cpm}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="campaigns" className="gap-2">
+            <Megaphone className="h-4 w-4" />
+            Campaigns
+          </TabsTrigger>
+          <TabsTrigger value="networks" className="gap-2">
+            <Globe className="h-4 w-4" />
+            Networks
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Analytics
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Campaigns */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Your Campaigns</CardTitle>
-          <CardDescription>Manage and monitor your advertising campaigns</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {campaigns.length === 0 ? (
-            <div className="text-center py-12">
-              <Megaphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground mb-4">No campaigns yet</p>
-              <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Campaign
-              </Button>
+        {/* Campaigns Tab */}
+        <TabsContent value="campaigns" className="mt-6 space-y-4">
+          {/* Filters */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              {["all", "active", "pending", "paused", "stopped"].map((filter) => (
+                <Button
+                  key={filter}
+                  variant={campaignFilter === filter ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setCampaignFilter(filter)}
+                >
+                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  {filter !== "all" && (
+                    <Badge variant="outline" className="ml-1 h-5 px-1">
+                      {campaigns.filter(c => filter === "all" ? true : c.status === filter).length}
+                    </Badge>
+                  )}
+                </Button>
+              ))}
             </div>
+            <Button variant="ghost" size="sm" onClick={() => refreshCampaigns()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Campaign List */}
+          {filteredCampaigns.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Megaphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  {campaignFilter === "all" ? "No campaigns yet" : `No ${campaignFilter} campaigns`}
+                </p>
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Campaign
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
             <div className="space-y-4">
-              {campaigns.map((campaign) => (
-                <div
-                  key={campaign.id}
-                  className="p-4 rounded-lg border bg-card"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold">{campaign.name}</h3>
-                        {getStatusBadge(campaign.status)}
-                      </div>
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                        <span>{campaign.network_name}</span>
-                        <span>Budget: ${campaign.budget}</span>
-                        <span>Spent: ${campaign.spent.toFixed(2)}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <div className="text-right mr-4">
-                        <div className="flex gap-4 text-sm">
-                          <div>
-                            <p className="text-muted-foreground text-xs">Impressions</p>
-                            <p className="font-medium">{campaign.impressions.toLocaleString()}</p>
+              {filteredCampaigns.map((campaign) => {
+                const network = AD_NETWORKS[campaign.network as keyof typeof AD_NETWORKS]
+                return (
+                  <Card key={campaign.id} className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col lg:flex-row">
+                        {/* Campaign Info */}
+                        <div className="flex-1 p-4 lg:p-6">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className={cn("p-2 rounded-lg bg-gradient-to-br", network?.color || "from-gray-500 to-gray-600")}>
+                                {network?.icon && <network.icon className="h-5 w-5 text-white" />}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold flex items-center gap-2">
+                                  {campaign.name}
+                                  {getStatusBadge(campaign.status)}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {campaign.network_name || network?.name}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {campaign.status === "active" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCampaignAction(campaign.id, "pause")}
+                                >
+                                  <Pause className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {campaign.status === "paused" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleCampaignAction(campaign.id, "resume")}
+                                >
+                                  <Play className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {["active", "paused", "pending"].includes(campaign.status) && (
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleCampaignAction(campaign.id, "stop")}
+                                >
+                                  <Square className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Impressions</p>
+                              <p className="text-lg font-semibold">{campaign.impressions.toLocaleString()}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Clicks</p>
+                              <p className="text-lg font-semibold">{campaign.clicks.toLocaleString()}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">CTR</p>
+                              <p className="text-lg font-semibold">
+                                {campaign.impressions > 0 
+                                  ? ((campaign.clicks / campaign.impressions) * 100).toFixed(2) 
+                                  : "0.00"}%
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Conversions</p>
+                              <p className="text-lg font-semibold">{(campaign.conversions || 0).toLocaleString()}</p>
+                            </div>
+                          </div>
+
+                          {/* Budget Progress */}
                           <div>
-                            <p className="text-muted-foreground text-xs">Clicks</p>
-                            <p className="font-medium">{campaign.clicks.toLocaleString()}</p>
+                            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                              <span>Budget: ${campaign.spent.toFixed(2)} / ${campaign.budget}</span>
+                              <span>{((campaign.spent / campaign.budget) * 100).toFixed(1)}%</span>
+                            </div>
+                            <Progress value={(campaign.spent / campaign.budget) * 100} className="h-2" />
+                          </div>
+                        </div>
+
+                        {/* Quick Stats Sidebar */}
+                        <div className="border-t lg:border-t-0 lg:border-l bg-muted/30 p-4 lg:w-48 flex lg:flex-col justify-around lg:justify-center gap-4">
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">Daily Spend</p>
+                            <p className="font-bold">${campaign.daily_budget}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">CPM</p>
+                            <p className="font-bold">${campaign.cpm || network?.cpm || "0.00"}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">CPC</p>
+                            <p className="font-bold">
+                              ${campaign.clicks > 0 
+                                ? (campaign.spent / campaign.clicks).toFixed(2) 
+                                : "0.00"}
+                            </p>
                           </div>
                         </div>
                       </div>
-                      
-                      {campaign.status === "active" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCampaignAction(campaign.id, "pause")}
-                        >
-                          <Pause className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {campaign.status === "paused" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleCampaignAction(campaign.id, "resume")}
-                        >
-                          <Play className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {["active", "paused", "pending"].includes(campaign.status) && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleCampaignAction(campaign.id, "stop")}
-                        >
-                          <Square className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Budget Progress */}
-                  <div className="mt-4">
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                      <span>Budget Used</span>
-                      <span>{((campaign.spent / campaign.budget) * 100).toFixed(1)}%</span>
-                    </div>
-                    <Progress value={(campaign.spent / campaign.budget) * 100} className="h-2" />
-                  </div>
-                </div>
-              ))}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        {/* Networks Tab */}
+        <TabsContent value="networks" className="mt-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(AD_NETWORKS).map(([key, net]) => (
+              <Card 
+                key={key}
+                className={cn(
+                  "transition-all hover:shadow-lg cursor-pointer",
+                  selectedNetwork === key ? "ring-2 ring-primary" : ""
+                )}
+                onClick={() => {
+                  setSelectedNetwork(key)
+                  setCampaignForm(f => ({ ...f, network: key }))
+                  setIsCreateOpen(true)
+                }}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className={cn("p-3 rounded-xl bg-gradient-to-br", net.color)}>
+                      <net.icon className="h-6 w-6 text-white" />
+                    </div>
+                    {net.recommended && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Star className="h-3 w-3" />
+                        Recommended
+                      </Badge>
+                    )}
+                  </div>
+                  <CardTitle className="mt-3">{net.name}</CardTitle>
+                  <CardDescription>{net.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-1 mb-4">
+                    {net.features.map((f, i) => (
+                      <Badge key={i} variant="outline" className="text-xs">
+                        {f}
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                    <div>
+                      <p className="text-muted-foreground text-xs">Min Budget</p>
+                      <p className="font-semibold">${net.minBudget}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">CPM</p>
+                      <p className="font-semibold">${net.cpm}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Avg CTR</p>
+                      <p className="font-semibold text-green-500">{net.avgCtr}</p>
+                    </div>
+                  </div>
+                  <Button className="w-full mt-4" variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Campaign
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="mt-6 space-y-6">
+          {/* Performance Overview */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                Performance Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Total Spent</p>
+                  <p className="text-3xl font-bold">${totalSpent.toFixed(2)}</p>
+                  <div className="flex items-center gap-1 text-sm text-green-500">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>+12% vs last week</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Total Impressions</p>
+                  <p className="text-3xl font-bold">{totalImpressions.toLocaleString()}</p>
+                  <div className="flex items-center gap-1 text-sm text-green-500">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>+8% vs last week</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Total Clicks</p>
+                  <p className="text-3xl font-bold">{totalClicks.toLocaleString()}</p>
+                  <div className="flex items-center gap-1 text-sm text-green-500">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>+15% vs last week</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Total Conversions</p>
+                  <p className="text-3xl font-bold">{totalConversions.toLocaleString()}</p>
+                  <div className="flex items-center gap-1 text-sm text-green-500">
+                    <TrendingUp className="h-4 w-4" />
+                    <span>+22% vs last week</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top Performing Campaigns */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-yellow-500" />
+                Top Performing Campaigns
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {campaigns.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No campaign data yet. Create your first campaign to see analytics.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {campaigns
+                    .sort((a, b) => b.clicks - a.clicks)
+                    .slice(0, 5)
+                    .map((campaign, index) => (
+                      <div 
+                        key={campaign.id}
+                        className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center font-bold",
+                            index === 0 ? "bg-yellow-500 text-yellow-950" :
+                            index === 1 ? "bg-gray-400 text-gray-950" :
+                            index === 2 ? "bg-amber-600 text-amber-950" :
+                            "bg-muted text-muted-foreground"
+                          )}>
+                            {index + 1}
+                          </span>
+                          <div>
+                            <p className="font-medium">{campaign.name}</p>
+                            <p className="text-sm text-muted-foreground">{campaign.network_name}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6 text-sm">
+                          <div className="text-right">
+                            <p className="text-muted-foreground">Clicks</p>
+                            <p className="font-medium">{campaign.clicks.toLocaleString()}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-muted-foreground">CTR</p>
+                            <p className="font-medium text-green-500">
+                              {campaign.impressions > 0 
+                                ? ((campaign.clicks / campaign.impressions) * 100).toFixed(2)
+                                : "0.00"}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Info Card */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-sm font-medium">How Advertising Works</p>
+              <p className="text-sm font-medium">Advertising with Crypto</p>
               <ul className="text-xs text-muted-foreground space-y-1">
-                <li>1. Deposit funds to your advertising balance using crypto</li>
-                <li>2. Create a campaign and choose your target ad network</li>
-                <li>3. Your campaign will be reviewed and activated within 24 hours</li>
-                <li>4. Track impressions, clicks, and spending in real-time</li>
-                <li>5. Pause or stop campaigns anytime - unused budget is refunded</li>
+                <li>1. Deposit funds using any supported cryptocurrency via CCPayment</li>
+                <li>2. Create campaigns across 8+ premium ad networks</li>
+                <li>3. Target by device, location, and operating system</li>
+                <li>4. Real-time analytics and performance tracking</li>
+                <li>5. Pause or stop campaigns anytime - unused budget is refundable</li>
               </ul>
             </div>
           </div>

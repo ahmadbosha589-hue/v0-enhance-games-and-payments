@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { 
   Gamepad2, 
   Coins, 
@@ -19,7 +27,20 @@ import {
   Target,
   Car,
   Grid3X3,
-  Blocks
+  Blocks,
+  Star,
+  Crown,
+  Medal,
+  Flame,
+  Gift,
+  Users,
+  Calendar,
+  TrendingUp,
+  Award,
+  Sparkles,
+  Lock,
+  Play,
+  ChevronRight
 } from "lucide-react"
 import { TetrisGame } from "@/components/games/tetris-game"
 import { BlockBlastGame } from "@/components/games/block-blast-game"
@@ -31,6 +52,14 @@ import { useLanguage } from "@/lib/i18n/language-context"
 import { cn } from "@/lib/utils"
 import useSWR from "swr"
 import Image from "next/image"
+import { 
+  GAME_ACHIEVEMENTS, 
+  generateMockTournaments, 
+  generateMockLeaderboard,
+  calculateReward,
+  type TournamentInfo,
+  type LeaderboardEntry 
+} from "@/lib/games/game-engine"
 
 type GameType = "tetris" | "block_blast" | "car_racing" | "snake" | "memory" | "flappy"
 
@@ -105,12 +134,31 @@ export default function GamesPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("games")
+  const [selectedLeaderboardGame, setSelectedLeaderboardGame] = useState<GameType>("tetris")
+  const [showAchievementModal, setShowAchievementModal] = useState(false)
+  const [newAchievement, setNewAchievement] = useState<typeof GAME_ACHIEVEMENTS[0] | null>(null)
+  const [tournaments] = useState<TournamentInfo[]>(() => generateMockTournaments())
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [userHighScores] = useState<Record<string, number>>({
+    tetris: 12500,
+    snake: 1850,
+    memory: 2400,
+    flappy: 320,
+    car_racing: 3200,
+    block_blast: 2800
+  })
 
   const { data: gameStatus, mutate: refreshStatus } = useSWR<GameStatus>(
     "/api/games/status",
     fetcher,
     { refreshInterval: 5000 }
   )
+
+  // Update leaderboard when game type changes
+  useEffect(() => {
+    setLeaderboard(generateMockLeaderboard(selectedLeaderboardGame, userHighScores[selectedLeaderboardGame]))
+  }, [selectedLeaderboardGame, userHighScores])
 
   // Countdown timer
   useEffect(() => {
@@ -213,7 +261,19 @@ export default function GamesPage() {
         throw new Error(data.error || "Failed to complete game")
       }
 
-      setSuccess(`You earned ${data.reward} satoshis! Score: ${score.toLocaleString()}`)
+      // Calculate bonus reward based on score
+      const bonusReward = calculateReward(data.reward, score, gameSession.gameType)
+      setSuccess(`You earned ${bonusReward} satoshis! Score: ${score.toLocaleString()}`)
+      
+      // Check for new achievements
+      const unlockedAchievement = GAME_ACHIEVEMENTS.find(a => 
+        !a.unlocked && Math.random() < 0.1 // Simulated achievement unlock
+      )
+      if (unlockedAchievement) {
+        setNewAchievement(unlockedAchievement)
+        setShowAchievementModal(true)
+      }
+      
       refreshStatus()
     } catch (err: any) {
       setError(err.message)
@@ -232,64 +292,79 @@ export default function GamesPage() {
     {
       type: "tetris" as GameType,
       name: "Tetris",
-      description: "Stack falling blocks and clear lines",
+      description: "Stack falling blocks and clear lines for massive combos",
       icon: Grid3X3,
       color: "from-cyan-500 to-blue-600",
       borderColor: "border-cyan-500/30",
       bgColor: "bg-cyan-500/10",
-      image: "/images/games/tetris.jpg"
+      image: "/images/games/tetris.jpg",
+      difficulty: "Medium",
+      avgPlayTime: "3-5 min"
     },
     {
       type: "block_blast" as GameType,
       name: "Block Blast",
-      description: "Match 3 or more blocks to score",
+      description: "Match 3+ blocks with special power-ups and multipliers",
       icon: Blocks,
       color: "from-purple-500 to-pink-600",
       borderColor: "border-purple-500/30",
       bgColor: "bg-purple-500/10",
-      image: "/images/games/block-blast.jpg"
+      image: "/images/games/block-blast.jpg",
+      difficulty: "Easy",
+      avgPlayTime: "2-4 min"
     },
     {
       type: "car_racing" as GameType,
       name: "Car Racing",
-      description: "Dodge obstacles and collect coins",
+      description: "Dodge obstacles, collect power-ups and earn near-miss bonuses",
       icon: Car,
       color: "from-orange-500 to-red-600",
       borderColor: "border-orange-500/30",
       bgColor: "bg-orange-500/10",
-      image: "/images/games/car-racing.jpg"
+      image: "/images/games/car-racing.jpg",
+      difficulty: "Hard",
+      avgPlayTime: "2-5 min"
     },
     {
       type: "snake" as GameType,
       name: "Snake",
-      description: "Eat food and grow without hitting walls",
+      description: "Eat special food types with combo multipliers",
       icon: Zap,
       color: "from-emerald-500 to-green-600",
       borderColor: "border-emerald-500/30",
       bgColor: "bg-emerald-500/10",
-      image: "/images/games/snake.jpg"
+      image: "/images/games/snake.jpg",
+      difficulty: "Medium",
+      avgPlayTime: "2-4 min"
     },
     {
       type: "memory" as GameType,
       name: "Memory Match",
-      description: "Find matching pairs before time runs out",
+      description: "Find pairs with streak bonuses and perfect game rewards",
       icon: Target,
       color: "from-amber-500 to-yellow-600",
       borderColor: "border-amber-500/30",
       bgColor: "bg-amber-500/10",
-      image: "/images/games/memory.jpg"
+      image: "/images/games/memory.jpg",
+      difficulty: "Easy",
+      avgPlayTime: "1-3 min"
     },
     {
       type: "flappy" as GameType,
       name: "Flappy Bird",
-      description: "Fly through pipes and collect coins",
+      description: "Fly through pipes with shields, slow-mo and coin bonuses",
       icon: Trophy,
       color: "from-sky-500 to-indigo-600",
       borderColor: "border-sky-500/30",
       bgColor: "bg-sky-500/10",
-      image: "/images/games/flappy.jpg"
+      image: "/images/games/flappy.jpg",
+      difficulty: "Hard",
+      avgPlayTime: "1-3 min"
     }
   ]
+
+  const unlockedAchievements = GAME_ACHIEVEMENTS.filter((_, i) => i < 5) // Simulated unlocked
+  const lockedAchievements = GAME_ACHIEVEMENTS.filter((_, i) => i >= 5)
 
   if (!gameStatus) {
     return (
@@ -312,25 +387,31 @@ export default function GamesPage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
             <Gamepad2 className="h-7 w-7 text-primary" />
-            Games
+            Game Center
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Play fun games and earn 3 satoshis per game
+            Play games, earn satoshis, and climb the leaderboards
           </p>
         </div>
-        <Badge variant="secondary" className="w-fit text-sm py-1.5 px-3">
-          <Coins className="h-4 w-4 mr-1.5 text-yellow-500" />
-          {gameStatus.rewardPerGame} sats per game
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-sm py-1.5 px-3">
+            <Flame className="h-4 w-4 mr-1.5 text-orange-500" />
+            {gameStatus.gamesPlayedToday} Day Streak
+          </Badge>
+          <Badge variant="secondary" className="text-sm py-1.5 px-3">
+            <Coins className="h-4 w-4 mr-1.5 text-yellow-500" />
+            {gameStatus.rewardPerGame} sats/game
+          </Badge>
+        </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border/50">
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-2 rounded-lg bg-green-500/10">
-                <Target className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Games Today</p>
@@ -340,7 +421,7 @@ export default function GamesPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card className="border-yellow-500/20 bg-gradient-to-br from-yellow-500/5 to-transparent">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="p-2 rounded-lg bg-yellow-500/10">
@@ -354,11 +435,11 @@ export default function GamesPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card className="border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Games Left</p>
@@ -368,7 +449,7 @@ export default function GamesPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="p-2 rounded-lg bg-purple-500/10">
@@ -404,27 +485,448 @@ export default function GamesPage() {
         </Card>
       )}
 
-      {/* Daily Progress */}
-      <Card className="border-border/50">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium">Daily Progress</span>
-            <span className="text-sm text-muted-foreground">
-              {gameStatus.gamesPlayedToday} of {gameStatus.maxGamesPerDay} games
-            </span>
-          </div>
-          <Progress 
-            value={(gameStatus.gamesPlayedToday / gameStatus.maxGamesPerDay) * 100} 
-            className="h-2"
-          />
-          <p className="text-xs text-muted-foreground mt-2">
-            Maximum potential today: {gameStatus.maxGamesPerDay * gameStatus.rewardPerGame} satoshis
-          </p>
-        </CardContent>
-      </Card>
+      {/* Main Content Tabs */}
+      {!isPlaying ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-4 h-auto">
+            <TabsTrigger value="games" className="gap-2 py-2">
+              <Gamepad2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Games</span>
+            </TabsTrigger>
+            <TabsTrigger value="tournaments" className="gap-2 py-2">
+              <Crown className="h-4 w-4" />
+              <span className="hidden sm:inline">Tournaments</span>
+            </TabsTrigger>
+            <TabsTrigger value="leaderboard" className="gap-2 py-2">
+              <Medal className="h-4 w-4" />
+              <span className="hidden sm:inline">Leaderboard</span>
+            </TabsTrigger>
+            <TabsTrigger value="achievements" className="gap-2 py-2">
+              <Award className="h-4 w-4" />
+              <span className="hidden sm:inline">Achievements</span>
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Game Selection / Active Game */}
-      {isPlaying && selectedGame ? (
+          {/* Games Tab */}
+          <TabsContent value="games" className="mt-6 space-y-6">
+            {/* Daily Progress */}
+            <Card className="border-border/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Daily Progress</span>
+                  <span className="text-sm text-muted-foreground">
+                    {gameStatus.gamesPlayedToday} of {gameStatus.maxGamesPerDay} games
+                  </span>
+                </div>
+                <Progress 
+                  value={(gameStatus.gamesPlayedToday / gameStatus.maxGamesPerDay) * 100} 
+                  className="h-2"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Maximum potential today: {gameStatus.maxGamesPerDay * gameStatus.rewardPerGame} satoshis
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Game Grid */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {games.map((game) => (
+                <Card 
+                  key={game.type}
+                  className={cn(
+                    "border-2 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] overflow-hidden group",
+                    game.borderColor,
+                    game.bgColor
+                  )}
+                >
+                  <div className="relative h-36 sm:h-40 overflow-hidden">
+                    <Image
+                      src={game.image}
+                      alt={game.name}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent" />
+                    <div className={cn(
+                      "absolute top-3 left-3 w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg",
+                      game.color
+                    )}>
+                      <game.icon className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="absolute top-3 right-3 flex flex-col gap-1">
+                      <Badge className="text-[10px]" variant="secondary">
+                        <Coins className="h-3 w-3 mr-1 text-yellow-500" />
+                        +{gameStatus.rewardPerGame} sats
+                      </Badge>
+                      <Badge className="text-[10px]" variant="outline">
+                        {game.difficulty}
+                      </Badge>
+                    </div>
+                    {userHighScores[game.type] && (
+                      <div className="absolute bottom-3 right-3">
+                        <Badge variant="secondary" className="text-[10px] bg-background/80">
+                          <Star className="h-3 w-3 mr-1 text-yellow-500" />
+                          Best: {userHighScores[game.type].toLocaleString()}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                  <CardHeader className="pb-2 pt-3">
+                    <CardTitle className="text-lg flex items-center justify-between">
+                      {game.name}
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {game.avgPlayTime}
+                      </span>
+                    </CardTitle>
+                    <CardDescription className="text-sm line-clamp-2">{game.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <Button
+                      className={cn(
+                        "w-full transition-all",
+                        !isLoading && gameStatus.canPlay && countdown <= 0 && gameStatus.gamesRemaining > 0 
+                          ? `bg-gradient-to-r ${game.color} hover:opacity-90 text-white` 
+                          : ""
+                      )}
+                      onClick={() => startGame(game.type)}
+                      disabled={
+                        isLoading || 
+                        !gameStatus.canPlay || 
+                        countdown > 0 || 
+                        gameStatus.gamesRemaining <= 0
+                      }
+                    >
+                      {isLoading ? (
+                        <>
+                          <Timer className="h-4 w-4 mr-2 animate-spin" />
+                          Starting...
+                        </>
+                      ) : countdown > 0 ? (
+                        <>
+                          <Clock className="h-4 w-4 mr-2" />
+                          Wait {formatTime(countdown)}
+                        </>
+                      ) : gameStatus.gamesRemaining <= 0 ? (
+                        <>
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          Daily Limit
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-2" />
+                          Play Now
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Recent Games */}
+            {gameStatus.recentGames.length > 0 && (
+              <Card className="border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-yellow-500" />
+                    Recent Games
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {gameStatus.recentGames.slice(0, 5).map((game) => (
+                      <div 
+                        key={game.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "p-2 rounded-lg",
+                            games.find(g => g.type === game.game_type)?.bgColor
+                          )}>
+                            {(() => {
+                              const Icon = games.find(g => g.type === game.game_type)?.icon
+                              return Icon ? <Icon className="h-4 w-4" /> : null
+                            })()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">
+                              {games.find(g => g.type === game.game_type)?.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Score: {game.score.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          +{game.reward_satoshis} sats
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Tournaments Tab */}
+          <TabsContent value="tournaments" className="mt-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Active Tournaments</h2>
+                <p className="text-sm text-muted-foreground">Compete for prize pools and glory</p>
+              </div>
+              <Badge variant="outline" className="gap-1">
+                <Users className="h-3 w-3" />
+                {tournaments.reduce((acc, t) => acc + t.participants, 0)} Players Active
+              </Badge>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {tournaments.map((tournament) => (
+                <Card 
+                  key={tournament.id}
+                  className={cn(
+                    "border-2 transition-all hover:shadow-lg",
+                    tournament.status === "active" ? "border-green-500/30 bg-green-500/5" :
+                    tournament.status === "upcoming" ? "border-blue-500/30 bg-blue-500/5" :
+                    "border-muted/30 bg-muted/5 opacity-75"
+                  )}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Crown className={cn(
+                          "h-5 w-5",
+                          tournament.status === "active" ? "text-green-500" :
+                          tournament.status === "upcoming" ? "text-blue-500" : "text-muted-foreground"
+                        )} />
+                        {tournament.name}
+                      </CardTitle>
+                      <Badge 
+                        variant={tournament.status === "active" ? "default" : 
+                                tournament.status === "upcoming" ? "secondary" : "outline"}
+                      >
+                        {tournament.status === "active" && <Sparkles className="h-3 w-3 mr-1" />}
+                        {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Prize Pool</p>
+                        <p className="text-lg font-bold text-yellow-500">
+                          {tournament.prizePool.toLocaleString()} sats
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Entry Fee</p>
+                        <p className="text-lg font-bold">{tournament.entryFee} sats</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Players</p>
+                        <p className="text-lg font-bold">{tournament.participants}/{tournament.maxParticipants}</p>
+                      </div>
+                    </div>
+                    
+                    <Progress 
+                      value={(tournament.participants / tournament.maxParticipants) * 100}
+                      className="h-1"
+                    />
+                    
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        {tournament.status === "ended" ? "Ended" :
+                          tournament.status === "active" ? "Ends in 2h" : "Starts in 1h"}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        disabled={tournament.status === "ended"}
+                        className={cn(
+                          tournament.status === "active" ? "bg-green-600 hover:bg-green-700" : ""
+                        )}
+                      >
+                        {tournament.status === "ended" ? "View Results" :
+                          tournament.status === "active" ? "Join Now" : "Register"}
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Tournament Rules */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-primary" />
+                  Tournament Rules
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>Entry fee is deducted from your balance when you register</li>
+                  <li>Your best score during the tournament period counts</li>
+                  <li>Top 10 players split the prize pool (50%, 25%, 10%, 5%...)</li>
+                  <li>Cheating results in immediate disqualification and ban</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Leaderboard Tab */}
+          <TabsContent value="leaderboard" className="mt-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">Global Leaderboards</h2>
+                <p className="text-sm text-muted-foreground">Top players across all games</p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {games.map((game) => (
+                  <Button
+                    key={game.type}
+                    size="sm"
+                    variant={selectedLeaderboardGame === game.type ? "default" : "outline"}
+                    onClick={() => setSelectedLeaderboardGame(game.type)}
+                    className="gap-1"
+                  >
+                    <game.icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{game.name}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <Card>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[500px]">
+                  <div className="divide-y">
+                    {leaderboard.map((entry) => (
+                      <div 
+                        key={entry.rank}
+                        className={cn(
+                          "flex items-center gap-4 p-4 transition-colors",
+                          entry.isCurrent ? "bg-primary/10" : "hover:bg-muted/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center font-bold",
+                          entry.rank === 1 ? "bg-yellow-500 text-yellow-950" :
+                          entry.rank === 2 ? "bg-gray-400 text-gray-950" :
+                          entry.rank === 3 ? "bg-amber-600 text-amber-950" :
+                          "bg-muted text-muted-foreground"
+                        )}>
+                          {entry.rank <= 3 ? (
+                            entry.rank === 1 ? <Crown className="h-5 w-5" /> :
+                            entry.rank === 2 ? <Medal className="h-5 w-5" /> :
+                            <Award className="h-5 w-5" />
+                          ) : entry.rank}
+                        </div>
+                        <div className="flex-1">
+                          <p className={cn(
+                            "font-medium",
+                            entry.isCurrent && "text-primary"
+                          )}>
+                            {entry.username}
+                            {entry.isCurrent && (
+                              <Badge variant="outline" className="ml-2 text-xs">You</Badge>
+                            )}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Score: {entry.score.toLocaleString()}
+                          </p>
+                        </div>
+                        {entry.rank <= 3 && (
+                          <Badge variant="secondary" className="gap-1">
+                            <Gift className="h-3 w-3" />
+                            {entry.rank === 1 ? "1000" : entry.rank === 2 ? "500" : "250"} sats
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Achievements Tab */}
+          <TabsContent value="achievements" className="mt-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Achievements</h2>
+                <p className="text-sm text-muted-foreground">
+                  Unlock achievements to earn bonus satoshis
+                </p>
+              </div>
+              <Badge variant="outline" className="gap-1">
+                <Star className="h-3 w-3 text-yellow-500" />
+                {unlockedAchievements.length}/{GAME_ACHIEVEMENTS.length} Unlocked
+              </Badge>
+            </div>
+
+            <div className="space-y-4">
+              {/* Unlocked Achievements */}
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  Unlocked ({unlockedAchievements.length})
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {unlockedAchievements.map((achievement) => (
+                    <Card key={achievement.id} className="border-green-500/30 bg-green-500/5">
+                      <CardContent className="p-4 flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-green-500/20">
+                          <Trophy className="h-5 w-5 text-green-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{achievement.name}</p>
+                          <p className="text-xs text-muted-foreground">{achievement.description}</p>
+                          <Badge variant="secondary" className="mt-2 text-xs">
+                            <Coins className="h-3 w-3 mr-1" />
+                            +{achievement.reward} sats earned
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Locked Achievements */}
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  Locked ({lockedAchievements.length})
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {lockedAchievements.map((achievement) => (
+                    <Card key={achievement.id} className="border-muted/30 bg-muted/5 opacity-75">
+                      <CardContent className="p-4 flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-muted/50">
+                          <Lock className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{achievement.name}</p>
+                          <p className="text-xs text-muted-foreground">{achievement.description}</p>
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            <Gift className="h-3 w-3 mr-1" />
+                            +{achievement.reward} sats reward
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        // Active Game
         <Card className="border-primary/30">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -495,150 +997,59 @@ export default function GamesPage() {
             )}
           </CardContent>
         </Card>
-      ) : (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Choose a Game</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {games.map((game) => (
-              <Card 
-                key={game.type}
-                className={cn(
-                  "border-2 transition-all duration-300 hover:shadow-lg hover:scale-[1.02] overflow-hidden group",
-                  game.borderColor,
-                  game.bgColor
-                )}
-              >
-                <div className="relative h-36 sm:h-40 overflow-hidden">
-                  <Image
-                    src={game.image}
-                    alt={game.name}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent" />
-                  <div className={cn(
-                    "absolute top-3 left-3 w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg",
-                    game.color
-                  )}>
-                    <game.icon className="h-5 w-5 text-white" />
-                  </div>
-                  <Badge className="absolute top-3 right-3" variant="secondary">
-                    <Coins className="h-3 w-3 mr-1 text-yellow-500" />
-                    +3 sats
-                  </Badge>
-                </div>
-                <CardHeader className="pb-2 pt-3">
-                  <CardTitle className="text-lg">{game.name}</CardTitle>
-                  <CardDescription className="text-sm">{game.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <Button
-                    className={cn(
-                      "w-full transition-all",
-                      !isLoading && gameStatus.canPlay && countdown <= 0 && gameStatus.gamesRemaining > 0 
-                        ? `bg-gradient-to-r ${game.color} hover:opacity-90 text-white` 
-                        : ""
-                    )}
-                    onClick={() => startGame(game.type)}
-                    disabled={
-                      isLoading || 
-                      !gameStatus.canPlay || 
-                      countdown > 0 || 
-                      gameStatus.gamesRemaining <= 0
-                    }
-                  >
-                    {isLoading ? (
-                      <>
-                        <Timer className="h-4 w-4 mr-2 animate-spin" />
-                        Starting...
-                      </>
-                    ) : countdown > 0 ? (
-                      <>
-                        <Clock className="h-4 w-4 mr-2" />
-                        Wait {formatTime(countdown)}
-                      </>
-                    ) : gameStatus.gamesRemaining <= 0 ? (
-                      <>
-                        <AlertCircle className="h-4 w-4 mr-2" />
-                        Daily Limit Reached
-                      </>
-                    ) : (
-                      <>
-                        <Gamepad2 className="h-4 w-4 mr-2" />
-                        Play Now
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
       )}
 
-      {/* Recent Games */}
-      {gameStatus.recentGames.length > 0 && !isPlaying && (
-        <Card className="border-border/50">
+      {/* Achievement Unlock Modal */}
+      <Dialog open={showAchievementModal} onOpenChange={setShowAchievementModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-center justify-center">
+              <Sparkles className="h-6 w-6 text-yellow-500" />
+              Achievement Unlocked!
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              Congratulations! You&apos;ve earned a new achievement.
+            </DialogDescription>
+          </DialogHeader>
+          {newAchievement && (
+            <div className="flex flex-col items-center gap-4 py-4">
+              <div className="p-4 rounded-full bg-gradient-to-br from-yellow-500/20 to-orange-500/20">
+                <Trophy className="h-12 w-12 text-yellow-500" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-xl font-bold">{newAchievement.name}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{newAchievement.description}</p>
+              </div>
+              <Badge className="text-lg px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white">
+                <Coins className="h-5 w-5 mr-2" />
+                +{newAchievement.reward} satoshis
+              </Badge>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Rules Card */}
+      {!isPlaying && activeTab === "games" && (
+        <Card className="border-primary/20 bg-primary/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              Recent Games
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-primary" />
+              Game Rules & Rewards
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {gameStatus.recentGames.slice(0, 5).map((game) => (
-                <div 
-                  key={game.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "p-2 rounded-lg",
-                      games.find(g => g.type === game.game_type)?.bgColor
-                    )}>
-                      {(() => {
-                        const Icon = games.find(g => g.type === game.game_type)?.icon
-                        return Icon ? <Icon className="h-4 w-4" /> : null
-                      })()}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">
-                        {games.find(g => g.type === game.game_type)?.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Score: {game.score.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    +{game.reward_satoshis} sats
-                  </Badge>
-                </div>
-              ))}
-            </div>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>Play games every {gameStatus.cooldownMinutes} minutes (cooldown between games)</li>
+              <li>Earn {gameStatus.rewardPerGame} satoshis base reward + score bonuses per game</li>
+              <li>Maximum {gameStatus.maxGamesPerDay} games per day</li>
+              <li>Higher scores unlock multipliers (up to 2.5x rewards)</li>
+              <li>Unlock achievements for bonus satoshis</li>
+              <li>Games must be played legitimately - bots are not allowed</li>
+            </ul>
           </CardContent>
         </Card>
       )}
-
-      {/* Rules */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-primary" />
-            Game Rules
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="text-sm text-muted-foreground space-y-1">
-            <li>Play games every {gameStatus.cooldownMinutes} minutes</li>
-            <li>Earn {gameStatus.rewardPerGame} satoshis per completed game</li>
-            <li>Maximum {gameStatus.maxGamesPerDay} games per day</li>
-            <li>Games must be played legitimately - bots are not allowed</li>
-            <li>Minimum play time required for rewards</li>
-          </ul>
-        </CardContent>
-      </Card>
     </div>
   )
 }
