@@ -86,6 +86,15 @@ interface SwapHistory {
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
+interface CryptoPrice {
+  symbol: string
+  name: string
+  price: number
+  change24h: number
+  volume24h: string
+  marketCap: string
+}
+
 // Coin icon colors
 const COIN_STYLES: Record<string, { color: string; bgColor: string; gradient: string }> = {
   BTC: { color: "text-orange-500", bgColor: "bg-orange-500/10", gradient: "from-orange-500 to-amber-500" },
@@ -106,24 +115,24 @@ const COIN_STYLES: Record<string, { color: string; bgColor: string; gradient: st
   ATOM: { color: "text-purple-400", bgColor: "bg-purple-400/10", gradient: "from-purple-400 to-indigo-500" },
 }
 
-// Extended supported coins with market data
-const SUPPORTED_COINS: Coin[] = [
-  { coinId: "BTC", symbol: "BTC", name: "Bitcoin", price: 67000, change24h: 2.5, volume24h: "28B", marketCap: "1.3T" },
-  { coinId: "ETH", symbol: "ETH", name: "Ethereum", price: 4000, change24h: 3.2, volume24h: "15B", marketCap: "480B" },
-  { coinId: "USDT", symbol: "USDT", name: "Tether", price: 1, change24h: 0.01, volume24h: "45B", marketCap: "95B" },
-  { coinId: "USDC", symbol: "USDC", name: "USD Coin", price: 1, change24h: 0.0, volume24h: "5B", marketCap: "32B" },
-  { coinId: "BNB", symbol: "BNB", name: "BNB", price: 620, change24h: -0.5, volume24h: "2B", marketCap: "95B" },
-  { coinId: "SOL", symbol: "SOL", name: "Solana", price: 150, change24h: 6.8, volume24h: "3B", marketCap: "68B" },
-  { coinId: "XRP", symbol: "XRP", name: "Ripple", price: 0.62, change24h: 4.1, volume24h: "2B", marketCap: "34B" },
-  { coinId: "DOGE", symbol: "DOGE", name: "Dogecoin", price: 0.12, change24h: 5.2, volume24h: "1.5B", marketCap: "17B" },
-  { coinId: "ADA", symbol: "ADA", name: "Cardano", price: 0.45, change24h: 3.3, volume24h: "500M", marketCap: "16B" },
-  { coinId: "AVAX", symbol: "AVAX", name: "Avalanche", price: 38, change24h: 4.5, volume24h: "600M", marketCap: "14B" },
-  { coinId: "LTC", symbol: "LTC", name: "Litecoin", price: 85, change24h: 1.8, volume24h: "500M", marketCap: "6.4B" },
-  { coinId: "LINK", symbol: "LINK", name: "Chainlink", price: 15, change24h: 2.1, volume24h: "400M", marketCap: "8.8B" },
-  { coinId: "DOT", symbol: "DOT", name: "Polkadot", price: 7.5, change24h: 1.5, volume24h: "300M", marketCap: "10B" },
-  { coinId: "MATIC", symbol: "MATIC", name: "Polygon", price: 0.75, change24h: 2.1, volume24h: "400M", marketCap: "7B" },
-  { coinId: "TRX", symbol: "TRX", name: "Tron", price: 0.12, change24h: 1.2, volume24h: "300M", marketCap: "10B" },
-  { coinId: "ATOM", symbol: "ATOM", name: "Cosmos", price: 9, change24h: 3.0, volume24h: "200M", marketCap: "3.5B" },
+// Default supported coins (will be updated with real prices)
+const DEFAULT_COINS: Coin[] = [
+  { coinId: "BTC", symbol: "BTC", name: "Bitcoin" },
+  { coinId: "ETH", symbol: "ETH", name: "Ethereum" },
+  { coinId: "USDT", symbol: "USDT", name: "Tether" },
+  { coinId: "USDC", symbol: "USDC", name: "USD Coin" },
+  { coinId: "BNB", symbol: "BNB", name: "BNB" },
+  { coinId: "SOL", symbol: "SOL", name: "Solana" },
+  { coinId: "XRP", symbol: "XRP", name: "Ripple" },
+  { coinId: "DOGE", symbol: "DOGE", name: "Dogecoin" },
+  { coinId: "ADA", symbol: "ADA", name: "Cardano" },
+  { coinId: "AVAX", symbol: "AVAX", name: "Avalanche" },
+  { coinId: "LTC", symbol: "LTC", name: "Litecoin" },
+  { coinId: "LINK", symbol: "LINK", name: "Chainlink" },
+  { coinId: "DOT", symbol: "DOT", name: "Polkadot" },
+  { coinId: "MATIC", symbol: "MATIC", name: "Polygon" },
+  { coinId: "TRX", symbol: "TRX", name: "Tron" },
+  { coinId: "ATOM", symbol: "ATOM", name: "Cosmos" },
 ]
 
 // Popular trading pairs for quick access
@@ -155,6 +164,30 @@ export function CryptoSwap() {
     refreshInterval: 30000
   })
 
+  // Fetch real crypto prices from API
+  const { data: pricesData, mutate: refreshPrices } = useSWR<{ prices: Record<string, CryptoPrice> }>(
+    "/api/crypto/prices",
+    fetcher,
+    { refreshInterval: 60000 } // Refresh every 60 seconds
+  )
+
+  // Merge real prices into coins
+  const SUPPORTED_COINS = useMemo(() => {
+    return DEFAULT_COINS.map(coin => {
+      const priceData = pricesData?.prices?.[coin.symbol]
+      if (priceData) {
+        return {
+          ...coin,
+          price: priceData.price,
+          change24h: priceData.change24h,
+          volume24h: priceData.volume24h,
+          marketCap: priceData.marketCap,
+        }
+      }
+      return coin
+    })
+  }, [pricesData])
+
   const filteredCoins = useMemo(() => {
     if (!searchCoin) return SUPPORTED_COINS
     const search = searchCoin.toLowerCase()
@@ -162,7 +195,7 @@ export function CryptoSwap() {
       c.symbol.toLowerCase().includes(search) || 
       c.name.toLowerCase().includes(search)
     )
-  }, [searchCoin])
+  }, [searchCoin, SUPPORTED_COINS])
 
   const fromCoinData = SUPPORTED_COINS.find(c => c.coinId === fromCoin)
   const toCoinData = SUPPORTED_COINS.find(c => c.coinId === toCoin)
