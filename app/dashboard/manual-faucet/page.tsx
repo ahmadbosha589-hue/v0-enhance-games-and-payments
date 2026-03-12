@@ -479,43 +479,35 @@ function ManualFaucetContent() {
 
   // Refresh PTC status handler - manually check if user has completed 2 PTC ads today
   const handleRefreshPtcStatus = useCallback(async () => {
-    if (!user?.id || isRefreshingPtc) return
+    if (!user?.id) return
 
     setIsRefreshingPtc(true)
-    toast.info("Checking PTC status...")
+
+    // Set a timeout to prevent infinite spinning
+    const timeoutId = setTimeout(() => {
+      setIsRefreshingPtc(false)
+      toast.error("Request timed out. Please try again.")
+    }, 10000)
 
     try {
       // Clear cache to force fresh data
       safeStorage.clear()
 
-      const supabase = createClient()
-      if (!supabase) {
-        toast.error("Database connection failed. Please refresh the page.")
-        setIsRefreshingPtc(false)
-        return
+      // Use fetch API to hit an endpoint for more reliable behavior
+      const response = await fetch("/api/ptc/status", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch PTC status")
       }
 
-      // Get today's start in UTC
-      const today = new Date()
-      today.setUTCHours(0, 0, 0, 0)
-      const todayISO = today.toISOString()
-
-      const { count, error } = await supabase
-        .from("ptc_views")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("completed", true)
-        .gte("created_at", todayISO)
-
-      if (error) {
-        console.error("[v0] PTC refresh error:", error)
-        toast.error("Failed to check PTC status. Please try again.")
-        setIsRefreshingPtc(false)
-        return
-      }
-
-      const newCount = count || 0
-      console.log("[v0] PTC count refreshed:", newCount)
+      const data = await response.json()
+      const newCount = data.completedToday || 0
 
       setPtcAdsCompleted(newCount)
       setIsLocked(newCount < 2)
@@ -525,17 +517,17 @@ function ManualFaucetContent() {
       safeStorage.set(CACHE_KEYS.CACHE_TIME, Date.now())
 
       if (newCount >= 2) {
-        toast.success(`Unlocked! You have completed ${newCount} PTC ads today. Manual faucet is now available.`)
+        toast.success(`Unlocked! You have completed ${newCount} PTC ads today.`)
       } else {
         toast.info(`${newCount}/2 PTC ads completed today. Watch ${2 - newCount} more to unlock.`)
       }
     } catch (e) {
-      console.error("[v0] PTC refresh exception:", e)
+      clearTimeout(timeoutId)
       toast.error("Failed to check PTC status. Please refresh the page.")
     } finally {
       setIsRefreshingPtc(false)
     }
-  }, [user?.id, isRefreshingPtc])
+  }, [user?.id])
 
   // ULTRA ROBUST INITIALIZATION with caching
   const initialize = useCallback(async () => {
