@@ -29,12 +29,8 @@ export function useUser(): UseUserReturn {
   const fetchingRef = useRef(false)
 
   const fetchUser = useCallback(async () => {
-    if (fetchingRef.current) {
-      console.log("[v0] fetchUser skipped - already fetching")
-      return
-    }
+    if (fetchingRef.current) return
     fetchingRef.current = true
-    console.log("[v0] fetchUser started")
 
     try {
       setIsLoading(true)
@@ -42,61 +38,39 @@ export function useUser(): UseUserReturn {
 
       const supabase = createClient()
       if (!supabase) {
-        console.log("[v0] fetchUser - no supabase client")
         setUser(null)
         setProfile(null)
         setIsLoading(false)
         return
       }
 
-      // ROOT CAUSE FIX: Clear any orphaned Web Lock before ANY auth operations.
-      // @supabase/ssr uses navigator.locks to serialize auth. When React Strict Mode
-      // double-mounts or navigation happens mid-request, the lock can get stuck
-      // causing getSession()/getUser() to hang forever.
-      // See: https://github.com/supabase/supabase-js/issues/2111
-      console.log("[v0] fetchUser - clearing orphaned lock")
+      // Clear any orphaned Web Lock before auth operations
       await clearOrphanedAuthLock()
-      console.log("[v0] fetchUser - lock cleared")
 
-      // ── STEP 1: getSession() first — reads from localStorage/cookie, no network ──
-      // This unblocks the UI immediately with whatever session the browser has.
-      console.log("[v0] fetchUser - getting session")
+      // ── STEP 1: getSession() first — reads from cookie, no network ──
       const sessionResult = await withTimeout(
         supabase.auth.getSession(),
         2000,
         { data: { session: null }, error: null } as any
       )
       const sessionUser = sessionResult.data?.session?.user ?? null
-      console.log("[v0] fetchUser - session result:", sessionUser ? sessionUser.email : "null")
 
-      if (!mountedRef.current) {
-        console.log("[v0] fetchUser - unmounted after getSession")
-        return
-      }
+      if (!mountedRef.current) return
 
       // Show the user immediately so the circle never hangs
       if (sessionUser) {
-        console.log("[v0] fetchUser - setting user from session, isLoading=false")
         setUser(sessionUser)
         setIsLoading(false)
       }
 
       // ── STEP 2: getUser() in background — verifies JWT server-side ──
-      // If it times out or fails, fall back to sessionUser — NEVER log out
-      // just because a background verify was slow.
-      console.log("[v0] fetchUser - verifying with getUser")
       const getUserResult = await withTimeout(
         supabase.auth.getUser(),
         8000,
-        // timeout fallback: treat as if getUser returned the session user
         { data: { user: sessionUser }, error: null } as any
       )
-      console.log("[v0] fetchUser - getUser complete")
 
-      if (!mountedRef.current) {
-        console.log("[v0] fetchUser - unmounted after getUser")
-        return
-      }
+      if (!mountedRef.current) return
 
       const verifiedUser = getUserResult.data?.user ?? sessionUser
 
@@ -107,13 +81,11 @@ export function useUser(): UseUserReturn {
       // ── STEP 3: Fetch profile ──
       const resolvedUser = verifiedUser ?? sessionUser
       if (resolvedUser) {
-        console.log("[v0] fetchUser - fetching profile for", resolvedUser.email)
         const profileResult = await withTimeout(
           supabase.from("profiles").select("*").eq("id", resolvedUser.id).single(),
           6000,
           { data: null, error: new Error("profile timeout") } as any
         )
-        console.log("[v0] fetchUser - profile fetched:", profileResult.data?.display_name || "null")
         if (!mountedRef.current) return
         setProfile(
           !profileResult.error || profileResult.error?.code === "PGRST116"
@@ -121,8 +93,6 @@ export function useUser(): UseUserReturn {
             : null
         )
       } else {
-        // No session at all — genuinely not logged in
-        console.log("[v0] fetchUser - no user, setting null")
         setUser(null)
         setProfile(null)
       }
@@ -131,7 +101,6 @@ export function useUser(): UseUserReturn {
         setError(err instanceof Error ? err : new Error("Failed to fetch user"))
       }
     } finally {
-      console.log("[v0] fetchUser - finally block, setting isLoading=false")
       fetchingRef.current = false
       if (mountedRef.current) setIsLoading(false)
     }
@@ -148,8 +117,6 @@ export function useUser(): UseUserReturn {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mountedRef.current) return
-
-      console.log("[v0] onAuthStateChange:", event, "session:", session ? "present" : "null", "user:", session?.user?.email)
 
       // Skip the immediate fire on subscribe — fetchUser() above handles initial load
       if (event === "INITIAL_SESSION") return
