@@ -126,6 +126,8 @@ export function useUser(): UseUserReturn {
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mountedRef.current) return
 
+      console.log("[v0] onAuthStateChange:", event, "session:", session ? "present" : "null", "user:", session?.user?.email)
+
       // Skip the immediate fire on subscribe — fetchUser() above handles initial load
       if (event === "INITIAL_SESSION") return
 
@@ -134,35 +136,52 @@ export function useUser(): UseUserReturn {
       // or when the Function/eval override in console-protection broke something.
       // Double-check with getSession() before clearing the user.
       if (event === "SIGNED_OUT") {
-        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+        // Add a small delay to let any in-flight auth operations complete
+        setTimeout(() => {
           if (!mountedRef.current) return
-          if (!currentSession) {
-            // Confirmed: genuinely signed out
-            setUser(null)
-            setProfile(null)
-            setIsLoading(false)
-          }
-          // If getSession() still has a session, the SIGNED_OUT was a false alarm — ignore it
-        }).catch(() => {
-          // If getSession itself errors, trust the event
-          if (mountedRef.current) {
-            setUser(null)
-            setProfile(null)
-            setIsLoading(false)
-          }
-        })
+
+          supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+            if (!mountedRef.current) return
+            if (!currentSession) {
+              // Double-check with getUser as well to be absolutely sure
+              supabase.auth.getUser().then(({ data: { user: currentUser } }) => {
+                if (!mountedRef.current) return
+                if (!currentUser) {
+                  // Confirmed: genuinely signed out
+                  setUser(null)
+                  setProfile(null)
+                  setIsLoading(false)
+                }
+                // If getUser() still has a user, the SIGNED_OUT was a false alarm
+              }).catch(() => {
+                // If getUser errors but getSession shows no session, likely signed out
+                if (mountedRef.current) {
+                  setUser(null)
+                  setProfile(null)
+                  setIsLoading(false)
+                }
+              })
+            }
+            // If getSession() still has a session, the SIGNED_OUT was a false alarm — ignore it
+          }).catch(() => {
+            // If getSession itself errors, DON'T immediately log out
+            // This could be a network hiccup - keep the current state
+            console.warn("[useUser] getSession failed during SIGNED_OUT verification - keeping current state")
+          })
+        }, 500) // 500ms delay to let things settle
         return
       }
 
       // For all other events (SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED, etc.)
-      // update the user from the event's session
-      setUser(session?.user ?? null)
+      // Only update if we have a valid session - don't clear user on null session
+      // as this could be a temporary state during token refresh
       if (session?.user) {
+        setUser(session.user)
         fetchUser()
-      } else {
-        setProfile(null)
-        setIsLoading(false)
       }
+      // If session is null for non-SIGNED_OUT events, don't immediately clear
+      // the user - this prevents logout during token refresh hiccups.
+      // The SIGNED_OUT handler above will properly verify and clear when needed.
     })
 
     return () => {
