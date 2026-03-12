@@ -258,11 +258,11 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Board */}
-      <div className="relative bg-gray-900 rounded-lg p-3 sm:p-4 border-2 border-gray-700 touch-none select-none">
+      <div className="relative bg-gray-900 rounded-lg p-3 sm:p-4 border-2 border-gray-700 touch-none select-none overflow-hidden flex-shrink-0" style={{ maxWidth: "100%" }}>
         <div
           className="grid gap-1.5 sm:gap-2"
           style={{
-            gridTemplateColumns: `repeat(${config.cols}, 1fr)`,
+            gridTemplateColumns: `repeat(${config.cols}, minmax(48px, 64px))`,
           }}
         >
           {cards.map((card) => (
