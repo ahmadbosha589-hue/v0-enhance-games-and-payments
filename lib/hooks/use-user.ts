@@ -47,51 +47,62 @@ export function useUser(): UseUserReturn {
       // Clear any orphaned Web Lock before auth operations
       await clearOrphanedAuthLock()
 
-      // ── STEP 1: getSession() first — reads from cookie, no network ──
-      const sessionResult = await withTimeout(
-        supabase.auth.getSession(),
-        2000,
-        { data: { session: null }, error: null } as any
-      )
-      const sessionUser = sessionResult.data?.session?.user ?? null
-
-      if (!mountedRef.current) return
-
-      // Show the user immediately so the circle never hangs
-      if (sessionUser) {
-        setUser(sessionUser)
-        setIsLoading(false)
-      }
-
-      // ── STEP 2: getUser() in background — verifies JWT server-side ──
+      // ── STEP 1: Try to get user from client-side auth ──
+      // Use getUser() which makes a server call - more reliable than getSession()
       const getUserResult = await withTimeout(
         supabase.auth.getUser(),
-        8000,
-        { data: { user: sessionUser }, error: null } as any
+        5000,
+        { data: { user: null }, error: null } as any
       )
+
+      let resolvedUser = getUserResult.data?.user ?? null
+
+      let serverProfile: Profile | null = null
+
+      // ── STEP 2: If no user from client, try the server API ──
+      // This handles the case where cookies have the session but client doesn't
+      if (!resolvedUser) {
+        try {
+          const response = await fetch("/api/auth/me", {
+            credentials: "include",
+            cache: "no-store"
+          })
+          if (response.ok) {
+            const data = await response.json()
+            if (data.user) {
+              resolvedUser = data.user
+              serverProfile = data.profile ?? null
+            }
+          }
+        } catch {
+          // API call failed, continue with null user
+        }
+      }
 
       if (!mountedRef.current) return
 
-      const verifiedUser = getUserResult.data?.user ?? sessionUser
-
-      if (verifiedUser?.id !== sessionUser?.id) {
-        setUser(verifiedUser)
-      }
-
-      // ── STEP 3: Fetch profile ──
-      const resolvedUser = verifiedUser ?? sessionUser
+      // Update user state
       if (resolvedUser) {
-        const profileResult = await withTimeout(
-          supabase.from("profiles").select("*").eq("id", resolvedUser.id).single(),
-          6000,
-          { data: null, error: new Error("profile timeout") } as any
-        )
-        if (!mountedRef.current) return
-        setProfile(
-          !profileResult.error || profileResult.error?.code === "PGRST116"
-            ? profileResult.data ?? null
-            : null
-        )
+        setUser(resolvedUser)
+        setIsLoading(false)
+
+        // Use profile from server if available, otherwise fetch it
+        if (serverProfile) {
+          setProfile(serverProfile)
+        } else {
+          // ── STEP 3: Fetch profile ──
+          const profileResult = await withTimeout(
+            supabase.from("profiles").select("*").eq("id", resolvedUser.id).single(),
+            6000,
+            { data: null, error: new Error("profile timeout") } as any
+          )
+          if (!mountedRef.current) return
+          setProfile(
+            !profileResult.error || profileResult.error?.code === "PGRST116"
+              ? profileResult.data ?? null
+              : null
+          )
+        }
       } else {
         setUser(null)
         setProfile(null)
