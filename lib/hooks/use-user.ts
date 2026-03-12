@@ -13,7 +13,6 @@ interface UseUserReturn {
   refetch: () => Promise<void>
 }
 
-// Race a promise against a hard timeout — NEVER hangs
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
     promise,
@@ -26,13 +25,10 @@ export function useUser(): UseUserReturn {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  // Prevent the onAuthStateChange immediate-fire from re-triggering a full fetch
-  // while the initial fetchUser is still in flight
-  const fetchingRef = useRef(false)
   const mountedRef = useRef(true)
+  const fetchingRef = useRef(false)
 
   const fetchUser = useCallback(async () => {
-    // De-duplicate: don't stack concurrent fetches
     if (fetchingRef.current) return
     fetchingRef.current = true
 
@@ -41,55 +37,68 @@ export function useUser(): UseUserReturn {
       setError(null)
 
       const supabase = createClient()
-
       if (!supabase) {
         setUser(null)
         setProfile(null)
         return
       }
 
-      // --- AUTH: getUser() with 5 s hard timeout, then getSession() fallback ---
-      let resolvedUser: User | null = null
-
-      const getUserResult = await withTimeout(
-        supabase.auth.getUser(),
-        5000,
-        { data: { user: null }, error: new Error("getUser timeout") } as any
+      // ── STEP 1: getSession() FIRST — reads localStorage, instant, no network ──
+      // This unblocks the UI immediately so the skeleton never hangs.
+      const sessionResult = await withTimeout(
+        supabase.auth.getSession(),
+        2000,
+        { data: { session: null }, error: null } as any
       )
-
-      if (!getUserResult.error && getUserResult.data.user) {
-        resolvedUser = getUserResult.data.user
-      } else {
-        // Fallback: read from local storage (no network call, instant)
-        const getSessionResult = await withTimeout(
-          supabase.auth.getSession(),
-          3000,
-          { data: { session: null }, error: null } as any
-        )
-        resolvedUser = getSessionResult.data?.session?.user ?? null
-      }
+      const sessionUser = sessionResult.data?.session?.user ?? null
 
       if (!mountedRef.current) return
-      setUser(resolvedUser)
 
-      // --- PROFILE: only fetch if we have a user ---
+      // Show whatever we have right away — user sees avatar immediately
+      if (sessionUser) {
+        setUser(sessionUser)
+        setIsLoading(false) // ← unblock UI as soon as session resolves
+      }
+
+      // ── STEP 2: getUser() in the background — verifies JWT server-side ──
+      // If it fails or times out, we KEEP the session user (don't log them out).
+      // Only clear user if getUser() explicitly says "not authenticated" (no error,
+      // just no user) AND there was also no session.
+      const getUserResult = await withTimeout(
+        supabase.auth.getUser(),
+        8000,
+        { data: { user: sessionUser }, error: null } as any // fallback = keep session user
+      )
+
+      if (!mountedRef.current) return
+
+      const verifiedUser = getUserResult.data?.user ?? sessionUser
+
+      // Only update user state if verification returned something different
+      if (verifiedUser?.id !== sessionUser?.id) {
+        setUser(verifiedUser)
+      }
+
+      // ── STEP 3: Fetch profile ──
+      const resolvedUser = verifiedUser ?? sessionUser
       if (resolvedUser) {
         const profileResult = await withTimeout(
           supabase.from("profiles").select("*").eq("id", resolvedUser.id).single(),
-          5000,
+          6000,
           { data: null, error: new Error("profile timeout") } as any
         )
 
         if (!mountedRef.current) return
 
-        if (profileResult.error && profileResult.error.code !== "PGRST116") {
-          // Non-fatal: show avatar without profile data rather than hang
-          console.warn("[useUser] Profile fetch failed:", profileResult.error.message)
-          setProfile(null)
-        } else {
+        if (!profileResult.error || profileResult.error.code === "PGRST116") {
           setProfile(profileResult.data ?? null)
+        } else {
+          // Profile fetch failed — non-fatal, keep loading false
+          console.warn("[useUser] Profile fetch failed:", profileResult.error?.message)
+          setProfile(null)
         }
       } else {
+        setUser(null)
         setProfile(null)
       }
     } catch (err) {
@@ -113,9 +122,7 @@ export function useUser(): UseUserReturn {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mountedRef.current) return
-
-      // onAuthStateChange fires immediately on subscribe — skip that first fire
-      // (fetchUser above already handles initial load)
+      // Skip the immediate fire on subscribe — fetchUser() above handles initial load
       if (event === "INITIAL_SESSION") return
 
       setUser(session?.user ?? null)
