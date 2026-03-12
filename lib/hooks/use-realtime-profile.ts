@@ -30,6 +30,13 @@ export function useRealtimeProfile(userId: string | undefined): UseRealtimeProfi
       setIsLoading(true)
       const supabase = createClient()
 
+      // Handle case where Supabase client couldn't be created
+      if (!supabase) {
+        setProfile(null)
+        setIsLoading(false)
+        return
+      }
+
       // Always fetch fresh from database - never cache
       const { data, error: fetchError } = await supabase
         .from("profiles")
@@ -53,6 +60,10 @@ export function useRealtimeProfile(userId: string | undefined): UseRealtimeProfi
     if (!userId) return
 
     const supabase = createClient()
+
+    // Handle case where Supabase client couldn't be created
+    if (!supabase) return
+
     let channel: RealtimeChannel
 
     // Subscribe to realtime changes for profile updates

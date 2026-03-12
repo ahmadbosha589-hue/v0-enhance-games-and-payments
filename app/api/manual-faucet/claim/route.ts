@@ -76,6 +76,11 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient()
 
+    // Handle case where Supabase client couldn't be created
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
+    }
+
     // Get user profile
     const { data: profile, error: profileError } = await adminSupabase
       .from("profiles")

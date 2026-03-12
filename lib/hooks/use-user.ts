@@ -26,6 +26,14 @@ export function useUser(): UseUserReturn {
 
       const supabase = createClient()
 
+      // Handle case where Supabase client couldn't be created
+      if (!supabase) {
+        setUser(null)
+        setProfile(null)
+        setIsLoading(false)
+        return
+      }
+
       const {
         data: { user },
         error: userError,
@@ -61,6 +69,12 @@ export function useUser(): UseUserReturn {
     fetchUser()
 
     const supabase = createClient()
+
+    // If Supabase client is not available, skip auth state listener
+    if (!supabase) {
+      return
+    }
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {

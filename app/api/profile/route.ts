@@ -6,6 +6,11 @@ export async function GET() {
   try {
     const supabase = await createClient()
 
+    // Handle case where Supabase client couldn't be created
+    if (!supabase) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -54,6 +59,11 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
+
+    // Handle case where Supabase client couldn't be created
+    if (!supabase) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
+    }
 
     const {
       data: { user },

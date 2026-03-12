@@ -15,6 +15,10 @@ export function useAuth(): UseAuthReturn {
   const signOut = async () => {
     try {
       const supabase = createClient()
+      if (!supabase) {
+        toast.error("Service unavailable")
+        return
+      }
       const { error } = await supabase.auth.signOut()
 
       if (error) throw error
@@ -30,6 +34,9 @@ export function useAuth(): UseAuthReturn {
   const updateProfile = async (data: Record<string, unknown>) => {
     try {
       const supabase = createClient()
+      if (!supabase) {
+        throw new Error("Service unavailable")
+      }
       const {
         data: { user },
       } = await supabase.auth.getUser()

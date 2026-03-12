@@ -72,6 +72,11 @@ export async function POST(request: Request) {
     const adminSupabase = createAdminClient()
     const headersList = await headers()
 
+    // Handle case where Supabase clients couldn't be created
+    if (!supabase || !adminSupabase) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
+    }
+
     // Get authenticated user with timeout
     let user
     try {
