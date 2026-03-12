@@ -400,13 +400,14 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Board */}
       <div
-        className={`relative bg-gray-900 rounded-lg p-3 border-2 border-gray-700 transition-transform ${shakeBoard ? "animate-pulse" : ""}`}
+        className={`relative bg-gray-900 rounded-lg p-3 border-2 border-gray-700 transition-transform overflow-hidden flex-shrink-0 ${shakeBoard ? "animate-pulse" : ""}`}
         style={{
           width: BOARD_SIZE * CELL_SIZE + 24,
-          minWidth: BOARD_SIZE * CELL_SIZE + 24,
+          height: BOARD_SIZE * CELL_SIZE + 24,
+          maxWidth: "100%",
           transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 2 : -2}px)` : "none"
         }}
       >
