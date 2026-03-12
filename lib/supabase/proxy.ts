@@ -1,43 +1,45 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+/**
+ * Updates the session for the current request.
+ * Returns early if Supabase is not configured.
+ */
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  // Create response first
+  let supabaseResponse = NextResponse.next({ request })
 
-  // Check environment variables BEFORE attempting to create the client
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // CRITICAL: Check environment variables BEFORE any Supabase operations
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    // Supabase not configured - allow request to continue without auth
-    // This prevents crashes during development or when env vars are missing
+  // If Supabase is not configured, skip auth entirely
+  if (!url || !key) {
+    console.log("[Supabase Proxy] Env vars not configured, skipping auth")
     return supabaseResponse
   }
 
   try {
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseAnonKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-            supabaseResponse = NextResponse.next({
-              request,
-            })
-            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
-          },
+    // Create fresh Supabase client for each request
+    const supabase = createServerClient(url, key, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
         },
-      })
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    })
 
+    // Get user with timeout to prevent hanging
     const userPromise = supabase.auth.getUser()
     const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((resolve) =>
-      setTimeout(() => resolve({ data: { user: null }, error: new Error("Auth timeout") }), 2000),
+      setTimeout(() => resolve({ data: { user: null }, error: new Error("Auth timeout") }), 3000)
     )
 
     let user = null
@@ -45,13 +47,15 @@ export async function updateSession(request: NextRequest) {
       const result = await Promise.race([userPromise, timeoutPromise])
       user = result.data?.user
     } catch (e) {
-      console.warn("[Proxy] Auth service unavailable, continuing as guest:", e)
+      // Auth failed, continue without user
       return supabaseResponse
     }
 
-    // Protected routes
+    // Protected routes require auth
     const protectedPaths = ["/dashboard", "/admin"]
-    const isProtectedPath = protectedPaths.some((path) => request.nextUrl.pathname.startsWith(path))
+    const isProtectedPath = protectedPaths.some((path) =>
+      request.nextUrl.pathname.startsWith(path)
+    )
 
     if (isProtectedPath && !user) {
       const url = request.nextUrl.clone()
@@ -60,8 +64,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Admin pages will verify role client-side, which is more responsive
-
+    // Redirect logged-in users away from auth pages
     const authPaths = ["/auth/login", "/auth/sign-up"]
     const isAuthPath = authPaths.some((path) => request.nextUrl.pathname.startsWith(path))
 
@@ -75,7 +78,7 @@ export async function updateSession(request: NextRequest) {
 
     return supabaseResponse
   } catch (error) {
-    console.warn("[Proxy] Supabase error, continuing without auth:", error)
-    return NextResponse.next({ request })
+    console.error("[Supabase Proxy] Error:", error)
+    return supabaseResponse
   }
 }
