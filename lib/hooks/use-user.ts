@@ -43,8 +43,8 @@ export function useUser(): UseUserReturn {
         return
       }
 
-      // ── STEP 1: getSession() FIRST — reads localStorage, instant, no network ──
-      // This unblocks the UI immediately so the skeleton never hangs.
+      // ── STEP 1: getSession() first — reads from localStorage/cookie, no network ──
+      // This unblocks the UI immediately with whatever session the browser has.
       const sessionResult = await withTimeout(
         supabase.auth.getSession(),
         2000,
@@ -54,27 +54,26 @@ export function useUser(): UseUserReturn {
 
       if (!mountedRef.current) return
 
-      // Show whatever we have right away — user sees avatar immediately
+      // Show the user immediately so the circle never hangs
       if (sessionUser) {
         setUser(sessionUser)
-        setIsLoading(false) // ← unblock UI as soon as session resolves
+        setIsLoading(false)
       }
 
-      // ── STEP 2: getUser() in the background — verifies JWT server-side ──
-      // If it fails or times out, we KEEP the session user (don't log them out).
-      // Only clear user if getUser() explicitly says "not authenticated" (no error,
-      // just no user) AND there was also no session.
+      // ── STEP 2: getUser() in background — verifies JWT server-side ──
+      // If it times out or fails, fall back to sessionUser — NEVER log out
+      // just because a background verify was slow.
       const getUserResult = await withTimeout(
         supabase.auth.getUser(),
         8000,
-        { data: { user: sessionUser }, error: null } as any // fallback = keep session user
+        // timeout fallback: treat as if getUser returned the session user
+        { data: { user: sessionUser }, error: null } as any
       )
 
       if (!mountedRef.current) return
 
       const verifiedUser = getUserResult.data?.user ?? sessionUser
 
-      // Only update user state if verification returned something different
       if (verifiedUser?.id !== sessionUser?.id) {
         setUser(verifiedUser)
       }
@@ -87,17 +86,14 @@ export function useUser(): UseUserReturn {
           6000,
           { data: null, error: new Error("profile timeout") } as any
         )
-
         if (!mountedRef.current) return
-
-        if (!profileResult.error || profileResult.error.code === "PGRST116") {
-          setProfile(profileResult.data ?? null)
-        } else {
-          // Profile fetch failed — non-fatal, keep loading false
-          console.warn("[useUser] Profile fetch failed:", profileResult.error?.message)
-          setProfile(null)
-        }
+        setProfile(
+          !profileResult.error || profileResult.error?.code === "PGRST116"
+            ? profileResult.data ?? null
+            : null
+        )
       } else {
+        // No session at all — genuinely not logged in
         setUser(null)
         setProfile(null)
       }
@@ -107,9 +103,7 @@ export function useUser(): UseUserReturn {
       }
     } finally {
       fetchingRef.current = false
-      if (mountedRef.current) {
-        setIsLoading(false)
-      }
+      if (mountedRef.current) setIsLoading(false)
     }
   }, [])
 
@@ -120,11 +114,41 @@ export function useUser(): UseUserReturn {
     const supabase = createClient()
     if (!supabase) return
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mountedRef.current) return
+
       // Skip the immediate fire on subscribe — fetchUser() above handles initial load
       if (event === "INITIAL_SESSION") return
 
+      // ── SIGNED_OUT: verify before acting ──
+      // Supabase can fire spurious SIGNED_OUT events when auth is slow to init
+      // or when the Function/eval override in console-protection broke something.
+      // Double-check with getSession() before clearing the user.
+      if (event === "SIGNED_OUT") {
+        supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+          if (!mountedRef.current) return
+          if (!currentSession) {
+            // Confirmed: genuinely signed out
+            setUser(null)
+            setProfile(null)
+            setIsLoading(false)
+          }
+          // If getSession() still has a session, the SIGNED_OUT was a false alarm — ignore it
+        }).catch(() => {
+          // If getSession itself errors, trust the event
+          if (mountedRef.current) {
+            setUser(null)
+            setProfile(null)
+            setIsLoading(false)
+          }
+        })
+        return
+      }
+
+      // For all other events (SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED, etc.)
+      // update the user from the event's session
       setUser(session?.user ?? null)
       if (session?.user) {
         fetchUser()
