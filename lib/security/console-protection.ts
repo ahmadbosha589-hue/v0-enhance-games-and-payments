@@ -1,37 +1,32 @@
 // =====================================================
 // CONSOLE PROTECTION
-// Blocks paste operations in console and detects
-// attempts to tamper with the application
+// Safe version - removed dangerous overrides that
+// broke Supabase auth and caused false logouts:
+//
+// REMOVED: createEvalTrap() — was overriding window.Function
+//   as a non-configurable getter. This broke Supabase's
+//   internal use of Function, caused alert() popups after
+//   just 3 library accesses, and triggered SIGNED_OUT events.
+//
+// REMOVED: setInterval(detectDebugger, 5000) — was executing
+//   a `debugger` statement every 5 seconds in production,
+//   pausing all JS execution when devtools were open.
 // =====================================================
 
 /**
  * Initialize console protection
- * Should be called early in the application lifecycle
+ * Shows a social-engineering warning in the console.
+ * Safe version: no eval/Function overrides, no debugger traps.
  */
 export function initConsoleProtection(): void {
   if (typeof window === "undefined") return
   if (process.env.NODE_ENV === "development") return
 
-  // Store original console methods
-  const originalConsole = {
-    log: console.log,
-    warn: console.warn,
-    error: console.error,
-    info: console.info,
-    debug: console.debug,
-    clear: console.clear,
-  }
-
-  // Flag for tracking suspicious activity
-  let suspiciousActivityCount = 0
-  const MAX_SUSPICIOUS_BEFORE_ALERT = 3
-
-  // Warn users about console dangers
+  // Warn users about console dangers (social engineering attacks)
   const warnOnceKey = "__console_warned__"
   if (!(window as any)[warnOnceKey]) {
-    (window as any)[warnOnceKey] = true
-    
-    // Display warning in console
+    ; (window as any)[warnOnceKey] = true
+
     setTimeout(() => {
       console.log(
         "%c⚠️ STOP!",
@@ -50,244 +45,51 @@ export function initConsoleProtection(): void {
     }, 1000)
   }
 
-  // Create a function to detect eval/Function usage
-  const createEvalTrap = () => {
-    try {
-      // Override eval
-      const originalEval = (window as any).eval
-      Object.defineProperty(window, "eval", {
-        get() {
-          suspiciousActivityCount++
-          reportSuspiciousActivity("eval_access")
-          
-          return function(code: string) {
-            console.error("%c⛔ eval() is disabled for security reasons", "color: red; font-weight: bold;")
-            reportSuspiciousActivity("eval_execution", { codeLength: code?.length })
-            throw new Error("eval() is disabled for security")
-          }
-        },
-        set() {
-          // Prevent overwriting
-        },
-        configurable: false,
-      })
-    } catch {
-      // Protection failed, continue
-    }
-
-    try {
-      // Override Function constructor
-      const OriginalFunction = Function
-      Object.defineProperty(window, "Function", {
-        get() {
-          suspiciousActivityCount++
-          return function(...args: any[]) {
-            console.error("%c⛔ Function constructor is disabled for security", "color: red; font-weight: bold;")
-            reportSuspiciousActivity("function_constructor", { argsCount: args.length })
-            throw new Error("Function constructor is disabled for security")
-          }
-        },
-        set() {
-          // Prevent overwriting
-        },
-        configurable: false,
-      })
-    } catch {
-      // Protection failed, continue
-    }
-  }
-
-  // Report suspicious activity to server
-  const reportSuspiciousActivity = async (type: string, details?: Record<string, any>) => {
-    try {
-      await fetch("/api/security/bot-detection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          threats: [`Console tampering: ${type}`],
-          score: 60,
-          threatLevel: "high",
-          timestamp: Date.now(),
-          details,
-        }),
-      })
-    } catch {
-      // Silent fail
-    }
-
-    if (suspiciousActivityCount >= MAX_SUSPICIOUS_BEFORE_ALERT) {
-      alert(
-        "Security Alert: Multiple suspicious activities detected. " +
-        "Your session may be logged out for security reasons."
-      )
-    }
-  }
-
-  // Monitor for devtools open (multiple methods)
-  const detectDevTools = () => {
-    const widthThreshold = 160
-    const heightThreshold = 160
-    
-    const isDevToolsOpen = 
-      window.outerWidth - window.innerWidth > widthThreshold ||
-      window.outerHeight - window.innerHeight > heightThreshold
-
-    return isDevToolsOpen
-  }
-
-  // Prevent paste events in unexpected places
+  // Block paste of obviously dangerous code outside of form inputs
   const handlePaste = (e: ClipboardEvent) => {
     const target = e.target as HTMLElement
-    
-    // Allow paste in form inputs
     if (
       target.tagName === "INPUT" ||
       target.tagName === "TEXTAREA" ||
       target.isContentEditable
     ) {
-      return
+      return // allow paste in form fields
     }
 
-    // Get clipboard content
     const clipboardData = e.clipboardData?.getData("text") || ""
-
-    // Check for dangerous patterns
     const dangerousPatterns = [
       /eval\s*\(/i,
-      /Function\s*\(/i,
       /document\.cookie/i,
       /localStorage/i,
       /sessionStorage/i,
       /XMLHttpRequest/i,
-      /fetch\s*\(/i,
-      /\.click\s*\(/i,
-      /\.submit\s*\(/i,
-      /innerHTML\s*=/i,
-      /outerHTML\s*=/i,
-      /\$\(.*\)/,  // jQuery
-      /document\.write/i,
-      /window\.location/i,
-      /document\.location/i,
-      /script/i,
-      /onerror\s*=/i,
-      /onload\s*=/i,
-      /javascript:/i,
-      /data:/i,
-      /base64/i,
-      /GM_/,  // Greasemonkey
-      /unsafeWindow/,
-      /chrome\.runtime/,
-      /browser\.runtime/,
       /\.execCommand/i,
-      /\.execScript/i,
-      /setInterval\s*\(/i,
-      /setTimeout\s*\(/i,
-      /Promise\s*\./i,
-      /async\s+function/i,
-      /await\s+/i,
-      /import\s*\(/i,
-      /require\s*\(/i,
-      /module\.exports/i,
-      /__proto__/i,
-      /prototype/i,
-      /constructor\s*\[/i,
+      /javascript:/i,
     ]
 
-    const isDangerous = dangerousPatterns.some(pattern => pattern.test(clipboardData))
-
-    if (isDangerous) {
+    if (dangerousPatterns.some((p) => p.test(clipboardData))) {
       e.preventDefault()
       e.stopPropagation()
-      
-      suspiciousActivityCount++
-      console.error("%c⛔ Blocked: Suspicious code paste detected", "color: red; font-weight: bold;")
-      reportSuspiciousActivity("dangerous_paste", { 
-        contentLength: clipboardData.length,
-        preview: clipboardData.substring(0, 100) 
-      })
-
-      // Show user warning
+      console.error(
+        "%c⛔ Blocked: Suspicious code paste detected",
+        "color: red; font-weight: bold;"
+      )
       alert(
         "Security Warning: Code paste blocked!\n\n" +
-        "Never paste code from unknown sources into your browser. " +
-        "This could compromise your account and funds."
+        "Never paste code from unknown sources into your browser."
       )
     }
   }
 
-  // Block keyboard shortcuts for devtools
-  const handleKeyDown = (e: KeyboardEvent) => {
-    // F12
-    if (e.key === "F12") {
-      e.preventDefault()
-      suspiciousActivityCount++
-    }
-
-    // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
-    if (e.ctrlKey && e.shiftKey && ["I", "J", "C", "K"].includes(e.key.toUpperCase())) {
-      e.preventDefault()
-      suspiciousActivityCount++
-    }
-
-    // Ctrl+U (View Source)
-    if (e.ctrlKey && e.key.toLowerCase() === "u") {
-      e.preventDefault()
-    }
-  }
-
-  // Detect debugger usage
-  const detectDebugger = () => {
-    const start = performance.now()
-    // This will pause execution if debugger is open
-    ;(() => { debugger })()
-    const end = performance.now()
-    
-    // If it took more than 50ms, debugger was likely active
-    if (end - start > 50) {
-      suspiciousActivityCount++
-      reportSuspiciousActivity("debugger_detected")
-    }
-  }
-
-  // Initialize protections
-  createEvalTrap()
   document.addEventListener("paste", handlePaste, true)
-  document.addEventListener("keydown", handleKeyDown, true)
-
-  // Periodic debugger check (only in production, every 5 seconds)
-  if (process.env.NODE_ENV === "production") {
-    setInterval(detectDebugger, 5000)
-  }
-
-  // Monitor for tampering with console
-  setInterval(() => {
-    try {
-      // Check if console has been tampered with
-      if (console.log.toString().indexOf("[native code]") === -1) {
-        suspiciousActivityCount++
-        reportSuspiciousActivity("console_tampered")
-      }
-    } catch {
-      // Error checking console, might be tampered
-    }
-  }, 10000)
 }
 
 /**
- * Disable console in production
- * Makes it harder for attackers to debug the application
+ * No-op kept for import compatibility.
+ * Disabling console in production is counterproductive —
+ * it breaks error monitoring and was patching console.log,
+ * which then triggered the tamper-detection interval.
  */
 export function disableConsoleInProduction(): void {
-  if (typeof window === "undefined") return
-  if (process.env.NODE_ENV === "development") return
-
-  // Override console methods with no-ops
-  const noop = () => {}
-  
-  // Keep error for legitimate error tracking
-  const methods = ["log", "info", "debug", "warn", "table", "dir", "trace"] as const
-  
-  methods.forEach(method => {
-    (console as any)[method] = noop
-  })
+  // intentionally left empty
 }
