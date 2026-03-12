@@ -43,6 +43,7 @@ import {
   Link2,
   ArrowDownUp,
   Megaphone,
+  HandCoins,
 } from "lucide-react"
 import { formatSatoshisDisplay } from "@/lib/utils/format"
 import { cn } from "@/lib/utils"
@@ -56,11 +57,11 @@ export function DashboardSidebar({ profile: initialProfile }: DashboardSidebarPr
   const pathname = usePathname()
   const { state } = useSidebar()
   const isCollapsed = state === "collapsed"
-  
+
   // Use realtime profile for live balance updates - falls back to server-provided profile
   const { profile: realtimeProfile } = useRealtimeProfile(initialProfile.id)
   const profile = realtimeProfile || initialProfile
-  
+
   const isAdmin = profile.role && ["admin", "superadmin", "moderator"].includes(profile.role)
   const { t } = useLanguage()
 
@@ -78,6 +79,7 @@ export function DashboardSidebar({ profile: initialProfile }: DashboardSidebarPr
 
   const earnNavItems = [
     { icon: Sparkles, labelKey: "dashboard.nav.allEarnOptions", href: "/dashboard/earn", badge: "badge.new" },
+    { icon: HandCoins, labelKey: "dashboard.nav.manualFaucet", href: "/dashboard/manual-faucet", badge: "badge.hot" },
     { icon: Gamepad2, labelKey: "dashboard.nav.games", href: "/dashboard/games", badge: "badge.hot" },
     { icon: Ticket, labelKey: "dashboard.nav.coupons", href: "/dashboard/coupons", badge: "badge.new" },
     { icon: Link2, labelKey: "dashboard.nav.shortlinks", href: "/dashboard/shortlinks", badge: null },

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target, Gamepad2, Ticket, Link2 } from "lucide-react"
+import { Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target, Gamepad2, Ticket, Link2, HandCoins } from "lucide-react"
 
 export const metadata = {
   title: "Earn | CryptoFaucet",
@@ -140,6 +140,18 @@ export default async function EarnPage() {
       reward: "4-7+ sats/claim",
       badge: "Most Popular",
       badgeColor: "bg-blue-500",
+    },
+    {
+      title: "Manual Crypto Faucet",
+      description: "Claim 13 different cryptocurrencies every 7 seconds - sent to FaucetPay!",
+      icon: HandCoins,
+      color: "text-orange-500",
+      bgColor: "bg-gradient-to-br from-orange-500/20 to-amber-500/10",
+      borderColor: "border-orange-500/30",
+      href: "/dashboard/manual-faucet",
+      reward: "$0.0001/claim",
+      badge: "Multi-Crypto",
+      badgeColor: "bg-orange-500",
     },
     {
       title: "Play Games",

@@ -232,6 +232,7 @@ export type TranslationKey =
   | "dashboard.nav.notifications"
   | "dashboard.nav.earnMore"
   | "dashboard.nav.allEarnOptions"
+  | "dashboard.nav.manualFaucet"
   | "dashboard.nav.games"
   | "dashboard.nav.coupons"
   | "dashboard.nav.shortlinks"
@@ -663,6 +664,7 @@ const en: Record<TranslationKey, string> = {
   "dashboard.nav.notifications": "Notifications",
   "dashboard.nav.earnMore": "Earn More",
   "dashboard.nav.allEarnOptions": "All Earn Options",
+  "dashboard.nav.manualFaucet": "Manual Faucet",
   "dashboard.nav.games": "Games",
   "dashboard.nav.coupons": "Coupons",
   "dashboard.nav.shortlinks": "Shortlinks",
@@ -1052,6 +1054,7 @@ const es: Record<TranslationKey, string> = {
   "dashboard.nav.notifications": "Notificaciones",
   "dashboard.nav.earnMore": "Ganar más",
   "dashboard.nav.allEarnOptions": "Todas las opciones de ganancia",
+  "dashboard.nav.manualFaucet": "Grifo Manual",
   "dashboard.nav.games": "Juegos",
   "dashboard.nav.coupons": "Cupones",
   "dashboard.nav.shortlinks": "Enlaces Cortos",
@@ -1204,7 +1207,7 @@ const ru: Record<TranslationKey, string> = {
   "nav.dashboard": "Панель",
   "nav.settings": "Настройки",
   "nav.logout": "Выйти",
-  "hero.badge": "Зарабатывайте Bitcoin каждые 5 minutes",
+  "hero.badge": "Зарабатыв��йте Bitcoin каждые 5 minutes",
   "hero.title": "Самая надежная",
   "hero.titleHighlight": "Crypto Faucet",
   "hero.titleEnd": "платформа",
@@ -1319,7 +1322,7 @@ const ru: Record<TranslationKey, string> = {
   "theme.system": "Системная",
   "about.badge": "О нас",
   "about.title": "Строим будущее",
-  "about.titleHighlight": "крипто-заработка",
+  "about.titleHighlight": "к��ипто-заработка",
   "about.titleEnd": "",
   "about.description":
     "Наша миссия - сделать криптовалюту доступной для всех через нашу инновационную faucet платформу.",
@@ -1438,6 +1441,7 @@ const ru: Record<TranslationKey, string> = {
   "dashboard.nav.notifications": "Уведомления",
   "dashboard.nav.earnMore": "Зарабатывать больше",
   "dashboard.nav.allEarnOptions": "Все варианты заработка",
+  "dashboard.nav.manualFaucet": "Ручной кран",
   "dashboard.nav.games": "Игры",
   "dashboard.nav.coupons": "Купоны",
   "dashboard.nav.shortlinks": "Короткие ссылки",
@@ -1553,10 +1557,10 @@ const ru: Record<TranslationKey, string> = {
   "common.download": "Скачать",
   "common.upload": "Загрузить",
   "common.copy": "Копировать",
-  "common.copied": "Скопировано!",
+  "common.copied": "Скопиров��но!",
   "common.share": "Поделиться",
   "common.noData": "Нет данных",
-  "common.noResults": "Нет результатов",
+  "common.noResults": "Нет резу��ьтатов",
   "common.tryAgain": "Повторить попытку",
   "common.learnMore": "Узнать больше",
   "common.seeAll": "Посмотреть все",
@@ -1660,7 +1664,7 @@ const zh: Record<TranslationKey, string> = {
   "faq.q4": "是否有最低提现金额?",
   "faq.a4": "是的，最低提现金额为10,000 Satoshi。这确保了高效的交易处理。",
   "faq.q5": "推荐系统如何运作?",
-  "faq.a5": "我们的3级推荐系统使您可以从直接推荐中赚取10%，从他们的推荐中赚取5%，从第三级中赚取2%。",
+  "faq.a5": "我们的3级推荐系统使您可以从直接推荐中赚取10%，从他们的推荐中赚取5%，从第��级中赚取2%。",
   "faq.q6": "Faucero安全吗?",
   "faq.a6": "是的！我们使用企业级安全措施，包括2FA，加密数据存储和高级欺诈检测，以保护您的账户。",
   "faq.q7": "序列奖励如何运作?",
@@ -1814,6 +1818,7 @@ const zh: Record<TranslationKey, string> = {
   "dashboard.nav.notifications": "通知",
   "dashboard.nav.earnMore": "赚更多",
   "dashboard.nav.allEarnOptions": "所有赚钱选项",
+  "dashboard.nav.manualFaucet": "手动水龙头",
   "dashboard.nav.games": "游戏",
   "dashboard.nav.coupons": "优惠券",
   "dashboard.nav.shortlinks": "短链接",
@@ -2127,7 +2132,7 @@ const ja: Record<TranslationKey, string> = {
   "about.why.transparent.title": "完全な透明性",
   "about.why.transparent.description": "明確な条件、驚きなし。すべてをリアルタイムで追跡できます。",
   "about.why.reliable.title": "実績のある信頼性",
-  "about.why.reliable.description": "長年の信頼できるサービスで、数百万を支払ってきました。",
+  "about.why.reliable.description": "長年の信頼でき���サービスで、数百万を支払ってきました。",
   "about.cta.title": "稼ぐ準備はできましたか？",
   "about.cta.description":
     "毎日無料ビットコインを稼いでいる何千人ものユーザーに参加しましょう。今すぐ登録して、数分で最初のSatoshiを獲得しましょう。",
@@ -2198,6 +2203,7 @@ const ja: Record<TranslationKey, string> = {
   "dashboard.nav.notifications": "通知",
   "dashboard.nav.earnMore": "もっと稼ぐ",
   "dashboard.nav.allEarnOptions": "すべての稼ぎ方",
+  "dashboard.nav.manualFaucet": "手動蛇口",
   "dashboard.nav.games": "ゲーム",
   "dashboard.nav.coupons": "クーポン",
   "dashboard.nav.shortlinks": "ショートリンク",
@@ -2576,6 +2582,7 @@ const ko: Record<TranslationKey, string> = {
   "dashboard.nav.notifications": "알림",
   "dashboard.nav.earnMore": "더 벌기",
   "dashboard.nav.allEarnOptions": "모든 수익 옵션",
+  "dashboard.nav.manualFaucet": "수동 수도꼭지",
   "dashboard.nav.games": "게임",
   "dashboard.nav.coupons": "쿠폰",
   "dashboard.nav.shortlinks": "숏링크",

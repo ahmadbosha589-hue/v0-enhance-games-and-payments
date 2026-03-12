@@ -29,7 +29,7 @@ export const PLATFORM_CONFIG = {
 } as const
 
 export const CLAIM_CONFIG = {
-  cooldownSeconds: 600, // 10 minutes between claims (was 5 min)
+  cooldownSeconds: 300, // 5 minutes between claims
   baseAmountSatoshis: 2, // Minimum claim amount (reduced from 4)
   maxAmountSatoshis: 6, // Maximum claim amount (reduced from 9) - MAX 6 SATS PER CLAIM
   streakBonusPercentage: 0, // No streak bonus - users should use offerwalls
