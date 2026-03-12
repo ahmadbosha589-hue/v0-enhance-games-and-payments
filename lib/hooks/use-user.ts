@@ -34,20 +34,27 @@ export function useUser(): UseUserReturn {
         return
       }
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
+      // Primary: getUser() verifies the JWT server-side (most secure)
+      // Fallback: getSession() reads from local storage — used when getUser()
+      // fails due to transient network/auth errors (e.g. during token refresh)
+      let resolvedUser = null
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-      if (userError) throw userError
+      if (userError || !user) {
+        // Fallback to session — avoids showing "not logged in" on transient errors
+        const { data: { session } } = await supabase.auth.getSession()
+        resolvedUser = session?.user ?? null
+      } else {
+        resolvedUser = user
+      }
 
-      setUser(user)
+      setUser(resolvedUser)
 
-      if (user) {
+      if (resolvedUser) {
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", user.id)
+          .eq("id", resolvedUser.id)
           .single()
 
         if (profileError && profileError.code !== "PGRST116") {

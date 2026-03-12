@@ -155,10 +155,20 @@ export default function ProfilePage() {
         return
       }
 
-      // Get current user
-      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+      // Primary: getUser() verifies JWT server-side (most secure)
+      // Fallback: getSession() from local storage — used when getUser() has a
+      // transient failure (e.g. during token refresh), preventing a false "not logged in"
+      let authUser = null
+      const { data: { user: verifiedUser }, error: authError } = await supabase.auth.getUser()
 
-      if (authError || !authUser) {
+      if (authError || !verifiedUser) {
+        const { data: { session } } = await supabase.auth.getSession()
+        authUser = session?.user ?? null
+      } else {
+        authUser = verifiedUser
+      }
+
+      if (!authUser) {
         setUser(null)
         setProfile(null)
         setLoading(false)
