@@ -4,15 +4,15 @@
 CREATE TABLE IF NOT EXISTS public.audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
-  -- Actor info
+  -- Actor info (actor_role is TEXT to allow 'system' and other non-user roles)
   actor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-  actor_role user_role,
+  actor_role TEXT,
   actor_ip INET,
   
-  -- Action details
-  action audit_action NOT NULL,
+  -- Action details (action is TEXT to allow custom action types)
+  action TEXT NOT NULL,
   resource_type TEXT NOT NULL,
-  resource_id UUID,
+  resource_id TEXT,
   
   -- Data
   old_data JSONB,
