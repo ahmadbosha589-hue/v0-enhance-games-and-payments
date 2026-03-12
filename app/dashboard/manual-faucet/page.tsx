@@ -24,7 +24,7 @@ import {
   Fingerprint,
   Database,
 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import Link from "next/link"
 import useSWR from "swr"
@@ -491,6 +491,14 @@ function ManualFaucetContent() {
       prev.map((s) => ({ ...s, status: "pending", error: undefined }))
     )
 
+    // PRE-CHECK: Verify Supabase is configured before doing anything
+    if (!isSupabaseConfigured()) {
+      if (mountedRef.current && initId === initCountRef.current) {
+        setConfigError(true)
+      }
+      return
+    }
+
     // STEP 1: Check cache first for instant load
     updateStep("cache", "loading")
 
@@ -530,18 +538,9 @@ function ManualFaucetContent() {
     }
 
     // STEP 2: Create Supabase client safely
-    let supabase: ReturnType<typeof createClient> | null = null
-    try {
-      supabase = createClient()
-    } catch (err) {
-      // Supabase client creation failed - config error
-      if (mountedRef.current && initId === initCountRef.current) {
-        setConfigError(true)
-      }
-      return
-    }
+    const supabase = createClient()
 
-    // Verify client is usable
+    // Verify client is usable - if null, config is missing
     if (!supabase) {
       if (mountedRef.current && initId === initCountRef.current) {
         setConfigError(true)
@@ -564,9 +563,21 @@ function ManualFaucetContent() {
         }
 
         try {
+          // Use Promise wrapper to ensure we can timeout
+          const authPromise = new Promise<{ data: { user: any }; error: any }>(
+            async (resolve) => {
+              try {
+                const result = await supabase.auth.getUser()
+                resolve(result)
+              } catch (err) {
+                resolve({ data: { user: null }, error: err })
+              }
+            }
+          )
+
           const { value: authResult, timedOut } = await withStrictTimeout(
-            supabase.auth.getUser(),
-            4000,
+            authPromise,
+            5000,
             { data: { user: null }, error: new Error("Timeout") }
           )
 
