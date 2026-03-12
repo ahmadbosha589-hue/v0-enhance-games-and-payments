@@ -66,9 +66,9 @@ export function resetSupabaseClient(): void {
  * fires — but the lock is never released. Every subsequent getUser() / getSession()
  * call queues behind the orphaned lock and hangs forever.
  *
- * Fix: before any auth call, detect a held lock with no corresponding pending
- * request and forcibly steal it with { steal: true }, releasing it immediately.
- * This is safe because stealing only kicks out callers that are already stuck.
+ * IMPORTANT: We only steal the lock when there are PENDING requests waiting.
+ * A held lock with no pending requests is NORMAL during active auth operations.
+ * Only when requests are queued up and waiting does it indicate an orphan.
  */
 function getAuthLockName(): string | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -83,6 +83,10 @@ function getAuthLockName(): string | null {
   }
 }
 
+// Track when we last stole a lock to avoid doing it too frequently
+let lastLockStealTime = 0
+const LOCK_STEAL_COOLDOWN = 10000 // 10 seconds cooldown between steals
+
 export async function clearOrphanedAuthLock(): Promise<void> {
   if (typeof navigator === "undefined" || !navigator.locks?.query) return
   const lockName = getAuthLockName()
@@ -93,14 +97,21 @@ export async function clearOrphanedAuthLock(): Promise<void> {
     const held = state.held ?? []
     const pending = state.pending ?? []
 
-    // Only steal when the lock IS held but nobody legitimate is waiting for it.
-    // If pending > 0 those are live callers — don't disrupt them.
-    const isOrphaned =
-      held.some((l) => l.name === lockName) && pending.filter((l) => l.name === lockName).length === 0
+    // Count how many requests are waiting for this lock
+    const pendingCount = pending.filter((l) => l.name === lockName).length
+    const isHeld = held.some((l) => l.name === lockName)
+
+    // Only consider it orphaned if:
+    // 1. The lock IS held
+    // 2. There are 2+ pending requests waiting (indicates real blockage, not just normal operation)
+    // 3. We haven't stolen recently (cooldown to prevent rapid stealing)
+    const now = Date.now()
+    const isOrphaned = isHeld && pendingCount >= 2 && (now - lastLockStealTime) > LOCK_STEAL_COOLDOWN
 
     if (!isOrphaned) return
 
-    console.warn("[Supabase] Orphaned auth Web Lock detected — stealing to unblock auth calls")
+    console.warn(`[Supabase] Orphaned auth Web Lock detected (${pendingCount} pending) — stealing to unblock auth calls`)
+    lastLockStealTime = now
 
     // Steal the lock; the callback returns immediately, releasing it.
     await new Promise<void>((resolve) => {
