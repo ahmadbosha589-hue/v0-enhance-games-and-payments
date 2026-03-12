@@ -553,6 +553,7 @@ function ManualFaucetContent() {
     // after the block. We cannot rely on the `user` React state variable here
     // because setState is async and won't be updated within the same call.
     let authUser: any = null
+    let serverProfile: any = null
 
     if (!cacheValid || !cachedUser) {
       updateStep("auth", "loading")
@@ -566,9 +567,33 @@ function ManualFaucetContent() {
         // See: https://github.com/supabase/supabase-js/issues/2111
         await clearOrphanedAuthLock()
 
-        const { data: { user }, error } = await supabase.auth.getUser()
+        const { value: getUserResult, timedOut: getUserTimedOut } = await withStrictTimeout(
+          supabase.auth.getUser(),
+          5000,
+          { data: { user: null }, error: null }
+        )
 
-        if (error) throw error
+        let user = getUserResult?.data?.user ?? null
+
+        // If client-side auth failed or timed out, try the server API
+        // This handles the case where cookies have the session but client doesn't
+        if (!user) {
+          try {
+            const response = await fetch("/api/auth/me", {
+              credentials: "include",
+              cache: "no-store"
+            })
+            if (response.ok) {
+              const data = await response.json()
+              if (data.user) {
+                user = data.user
+                serverProfile = data.profile ?? null
+              }
+            }
+          } catch {
+            // API call failed, continue with null user
+          }
+        }
 
         if (!user) {
           if (mountedRef.current && initId === initCountRef.current) {
@@ -633,23 +658,28 @@ function ManualFaucetContent() {
     // Create parallel task promises
     const tasks: Promise<any>[] = []
 
-    // Profile task
+    // Profile task - use serverProfile if already fetched from /api/auth/me
     if (!cacheValid || !cachedProfile) {
-      tasks.push(
-        (async () => {
-          try {
-            const { value, timedOut } = await withStrictTimeout(
-              supabase!.from("profiles").select("*").eq("id", currentUser.id).single(),
-              5000,
-              { data: null, error: null }
-            )
-            if (timedOut) throw new Error("Timeout")
-            return { type: "profile", data: value.data, error: value.error }
-          } catch (err) {
-            return { type: "profile", data: null, error: err }
-          }
-        })()
-      )
+      if (serverProfile) {
+        // Profile already fetched from server auth API, skip DB call
+        tasks.push(Promise.resolve({ type: "profile", data: serverProfile, error: null }))
+      } else {
+        tasks.push(
+          (async () => {
+            try {
+              const { value, timedOut } = await withStrictTimeout(
+                supabase!.from("profiles").select("*").eq("id", currentUser.id).single(),
+                5000,
+                { data: null, error: null }
+              )
+              if (timedOut) throw new Error("Timeout")
+              return { type: "profile", data: value.data, error: value.error }
+            } catch (err) {
+              return { type: "profile", data: null, error: err }
+            }
+          })()
+        )
+      }
     }
 
     // PTC status task
