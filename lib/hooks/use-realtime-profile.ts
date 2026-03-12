@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 import type { Profile } from "@/lib/types/database"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 
@@ -105,8 +105,11 @@ export function useRealtimeProfile(userId: string | undefined): UseRealtimeProfi
     )
 
     // Initialize session ID (don't fetch here, fetchProfile() is already called above)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      sessionIdRef.current = session?.access_token?.substring(0, 20) || null
+    // Clear orphaned Web Lock before any auth operation to prevent hangs
+    clearOrphanedAuthLock().then(() => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        sessionIdRef.current = session?.access_token?.substring(0, 20) || null
+      })
     })
 
     return () => {

@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -81,6 +81,9 @@ export default function LoginPage() {
 
     const checkSession = async () => {
       try {
+        // Clear orphaned Web Lock before auth operation to prevent hangs
+        await clearOrphanedAuthLock()
+
         const {
           data: { session },
         } = await supabase.auth.getSession()
@@ -163,6 +166,10 @@ export default function LoginPage() {
         setError("Authentication service is not configured. Please try again later.")
         return
       }
+
+      // Clear orphaned Web Lock before auth operation
+      await clearOrphanedAuthLock()
+
       await supabase.auth.getSession()
       setRetryCount(0)
       setSupabaseAvailable(true)
@@ -434,167 +441,167 @@ export default function LoginPage() {
       </div>
 
       <AuthSecurityGuard isSignup={false} onSecurityCheck={handleSecurityCheck}>
-      <Card className="w-full max-w-md border-border/30 bg-gradient-to-b from-card to-card/95 backdrop-blur-xl shadow-2xl shadow-primary/5">
-        <CardHeader className="text-center px-5 sm:px-6 pt-6 sm:pt-8">
-          <CardTitle className="text-2xl sm:text-3xl font-bold tracking-tight">{t("loginTitle", "auth")}</CardTitle>
-          <CardDescription className="text-sm mt-1.5">{t("loginSubtitle", "auth")}</CardDescription>
-        </CardHeader>
-        <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-          {isOffline && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">{t("offlineMessage", "common")}</AlertDescription>
-            </Alert>
-          )}
-
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm flex items-center justify-between gap-2">
-                <span className="flex-1">{error}</span>
-                {error.includes("connect") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={retryConnection}
-                    disabled={isRetrying}
-                    className="ml-2 h-6 px-2 flex-shrink-0"
-                  >
-                    {isRetrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                  </Button>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {message === "verified" && (
-            <Alert className="mb-4 border-accent bg-accent/10">
-              <CheckCircle2 className="h-4 w-4 text-accent" />
-              <AlertDescription className="text-sm text-accent">{t("emailVerifiedSuccess", "auth")}</AlertDescription>
-            </Alert>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full mb-4 h-10 sm:h-11 bg-transparent text-sm sm:text-base hover:bg-muted/50 transition-colors"
-            onClick={handleGoogleSignIn}
-            disabled={isGoogleLoading || isLoading || isOffline}
-          >
-            {isGoogleLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                <span className="text-sm">{t("connectingGoogle", "auth")}</span>
-              </>
-            ) : (
-              <>
-                <GoogleIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                <span>{t("googleSignIn", "auth")}</span>
-              </>
+        <Card className="w-full max-w-md border-border/30 bg-gradient-to-b from-card to-card/95 backdrop-blur-xl shadow-2xl shadow-primary/5">
+          <CardHeader className="text-center px-5 sm:px-6 pt-6 sm:pt-8">
+            <CardTitle className="text-2xl sm:text-3xl font-bold tracking-tight">{t("loginTitle", "auth")}</CardTitle>
+            <CardDescription className="text-sm mt-1.5">{t("loginSubtitle", "auth")}</CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            {isOffline && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{t("offlineMessage", "common")}</AlertDescription>
+              </Alert>
             )}
-          </Button>
 
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">{t("orContinueWith", "auth")}</span>
-            </div>
-          </div>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm flex items-center justify-between gap-2">
+                  <span className="flex-1">{error}</span>
+                  {error.includes("connect") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={retryConnection}
+                      disabled={isRetrying}
+                      className="ml-2 h-6 px-2 flex-shrink-0"
+                    >
+                      {isRetrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
 
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
-            <Mail className="h-4 w-4 text-primary flex-shrink-0" />
-            <span>{t("gmailOnly", "auth")}</span>
-          </div>
-
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-accent/20 bg-accent/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
-            <Fingerprint className="h-4 w-4 text-accent flex-shrink-0" />
-            <span>{t("deviceTracking", "auth")}</span>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm">
-                {t("email", "auth")}
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading || isOffline}
-                autoComplete="email"
-                aria-describedby={error ? "login-error" : undefined}
-                className="h-10 sm:h-11 text-sm sm:text-base"
-              />
-              {email && !isGmailAddress(email) && (
-                <p className="text-xs text-destructive">{t("gmailOnlyError", "auth")}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm">
-                  {t("password", "auth")}
-                </Label>
-                <Link
-                  href="/auth/forgot-password"
-                  className="text-xs sm:text-sm text-primary hover:underline focus:outline-none focus-visible:underline"
-                >
-                  {t("forgotPassword", "auth")}
-                </Link>
-              </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder={t("enterPassword", "auth")}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading || isOffline}
-                  autoComplete="current-password"
-                  className="pr-10 h-10 sm:h-11 text-sm sm:text-base"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:text-foreground"
-                  aria-label={showPassword ? t("hidePassword", "auth") : t("showPassword", "auth")}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+            {message === "verified" && (
+              <Alert className="mb-4 border-accent bg-accent/10">
+                <CheckCircle2 className="h-4 w-4 text-accent" />
+                <AlertDescription className="text-sm text-accent">{t("emailVerifiedSuccess", "auth")}</AlertDescription>
+              </Alert>
+            )}
 
             <Button
-              type="submit"
-              size="lg"
-              className="w-full h-11 sm:h-12 text-sm sm:text-base font-semibold"
-              disabled={isLoading || isOffline || !email || !password}
+              type="button"
+              variant="outline"
+              className="w-full mb-4 h-10 sm:h-11 bg-transparent text-sm sm:text-base hover:bg-muted/50 transition-colors"
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleLoading || isLoading || isOffline}
             >
-              {isLoading ? (
+              {isGoogleLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  <span>{t("signingIn", "auth")}</span>
+                  <span className="text-sm">{t("connectingGoogle", "auth")}</span>
                 </>
               ) : (
-                t("signIn", "auth")
+                <>
+                  <GoogleIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                  <span>{t("googleSignIn", "auth")}</span>
+                </>
               )}
             </Button>
-          </form>
 
-          <div className="mt-4 text-center text-sm">
-            <span className="text-muted-foreground">{t("noAccount", "auth")} </span>
-            <Link href="/auth/sign-up" className="text-primary hover:underline font-medium">
-              {t("signUp", "auth")}
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">{t("orContinueWith", "auth")}</span>
+              </div>
+            </div>
+
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
+              <Mail className="h-4 w-4 text-primary flex-shrink-0" />
+              <span>{t("gmailOnly", "auth")}</span>
+            </div>
+
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-accent/20 bg-accent/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
+              <Fingerprint className="h-4 w-4 text-accent flex-shrink-0" />
+              <span>{t("deviceTracking", "auth")}</span>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm">
+                  {t("email", "auth")}
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@gmail.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isLoading || isOffline}
+                  autoComplete="email"
+                  aria-describedby={error ? "login-error" : undefined}
+                  className="h-10 sm:h-11 text-sm sm:text-base"
+                />
+                {email && !isGmailAddress(email) && (
+                  <p className="text-xs text-destructive">{t("gmailOnlyError", "auth")}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm">
+                    {t("password", "auth")}
+                  </Label>
+                  <Link
+                    href="/auth/forgot-password"
+                    className="text-xs sm:text-sm text-primary hover:underline focus:outline-none focus-visible:underline"
+                  >
+                    {t("forgotPassword", "auth")}
+                  </Link>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder={t("enterPassword", "auth")}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isLoading || isOffline}
+                    autoComplete="current-password"
+                    className="pr-10 h-10 sm:h-11 text-sm sm:text-base"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none focus-visible:text-foreground"
+                    aria-label={showPassword ? t("hidePassword", "auth") : t("showPassword", "auth")}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full h-11 sm:h-12 text-sm sm:text-base font-semibold"
+                disabled={isLoading || isOffline || !email || !password}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    <span>{t("signingIn", "auth")}</span>
+                  </>
+                ) : (
+                  t("signIn", "auth")
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center text-sm">
+              <span className="text-muted-foreground">{t("noAccount", "auth")} </span>
+              <Link href="/auth/sign-up" className="text-primary hover:underline font-medium">
+                {t("signUp", "auth")}
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </AuthSecurityGuard>
     </div>
   )
