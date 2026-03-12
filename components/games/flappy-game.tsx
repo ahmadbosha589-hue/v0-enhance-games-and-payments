@@ -435,7 +435,10 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Canvas */}
-      <div className="relative touch-none select-none">
+      <div
+        className="relative touch-none select-none flex-shrink-0 overflow-hidden rounded-lg border-2 border-gray-700"
+        style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, maxWidth: "100%" }}
+      >
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
@@ -452,7 +455,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           onTouchEnd={(e) => {
             e.preventDefault()
           }}
-          className="rounded-lg border-2 border-gray-700 cursor-pointer select-none"
+          className="cursor-pointer select-none block"
           style={{ touchAction: "none", userSelect: "none", WebkitUserSelect: "none" }}
         />
 
