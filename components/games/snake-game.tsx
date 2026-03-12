@@ -435,10 +435,13 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
       {/* Game Board */}
       <div
         ref={boardRef}
-        className="relative rounded-lg p-2 border-2 border-gray-700 touch-none select-none overflow-hidden"
+        className="relative rounded-lg p-2 border-2 border-gray-700 touch-none select-none overflow-hidden flex-shrink-0"
         style={{
           background: flashEffect ? "rgba(34, 197, 94, 0.2)" : "rgb(17, 24, 39)",
-          transition: "background 100ms ease"
+          transition: "background 100ms ease",
+          width: boardWidth + 16,
+          height: boardHeight + 16,
+          maxWidth: "100%"
         }}
       >
         <svg
@@ -446,35 +449,44 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
           height={boardHeight}
           viewBox={`0 0 ${boardWidth} ${boardHeight}`}
           className="block"
+          style={{ overflow: "hidden" }}
         >
-          {/* Grid */}
+          {/* Grid and clip path */}
           <defs>
-            <pattern id="grid" width={CELL_SIZE} height={CELL_SIZE} patternUnits="userSpaceOnUse">
+            <pattern id="snakeGrid" width={CELL_SIZE} height={CELL_SIZE} patternUnits="userSpaceOnUse">
               <rect width={CELL_SIZE} height={CELL_SIZE} fill="transparent" stroke="rgba(55,65,81,0.5)" strokeWidth="0.5" />
             </pattern>
+            <clipPath id="boardClip">
+              <rect x="0" y="0" width={boardWidth} height={boardHeight} />
+            </clipPath>
           </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
+          <rect width="100%" height="100%" fill="url(#snakeGrid)" />
 
-          {/* Snake body */}
-          {snake.map((segment, i) => {
-            const isHead = i === 0
-            const opacity = 1 - (i / snake.length) * 0.4
-            return (
-              <rect
-                key={i}
-                x={segment.x * CELL_SIZE + 1}
-                y={segment.y * CELL_SIZE + 1}
-                width={CELL_SIZE - 2}
-                height={CELL_SIZE - 2}
-                rx={isHead ? 4 : 2}
-                fill={isHead ? "#34d399" : "#10b981"}
-                opacity={opacity}
-                style={{
-                  filter: isHead ? "drop-shadow(0 0 4px rgba(52, 211, 153, 0.6))" : undefined
-                }}
-              />
-            )
-          })}
+          {/* Snake body - clipped to board boundaries */}
+          <g clipPath="url(#boardClip)">
+            {snake.map((segment, i) => {
+              const isHead = i === 0
+              const opacity = 1 - (i / snake.length) * 0.4
+              // Clamp to board boundaries
+              const x = Math.max(0, Math.min(segment.x, BOARD_SIZE - 1))
+              const y = Math.max(0, Math.min(segment.y, BOARD_SIZE - 1))
+              return (
+                <rect
+                  key={i}
+                  x={x * CELL_SIZE + 1}
+                  y={y * CELL_SIZE + 1}
+                  width={CELL_SIZE - 2}
+                  height={CELL_SIZE - 2}
+                  rx={isHead ? 4 : 2}
+                  fill={isHead ? "#34d399" : "#10b981"}
+                  opacity={opacity}
+                  style={{
+                    filter: isHead ? "drop-shadow(0 0 4px rgba(52, 211, 153, 0.6))" : undefined
+                  }}
+                />
+              )
+            })}
+          </g>
 
           {/* Food */}
           <circle
