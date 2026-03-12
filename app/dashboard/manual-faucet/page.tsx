@@ -240,12 +240,12 @@ function DetailedLoadingScreen({
                   <div className="flex-1 min-w-0">
                     <p
                       className={`text-sm font-medium ${step.status === "success" || step.status === "cached"
-                          ? "text-green-600"
-                          : step.status === "error"
-                            ? "text-destructive"
-                            : step.status === "loading" || step.status === "retrying"
-                              ? "text-primary"
-                              : "text-muted-foreground"
+                        ? "text-green-600"
+                        : step.status === "error"
+                          ? "text-destructive"
+                          : step.status === "loading" || step.status === "retrying"
+                            ? "text-primary"
+                            : "text-muted-foreground"
                         }`}
                     >
                       {step.label}
@@ -549,10 +549,14 @@ function ManualFaucetContent() {
     }
 
     // STEP 3: Auth check with strict timeout
+    // NOTE: authUser is declared here (outside the if-block) so it's accessible
+    // after the block. We cannot rely on the `user` React state variable here
+    // because setState is async and won't be updated within the same call.
+    let authUser: any = null
+
     if (!cacheValid || !cachedUser) {
       updateStep("auth", "loading")
 
-      let authUser: any = null
       let authAttempts = 0
       const maxAttempts = 3
 
@@ -590,10 +594,16 @@ function ManualFaucetContent() {
           }
 
           if (!authResult.data.user) {
-            throw new Error("Not authenticated")
+            // Try getSession as a fallback before giving up
+            const { data: sessionData } = await supabase.auth.getSession()
+            if (sessionData?.session?.user) {
+              authUser = sessionData.session.user
+            } else {
+              throw new Error("Not authenticated")
+            }
+          } else {
+            authUser = authResult.data.user
           }
-
-          authUser = authResult.data.user
         } catch (err) {
           if (authAttempts >= maxAttempts) {
             if (mountedRef.current && initId === initCountRef.current) {
@@ -615,13 +625,15 @@ function ManualFaucetContent() {
       updateStep("auth", "success")
     }
 
-    // Get the user (either from cache or just authenticated)
-    const currentUser = cachedUser || user
+    // Get the user (either from cache or freshly authenticated).
+    // IMPORTANT: use the local `authUser` variable — NOT the `user` React state,
+    // which is still null here because setState is asynchronous.
+    const currentUser = cachedUser || authUser
     if (!currentUser?.id) {
       if (mountedRef.current && initId === initCountRef.current) {
-        updateStep("auth", "error", "User ID not found")
+        updateStep("auth", "error", "User ID not found — please log in again")
         setFatalError("Authentication error")
-        setFatalErrorDetails("Could not retrieve user information")
+        setFatalErrorDetails("Could not retrieve user information. Try refreshing or logging out and back in.")
       }
       return
     }
@@ -1318,8 +1330,8 @@ function ManualFaucetContent() {
                   <Card
                     key={crypto.symbol}
                     className={`relative overflow-hidden transition-all duration-200 ${isOnCooldown
-                        ? "opacity-60 border-muted"
-                        : "hover:border-primary/50 hover:shadow-lg cursor-pointer"
+                      ? "opacity-60 border-muted"
+                      : "hover:border-primary/50 hover:shadow-lg cursor-pointer"
                       }`}
                   >
                     <CardContent className="p-4">
