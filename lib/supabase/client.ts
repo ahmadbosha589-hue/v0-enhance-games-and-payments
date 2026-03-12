@@ -29,33 +29,9 @@ function getClient(): SupabaseClient | null {
   }
 
   try {
-    // Configure browser client with cookie-based storage to match the server
-    // This ensures the session is shared between server and client
-    globalForSupabase.supabaseBrowserClient = createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        // Read cookies from document.cookie
-        getAll() {
-          if (typeof document === "undefined") return []
-          return document.cookie.split("; ").filter(Boolean).map((cookie) => {
-            const [name, ...rest] = cookie.split("=")
-            return { name, value: rest.join("=") }
-          })
-        },
-        // Write cookies to document.cookie
-        setAll(cookiesToSet) {
-          if (typeof document === "undefined") return
-          cookiesToSet.forEach(({ name, value, options }) => {
-            let cookieString = `${name}=${value}`
-            if (options?.path) cookieString += `; path=${options.path}`
-            if (options?.maxAge) cookieString += `; max-age=${options.maxAge}`
-            if (options?.domain) cookieString += `; domain=${options.domain}`
-            if (options?.sameSite) cookieString += `; samesite=${options.sameSite}`
-            if (options?.secure) cookieString += `; secure`
-            document.cookie = cookieString
-          })
-        },
-      },
-    })
+    // Use default storage (localStorage) - it's the standard for browser clients
+    // The server handles cookie-based auth, and the browser client syncs via onAuthStateChange
+    globalForSupabase.supabaseBrowserClient = createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey)
     return globalForSupabase.supabaseBrowserClient
   } catch (err) {
     console.error("[Supabase Client] Failed to create client:", err)
