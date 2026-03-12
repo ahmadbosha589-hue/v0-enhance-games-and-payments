@@ -341,7 +341,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           <div className="space-y-3">
             <div>
               <p className="text-gray-400 text-xs">Score</p>
-> <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-gray-400 text-xs">Target</p>
