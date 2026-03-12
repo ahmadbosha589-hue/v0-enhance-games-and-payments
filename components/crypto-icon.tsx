@@ -74,10 +74,12 @@ const sizes = {
 }
 
 export function CryptoIcon({ symbol, size = "md", className, showFallback = true }: CryptoIconProps) {
-  const upperSymbol = symbol.toUpperCase()
+  const upperSymbol = symbol?.toUpperCase() || "BTC"
   const iconUrl = CRYPTO_ICONS[upperSymbol]
   const gradient = COIN_GRADIENTS[upperSymbol] || "from-gray-500 to-gray-600"
-  const sizeConfig = sizes[size]
+  // Ensure we have a valid size - fallback to md if invalid
+  const validSize = (typeof size === "string" && size in sizes) ? size as keyof typeof sizes : "md"
+  const sizeConfig = sizes[validSize]
 
   if (iconUrl) {
     return (
