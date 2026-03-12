@@ -200,12 +200,12 @@ export default function GamesPage() {
     setLeaderboard(generateMockLeaderboard(selectedLeaderboardGame, userHighScores[selectedLeaderboardGame]))
   }, [selectedLeaderboardGame, userHighScores])
 
-  // Per-game countdown timers
+  // Per-game countdown timers - more robust implementation
   useEffect(() => {
     if (!gameStatus?.gameStatuses) return
 
-    // Initialize cooldowns from server
-    const newCooldowns: Record<GameType, number> = {
+    // Initialize cooldowns from server data - only update if server data changed
+    const serverCooldowns: Record<GameType, number> = {
       tetris: 0,
       block_blast: 0,
       car_racing: 0,
@@ -216,37 +216,54 @@ export default function GamesPage() {
 
     Object.entries(gameStatus.gameStatuses).forEach(([gameType, status]) => {
       if (status.waitSeconds > 0) {
-        newCooldowns[gameType as GameType] = status.waitSeconds
+        serverCooldowns[gameType as GameType] = Math.max(0, Math.floor(status.waitSeconds))
       }
     })
 
-    setGameCooldowns(newCooldowns)
+    // Update cooldowns - use server values if they're higher than current local values
+    setGameCooldowns(prev => {
+      const updated = { ...prev }
+      Object.keys(serverCooldowns).forEach(key => {
+        const gameType = key as GameType
+        // Use server value if it's higher (more recent cooldown set) or if local is 0
+        if (serverCooldowns[gameType] > updated[gameType] || updated[gameType] === 0) {
+          updated[gameType] = serverCooldowns[gameType]
+        }
+      })
+      return updated
+    })
+  }, [gameStatus?.gameStatuses])
 
-    // Set up interval for countdown
+  // Separate timer effect for countdown - runs independently
+  useEffect(() => {
     const interval = setInterval(() => {
       setGameCooldowns(prev => {
         const updated = { ...prev }
-        let hasChanges = false
+        let anyChanged = false
+        let anyHitZero = false
 
         Object.keys(updated).forEach(key => {
           const gameType = key as GameType
           if (updated[gameType] > 0) {
             updated[gameType] = Math.max(0, updated[gameType] - 1)
-            hasChanges = true
+            anyChanged = true
+            if (updated[gameType] === 0) {
+              anyHitZero = true
+            }
           }
         })
 
-        // Refresh status when a cooldown hits 0
-        if (hasChanges && Object.values(updated).some(v => v === 0)) {
+        // Refresh status when a cooldown hits 0 to get fresh server data
+        if (anyHitZero) {
           refreshStatus()
         }
 
-        return updated
+        return anyChanged ? updated : prev
       })
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [gameStatus?.gameStatuses, refreshStatus])
+  }, [refreshStatus])
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60)
@@ -280,16 +297,29 @@ export default function GamesPage() {
         })
       })
 
-      const data = await response.json()
+      let data
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error("Server error. Please try again.")
+      }
 
       if (!response.ok) {
-        if (data.waitSeconds) {
+        // Update cooldown for this specific game if provided
+        if (data.waitSeconds && data.waitSeconds > 0) {
           setGameCooldowns(prev => ({
             ...prev,
-            [gameType]: data.waitSeconds
+            [data.gameType || gameType]: Math.ceil(data.waitSeconds)
           }))
         }
+        // Refresh status to get latest cooldowns
+        refreshStatus()
         throw new Error(data.error || "Failed to start game")
+      }
+
+      // Validate response has required fields
+      if (!data.sessionId || !data.sessionToken || !data.challenge) {
+        throw new Error("Invalid server response. Please try again.")
       }
 
       setGameSession({
@@ -303,7 +333,9 @@ export default function GamesPage() {
       setCurrentScore(0)
       setMoves(0)
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || "Failed to start game. Please try again.")
+      // Refresh status on error to ensure cooldowns are correct
+      refreshStatus()
     } finally {
       setIsLoading(false)
     }
@@ -400,7 +432,7 @@ export default function GamesPage() {
       bgColor: "bg-cyan-500/10",
       image: "/images/games/tetris.jpg",
       difficulty: "Medium",
-      avgPlayTime: "3-5 min"
+      avgPlayTime: "1-3 min"
     },
     {
       type: "block_blast" as GameType,
@@ -412,7 +444,7 @@ export default function GamesPage() {
       bgColor: "bg-purple-500/10",
       image: "/images/games/block-blast.jpg",
       difficulty: "Easy",
-      avgPlayTime: "2-4 min"
+      avgPlayTime: "1-3 min"
     },
     {
       type: "car_racing" as GameType,
@@ -424,7 +456,7 @@ export default function GamesPage() {
       bgColor: "bg-orange-500/10",
       image: "/images/games/car-racing.jpg",
       difficulty: "Hard",
-      avgPlayTime: "2-5 min"
+      avgPlayTime: "1-3 min"
     },
     {
       type: "snake" as GameType,
@@ -436,7 +468,7 @@ export default function GamesPage() {
       bgColor: "bg-emerald-500/10",
       image: "/images/games/snake.jpg",
       difficulty: "Medium",
-      avgPlayTime: "2-4 min"
+      avgPlayTime: "1-3 min"
     },
     {
       type: "memory" as GameType,
