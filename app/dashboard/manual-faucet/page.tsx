@@ -594,10 +594,15 @@ function ManualFaucetContent() {
           }
 
           if (!authResult.data.user) {
-            // Try getSession as a fallback before giving up
-            const { data: sessionData } = await supabase.auth.getSession()
-            if (sessionData?.session?.user) {
-              authUser = sessionData.session.user
+            // Try getSession as a fallback — with a strict timeout so a slow
+            // token-refresh network call never causes the page to hang forever.
+            const sessionRaced = await Promise.race([
+              supabase.auth.getSession(),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+            ])
+            const sessionUser = (sessionRaced as any)?.data?.session?.user ?? null
+            if (sessionUser) {
+              authUser = sessionUser
             } else {
               throw new Error("Not authenticated")
             }
