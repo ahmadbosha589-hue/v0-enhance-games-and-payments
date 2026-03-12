@@ -5,7 +5,7 @@ import crypto from "crypto"
 
 const GAME_COOLDOWN_MINUTES = 3
 const MAX_GAMES_PER_DAY = 25
-const VALID_GAME_TYPES = ["tetris", "block_blast", "car_racing"]
+const VALID_GAME_TYPES = ["tetris", "block_blast", "car_racing", "snake", "memory", "flappy"]
 
 // Generate a cryptographic challenge for anti-bot validation
 function generateChallenge(): { challenge: string; solution: string } {
@@ -24,15 +24,15 @@ export async function POST(req: NextRequest) {
     }
 
     const headersList = await headers()
-    const ip = headersList.get("x-forwarded-for")?.split(",")[0] || 
-               headersList.get("x-real-ip") || 
-               "unknown"
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0] ||
+      headersList.get("x-real-ip") ||
+      "unknown"
     const userAgent = headersList.get("user-agent") || "unknown"
 
     // Basic bot detection
-    if (userAgent.toLowerCase().includes("bot") || 
-        userAgent.toLowerCase().includes("crawler") ||
-        userAgent.toLowerCase().includes("spider")) {
+    if (userAgent.toLowerCase().includes("bot") ||
+      userAgent.toLowerCase().includes("crawler") ||
+      userAgent.toLowerCase().includes("spider")) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (dailyLimit && dailyLimit.games_played >= MAX_GAMES_PER_DAY) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: "Daily game limit reached",
         maxGames: MAX_GAMES_PER_DAY,
         gamesPlayed: dailyLimit.games_played
@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
       const lastGameTime = new Date(recentGame.created_at).getTime()
       const nextGameTime = lastGameTime + (GAME_COOLDOWN_MINUTES * 60 * 1000)
       const waitSeconds = Math.ceil((nextGameTime - Date.now()) / 1000)
-      
-      return NextResponse.json({ 
+
+      return NextResponse.json({
         error: "Please wait before playing again",
         waitSeconds,
         nextGameAt: new Date(nextGameTime).toISOString()
@@ -92,11 +92,11 @@ export async function POST(req: NextRequest) {
 
     // Generate challenge for anti-bot verification
     const { challenge, solution } = generateChallenge()
-    
+
     // Create game session with server-side tracking
     const sessionToken = crypto.randomBytes(32).toString("hex")
     const gameStartTime = Date.now()
-    
+
     // Store verification data server-side
     const verificationData = {
       solution,
