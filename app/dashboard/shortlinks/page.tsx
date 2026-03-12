@@ -5,18 +5,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { 
-  Link2, 
-  ExternalLink, 
-  Clock, 
-  Coins, 
-  CheckCircle, 
+import {
+  Link2,
+  ExternalLink,
+  Clock,
+  Coins,
+  CheckCircle,
   AlertCircle,
   Trophy,
   Zap,
   RefreshCw
 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getAuthUser } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Shortlink {
@@ -61,7 +61,7 @@ export default function ShortlinksPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getAuthUser()
       if (!user) return
 
       // Load shortlinks
@@ -138,7 +138,7 @@ export default function ShortlinksPage() {
 
     // Open link in new tab
     window.open(shortlink.destination_url, "_blank")
-    
+
     // Start countdown
     setActiveLink(shortlink.id)
     setCountdown(shortlink.view_time_seconds)
@@ -146,7 +146,7 @@ export default function ShortlinksPage() {
 
   async function completeVisit(shortlinkId: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getAuthUser()
       if (!user) return
 
       const shortlink = shortlinks.find(s => s.id === shortlinkId)
@@ -179,7 +179,7 @@ export default function ShortlinksPage() {
         total_earned: prev.total_earned + shortlink.reward_satoshis,
         links_completed: prev.links_completed + 1
       }))
-      
+
       loadData()
     } catch (error) {
       console.error("Error completing visit:", error)
@@ -226,8 +226,8 @@ export default function ShortlinksPage() {
                   <span className="text-gray-400">Links completed</span>
                   <span className="text-cyan-400">{dailyProgress.links_completed}/{dailyProgress.max_links}</span>
                 </div>
-                <Progress 
-                  value={(dailyProgress.links_completed / dailyProgress.max_links) * 100} 
+                <Progress
+                  value={(dailyProgress.links_completed / dailyProgress.max_links) * 100}
                   className="h-2 bg-gray-800"
                 />
               </div>
@@ -253,8 +253,8 @@ export default function ShortlinksPage() {
                   {countdown}s
                 </div>
               </div>
-              <Progress 
-                value={((shortlinks.find(s => s.id === activeLink)?.view_time_seconds || 10) - countdown) / (shortlinks.find(s => s.id === activeLink)?.view_time_seconds || 10) * 100} 
+              <Progress
+                value={((shortlinks.find(s => s.id === activeLink)?.view_time_seconds || 10) - countdown) / (shortlinks.find(s => s.id === activeLink)?.view_time_seconds || 10) * 100}
                 className="h-2 mt-4 bg-gray-800"
               />
             </CardContent>
@@ -274,8 +274,8 @@ export default function ShortlinksPage() {
                   Click to visit and earn satoshis
                 </CardDescription>
               </div>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={loadData}
                 className="border-gray-700"
