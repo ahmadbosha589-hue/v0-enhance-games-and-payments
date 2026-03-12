@@ -17,6 +17,57 @@
 BEGIN;
 
 -- =============================================================================
+-- PRE-STEP: Ensure audit_logs schema is compatible
+-- =============================================================================
+-- Change actor_role to TEXT if it's still an enum (allows 'system' value)
+DO $$
+BEGIN
+  -- Check if actor_role column exists and alter if needed
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'audit_logs' 
+    AND column_name = 'actor_role'
+    AND data_type != 'text'
+  ) THEN
+    ALTER TABLE public.audit_logs ALTER COLUMN actor_role TYPE TEXT;
+    RAISE NOTICE 'Converted audit_logs.actor_role to TEXT';
+  END IF;
+  
+  -- Check if action column exists and alter if needed
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'audit_logs' 
+    AND column_name = 'action'
+    AND data_type != 'text'
+  ) THEN
+    ALTER TABLE public.audit_logs ALTER COLUMN action TYPE TEXT;
+    RAISE NOTICE 'Converted audit_logs.action to TEXT';
+  END IF;
+  
+  -- Check if resource_id column exists and alter if needed
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'audit_logs' 
+    AND column_name = 'resource_id'
+    AND data_type = 'uuid'
+  ) THEN
+    ALTER TABLE public.audit_logs ALTER COLUMN resource_id TYPE TEXT;
+    RAISE NOTICE 'Converted audit_logs.resource_id to TEXT';
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'audit_logs schema check skipped: %', SQLERRM;
+END $$;
+
+-- Ensure signup_bonus exists in transaction_type enum
+DO $$ BEGIN
+  ALTER TYPE transaction_type ADD VALUE IF NOT EXISTS 'signup_bonus';
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- =============================================================================
 -- STEP 1: Create missing profiles for auth.users
 -- =============================================================================
 DO $$
