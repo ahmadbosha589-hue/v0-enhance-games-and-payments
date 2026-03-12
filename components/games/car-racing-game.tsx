@@ -51,13 +51,26 @@ interface PowerUp {
   collected: boolean
 }
 
+interface DifficultySettings {
+  level: number
+  speedMultiplier: number
+  obstacleFrequency: number
+  bonusChance: number
+  scoreMultiplier: number
+}
+
 interface CarRacingGameProps {
   onGameEnd: (score: number, moves: number) => void
   onScoreUpdate: (score: number) => void
   isActive: boolean
+  difficulty?: DifficultySettings
 }
 
-export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingGameProps) {
+export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: CarRacingGameProps) {
+  // Apply difficulty settings
+  const speedMultiplier = difficulty?.speedMultiplier || 1
+  const obstacleFrequency = difficulty?.obstacleFrequency || 1
+  const bonusChance = difficulty?.bonusChance || 0.15
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number | null>(null)
   const [score, setScore] = useState(0)
@@ -277,17 +290,19 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
       // Update road offset for scrolling effect
       setRoadOffset(prev => (prev + currentSpeed) % 40)
 
-      // Update distance and score
+      // Update distance and score with difficulty multiplier
       setDistance(d => {
         const newDistance = d + currentSpeed * 0.1
-        const distanceScore = Math.floor(newDistance)
+        const scoreMultiplier = difficulty?.scoreMultiplier || 1
+        const distanceScore = Math.floor(newDistance * scoreMultiplier)
         setScore(distanceScore)
         onScoreUpdate(distanceScore)
         return newDistance
       })
 
-      // Spawn obstacles and coins
-      if (frameCount % Math.max(30, 60 - Math.floor(distance / 200)) === 0) {
+      // Spawn obstacles with difficulty scaling (more frequent at higher difficulty)
+      const obstacleSpawnRate = Math.max(20, 60 - Math.floor(distance / 200) - (difficulty?.level || 1) * 3)
+      if (frameCount % Math.max(15, obstacleSpawnRate) === 0) {
         spawnObstacle()
       }
       if (frameCount % 45 === 0) {
@@ -661,7 +676,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
     }
   }, [isActive, isPaused, gameOver, speed, lane, isInvincible, spawnObstacle, spawnCoin, spawnPowerUp, activatePowerUp, onScoreUpdate, onGameEnd, playerX, playerY, distance, moves, obstacles, coins, powerUps, roadOffset, weather, hasMagnet, coinMultiplier])
 
-  // Initial draw
+  // Initial draw and spawn initial obstacles
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -670,7 +685,20 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive }: CarRacingG
 
     ctx.fillStyle = "#374151"
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
-  }, [])
+
+    // Spawn initial obstacles so game isn't empty at start
+    if (isActive && obstacles.length === 0) {
+      // Spawn 2-3 initial obstacles at different positions
+      for (let i = 0; i < 3; i++) {
+        setTimeout(() => {
+          spawnObstacle()
+        }, i * 500)
+      }
+      // Spawn initial coins
+      setTimeout(() => spawnCoin(), 200)
+      setTimeout(() => spawnCoin(), 700)
+    }
+  }, [isActive])
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">

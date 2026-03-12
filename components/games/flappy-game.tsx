@@ -22,13 +22,22 @@ interface Pipe {
   coinCollected: boolean
 }
 
+interface DifficultySettings {
+  level: number
+  speedMultiplier: number
+  obstacleFrequency: number
+  bonusChance: number
+  scoreMultiplier: number
+}
+
 interface FlappyGameProps {
   onGameEnd: (score: number, moves: number) => void
   onScoreUpdate: (score: number) => void
   isActive: boolean
+  difficulty?: DifficultySettings
 }
 
-export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGameProps) {
+export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty }: FlappyGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [birdY, setBirdY] = useState(CANVAS_HEIGHT / 2)
   const [birdVelocity, setBirdVelocity] = useState(0)
@@ -42,9 +51,13 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive }: FlappyGamePro
   const [combo, setCombo] = useState(0)
   const [showCombo, setShowCombo] = useState(false)
   const [dayTime, setDayTime] = useState<"day" | "sunset" | "night">("day")
-  const [difficulty, setDifficulty] = useState(1)
+  const [difficulty, setDifficulty] = useState(externalDifficulty?.level || 1)
   const [powerUp, setPowerUp] = useState<"shield" | "slow" | null>(null)
   const [powerUpTimer, setPowerUpTimer] = useState(0)
+
+  // Apply external difficulty settings
+  const speedMultiplier = externalDifficulty?.speedMultiplier || 1
+  const pipeGap = Math.max(100, 150 - (difficulty * 5 * speedMultiplier)) // Smaller gap at higher difficulty
 
   const gameLoopRef = useRef<number | null>(null)
   const birdYRef = useRef(birdY)

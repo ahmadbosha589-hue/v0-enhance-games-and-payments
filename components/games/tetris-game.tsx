@@ -46,10 +46,19 @@ const createTetrominos = (colors: typeof COLOR_SCHEMES[0]) => ({
 type TetrominoType = keyof ReturnType<typeof createTetrominos>
 type Board = (string | null)[][]
 
+interface DifficultySettings {
+  level: number
+  speedMultiplier: number
+  obstacleFrequency: number
+  bonusChance: number
+  scoreMultiplier: number
+}
+
 interface TetrisGameProps {
   onGameEnd: (score: number, moves: number) => void
   onScoreUpdate: (score: number) => void
   isActive: boolean
+  difficulty?: DifficultySettings
 }
 
 // Random events to keep gameplay fresh
@@ -95,7 +104,12 @@ interface Particle {
   life: number
 }
 
-export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGameProps) {
+export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: TetrisGameProps) {
+  // Apply difficulty settings
+  const difficultyLevel = difficulty?.level || 1
+  const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
+  const speedMultiplierFromDifficulty = difficulty?.speedMultiplier || 1
+
   const [board, setBoard] = useState<Board>(() => createEmptyBoard())
   const [currentPiece, setCurrentPiece] = useState<{
     type: TetrominoType
@@ -495,7 +509,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
   useEffect(() => {
     if (!isActive || isPaused || gameOver || !currentPiece) return
 
-    const speed = Math.max(100, 1000 - (level - 1) * 100) * speedModifier
+    const speed = Math.max(100, 1000 - (level - 1) * 100 - (difficultyLevel - 1) * 50) * speedModifier / speedMultiplierFromDifficulty
 
     // Random event trigger
     if (Math.random() < 0.08) {
@@ -508,9 +522,10 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
         const mergedBoard = mergePiece(currentPiece, board)
         const { newBoard, cleared } = clearLines(mergedBoard)
 
-        const lineScore = (cleared > 0 ? LINE_CLEAR_MESSAGES[Math.min(cleared - 1, 3)].points : 0) * level * scoreMultiplier
+        const lineScore = (cleared > 0 ? LINE_CLEAR_MESSAGES[Math.min(cleared - 1, 3)].points : 0) * level * scoreMultiplier * scoreMultiplierFromDifficulty
         const comboBonus = combo > 1 ? combo * 50 : 0
-        const newScore = score + lineScore + 10 + comboBonus
+        const difficultyBonus = (difficultyLevel - 1) * 5
+        const newScore = score + lineScore + 10 + comboBonus + difficultyBonus
 
         setBoard(newBoard)
         setScore(newScore)
@@ -1045,6 +1060,28 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive }: TetrisGamePro
             </Button>
           </div>
         </Card>
+
+        {/* Difficulty Indicator */}
+        {difficultyLevel > 1 && (
+          <Card className="p-2 bg-gray-900 border-gray-700">
+            <p className="text-gray-400 text-xs mb-1 font-medium">Difficulty</p>
+            <div className="flex gap-0.5">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2 h-3 rounded-sm ${i < difficultyLevel
+                      ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
+                      : "bg-gray-700"
+                    }`}
+                />
+              ))}
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1">
+              {difficultyLevel <= 3 ? "Easy" : difficultyLevel <= 6 ? "Medium" : "Hard"}
+              {" - "}Speed {Math.round(speedMultiplierFromDifficulty * 100)}%
+            </p>
+          </Card>
+        )}
 
         {/* Achievements */}
         {unlockedAchievements.length > 0 && (

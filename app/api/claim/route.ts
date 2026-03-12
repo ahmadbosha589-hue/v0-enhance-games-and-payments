@@ -16,15 +16,16 @@ function calculateClaimAmount(streak: number): {
   streakBonus: number
   total: number
 } {
-  // Random amount between 4 and 9 satoshis
+  // Random amount between 2 and 6 satoshis (MAX 6 SATS - stricter limits)
+  // Users should use offerwalls and shortlinks for more earnings
   const base = Math.floor(
     CLAIM_CONFIG.baseAmountSatoshis +
     Math.random() * (CLAIM_CONFIG.maxAmountSatoshis - CLAIM_CONFIG.baseAmountSatoshis + 1),
   )
 
-  // No streak bonus in this simplified model - the randomness IS the variation
+  // No streak bonus - encourages users to use other earning methods
   const streakBonus = 0
-  const total = base
+  const total = Math.min(base, 6) // Hard cap at 6 satoshis per claim
 
   return { base, streakBonus, total }
 }
@@ -133,28 +134,28 @@ export async function POST(request: Request) {
         const tokenStr = validatedData.data.captchaToken
         if (tokenStr.startsWith("ey")) { // base64 JSON starts with 'ey' typically
           const decoded = JSON.parse(atob(tokenStr))
-          
+
           // Verify timestamp is recent (within 5 minutes)
           if (decoded.ts && Date.now() - decoded.ts > 5 * 60 * 1000) {
             log.warn("Stale verification token", { userId: user.id, age: Date.now() - decoded.ts })
             return NextResponse.json({ error: "Verification expired. Please verify again." }, { status: 400 })
           }
-          
+
           // Check behavior score
           if (decoded.s !== undefined && decoded.s < 30) {
             log.warn("Low behavior score in claim", { userId: user.id, score: decoded.s })
-            return NextResponse.json({ 
+            return NextResponse.json({
               error: "Suspicious activity detected. Please complete verification again.",
-              code: "LOW_BEHAVIOR_SCORE" 
+              code: "LOW_BEHAVIOR_SCORE"
             }, { status: 403 })
           }
-          
+
           // Check for unrealistic verification duration (< 3 seconds is bot-like)
           if (decoded.d !== undefined && decoded.d < 3000) {
             log.warn("Unrealistically fast verification", { userId: user.id, duration: decoded.d })
-            return NextResponse.json({ 
+            return NextResponse.json({
               error: "Verification completed too quickly. Please try again.",
-              code: "TOO_FAST" 
+              code: "TOO_FAST"
             }, { status: 403 })
           }
         }
@@ -235,43 +236,43 @@ export async function POST(request: Request) {
     }
 
     const serverValidation = await validateSecurityServerSide(user.id, securityPayload)
-    
-  // Auto-ban if needed
-  if (serverValidation.banReason) {
-    const banned = await banUserIfNeeded(user.id, serverValidation)
-    if (banned) {
-      log.error("User auto-banned during claim", {
-        userId: user.id,
-        reason: serverValidation.banReason,
-        flags: serverValidation.flags,
-        score: serverValidation.riskScore,
-        threatLevel: serverValidation.threatLevel,
-        correlatedThreats: serverValidation.correlatedThreats,
-        serverFingerprint: serverValidation.serverFingerprint,
-      })
+
+    // Auto-ban if needed
+    if (serverValidation.banReason) {
+      const banned = await banUserIfNeeded(user.id, serverValidation)
+      if (banned) {
+        log.error("User auto-banned during claim", {
+          userId: user.id,
+          reason: serverValidation.banReason,
+          flags: serverValidation.flags,
+          score: serverValidation.riskScore,
+          threatLevel: serverValidation.threatLevel,
+          correlatedThreats: serverValidation.correlatedThreats,
+          serverFingerprint: serverValidation.serverFingerprint,
+        })
         return NextResponse.json({
           error: "Account has been suspended due to policy violation.",
           code: "ACCOUNT_BANNED",
         }, { status: 403 })
       }
     }
-    
-  // Block high-risk requests
-  if (serverValidation.isBlocked) {
-    log.warn("Server validation blocked claim", {
-      userId: user.id,
-      flags: serverValidation.flags,
-      score: serverValidation.riskScore,
-      confidence: serverValidation.confidence,
-      threatLevel: serverValidation.threatLevel,
-      correlatedThreats: serverValidation.correlatedThreats,
-    })
+
+    // Block high-risk requests
+    if (serverValidation.isBlocked) {
+      log.warn("Server validation blocked claim", {
+        userId: user.id,
+        flags: serverValidation.flags,
+        score: serverValidation.riskScore,
+        confidence: serverValidation.confidence,
+        threatLevel: serverValidation.threatLevel,
+        correlatedThreats: serverValidation.correlatedThreats,
+      })
       return NextResponse.json({
         error: "Security check failed. Please try again or contact support.",
         code: "SECURITY_BLOCKED",
       }, { status: 403 })
     }
-    
+
     // Force logout for suspicious activity
     if (serverValidation.shouldLogout) {
       log.warn("Server validation forcing logout", {

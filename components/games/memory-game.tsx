@@ -18,10 +18,19 @@ interface MemoryCard {
   isMatched: boolean
 }
 
+interface DifficultySettings {
+  level: number
+  speedMultiplier: number
+  obstacleFrequency: number
+  bonusChance: number
+  scoreMultiplier: number
+}
+
 interface MemoryGameProps {
   onGameEnd: (score: number, moves: number) => void
   onScoreUpdate: (score: number) => void
   isActive: boolean
+  difficulty?: DifficultySettings
 }
 
 const GRID_SIZES = {
@@ -30,8 +39,14 @@ const GRID_SIZES = {
   hard: { cols: 6, rows: 4, pairs: 12, timeBonus: 600 }
 }
 
-export function MemoryGame({ onGameEnd, onScoreUpdate, isActive }: MemoryGameProps) {
-  const [difficulty] = useState<keyof typeof GRID_SIZES>("medium")
+export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty }: MemoryGameProps) {
+  // Choose grid difficulty based on level
+  const gridDifficulty = externalDifficulty && externalDifficulty.level >= 5
+    ? "hard"
+    : externalDifficulty && externalDifficulty.level >= 3
+      ? "medium"
+      : "easy"
+  const [difficulty] = useState<keyof typeof GRID_SIZES>(gridDifficulty)
   const [cards, setCards] = useState<MemoryCard[]>([])
   const [flippedCards, setFlippedCards] = useState<number[]>([])
   const [matchedPairs, setMatchedPairs] = useState(0)

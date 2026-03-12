@@ -3,8 +3,8 @@ import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 
 const DAILY_BONUS_CONFIG = {
-  minAmount: 3,
-  maxAmount: 6,
+  minAmount: 2, // Reduced from 3 - stricter limits
+  maxAmount: 5, // Reduced from 6 - max 5 sats per daily bonus
   cooldownHours: 24,
 }
 

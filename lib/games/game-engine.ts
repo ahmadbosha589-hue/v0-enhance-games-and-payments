@@ -339,32 +339,32 @@ export function calculateDailyBonus(streak: number): number {
 export function updateStreak(lastPlayedAt: string | null): { currentStreak: number; isNewDay: boolean } {
   const now = new Date()
   const today = now.toDateString()
-  
+
   if (!lastPlayedAt) {
     return { currentStreak: 1, isNewDay: true }
   }
-  
+
   const lastPlayed = new Date(lastPlayedAt)
   const lastPlayedDate = lastPlayed.toDateString()
-  
+
   if (lastPlayedDate === today) {
     return { currentStreak: 0, isNewDay: false } // Same day, streak continues
   }
-  
+
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
-  
+
   if (lastPlayedDate === yesterday.toDateString()) {
     return { currentStreak: 1, isNewDay: true } // Consecutive day
   }
-  
+
   return { currentStreak: 1, isNewDay: true } // Streak broken, start fresh
 }
 
 // Tournament mock data generator
 export function generateMockTournaments(): TournamentInfo[] {
   const now = new Date()
-  
+
   return [
     {
       id: "t1",
@@ -417,6 +417,70 @@ export function generateMockTournaments(): TournamentInfo[] {
   ]
 }
 
+// Difficulty system - games get progressively harder based on TODAY's play count
+// RESETS TO EASY (LEVEL 1) EVERY 24 HOURS
+export interface DifficultySettings {
+  level: number // 1-10
+  speedMultiplier: number // 1.0 - 2.0
+  obstacleFrequency: number // 1.0 - 2.5
+  bonusChance: number // 0.15 - 0.03 (stricter - decreases)
+  scoreMultiplier: number // 1.0 - 1.2 (smaller reward bonus)
+  description: string
+  resetsIn: string // Time until daily reset
+}
+
+// Calculate difficulty based on TODAY's games played only (resets every 24 hours at midnight UTC)
+export function calculateDifficulty(gamesTodayPlayed: number): DifficultySettings {
+  // Difficulty increases every 2 games today, maxing at level 10 (20 games)
+  // Resets daily to level 1 (easy) at midnight UTC
+  const level = Math.min(10, Math.floor(gamesTodayPlayed / 2) + 1)
+
+  // Linear progression for difficulty factors
+  const progress = (level - 1) / 9 // 0 to 1
+
+  // Calculate time until next reset (midnight UTC)
+  const now = new Date()
+  const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+  const msUntilReset = tomorrow.getTime() - now.getTime()
+  const hoursUntilReset = Math.floor(msUntilReset / (1000 * 60 * 60))
+  const minutesUntilReset = Math.floor((msUntilReset % (1000 * 60 * 60)) / (1000 * 60))
+
+  return {
+    level,
+    speedMultiplier: 1.0 + (progress * 1.0), // 1.0 to 2.0
+    obstacleFrequency: 1.0 + (progress * 1.5), // 1.0 to 2.5
+    bonusChance: 0.15 - (progress * 0.12), // 0.15 to 0.03 (much stricter bonuses)
+    scoreMultiplier: 1.0 + (progress * 0.2), // 1.0 to 1.2 (smaller bonus)
+    description: getDifficultyDescription(level),
+    resetsIn: `${hoursUntilReset}h ${minutesUntilReset}m`
+  }
+}
+
+function getDifficultyDescription(level: number): string {
+  const descriptions = [
+    "Beginner",
+    "Easy",
+    "Normal",
+    "Moderate",
+    "Challenging",
+    "Hard",
+    "Very Hard",
+    "Expert",
+    "Master",
+    "Legendary"
+  ]
+  return descriptions[level - 1] || "Unknown"
+}
+
+// Get difficulty color for UI
+export function getDifficultyColor(level: number): string {
+  if (level <= 2) return "text-green-500"
+  if (level <= 4) return "text-yellow-500"
+  if (level <= 6) return "text-orange-500"
+  if (level <= 8) return "text-red-500"
+  return "text-purple-500"
+}
+
 // Leaderboard entry type
 export interface LeaderboardEntry {
   rank: number
@@ -433,7 +497,7 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
     "ChainChamp", "NodeNinja", "MinerMax", "TokenTiger", "WalletWiz",
     "CoinCrusher", "KeyKeeper", "LedgerLord", "P2PPlayer", "DeFiDude"
   ]
-  
+
   const baseScores: Record<string, number> = {
     tetris: 15000,
     snake: 2500,
@@ -442,24 +506,24 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
     car_racing: 6000,
     block_blast: 4500
   }
-  
+
   const base = baseScores[gameType] || 5000
-  
+
   const entries: LeaderboardEntry[] = Array.from({ length: 15 }, (_, i) => ({
     rank: i + 1,
     username: names[i],
     score: Math.floor(base * (1 - i * 0.05) + Math.random() * 500),
     isCurrent: false
   }))
-  
+
   // Sort by score descending
   entries.sort((a, b) => b.score - a.score)
-  
+
   // Update ranks
   entries.forEach((entry, i) => {
     entry.rank = i + 1
   })
-  
+
   // Insert user if score provided
   if (userScore) {
     const userEntry: LeaderboardEntry = {
@@ -468,7 +532,7 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
       score: userScore,
       isCurrent: true
     }
-    
+
     // Find position
     let inserted = false
     for (let i = 0; i < entries.length; i++) {
@@ -481,12 +545,12 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
     if (!inserted) {
       entries.push(userEntry)
     }
-    
+
     // Update ranks
     entries.forEach((entry, i) => {
       entry.rank = i + 1
     })
-    
+
     // Keep only top 15 + user
     const userIndex = entries.findIndex(e => e.isCurrent)
     if (userIndex > 14) {
@@ -494,6 +558,6 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
     }
     return entries.slice(0, 15)
   }
-  
+
   return entries
 }

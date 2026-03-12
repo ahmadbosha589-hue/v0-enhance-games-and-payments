@@ -25,11 +25,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { 
-  ArrowDownUp, 
-  RefreshCw, 
-  Clock, 
-  TrendingUp, 
+import {
+  ArrowDownUp,
+  RefreshCw,
+  Clock,
+  TrendingUp,
   TrendingDown,
   AlertCircle,
   CheckCircle2,
@@ -191,8 +191,8 @@ export function CryptoSwap() {
   const filteredCoins = useMemo(() => {
     if (!searchCoin) return SUPPORTED_COINS
     const search = searchCoin.toLowerCase()
-    return SUPPORTED_COINS.filter(c => 
-      c.symbol.toLowerCase().includes(search) || 
+    return SUPPORTED_COINS.filter(c =>
+      c.symbol.toLowerCase().includes(search) ||
       c.name.toLowerCase().includes(search)
     )
   }, [searchCoin, SUPPORTED_COINS])
@@ -222,33 +222,43 @@ export function CryptoSwap() {
       const data = await response.json()
       if (data.success) {
         // Calculate price impact
-        const priceImpact = parseFloat(fromAmount) > 10000 ? 0.1 : 
-                          parseFloat(fromAmount) > 1000 ? 0.05 : 0.01
+        const priceImpact = parseFloat(fromAmount) > 10000 ? 0.1 :
+          parseFloat(fromAmount) > 1000 ? 0.05 : 0.01
         setQuote({ ...data.quote, priceImpact })
         setQuoteExpiry(Math.floor((data.quote.validUntil - Date.now()) / 1000))
       } else {
         toast.error(data.error || "Failed to get quote")
         setQuote(null)
       }
-    } catch {
-      // Generate simulated quote if API fails
+    } catch (error) {
+      console.error("Quote fetch error:", error)
+
+      // Generate simulated quote if API fails - use realistic rates
       const fromPrice = fromCoinData?.price || 1
       const toPrice = toCoinData?.price || 1
-      const rate = fromPrice / toPrice
-      const toAmount = (parseFloat(fromAmount) * rate * 0.995).toFixed(8) // 0.5% fee
-      
-      setQuote({
-        fromCoinId: fromCoin,
-        toCoinId: toCoin,
-        fromAmount,
-        toAmount,
-        rate: rate.toFixed(8),
-        fee: (parseFloat(fromAmount) * 0.005).toFixed(8),
-        validUntil: Date.now() + 60000,
-        simulated: true,
-        priceImpact: 0.02
-      })
-      setQuoteExpiry(60)
+
+      if (fromPrice > 0 && toPrice > 0) {
+        const rate = fromPrice / toPrice
+        const toAmount = (parseFloat(fromAmount) * rate * 0.995).toFixed(8) // 0.5% fee
+
+        setQuote({
+          fromCoinId: fromCoin,
+          toCoinId: toCoin,
+          fromAmount,
+          toAmount,
+          rate: rate.toFixed(8),
+          fee: (parseFloat(fromAmount) * 0.005).toFixed(8),
+          validUntil: Date.now() + 60000,
+          simulated: true,
+          priceImpact: 0.02
+        })
+        setQuoteExpiry(60)
+      } else {
+        toast.error("Unable to fetch quote", {
+          description: "Please try again or select different coins"
+        })
+        setQuote(null)
+      }
     } finally {
       setIsLoadingQuote(false)
     }
@@ -291,8 +301,8 @@ export function CryptoSwap() {
   }
 
   const toggleFavorite = (coinId: string) => {
-    setFavorites(prev => 
-      prev.includes(coinId) 
+    setFavorites(prev =>
+      prev.includes(coinId)
         ? prev.filter(c => c !== coinId)
         : [...prev, coinId]
     )
@@ -303,7 +313,7 @@ export function CryptoSwap() {
 
     setIsSwapping(true)
     setShowConfirmDialog(false)
-    
+
     try {
       const response = await fetch("/api/ccpayment/swap?action=execute", {
         method: "POST",
@@ -316,18 +326,41 @@ export function CryptoSwap() {
       })
 
       const data = await response.json()
+
       if (data.success) {
-        toast.success("Swap initiated successfully!", {
-          description: `Swapping ${fromAmount} ${fromCoin} to ${quote.toAmount} ${toCoin}`
-        })
+        const swapData = data.swap
+        const toAmount = swapData.toAmount || quote.toAmount
+
+        // Show success toast with swap details
+        toast.success(
+          swapData.simulated
+            ? "Swap completed (demo mode)"
+            : "Swap processed successfully!",
+          {
+            description: `Swapped ${fromAmount} ${fromCoin} to ${parseFloat(toAmount).toFixed(6)} ${toCoin}`,
+            duration: 5000
+          }
+        )
+
         setFromAmount("")
         setQuote(null)
         refreshHistory()
+        refreshPrices()
       } else {
-        toast.error(data.error || "Swap failed")
+        // Enhanced error handling
+        const errorMessage = data.error || "Swap failed"
+        const errorDetails = data.details?.map((d: { message: string }) => d.message).join(", ")
+        toast.error(errorMessage, {
+          description: errorDetails || "Please try again or contact support",
+          duration: 6000
+        })
       }
-    } catch {
-      toast.error("Failed to execute swap")
+    } catch (err) {
+      console.error("Swap execution error:", err)
+      toast.error("Network error", {
+        description: "Failed to connect to swap service. Please check your connection and try again.",
+        duration: 6000
+      })
     } finally {
       setIsSwapping(false)
     }
@@ -353,8 +386,8 @@ export function CryptoSwap() {
               Market
             </TabsTrigger>
           </TabsList>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
             onClick={() => setShowSettings(true)}
           >
@@ -415,8 +448,8 @@ export function CryptoSwap() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <div className="p-2 sticky top-0 bg-popover">
-                        <Input 
-                          placeholder="Search coins..." 
+                        <Input
+                          placeholder="Search coins..."
                           value={searchCoin}
                           onChange={(e) => setSearchCoin(e.target.value)}
                           className="h-8"
@@ -539,8 +572,8 @@ export function CryptoSwap() {
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       <div className="p-2 sticky top-0 bg-popover">
-                        <Input 
-                          placeholder="Search coins..." 
+                        <Input
+                          placeholder="Search coins..."
                           value={searchCoin}
                           onChange={(e) => setSearchCoin(e.target.value)}
                           className="h-8"
@@ -603,8 +636,8 @@ export function CryptoSwap() {
                       <span className="text-muted-foreground">Price Impact</span>
                       <span className={cn(
                         "font-mono",
-                        quote.priceImpact > 1 ? "text-red-500" : 
-                        quote.priceImpact > 0.5 ? "text-amber-500" : "text-green-500"
+                        quote.priceImpact > 1 ? "text-red-500" :
+                          quote.priceImpact > 0.5 ? "text-amber-500" : "text-green-500"
                       )}>
                         {quote.priceImpact.toFixed(2)}%
                       </span>
@@ -622,9 +655,9 @@ export function CryptoSwap() {
                         <Clock className="h-4 w-4" />
                         <span>Quote expires in {quoteExpiry}s</span>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={fetchQuote}
                         className="h-7 gap-1"
                       >
@@ -726,7 +759,7 @@ export function CryptoSwap() {
                           </div>
                           <div>
                             <p className="font-medium text-sm">
-                              {parseFloat(swap.from_amount).toFixed(6)} {swap.from_coin_id} 
+                              {parseFloat(swap.from_amount).toFixed(6)} {swap.from_coin_id}
                               <span className="text-muted-foreground mx-1">→</span>
                               {swap.to_amount ? parseFloat(swap.to_amount).toFixed(6) : "..."} {swap.to_coin_id}
                             </p>
@@ -736,8 +769,8 @@ export function CryptoSwap() {
                           </div>
                         </div>
                         <Badge
-                          variant={swap.status === "completed" ? "default" : 
-                                  swap.status === "pending" ? "secondary" : "destructive"}
+                          variant={swap.status === "completed" ? "default" :
+                            swap.status === "pending" ? "secondary" : "destructive"}
                           className="gap-1"
                         >
                           {swap.status === "completed" && <CheckCircle2 className="h-3 w-3" />}
@@ -867,7 +900,7 @@ export function CryptoSwap() {
                   <p className={COIN_STYLES[toCoin]?.color}>{toCoin}</p>
                 </div>
               </div>
-              
+
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Rate</span>
@@ -884,14 +917,14 @@ export function CryptoSwap() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="flex-1"
                   onClick={() => setShowConfirmDialog(false)}
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600"
                   onClick={executeSwap}
                   disabled={isSwapping}

@@ -168,7 +168,7 @@ export function DailyBonusButton({ className, onBalanceUpdate }: DailyBonusButto
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm sm:text-base">Daily Bonus</h3>
                 <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-600">
-                  3-6 sats
+                  2-5 sats
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">

@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { calculateDifficulty } from "@/lib/games/game-engine"
 
-const GAME_COOLDOWN_MINUTES = 3
-const MAX_GAMES_PER_DAY = 25
-const GAME_REWARD_SATOSHIS = 3
+const GAME_COOLDOWN_MINUTES = 5 // Increased from 3 to 5 minutes
+const MAX_GAMES_PER_DAY = 15 // Reduced from 25 to 15 - stricter limits
+const GAME_REWARD_SATOSHIS = 3 // Base reward - max 3 satoshis per game win
+
+const ALL_GAME_TYPES = ["tetris", "block_blast", "car_racing", "snake", "flappy", "memory"]
+
+// Base win thresholds for each game (will be adjusted by difficulty)
+const BASE_WIN_THRESHOLDS: Record<string, number> = {
+  tetris: 300,
+  block_blast: 200,
+  car_racing: 300,
+  snake: 30,
+  flappy: 10,
+  memory: 80,
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,35 +36,71 @@ export async function GET(req: NextRequest) {
       .eq("date", today)
       .single()
 
-    // Get last game time
-    const { data: lastGame } = await adminSupabase
+    // Get TODAY's games played for difficulty calculation (resets daily)
+    const todayStart = new Date()
+    todayStart.setUTCHours(0, 0, 0, 0)
+
+    const { count: gamesTodayCount } = await adminSupabase
       .from("game_sessions")
-      .select("created_at, status")
+      .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single()
+      .in("status", ["completed", "lost"])
+      .gte("created_at", todayStart.toISOString())
 
-    // Calculate cooldown
-    let canPlay = true
-    let waitSeconds = 0
-    let nextGameAt = null
+    // Calculate difficulty based on TODAY's games played (resets every 24 hours)
+    const difficulty = calculateDifficulty(gamesTodayCount || 0)
 
-    if (lastGame) {
-      const lastGameTime = new Date(lastGame.created_at).getTime()
-      const nextGameTime = lastGameTime + (GAME_COOLDOWN_MINUTES * 60 * 1000)
-      
-      if (Date.now() < nextGameTime) {
-        canPlay = false
-        waitSeconds = Math.ceil((nextGameTime - Date.now()) / 1000)
-        nextGameAt = new Date(nextGameTime).toISOString()
-      }
+    // Get all game cooldowns for this user
+    const { data: cooldowns } = await adminSupabase
+      .from("game_cooldowns")
+      .select("game_type, cooldown_until")
+      .eq("user_id", user.id)
+
+    // Build per-game status with difficulty-adjusted win thresholds
+    const gameStatuses: Record<string, {
+      canPlay: boolean
+      waitSeconds: number
+      cooldownUntil: string | null
+      winThreshold: number
+    }> = {}
+
+    // Calculate win thresholds adjusted by difficulty
+    const adjustedWinThresholds: Record<string, number> = {}
+    for (const gameType of ALL_GAME_TYPES) {
+      // Win threshold increases with difficulty (but reward also increases)
+      const baseThreshold = BASE_WIN_THRESHOLDS[gameType] || 100
+      adjustedWinThresholds[gameType] = Math.floor(baseThreshold * (1 + (difficulty.level - 1) * 0.1))
     }
 
-    // Check daily limit
-    const gamesPlayed = dailyLimit?.games_played || 0
-    if (gamesPlayed >= MAX_GAMES_PER_DAY) {
-      canPlay = false
+    const now = Date.now()
+
+    for (const gameType of ALL_GAME_TYPES) {
+      const cooldown = cooldowns?.find(c => c.game_type === gameType)
+      let canPlay = true
+      let waitSeconds = 0
+      let cooldownUntil: string | null = null
+
+      if (cooldown) {
+        const cooldownTime = new Date(cooldown.cooldown_until).getTime()
+        if (now < cooldownTime) {
+          canPlay = false
+          waitSeconds = Math.ceil((cooldownTime - now) / 1000)
+          cooldownUntil = cooldown.cooldown_until
+        }
+      }
+
+      // Check daily limit
+      const gamesPlayed = dailyLimit?.games_played || 0
+      if (gamesPlayed >= MAX_GAMES_PER_DAY) {
+        canPlay = false
+      }
+
+      gameStatuses[gameType] = {
+        canPlay,
+        waitSeconds,
+        cooldownUntil,
+        winThreshold: adjustedWinThresholds[gameType] || 100
+      }
     }
 
     // Get recent game history
@@ -59,21 +108,39 @@ export async function GET(req: NextRequest) {
       .from("game_sessions")
       .select("id, game_type, score, reward_satoshis, status, created_at, completed_at")
       .eq("user_id", user.id)
-      .eq("status", "completed")
+      .in("status", ["completed", "lost"])
       .order("created_at", { ascending: false })
-      .limit(10)
+      .limit(20)
+
+    // Get user's current balance
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("balance_satoshis")
+      .eq("id", user.id)
+      .single()
 
     return NextResponse.json({
-      canPlay,
-      waitSeconds,
-      nextGameAt,
-      gamesPlayedToday: gamesPlayed,
-      gamesRemaining: MAX_GAMES_PER_DAY - gamesPlayed,
+      gameStatuses,
+      gamesPlayedToday: dailyLimit?.games_played || 0,
+      gamesRemaining: MAX_GAMES_PER_DAY - (dailyLimit?.games_played || 0),
       maxGamesPerDay: MAX_GAMES_PER_DAY,
       totalEarnedToday: dailyLimit?.total_earned || 0,
       rewardPerGame: GAME_REWARD_SATOSHIS,
       cooldownMinutes: GAME_COOLDOWN_MINUTES,
-      recentGames: recentGames || []
+      currentBalance: profile?.balance_satoshis || 0,
+      recentGames: recentGames || [],
+      winThresholds: adjustedWinThresholds,
+      // Difficulty information (resets daily at midnight UTC)
+      difficulty: {
+        level: difficulty.level,
+        description: difficulty.description,
+        speedMultiplier: difficulty.speedMultiplier,
+        obstacleFrequency: difficulty.obstacleFrequency,
+        bonusChance: difficulty.bonusChance,
+        scoreMultiplier: difficulty.scoreMultiplier,
+        resetsIn: difficulty.resetsIn // Time until daily reset
+      },
+      gamesToday: gamesTodayCount || 0
     })
 
   } catch (error) {

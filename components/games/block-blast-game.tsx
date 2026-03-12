@@ -42,13 +42,29 @@ type SpecialType = "bomb" | "rainbow" | "multiplier" | "lightning" | "star" | nu
 type Cell = { color: string | null; id: number; special: SpecialType }
 type Board = Cell[][]
 
+interface DifficultySettings {
+  level: number
+  speedMultiplier: number
+  obstacleFrequency: number
+  bonusChance: number
+  scoreMultiplier: number
+}
+
 interface BlockBlastGameProps {
   onGameEnd: (score: number, moves: number) => void
   onScoreUpdate: (score: number) => void
   isActive: boolean
+  difficulty?: DifficultySettings
 }
 
-export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlastGameProps) {
+export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: BlockBlastGameProps) {
+  // Apply difficulty settings
+  const difficultyLevel = difficulty?.level || 1
+  const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
+
+  // Calculate moves based on difficulty (fewer moves at higher difficulty)
+  const maxMoves = Math.max(15, 30 - (difficultyLevel - 1) * 2)
+
   const [board, setBoard] = useState<Board>(() => createBoard())
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
@@ -57,7 +73,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
   const [isAnimating, setIsAnimating] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [matchedCells, setMatchedCells] = useState<Set<string>>(new Set())
-  const [movesLeft, setMovesLeft] = useState(30)
+  const [movesLeft, setMovesLeft] = useState(maxMoves)
   const [cellIdCounter, setCellIdCounter] = useState(BOARD_SIZE * BOARD_SIZE)
   const [activeMultiplier, setActiveMultiplier] = useState(1)
   const [colors] = useState(() => getRandomPalette())
@@ -65,6 +81,11 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
   const [comboMessage, setComboMessage] = useState<{ message: string; color: string } | null>(null)
   const [shakeBoard, setShakeBoard] = useState(false)
   const [particles, setParticles] = useState<{ x: number; y: number; color: string; id: number }[]>([])
+
+  // Reset movesLeft when difficulty changes (new game starts)
+  useEffect(() => {
+    setMovesLeft(maxMoves)
+  }, [maxMoves])
 
   function getSpecialType(): SpecialType {
     const roll = Math.random()
@@ -268,8 +289,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
     setMatchedCells(matches)
     setIsAnimating(true)
 
-    // Calculate score with multiplier
-    const matchScore = matches.size * 10 * (1 + comboCount * 0.5) * activeMultiplier
+    // Calculate score with multiplier and difficulty bonus
+    const difficultyBonus = 1 + (difficultyLevel - 1) * 0.15
+    const matchScore = matches.size * 10 * (1 + comboCount * 0.5) * activeMultiplier * scoreMultiplierFromDifficulty * difficultyBonus
     const newScore = score + Math.floor(matchScore)
     setScore(newScore)
     setCombo(comboCount + 1)
@@ -359,7 +381,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
     setScore(0)
     setMoves(0)
     setCombo(0)
-    setMovesLeft(30)
+    setMovesLeft(maxMoves)
     setSelectedCell(null)
     setMatchedCells(new Set())
     setGameOver(false)
@@ -499,6 +521,27 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive }: BlockBlas
             <li>Clear as many as you can!</li>
           </ul>
         </Card>
+
+        {/* Difficulty */}
+        {difficultyLevel > 1 && (
+          <Card className="p-3 bg-gray-900 border-gray-700">
+            <p className="text-gray-400 text-xs mb-2">Difficulty Level</p>
+            <div className="flex gap-1">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2 h-4 rounded ${i < difficultyLevel
+                      ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
+                      : "bg-gray-700"
+                    }`}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {difficultyLevel <= 3 ? "Easy" : difficultyLevel <= 6 ? "Medium" : "Hard"} - {maxMoves} moves
+            </p>
+          </Card>
+        )}
 
         {/* Progress */}
         <Card className="p-3 bg-gray-900 border-gray-700">

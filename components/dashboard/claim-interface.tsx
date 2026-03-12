@@ -91,23 +91,23 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
     setCaptchaToken(token)
     setIsVerified(true)
     setState("ready")
-    
+
     // Log verification metadata for debugging
     if (metadata) {
       console.log("[v0] Verification complete with score:", metadata.behaviorScore)
     }
-    
+
     toast.success("Verification complete!", { description: "You can now claim your reward" })
   }
 
   const handleVerificationFail = (reason: string) => {
     setIsVerified(false)
     setCaptchaToken(null)
-    toast.error("Verification failed", { 
+    toast.error("Verification failed", {
       description: reason || "Please try again",
       duration: 8000,
     })
-    
+
     // If bot detected, redirect to login
     if (reason.toLowerCase().includes("bot") || reason.toLowerCase().includes("automation")) {
       setTimeout(() => {
@@ -115,7 +115,7 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
       }, 3000)
       return
     }
-    
+
     // Reset verification after a short delay
     setTimeout(() => {
       if (secondsUntilClaim === 0) {
@@ -372,6 +372,9 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
                   <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center justify-center gap-1">
                     <Shield className="h-3 w-3" />
                     Keep this page open or come back later
+                  </p>
+                  <p className="text-[10px] text-amber-500/80 mt-2">
+                    Want more? Try Offerwalls & Shortlinks for bigger rewards!
                   </p>
                 </div>
               </motion.div>

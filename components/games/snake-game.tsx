@@ -29,10 +29,19 @@ interface Food extends Position {
   expireAt?: number
 }
 
+interface DifficultySettings {
+  level: number
+  speedMultiplier: number
+  obstacleFrequency: number
+  bonusChance: number
+  scoreMultiplier: number
+}
+
 interface SnakeGameProps {
   onGameEnd: (score: number, moves: number) => void
   onScoreUpdate: (score: number) => void
   isActive: boolean
+  difficulty?: DifficultySettings
 }
 
 const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: number }> = {
@@ -43,7 +52,9 @@ const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: numb
   slow: { color: "#a855f7", points: 15, chance: 0.05 },
 }
 
-export function SnakeGame({ onGameEnd, onScoreUpdate, isActive }: SnakeGameProps) {
+export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: SnakeGameProps) {
+  // Apply difficulty - faster snake at higher levels
+  const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
   const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }])
   const [direction, setDirection] = useState<Direction>("RIGHT")
   const [food, setFood] = useState<Food>({ x: 15, y: 10, type: "normal", points: 10 })

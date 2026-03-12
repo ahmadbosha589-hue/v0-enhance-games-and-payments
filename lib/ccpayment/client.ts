@@ -1,10 +1,49 @@
 import crypto from "crypto"
 
 const CCPAYMENT_API_URL = "https://admin.ccpayment.com/ccpayment/v1"
+const MAX_RETRIES = 3
+const RETRY_DELAY_MS = 1000
+const REQUEST_TIMEOUT_MS = 30000
+
+// Error codes for better user messaging
+const ERROR_MESSAGES: Record<number, string> = {
+  10001: "Invalid API credentials. Please check your CCPayment configuration.",
+  10002: "Invalid request signature. Please try again.",
+  10003: "Request has expired. Please refresh and try again.",
+  10004: "Insufficient balance in your CCPayment account.",
+  10005: "Selected cryptocurrency or network is not supported.",
+  10006: "Invalid wallet address. Please check and try again.",
+  10007: "Amount is below the minimum withdrawal limit.",
+  10008: "Daily withdrawal limit exceeded. Please try again tomorrow.",
+  10009: "Account verification required for this operation.",
+  10010: "This operation is temporarily unavailable. Please try later.",
+}
 
 interface CCPaymentConfig {
   appId: string
   appSecret: string
+}
+
+// Rate limiting to prevent API abuse
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+const RATE_LIMIT_WINDOW_MS = 60000 // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 30 // 30 requests per minute
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now()
+  const limit = rateLimitMap.get(key)
+
+  if (!limit || now >= limit.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
+    return true
+  }
+
+  if (limit.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false
+  }
+
+  limit.count++
+  return true
 }
 
 interface CreateOrderParams {
@@ -94,28 +133,66 @@ class CCPaymentClient {
   }
 
   private async request<T>(endpoint: string, method: "GET" | "POST" = "POST", body?: Record<string, unknown>): Promise<T> {
-    const timestamp = Math.floor(Date.now() / 1000).toString()
-    const bodyStr = body ? JSON.stringify(body) : ""
-    const signature = this.generateSignature(timestamp, bodyStr)
-
-    const response = await fetch(`${CCPAYMENT_API_URL}${endpoint}`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "Appid": this.appId,
-        "Timestamp": timestamp,
-        "Sign": signature
-      },
-      body: method === "POST" ? bodyStr : undefined
-    })
-
-    const data = await response.json()
-
-    if (data.code !== 10000) {
-      throw new Error(data.msg || "CCPayment API error")
+    // Check rate limit
+    if (!checkRateLimit(this.appId)) {
+      throw new Error("Rate limit exceeded. Please try again in a moment.")
     }
 
-    return data.data as T
+    let lastError: Error | null = null
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const timestamp = Math.floor(Date.now() / 1000).toString()
+        const bodyStr = body ? JSON.stringify(body) : ""
+        const signature = this.generateSignature(timestamp, bodyStr)
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+
+        const response = await fetch(`${CCPAYMENT_API_URL}${endpoint}`, {
+          method,
+          headers: {
+            "Content-Type": "application/json",
+            "Appid": this.appId,
+            "Timestamp": timestamp,
+            "Sign": signature
+          },
+          body: method === "POST" ? bodyStr : undefined,
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        const data = await response.json()
+
+        // Handle error codes with user-friendly messages
+        if (data.code !== 10000) {
+          const errorMessage = ERROR_MESSAGES[data.code] || data.msg || `CCPayment error (code: ${data.code})`
+          const error = new Error(errorMessage)
+            // Add error code for debugging
+            ; (error as Error & { code?: number }).code = data.code
+          throw error
+        }
+
+        return data.data as T
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Unknown error")
+
+        // Don't retry on certain errors
+        if (lastError.message.includes("Invalid") ||
+          lastError.message.includes("Insufficient") ||
+          lastError.message.includes("Rate limit")) {
+          throw lastError
+        }
+
+        // Wait before retrying
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt))
+        }
+      }
+    }
+
+    throw lastError || new Error("CCPayment API request failed after retries")
   }
 
   // Get supported cryptocurrencies
@@ -232,6 +309,52 @@ export function getCCPaymentClient(): CCPaymentClient {
   }
 
   return client
+}
+
+// Cache for BTC price
+let btcPriceCache: { price: number; timestamp: number } | null = null
+const PRICE_CACHE_DURATION_MS = 60000 // 1 minute
+
+// Get current BTC price in USD (cached)
+export async function getBTCPrice(): Promise<number> {
+  const now = Date.now()
+
+  if (btcPriceCache && now - btcPriceCache.timestamp < PRICE_CACHE_DURATION_MS) {
+    return btcPriceCache.price
+  }
+
+  try {
+    // Use CoinGecko free API for price
+    const response = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+      { next: { revalidate: 60 } }
+    )
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch BTC price")
+    }
+
+    const data = await response.json()
+    const price = data.bitcoin?.usd || 67000 // Fallback price
+
+    btcPriceCache = { price, timestamp: now }
+    return price
+  } catch {
+    // Return cached or fallback price on error
+    return btcPriceCache?.price || 67000
+  }
+}
+
+// Convert satoshis to USD
+export async function satoshisToUSD(satoshis: number): Promise<number> {
+  const btcPrice = await getBTCPrice()
+  return (satoshis / 100000000) * btcPrice
+}
+
+// Convert USD to satoshis
+export async function usdToSatoshis(usd: number): Promise<number> {
+  const btcPrice = await getBTCPrice()
+  return Math.floor((usd / btcPrice) * 100000000)
 }
 
 export { CCPaymentClient }

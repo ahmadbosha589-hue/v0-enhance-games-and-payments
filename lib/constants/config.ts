@@ -29,13 +29,14 @@ export const PLATFORM_CONFIG = {
 } as const
 
 export const CLAIM_CONFIG = {
-  cooldownSeconds: 300, // 5 minutes
-  baseAmountSatoshis: 4, // Minimum claim amount
-  maxAmountSatoshis: 9, // Maximum claim amount
-  streakBonusPercentage: 0, // No streak bonus since range is already 4-9
+  cooldownSeconds: 600, // 10 minutes between claims (was 5 min)
+  baseAmountSatoshis: 2, // Minimum claim amount (reduced from 4)
+  maxAmountSatoshis: 6, // Maximum claim amount (reduced from 9) - MAX 6 SATS PER CLAIM
+  streakBonusPercentage: 0, // No streak bonus - users should use offerwalls
   maxStreakBonusPercentage: 0,
   maxStreakDays: 30,
-  referralBonusPercentage: 10,
+  referralBonusPercentage: 5, // Reduced from 10% to 5%
+  maxClaimsPerDay: 50, // Max 50 claims per day (~300 sats max from faucet)
 } as const
 
 export const REFERRAL_CONFIG = {
@@ -52,9 +53,9 @@ export const WITHDRAWAL_CONFIG = {
   minimumSatoshis: 10000, // 10k satoshis minimum
   maximumSatoshis: 30000, // 30k satoshis max per withdrawal
   dailyLimitSatoshis: 30000, // 30k satoshis daily limit
-  feePercentage: 0,
-  processingTimeMinutes: 5,
-  maxPendingWithdrawals: 3,
+  feePercentage: 0, // No withdrawal fee
+  processingTimeMinutes: 5, // 5 minutes processing
+  maxPendingWithdrawals: 3, // Max 3 pending withdrawals
 } as const
 
 export const FRAUD_CONFIG = {

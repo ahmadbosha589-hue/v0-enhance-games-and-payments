@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
           // Convert USD to satoshis and credit user
           const satoshisToCredit = Math.floor(deposit.amount_usd * SATOSHI_PER_USD)
-          
+
           const { data: profile } = await adminSupabase
             .from("profiles")
             .select("balance_satoshis, ad_balance_usd")
@@ -216,19 +216,53 @@ export async function POST(request: Request) {
       }
 
       case "Swap.Success": {
+        const { data: swapRecord } = await adminSupabase
+          .from("ccpayment_swaps")
+          .select("*")
+          .eq("ccpayment_order_id", data.order_id)
+          .single()
+
         await adminSupabase
           .from("ccpayment_swaps")
           .update({
             status: "completed",
             tx_hash: data.tx_hash,
-            to_amount: data.to_amount,
+            to_amount: data.to_amount || swapRecord?.to_amount,
             completed_at: new Date().toISOString()
           })
           .eq("ccpayment_order_id", data.order_id)
+
+        if (swapRecord) {
+          await adminSupabase.from("notifications").insert({
+            user_id: swapRecord.user_id,
+            type: "swap_completed",
+            title: "Swap Completed",
+            message: `Your swap of ${swapRecord.from_amount} ${swapRecord.from_coin_id} to ${data.to_amount || swapRecord.to_amount} ${swapRecord.to_coin_id} has been completed.`,
+            data: {
+              swap_id: data.order_id,
+              tx_hash: data.tx_hash,
+              from_coin: swapRecord.from_coin_id,
+              to_coin: swapRecord.to_coin_id
+            }
+          })
+
+          log.info("CCPayment swap completed", {
+            userId: swapRecord.user_id,
+            fromCoin: swapRecord.from_coin_id,
+            toCoin: swapRecord.to_coin_id,
+            amount: swapRecord.from_amount
+          })
+        }
         break
       }
 
       case "Swap.Failed": {
+        const { data: failedSwap } = await adminSupabase
+          .from("ccpayment_swaps")
+          .select("*")
+          .eq("ccpayment_order_id", data.order_id)
+          .single()
+
         await adminSupabase
           .from("ccpayment_swaps")
           .update({
@@ -236,6 +270,22 @@ export async function POST(request: Request) {
             error_message: data.error_message
           })
           .eq("ccpayment_order_id", data.order_id)
+
+        if (failedSwap) {
+          await adminSupabase.from("notifications").insert({
+            user_id: failedSwap.user_id,
+            type: "swap_failed",
+            title: "Swap Failed",
+            message: `Your swap from ${failedSwap.from_coin_id} to ${failedSwap.to_coin_id} could not be completed. Please try again.`,
+            data: { swap_id: data.order_id, error: data.error_message }
+          })
+
+          log.warn("CCPayment swap failed", {
+            userId: failedSwap.user_id,
+            orderId: data.order_id,
+            error: data.error_message
+          })
+        }
         break
       }
     }
