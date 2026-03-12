@@ -3,11 +3,11 @@ import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 
 const GAME_REWARD_SATOSHIS = 3 // Fixed 3 satoshis per win - no bonuses above this
-const GAME_COOLDOWN_MINUTES = 5 // Increased to 5 minutes between games
+const GAME_COOLDOWN_MINUTES = 3 // 3 minutes cooldown per game
 const MIN_GAME_DURATION_MS = 15000 // Minimum 15 seconds to complete a game (stricter)
 const MAX_GAME_DURATION_MS = 600000 // Maximum 10 minutes
-const MAX_GAMES_PER_DAY = 15 // Reduced to 15 games per day (stricter)
-const MAX_DAILY_GAME_EARNINGS = 45 // Max 45 satoshis from games per day (15 games x 3 sats)
+const MAX_GAMES_PER_DAY = 20 // 20 games per day
+const MAX_DAILY_GAME_EARNINGS = 60 // Max 60 satoshis from games per day (20 games x 3 sats)
 
 // Required scores to WIN and get rewards (HIGHER thresholds - harder to win)
 const WIN_THRESHOLDS: Record<string, number> = {
