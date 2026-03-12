@@ -1413,7 +1413,7 @@ function ManualFaucetContent() {
                     <CardContent className="p-4">
                       <div className="flex items-center gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                          <CryptoIcon symbol={crypto.symbol} size={24} />
+                          <CryptoIcon symbol={crypto.symbol} size="md" />
                         </div>
                         <div>
                           <p className="font-semibold">{crypto.symbol}</p>
