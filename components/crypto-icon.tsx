@@ -38,7 +38,7 @@ const CRYPTO_ICONS: Record<string, string> = {
   ETH: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
   DOGE: "https://assets.coingecko.com/coins/images/5/large/dogecoin.png",
   TRX: "https://assets.coingecko.com/coins/images/1094/large/tron-logo.png",
-  FEY: "https://assets.coingecko.com/coins/images/14543/large/feyorra.png",
+  FEY: "https://www.coinlore.com/img/feyorra.png",
   ZEC: "https://assets.coingecko.com/coins/images/486/large/circle-zcash-color.png",
   BCH: "https://assets.coingecko.com/coins/images/780/large/bitcoin-cash-circle.png",
   DASH: "https://assets.coingecko.com/coins/images/19/large/dash-logo.png",
