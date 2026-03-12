@@ -147,50 +147,54 @@ export default function ProfilePage() {
     try {
       const supabase = createClient()
 
-      // Handle case where Supabase client couldn't be created
       if (!supabase) {
         console.error("[ProfilePage] Supabase client not available")
         setError(true)
-        setLoading(false)
         return
       }
 
-      // Primary: getUser() verifies JWT server-side (most secure)
-      // Fallback: getSession() from local storage — used when getUser() has a
-      // transient failure (e.g. during token refresh), preventing a false "not logged in"
-      let authUser = null
-      const { data: { user: verifiedUser }, error: authError } = await supabase.auth.getUser()
+      // ── STEP 1: getSession() — reads from localStorage, instant, no network ──
+      // This unblocks the UI immediately so the skeleton never hangs forever.
+      const { data: { session } } = await supabase.auth.getSession()
+      const sessionUser = session?.user ?? null
 
-      if (authError || !verifiedUser) {
-        const { data: { session } } = await supabase.auth.getSession()
-        authUser = session?.user ?? null
-      } else {
-        authUser = verifiedUser
-      }
-
-      if (!authUser) {
+      if (!sessionUser) {
+        // No local session at all — genuinely not logged in
         setUser(null)
         setProfile(null)
-        setLoading(false)
         return
       }
 
-      setUser({ id: authUser.id, email: authUser.email })
+      // Show the user immediately while we verify + fetch profile
+      setUser({ id: sessionUser.id, email: sessionUser.email })
 
-      // Get profile
+      // ── STEP 2: getUser() with timeout — verifies JWT server-side ──
+      // Falls back to sessionUser on timeout/error so the page never stalls.
+      let authUserId = sessionUser.id
+      try {
+        const getUserPromise = supabase.auth.getUser()
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000))
+        const raced = await Promise.race([getUserPromise, timeoutPromise])
+        if (raced && (raced as any).data?.user) {
+          authUserId = (raced as any).data.user.id
+        }
+      } catch {
+        // Verification failed — keep sessionUser as fallback
+      }
+
+      // ── STEP 3: Fetch profile row ──
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", authUser.id)
+        .eq("id", authUserId)
         .single()
 
       if (profileError) {
         console.error("[ProfilePage] Profile error:", profileError)
-
-        // If profile doesn't exist (PGRST116 = no rows), set error state
-        // The profile should be auto-created by a trigger on auth signup
         setProfile(null)
-        setError(true)
+        if (profileError.code !== "PGRST116") {
+          setError(true)
+        }
       } else {
         setProfile(profileData)
       }
