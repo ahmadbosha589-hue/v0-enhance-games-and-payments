@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Ticket, Gift, Clock, CheckCircle, XCircle, Sparkles, Coins, AlertCircle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getAuthUser } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Coupon {
@@ -53,7 +53,7 @@ export default function CouponsPage() {
 
   async function loadRedemptions() {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getAuthUser()
       if (!user) return
 
       const { data, error } = await supabase
@@ -92,7 +92,7 @@ export default function CouponsPage() {
     setMessage(null)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getAuthUser()
       if (!user) {
         setMessage({ type: "error", text: "Please log in to redeem coupons" })
         return
@@ -162,9 +162,9 @@ export default function CouponsPage() {
         p_amount: coupon.reward_satoshis
       })
 
-      setMessage({ 
-        type: "success", 
-        text: `Congratulations! You received ${coupon.reward_satoshis} satoshis!` 
+      setMessage({
+        type: "success",
+        text: `Congratulations! You received ${coupon.reward_satoshis} satoshis!`
       })
       setCouponCode("")
       loadRedemptions()
@@ -228,11 +228,10 @@ export default function CouponsPage() {
 
             {/* Message */}
             {message && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg ${
-                message.type === "success" 
+              <div className={`flex items-center gap-2 p-3 rounded-lg ${message.type === "success"
                   ? "bg-green-500/20 border border-green-500/30 text-green-400"
                   : "bg-red-500/20 border border-red-500/30 text-red-400"
-              }`}>
+                }`}>
                 {message.type === "success" ? (
                   <CheckCircle className="h-5 w-5 flex-shrink-0" />
                 ) : (
