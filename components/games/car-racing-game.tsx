@@ -714,12 +714,15 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Canvas */}
-      <div className="relative select-none">
+      <div
+        className="relative select-none flex-shrink-0 overflow-hidden rounded-lg border-2 border-gray-700"
+        style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, maxWidth: "100%" }}
+      >
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="rounded-lg border-2 border-gray-700 bg-gray-800 touch-none select-none"
+          className="bg-gray-800 touch-none select-none block"
           style={{ touchAction: "none" }}
         />
 
