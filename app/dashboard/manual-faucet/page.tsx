@@ -435,6 +435,7 @@ function ManualFaucetContent() {
   const [selectedCrypto, setSelectedCrypto] = useState<string | null>(null)
   const [isVerified, setIsVerified] = useState(false)
   const [verificationToken, setVerificationToken] = useState<string | null>(null)
+  const [isRefreshingPtc, setIsRefreshingPtc] = useState(false)
 
   // Crypto prices (SWR - loads independently)
   const { data: pricesData } = useSWR<{
@@ -475,6 +476,66 @@ function ManualFaucetContent() {
     },
     [pricesData]
   )
+
+  // Refresh PTC status handler - manually check if user has completed 2 PTC ads today
+  const handleRefreshPtcStatus = useCallback(async () => {
+    if (!user?.id || isRefreshingPtc) return
+
+    setIsRefreshingPtc(true)
+    toast.info("Checking PTC status...")
+
+    try {
+      // Clear cache to force fresh data
+      safeStorage.clear()
+
+      const supabase = createClient()
+      if (!supabase) {
+        toast.error("Database connection failed. Please refresh the page.")
+        setIsRefreshingPtc(false)
+        return
+      }
+
+      // Get today's start in UTC
+      const today = new Date()
+      today.setUTCHours(0, 0, 0, 0)
+      const todayISO = today.toISOString()
+
+      const { count, error } = await supabase
+        .from("ptc_views")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("completed", true)
+        .gte("created_at", todayISO)
+
+      if (error) {
+        console.error("[v0] PTC refresh error:", error)
+        toast.error("Failed to check PTC status. Please try again.")
+        setIsRefreshingPtc(false)
+        return
+      }
+
+      const newCount = count || 0
+      console.log("[v0] PTC count refreshed:", newCount)
+
+      setPtcAdsCompleted(newCount)
+      setIsLocked(newCount < 2)
+
+      // Update cache with new value
+      safeStorage.set(CACHE_KEYS.PTC_COUNT, newCount)
+      safeStorage.set(CACHE_KEYS.CACHE_TIME, Date.now())
+
+      if (newCount >= 2) {
+        toast.success(`Unlocked! You have completed ${newCount} PTC ads today. Manual faucet is now available.`)
+      } else {
+        toast.info(`${newCount}/2 PTC ads completed today. Watch ${2 - newCount} more to unlock.`)
+      }
+    } catch (e) {
+      console.error("[v0] PTC refresh exception:", e)
+      toast.error("Failed to check PTC status. Please refresh the page.")
+    } finally {
+      setIsRefreshingPtc(false)
+    }
+  }, [user?.id, isRefreshingPtc])
 
   // ULTRA ROBUST INITIALIZATION with caching
   const initialize = useCallback(async () => {
@@ -643,8 +704,9 @@ function ManualFaucetContent() {
     }
 
     // STEP 5-7: Load all data in PARALLEL (only if not cached)
+    // Use UTC for consistent 24-hour reset across timezones
     const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    today.setUTCHours(0, 0, 0, 0)
     const todayISO = today.toISOString()
 
     // Start all parallel tasks
@@ -1221,40 +1283,21 @@ function ManualFaucetContent() {
                   <Button
                     variant="outline"
                     className="gap-2"
-                    onClick={async () => {
-                      // Clear cache and re-fetch PTC count
-                      safeStorage.clear()
-                      toast.info("Checking PTC status...")
-                      try {
-                        const supabase = createClient()
-                        if (!supabase) return
-                        const today = new Date()
-                        today.setHours(0, 0, 0, 0)
-                        const { count } = await supabase
-                          .from("ptc_views")
-                          .select("*", { count: "exact", head: true })
-                          .eq("user_id", user?.id)
-                          .eq("completed", true)
-                          .gte("created_at", today.toISOString())
-                        const newCount = count || 0
-                        setPtcAdsCompleted(newCount)
-                        setIsLocked(newCount < 2)
-                        if (newCount >= 2) {
-                          toast.success("Unlocked! You can now use the manual faucet.")
-                        } else {
-                          toast.info(`${newCount}/2 PTC ads completed today.`)
-                        }
-                      } catch (e) {
-                        toast.error("Failed to check PTC status. Please refresh the page.")
-                      }
-                    }}
+                    disabled={isRefreshingPtc}
+                    onClick={handleRefreshPtcStatus}
                   >
-                    <RefreshCw className="h-4 w-4" />
-                    Refresh Status
+                    {isRefreshingPtc ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    {isRefreshingPtc ? "Checking..." : "Refresh Status"}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Already watched PTC ads? Click "Refresh Status" to update your progress.
+                  <br />
+                  <span className="text-amber-500">PTC requirement resets every 24 hours.</span>
                 </p>
               </div>
             </CardContent>
