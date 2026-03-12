@@ -58,47 +58,73 @@ export function resetSupabaseClient(): void {
 }
 
 /**
- * Get the current auth user without ever hanging forever.
+ * ROOT CAUSE FIX — Supabase Web Lock orphan bug (supabase-js issue #2111)
  *
- * Strategy:
- *  1. getSession() — reads from localStorage, resolves instantly, no network.
- *  2. getUser()    — verifies the JWT server-side (background, 6 s timeout).
- *                    Falls back to the session user on timeout/error so the
- *                    caller always gets a result quickly.
+ * @supabase/ssr uses the browser Web Locks API (navigator.locks) to serialise
+ * auth operations. When React Strict Mode double-mounts a component, or the
+ * user navigates away mid-request, the component unmounts and the AbortController
+ * fires — but the lock is never released. Every subsequent getUser() / getSession()
+ * call queues behind the orphaned lock and hangs forever.
  *
- * Returns null only when there is genuinely no local session.
+ * Fix: before any auth call, detect a held lock with no corresponding pending
+ * request and forcibly steal it with { steal: true }, releasing it immediately.
+ * This is safe because stealing only kicks out callers that are already stuck.
+ */
+function getAuthLockName(): string | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!url) return null
+  try {
+    // Lock name format used by @supabase/gotrue-js:
+    //   "lock:sb-<projectRef>-auth-token"
+    const projectRef = new URL(url).hostname.split(".")[0]
+    return `lock:sb-${projectRef}-auth-token`
+  } catch {
+    return null
+  }
+}
+
+export async function clearOrphanedAuthLock(): Promise<void> {
+  if (typeof navigator === "undefined" || !navigator.locks?.query) return
+  const lockName = getAuthLockName()
+  if (!lockName) return
+
+  try {
+    const state = await navigator.locks.query()
+    const held = state.held ?? []
+    const pending = state.pending ?? []
+
+    // Only steal when the lock IS held but nobody legitimate is waiting for it.
+    // If pending > 0 those are live callers — don't disrupt them.
+    const isOrphaned =
+      held.some((l) => l.name === lockName) && pending.filter((l) => l.name === lockName).length === 0
+
+    if (!isOrphaned) return
+
+    console.warn("[Supabase] Orphaned auth Web Lock detected — stealing to unblock auth calls")
+
+    // Steal the lock; the callback returns immediately, releasing it.
+    await new Promise<void>((resolve) => {
+      navigator.locks.request(lockName, { steal: true }, () => {
+        resolve()
+        // Returning undefined releases the lock immediately.
+      })
+    })
+  } catch {
+    // Best-effort: if the Web Locks API isn't available or throws, carry on.
+  }
+}
+
+/**
+ * Get the current auth user safely.
+ * Clears any orphaned Web Lock first so auth calls never hang.
  */
 export async function getAuthUser() {
   const supabase = getClient()
   if (!supabase) return null
 
-  // getSession() can trigger a token-refresh network call when the access token
-  // is expired. Add a hard timeout so it never hangs the caller indefinitely.
-  let sessionUser = null
-  try {
-    const sessionRaced = await Promise.race([
-      supabase.auth.getSession(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
-    ])
-    sessionUser = (sessionRaced as any)?.data?.session?.user ?? null
-  } catch {
-    // getSession failed — fall through
-  }
+  // Clear any stale Web Lock before touching auth (fixes the hang-forever bug).
+  await clearOrphanedAuthLock()
 
-  if (!sessionUser) return null
-
-  // Background server verification with a hard timeout
-  try {
-    const raced = await Promise.race([
-      supabase.auth.getUser(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
-    ])
-    if (raced && (raced as any).data?.user) {
-      return (raced as any).data.user
-    }
-  } catch {
-    // Verification failed — fall through to session user
-  }
-
-  return sessionUser
+  const { data: { user } } = await supabase.auth.getUser()
+  return user ?? null
 }
