@@ -1,34 +1,35 @@
 "use client"
 
 import Image from "next/image"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 
-// Map of crypto symbols to their CoinGecko icon URLs
+// Map of crypto symbols to their icon URLs (using CryptoLogos CDN for reliability)
 const CRYPTO_ICONS: Record<string, string> = {
-  // Main coins
-  BTC: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png",
-  LTC: "https://assets.coingecko.com/coins/images/2/standard/litecoin.png",
-  ETH: "https://assets.coingecko.com/coins/images/279/standard/ethereum.png",
-  DOGE: "https://assets.coingecko.com/coins/images/5/standard/dogecoin.png",
-  TRX: "https://assets.coingecko.com/coins/images/1094/standard/tron-logo.png",
-  FEY: "https://assets.coingecko.com/coins/images/14543/standard/feyorra.png",
-  ZEC: "https://assets.coingecko.com/coins/images/486/standard/zcash.png",
-  BCH: "https://assets.coingecko.com/coins/images/780/standard/bitcoin-cash-circle.png",
-  DASH: "https://assets.coingecko.com/coins/images/19/standard/dash-logo.png",
-  DGB: "https://assets.coingecko.com/coins/images/63/standard/digibyte.png",
-  SOL: "https://assets.coingecko.com/coins/images/4128/standard/solana.png",
-  BNB: "https://assets.coingecko.com/coins/images/825/standard/bnb-icon2_2x.png",
-  MATIC: "https://assets.coingecko.com/coins/images/4713/standard/polygon.png",
-  USDT: "https://assets.coingecko.com/coins/images/325/standard/Tether.png",
-  XRP: "https://assets.coingecko.com/coins/images/44/standard/xrp-symbol-white-128.png",
-  ADA: "https://assets.coingecko.com/coins/images/975/standard/cardano.png",
-  AVAX: "https://assets.coingecko.com/coins/images/12559/standard/Avalanche_Circle_RedWhite_Trans.png",
-  LINK: "https://assets.coingecko.com/coins/images/877/standard/chainlink-new-logo.png",
-  DOT: "https://assets.coingecko.com/coins/images/12171/standard/polkadot.png",
-  ATOM: "https://assets.coingecko.com/coins/images/1481/standard/cosmos_hub.png",
-  SHIB: "https://assets.coingecko.com/coins/images/11939/standard/shiba.png",
-  XLM: "https://assets.coingecko.com/coins/images/100/standard/Stellar_symbol_black_RGB.png",
-  USDC: "https://assets.coingecko.com/coins/images/6319/standard/usdc.png",
+  // Main coins - using CryptoLogos.cc CDN which is more reliable
+  BTC: "https://cryptologos.cc/logos/bitcoin-btc-logo.png",
+  LTC: "https://cryptologos.cc/logos/litecoin-ltc-logo.png",
+  ETH: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+  DOGE: "https://cryptologos.cc/logos/dogecoin-doge-logo.png",
+  TRX: "https://cryptologos.cc/logos/tron-trx-logo.png",
+  FEY: "https://assets.coingecko.com/coins/images/14543/small/feyorra.png",
+  ZEC: "https://cryptologos.cc/logos/zcash-zec-logo.png",
+  BCH: "https://cryptologos.cc/logos/bitcoin-cash-bch-logo.png",
+  DASH: "https://cryptologos.cc/logos/dash-dash-logo.png",
+  DGB: "https://cryptologos.cc/logos/digibyte-dgb-logo.png",
+  SOL: "https://cryptologos.cc/logos/solana-sol-logo.png",
+  BNB: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
+  MATIC: "https://cryptologos.cc/logos/polygon-matic-logo.png",
+  USDT: "https://cryptologos.cc/logos/tether-usdt-logo.png",
+  XRP: "https://cryptologos.cc/logos/xrp-xrp-logo.png",
+  ADA: "https://cryptologos.cc/logos/cardano-ada-logo.png",
+  AVAX: "https://cryptologos.cc/logos/avalanche-avax-logo.png",
+  LINK: "https://cryptologos.cc/logos/chainlink-link-logo.png",
+  DOT: "https://cryptologos.cc/logos/polkadot-new-dot-logo.png",
+  ATOM: "https://cryptologos.cc/logos/cosmos-atom-logo.png",
+  SHIB: "https://cryptologos.cc/logos/shiba-inu-shib-logo.png",
+  XLM: "https://cryptologos.cc/logos/stellar-xlm-logo.png",
+  USDC: "https://cryptologos.cc/logos/usd-coin-usdc-logo.png",
 }
 
 // Fallback gradient colors for coins that don't have icons
@@ -74,6 +75,7 @@ const sizes = {
 }
 
 export function CryptoIcon({ symbol, size = "md", className, showFallback = true }: CryptoIconProps) {
+  const [imageError, setImageError] = useState(false)
   const upperSymbol = symbol?.toUpperCase() || "BTC"
   const iconUrl = CRYPTO_ICONS[upperSymbol]
   const gradient = COIN_GRADIENTS[upperSymbol] || "from-gray-500 to-gray-600"
@@ -81,7 +83,8 @@ export function CryptoIcon({ symbol, size = "md", className, showFallback = true
   const validSize = (typeof size === "string" && size in sizes) ? size as keyof typeof sizes : "md"
   const sizeConfig = sizes[validSize]
 
-  if (iconUrl) {
+  // Show image if URL exists and hasn't errored
+  if (iconUrl && !imageError) {
     return (
       <div className={cn("relative rounded-full overflow-hidden bg-background", sizeConfig.container, className)}>
         <Image
@@ -91,6 +94,7 @@ export function CryptoIcon({ symbol, size = "md", className, showFallback = true
           height={sizeConfig.icon}
           className="object-contain"
           unoptimized
+          onError={() => setImageError(true)}
         />
       </div>
     )
