@@ -24,7 +24,7 @@ import {
   Fingerprint,
   Database,
 } from "lucide-react"
-import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
+import { createClient, isSupabaseConfigured, clearOrphanedAuthLock } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import Link from "next/link"
 import useSWR from "swr"
@@ -557,69 +557,36 @@ function ManualFaucetContent() {
     if (!cacheValid || !cachedUser) {
       updateStep("auth", "loading")
 
-      let authAttempts = 0
-      const maxAttempts = 3
+      try {
+        // ROOT CAUSE FIX: clear any orphaned Web Lock before calling getUser().
+        // @supabase/ssr uses navigator.locks to serialise auth operations. When
+        // React Strict Mode double-mounts (or a navigation happens mid-request),
+        // the lock is acquired but never released, causing getUser() to hang
+        // forever. Stealing the lock unblocks the queue instantly.
+        // See: https://github.com/supabase/supabase-js/issues/2111
+        await clearOrphanedAuthLock()
 
-      while (!authUser && authAttempts < maxAttempts) {
-        authAttempts++
-        if (authAttempts > 1) {
-          updateStep("auth", "retrying", undefined, authAttempts)
+        const { data: { user }, error } = await supabase.auth.getUser()
+
+        if (error) throw error
+
+        if (!user) {
+          if (mountedRef.current && initId === initCountRef.current) {
+            updateStep("auth", "error", "Please log in to continue")
+            setFatalError("Authentication required")
+            setFatalErrorDetails("Please log in to access the Manual Faucet")
+          }
+          return
         }
 
-        try {
-          // Use Promise wrapper to ensure we can timeout
-          const authPromise = new Promise<{ data: { user: any }; error: any }>(
-            async (resolve) => {
-              try {
-                const result = await supabase.auth.getUser()
-                resolve(result)
-              } catch (err) {
-                resolve({ data: { user: null }, error: err })
-              }
-            }
-          )
-
-          const { value: authResult, timedOut } = await withStrictTimeout(
-            authPromise,
-            5000,
-            { data: { user: null }, error: new Error("Timeout") }
-          )
-
-          if (timedOut) {
-            throw new Error("Authentication timed out")
-          }
-
-          if (authResult.error) {
-            throw authResult.error
-          }
-
-          if (!authResult.data.user) {
-            // Try getSession as a fallback — with a strict timeout so a slow
-            // token-refresh network call never causes the page to hang forever.
-            const sessionRaced = await Promise.race([
-              supabase.auth.getSession(),
-              new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
-            ])
-            const sessionUser = (sessionRaced as any)?.data?.session?.user ?? null
-            if (sessionUser) {
-              authUser = sessionUser
-            } else {
-              throw new Error("Not authenticated")
-            }
-          } else {
-            authUser = authResult.data.user
-          }
-        } catch (err) {
-          if (authAttempts >= maxAttempts) {
-            if (mountedRef.current && initId === initCountRef.current) {
-              updateStep("auth", "error", "Please log in to continue")
-              setFatalError("Authentication required")
-              setFatalErrorDetails("Please log in to access the Manual Faucet")
-            }
-            return
-          }
-          await new Promise((r) => setTimeout(r, 300 * authAttempts))
+        authUser = user
+      } catch (err) {
+        if (mountedRef.current && initId === initCountRef.current) {
+          updateStep("auth", "error", "Please log in to continue")
+          setFatalError("Authentication required")
+          setFatalErrorDetails("Please log in to access the Manual Faucet")
         }
+        return
       }
 
       if (!mountedRef.current || initId !== initCountRef.current) return
