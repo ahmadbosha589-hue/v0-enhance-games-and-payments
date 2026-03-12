@@ -72,9 +72,19 @@ export async function getAuthUser() {
   const supabase = getClient()
   if (!supabase) return null
 
-  // Instant local read — never hangs
-  const { data: { session } } = await supabase.auth.getSession()
-  const sessionUser = session?.user ?? null
+  // getSession() can trigger a token-refresh network call when the access token
+  // is expired. Add a hard timeout so it never hangs the caller indefinitely.
+  let sessionUser = null
+  try {
+    const sessionRaced = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ])
+    sessionUser = (sessionRaced as any)?.data?.session?.user ?? null
+  } catch {
+    // getSession failed — fall through
+  }
+
   if (!sessionUser) return null
 
   // Background server verification with a hard timeout
