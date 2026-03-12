@@ -682,7 +682,7 @@ function ManualFaucetContent() {
       }
     }
 
-    // PTC status task
+    // PTC status task - fetch actual count of completed PTC ads today
     if (!cacheValid || cachedPtcCount === null) {
       tasks.push(
         (async () => {
@@ -693,7 +693,7 @@ function ManualFaucetContent() {
                 .select("*", { count: "exact", head: true })
                 .eq("user_id", currentUser.id)
                 .eq("completed", true)
-                .gte("viewed_at", todayISO),
+                .gte("created_at", todayISO),
               5000,
               { count: 0, error: null }
             )
@@ -1211,12 +1211,51 @@ function ManualFaucetContent() {
                   <Progress value={(ptcAdsCompleted / 2) * 100} className="w-48 h-2" />
                   <span className="text-sm font-medium">{ptcAdsCompleted}/2</span>
                 </div>
-                <Button asChild className="gap-2 bg-amber-500 hover:bg-amber-600">
-                  <Link href="/dashboard/ptc">
-                    <Play className="h-4 w-4" />
-                    Watch PTC Ads
-                  </Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button asChild className="gap-2 bg-amber-500 hover:bg-amber-600">
+                    <Link href="/dashboard/ptc">
+                      <Play className="h-4 w-4" />
+                      Watch PTC Ads
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={async () => {
+                      // Clear cache and re-fetch PTC count
+                      safeStorage.clear()
+                      toast.info("Checking PTC status...")
+                      try {
+                        const supabase = createClient()
+                        if (!supabase) return
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const { count } = await supabase
+                          .from("ptc_views")
+                          .select("*", { count: "exact", head: true })
+                          .eq("user_id", user?.id)
+                          .eq("completed", true)
+                          .gte("created_at", today.toISOString())
+                        const newCount = count || 0
+                        setPtcAdsCompleted(newCount)
+                        setIsLocked(newCount < 2)
+                        if (newCount >= 2) {
+                          toast.success("Unlocked! You can now use the manual faucet.")
+                        } else {
+                          toast.info(`${newCount}/2 PTC ads completed today.`)
+                        }
+                      } catch (e) {
+                        toast.error("Failed to check PTC status. Please refresh the page.")
+                      }
+                    }}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh Status
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Already watched PTC ads? Click "Refresh Status" to update your progress.
+                </p>
               </div>
             </CardContent>
           </Card>
