@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
 import type { Profile } from "@/lib/types/database"
 
@@ -42,6 +42,13 @@ export function useUser(): UseUserReturn {
         setProfile(null)
         return
       }
+
+      // ROOT CAUSE FIX: Clear any orphaned Web Lock before ANY auth operations.
+      // @supabase/ssr uses navigator.locks to serialize auth. When React Strict Mode
+      // double-mounts or navigation happens mid-request, the lock can get stuck
+      // causing getSession()/getUser() to hang forever.
+      // See: https://github.com/supabase/supabase-js/issues/2111
+      await clearOrphanedAuthLock()
 
       // ── STEP 1: getSession() first — reads from localStorage/cookie, no network ──
       // This unblocks the UI immediately with whatever session the browser has.
