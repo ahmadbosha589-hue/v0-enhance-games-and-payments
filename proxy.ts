@@ -1,8 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { updateSession } from "@/lib/supabase/proxy"
 
+/**
+ * Next.js 16 middleware (proxy.ts)
+ * Handles auth session management and route protection
+ */
 export default async function middleware(request: NextRequest) {
-  const trulyPublicPaths = [
+  const { pathname } = request.nextUrl
+
+  // Static assets - skip entirely
+  if (pathname.startsWith("/_next/") || pathname.startsWith("/static/")) {
+    return NextResponse.next()
+  }
+
+  // Public API routes
+  const publicApiPaths = ["/api/stats", "/api/health", "/api/webhooks", "/api/ping"]
+  if (publicApiPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return NextResponse.next()
+  }
+
+  // Public pages that don't need auth
+  const publicPaths = [
     "/",
     "/about",
     "/contact",
@@ -14,8 +32,6 @@ export default async function middleware(request: NextRequest) {
     "/blog",
     "/status",
     "/docs",
-    "/api/stats",
-    "/api/health",
     "/auth/error",
     "/auth/callback",
     "/auth/forgot-password",
@@ -23,36 +39,22 @@ export default async function middleware(request: NextRequest) {
     "/auth/verify-email",
   ]
 
-  const isStaticAsset = request.nextUrl.pathname.startsWith("/_next/")
-
-  // Public API routes that don't need auth
-  const publicApiPaths = ["/api/stats", "/api/health", "/api/webhooks"]
-  const isPublicApi = publicApiPaths.some(
-    (path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(`${path}/`),
-  )
-
-  if (isStaticAsset || isPublicApi) {
+  if (publicPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return NextResponse.next()
   }
 
-  const isTrulyPublicPath = trulyPublicPaths.some(
-    (path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(`${path}/`),
-  )
-
-  // Skip Supabase completely for truly public paths
-  if (isTrulyPublicPath) {
-    return NextResponse.next()
-  }
-
+  // For all other routes, try to update session
+  // This handles auth but won't block if Supabase is unavailable
   try {
     return await updateSession(request)
   } catch (error) {
-    // If Supabase fails or times out, allow request to continue
-    console.warn("[Middleware] Supabase unavailable:", error)
+    console.warn("[Middleware] Session update failed:", error)
     return NextResponse.next()
   }
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 }
