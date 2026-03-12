@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Play, ExternalLink, CheckCircle2, Loader2, AlertTriangle, Pause } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Play, ExternalLink, CheckCircle2, Loader2, AlertTriangle, Pause, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 
 interface PTCAd {
@@ -24,48 +25,85 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
   const [progress, setProgress] = useState(0)
   const [timeLeft, setTimeLeft] = useState(ad.duration_seconds)
   const [isPaused, setIsPaused] = useState(false)
+  const [showReturnWarning, setShowReturnWarning] = useState(false)
   const adWindowRef = useRef<Window | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const isAdWindowFocusedRef = useRef(false)
 
-  // Monitor ad window and pause timer when user leaves the ad tab
+  // Monitor ad window and pause timer when user returns to THIS page (not on ad page)
   useEffect(() => {
     if (status !== "watching" && status !== "paused") return
 
     const checkAdWindow = () => {
-      // If ad window was closed or user is not focused on it, pause the timer
+      // Check if ad window is closed
       if (adWindowRef.current?.closed) {
-        // Ad window was closed - pause and warn
         if (!isPaused && status === "watching") {
           setIsPaused(true)
           setStatus("paused")
-          toast.warning("Ad window closed! Click 'Resume' to continue watching.", { duration: 5000 })
+          setShowReturnWarning(true)
+          toast.warning("Ad window closed! Reopen it to continue.", { duration: 5000 })
         }
       }
     }
 
-    // Handle visibility change (user switches tabs/windows)
+    // Handle visibility change - PAUSE when user returns to THIS page
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && status === "watching") {
-        // User returned to this page - check if ad window is still open
-        if (adWindowRef.current?.closed) {
+      if (document.visibilityState === "visible") {
+        // User returned to THIS page - they should be on the ad page instead
+        // PAUSE the timer - they need to go back to ad page
+        if (status === "watching" && !isPaused) {
+          // Check if ad window is still open
+          if (!adWindowRef.current?.closed) {
+            // Ad window is still open but user came back here - pause and warn
+            setIsPaused(true)
+            setStatus("paused")
+            setShowReturnWarning(true)
+            toast.warning("Timer paused! Return to the ad page to continue.", { duration: 5000 })
+          } else {
+            // Ad window is closed
+            setIsPaused(true)
+            setStatus("paused")
+            setShowReturnWarning(true)
+            toast.warning("Ad window closed! Reopen it to continue.", { duration: 5000 })
+          }
+        }
+      } else if (document.visibilityState === "hidden") {
+        // User left this page (hopefully to ad page) - RESUME the timer
+        if (status === "paused" && isPaused && !adWindowRef.current?.closed) {
+          setIsPaused(false)
+          setStatus("watching")
+          setShowReturnWarning(false)
+        }
+      }
+    }
+
+    // Handle window focus - user came back to this window
+    const handleFocus = () => {
+      // User focused on this window - they should be on ad page
+      if (status === "watching" && !isPaused) {
+        if (!adWindowRef.current?.closed) {
+          // Ad still open but user is here - pause
           setIsPaused(true)
           setStatus("paused")
-          toast.warning("Return to the ad page to continue watching!", { duration: 5000 })
+          setShowReturnWarning(true)
+          toast.warning("Timer paused! Return to the ad page to continue watching.", { duration: 5000 })
+        } else {
+          // Ad window closed
+          setIsPaused(true)
+          setStatus("paused")
+          setShowReturnWarning(true)
+          toast.warning("Ad window was closed! Reopen it to continue.", { duration: 5000 })
         }
       }
     }
 
-    // Handle window blur (user clicks away from this window)
+    // Handle window blur - user left this window (good - going to ad page)
     const handleBlur = () => {
-      // This is expected when user clicks on the ad window, don't pause
-    }
-
-    // Handle window focus (user returns to this window)
-    const handleFocus = () => {
-      if (status === "watching" && adWindowRef.current?.closed) {
-        setIsPaused(true)
-        setStatus("paused")
-        toast.warning("Ad window was closed! Reopen the ad to continue.", { duration: 5000 })
+      // User left this window - if ad window is open, resume timer
+      if (status === "paused" && isPaused && !adWindowRef.current?.closed) {
+        setIsPaused(false)
+        setStatus("watching")
+        setShowReturnWarning(false)
       }
     }
 
@@ -99,6 +137,7 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
 
           if (newTime <= 0) {
             setStatus("ready")
+            setShowReturnWarning(false)
             toast.success("Ad complete! Click 'Claim' to receive your reward.", { duration: 5000 })
             return 0
           }
@@ -122,19 +161,33 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
     setTimeLeft(ad.duration_seconds)
     setProgress(0)
     setIsPaused(false)
-    toast.info("Keep the ad page open until the timer completes!", { duration: 4000 })
+    setShowReturnWarning(false)
+    toast.info("Stay on the ad page! Timer only runs while viewing the ad.", { duration: 4000 })
   }, [ad.url, ad.duration_seconds])
 
   const handleResumeWatching = useCallback(() => {
-    // Reopen ad window
-    adWindowRef.current = window.open(ad.url, "_blank", "noopener,noreferrer")
+    // Check if ad window still exists and just needs focus
+    if (adWindowRef.current && !adWindowRef.current.closed) {
+      // Try to focus existing window
+      adWindowRef.current.focus()
+    } else {
+      // Reopen ad window
+      adWindowRef.current = window.open(ad.url, "_blank", "noopener,noreferrer")
+    }
     setIsPaused(false)
     setStatus("watching")
-    toast.info("Timer resumed! Keep the ad page open.", { duration: 3000 })
+    setShowReturnWarning(false)
+    toast.info("Timer resumed! Stay on the ad page.", { duration: 3000 })
   }, [ad.url])
 
   const handleClaimReward = useCallback(async () => {
     setStatus("claiming")
+
+    // Set a timeout to prevent infinite hanging
+    const claimTimeout = setTimeout(() => {
+      toast.error("Claim is taking too long. Please refresh the page and try again.")
+      setStatus("ready")
+    }, 15000) // 15 second timeout
 
     try {
       // Use the API endpoint to properly credit the reward
@@ -148,6 +201,8 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
           adId: ad.id,
         }),
       })
+
+      clearTimeout(claimTimeout)
 
       const data = await response.json()
 
@@ -163,12 +218,28 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
         adWindowRef.current.close()
       }
 
-      // Force hard refresh to update all balances
+      // Clear session/local storage caches for PTC
+      try {
+        sessionStorage.removeItem("mf_ptc_count_v1")
+        sessionStorage.removeItem("mf_cache_time_v1")
+      } catch { }
+
+      // Force HARD refresh - clear all caches and reload
       setTimeout(() => {
-        // Clear any cached data and force full page reload
-        window.location.href = window.location.href.split("?")[0] + "?t=" + Date.now()
-      }, 1500)
+        // Use multiple techniques to ensure hardest refresh possible
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name))
+          })
+        }
+        // Clear the browser cache by forcing reload with cache bust
+        const url = new URL(window.location.href)
+        url.searchParams.set('_refresh', Date.now().toString())
+        url.searchParams.set('_nocache', Math.random().toString(36).substring(7))
+        window.location.replace(url.toString())
+      }, 1000)
     } catch (error) {
+      clearTimeout(claimTimeout)
       console.error("Error claiming reward:", error)
       toast.error(error instanceof Error ? error.message : "Failed to claim reward. Please try again.")
       setStatus("ready")
@@ -204,11 +275,14 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
 
   if (status === "paused") {
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 p-2 rounded-md bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400">
-          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-          <span className="text-xs">Return to ad page to continue!</span>
-        </div>
+      <div className="space-y-3">
+        <Alert className="border-yellow-500/50 bg-yellow-500/10">
+          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+          <AlertDescription className="text-yellow-700 dark:text-yellow-300 text-xs">
+            <strong>Timer paused!</strong> You must stay on the ad page for the timer to run.
+            Click the button below to return to the ad and continue.
+          </AlertDescription>
+        </Alert>
         <Progress value={progress} className="h-2" />
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
@@ -218,8 +292,8 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
           <span>{timeLeft}s remaining</span>
         </div>
         <Button onClick={handleResumeWatching} variant="outline" className="w-full gap-2 border-yellow-500/50 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/10">
-          <Play className="h-4 w-4" />
-          Resume Watching
+          <ArrowLeft className="h-4 w-4" />
+          Return to Ad Page
         </Button>
       </div>
     )
@@ -230,11 +304,11 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
       <div className="space-y-2">
         <Progress value={progress} className="h-2 [&>div]:bg-green-500" />
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span className="text-green-500 font-medium">Watching...</span>
-          <span>{timeLeft}s remaining</span>
+          <span className="text-green-500 font-medium animate-pulse">Timer running...</span>
+          <span className="font-bold">{timeLeft}s</span>
         </div>
         <p className="text-[10px] text-muted-foreground text-center">
-          Keep the ad window open until the timer completes
+          Stay on the ad page! If you return here, the timer will pause.
         </p>
       </div>
     )
