@@ -819,13 +819,14 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
       <div
         ref={boardRef}
         className={cn(
-          "touch-none select-none",
+          "touch-none select-none overflow-hidden flex-shrink-0",
           "relative bg-gray-900 rounded-lg p-2 border-2 border-gray-700 transition-transform",
           shakeBoard && "animate-pulse"
         )}
         style={{
           width: BOARD_WIDTH * CELL_SIZE + 16,
-          minWidth: BOARD_WIDTH * CELL_SIZE + 16,
+          height: BOARD_HEIGHT * CELL_SIZE + 16,
+          maxWidth: "100%",
           transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 3 : -3}px)` : "none"
         }}
         tabIndex={0}
