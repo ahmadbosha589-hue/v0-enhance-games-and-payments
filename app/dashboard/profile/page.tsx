@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProfileSettings } from "@/components/dashboard/profile-settings"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -145,59 +144,40 @@ export default function ProfilePage() {
     setError(false)
 
     try {
-      const supabase = createClient()
+      // Use the /api/profile endpoint — it runs auth server-side (same mechanism
+      // as the admin panel) so it never hangs on client-side getSession()/getUser().
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
 
-      if (!supabase) {
-        console.error("[ProfilePage] Supabase client not available")
-        setError(true)
-        return
+      let response: Response
+      try {
+        response = await fetch("/api/profile", { signal: controller.signal })
+      } finally {
+        clearTimeout(timeoutId)
       }
 
-      // ── STEP 1: getSession() — reads from localStorage, instant, no network ──
-      // This unblocks the UI immediately so the skeleton never hangs forever.
-      const { data: { session } } = await supabase.auth.getSession()
-      const sessionUser = session?.user ?? null
-
-      if (!sessionUser) {
-        // No local session at all — genuinely not logged in
+      if (response.status === 401) {
+        // Genuinely not logged in
         setUser(null)
         setProfile(null)
         return
       }
 
-      // Show the user immediately while we verify + fetch profile
-      setUser({ id: sessionUser.id, email: sessionUser.email })
-
-      // ── STEP 2: getUser() with timeout — verifies JWT server-side ──
-      // Falls back to sessionUser on timeout/error so the page never stalls.
-      let authUserId = sessionUser.id
-      try {
-        const getUserPromise = supabase.auth.getUser()
-        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000))
-        const raced = await Promise.race([getUserPromise, timeoutPromise])
-        if (raced && (raced as any).data?.user) {
-          authUserId = (raced as any).data.user.id
-        }
-      } catch {
-        // Verification failed — keep sessionUser as fallback
+      if (!response.ok) {
+        console.error("[ProfilePage] API error:", response.status)
+        setError(true)
+        return
       }
 
-      // ── STEP 3: Fetch profile row ──
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", authUserId)
-        .single()
+      const data = await response.json()
 
-      if (profileError) {
-        console.error("[ProfilePage] Profile error:", profileError)
-        setProfile(null)
-        if (profileError.code !== "PGRST116") {
-          setError(true)
-        }
-      } else {
-        setProfile(profileData)
+      if (!data.profile) {
+        setError(true)
+        return
       }
+
+      setUser({ id: data.profile.id, email: data.profile.email })
+      setProfile(data.profile)
     } catch (err) {
       console.error("[ProfilePage] Error:", err)
       setError(true)
