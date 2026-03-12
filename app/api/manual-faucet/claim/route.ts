@@ -1,8 +1,45 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUser, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
+import { FaucetPayClient } from "@/lib/faucetpay/client"
 
 const CLAIM_VALUE_USD = 0.0001 // $0.0001 per claim
+
+// Get FaucetPay API key for a specific currency from admin settings
+async function getFaucetPayApiKey(supabase: ReturnType<typeof createAdminClient>, currency: string): Promise<string | null> {
+  if (!supabase) return null
+
+  try {
+    const { data } = await supabase
+      .from("admin_settings")
+      .select("value")
+      .eq("key", `faucetpay_api_key_${currency.toLowerCase()}`)
+      .single()
+
+    return data?.value || null
+  } catch {
+    // Fall back to environment variable
+    return process.env.FAUCETPAY_API_KEY || null
+  }
+}
+
+// Get user's FaucetPay linked address for a currency
+async function getUserFaucetPayAddress(supabase: ReturnType<typeof createAdminClient>, userId: string, currency: string): Promise<string | null> {
+  if (!supabase) return null
+
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("faucetpay_email")
+      .eq("id", userId)
+      .single()
+
+    // FaucetPay uses email as the identifier for payouts
+    return data?.faucetpay_email || null
+  } catch {
+    return null
+  }
+}
 const COOLDOWN_SECONDS = 7 // 7 seconds between claims per crypto
 const SHORTLINK_REQUIRED_AFTER = 100 // After 100 claims, require a shortlink
 
@@ -192,7 +229,55 @@ export async function POST(request: NextRequest) {
 
     const amount = (CLAIM_VALUE_USD / price).toFixed(8)
 
-    // Record the claim
+    // Get user's FaucetPay email
+    const faucetPayEmail = await getUserFaucetPayAddress(adminSupabase, user.id, cryptoSymbol)
+    if (!faucetPayEmail) {
+      return NextResponse.json(
+        { error: "Please link your FaucetPay account in settings first" },
+        { status: 400 }
+      )
+    }
+
+    // Get FaucetPay API key for this currency
+    const apiKey = await getFaucetPayApiKey(adminSupabase, cryptoSymbol)
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "FaucetPay not configured for this currency" },
+        { status: 500 }
+      )
+    }
+
+    // Send payment via FaucetPay
+    let faucetPayResult = null
+    let payoutId = null
+
+    try {
+      const faucetPayClient = new FaucetPayClient({
+        apiKey,
+        currency: cryptoSymbol,
+      })
+
+      // Convert amount to satoshis for FaucetPay (they use smallest unit)
+      const amountInSmallestUnit = Math.floor(parseFloat(amount) * 100000000)
+
+      faucetPayResult = await faucetPayClient.sendPayment(
+        faucetPayEmail,
+        amountInSmallestUnit,
+        ip,
+        false // not a referral
+      )
+
+      payoutId = faucetPayResult.payout_id
+      console.log("[v0] FaucetPay payment successful:", faucetPayResult)
+    } catch (faucetPayError) {
+      console.error("[v0] FaucetPay payment failed:", faucetPayError)
+      return NextResponse.json(
+        { error: faucetPayError instanceof Error ? faucetPayError.message : "FaucetPay payment failed" },
+        { status: 500 }
+      )
+    }
+
+    // Record the claim only after successful FaucetPay payment
     const { error: insertError } = await adminSupabase.from("manual_faucet_claims").insert({
       user_id: user.id,
       crypto_symbol: cryptoSymbol,
@@ -200,22 +285,22 @@ export async function POST(request: NextRequest) {
       usd_value: CLAIM_VALUE_USD,
       ip_address: ip,
       fingerprint: fingerprint?.visitorId || null,
+      faucetpay_payout_id: payoutId,
+      status: "completed",
     })
 
     if (insertError) {
-      console.error("Failed to record claim:", insertError)
-      return NextResponse.json({ error: "Failed to record claim" }, { status: 500 })
+      console.error("[v0] Failed to record claim (but payment was sent):", insertError)
+      // Don't fail the request since payment was already sent
     }
-
-    // TODO: Send to FaucetPay API
-    // For now, we'll record it and the admin can process payouts
 
     return NextResponse.json({
       success: true,
       amount,
       symbol: cryptoSymbol,
       usdValue: CLAIM_VALUE_USD,
-      message: `Claimed ${amount} ${cryptoSymbol}`,
+      payoutId,
+      message: `Sent ${amount} ${cryptoSymbol} to your FaucetPay account!`,
     })
   } catch (error) {
     console.error("Manual faucet claim error:", error)
