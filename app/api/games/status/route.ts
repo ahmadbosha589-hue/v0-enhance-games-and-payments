@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { calculateDifficulty } from "@/lib/games/game-engine"
 
-const GAME_COOLDOWN_MINUTES = 5 // Increased from 3 to 5 minutes
-const MAX_GAMES_PER_DAY = 15 // Reduced from 25 to 15 - stricter limits
+const GAME_COOLDOWN_MINUTES = 3 // 3 minutes cooldown per game
+const MAX_GAMES_PER_DAY = 20 // 20 games per day
 const GAME_REWARD_SATOSHIS = 3 // Base reward - max 3 satoshis per game win
 
 const ALL_GAME_TYPES = ["tetris", "block_blast", "car_racing", "snake", "flappy", "memory"]
