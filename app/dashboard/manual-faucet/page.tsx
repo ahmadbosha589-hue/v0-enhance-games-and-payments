@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,8 +29,6 @@ import useSWR from "swr"
 import { CryptoIcon } from "@/components/crypto-icon"
 import { AntiBotVerification, type VerificationMetadata } from "@/components/captcha/anti-bot-verification"
 import { useDeviceFingerprintContext } from "@/components/security/device-fingerprint-provider"
-import { usePersistentVPNCheck } from "@/hooks/use-persistent-vpn-check"
-import { useAdblock } from "@/components/adblock/adblock-provider"
 import confetti from "canvas-confetti"
 
 // FaucetPay supported cryptocurrencies (excluding BTC which is on main claim page)
@@ -53,33 +51,60 @@ const FAUCETPAY_CRYPTOS = [
 const CLAIM_VALUE_USD = 0.0001 // $0.0001 per claim
 const COOLDOWN_SECONDS = 7 // 7 seconds cooldown
 const SHORTLINK_REQUIRED_AFTER = 100 // Shortlink required after 100 claims
+const LOAD_TIMEOUT_MS = 8000 // Maximum time to wait for data loading
+const VPN_CHECK_TIMEOUT_MS = 5000 // Maximum time for VPN check
 
 interface CryptoPrice {
   symbol: string
   price: number
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+// Robust fetcher with timeout
+const fetcherWithTimeout = async (url: string, timeoutMs = 5000): Promise<any> => {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json()
+  } catch (error) {
+    clearTimeout(timeout)
+    throw error
+  }
+}
+
+const fetcher = (url: string) => fetcherWithTimeout(url, 5000).catch(() => null)
+
+// Simple VPN check state (non-blocking)
+interface VPNCheckState {
+  isChecking: boolean
+  vpnDetected: boolean
+  error: string | null
+}
 
 export default function ManualFaucetPage() {
   const supabase = createClient()
-  const { fingerprint: deviceFingerprint, deviceStatus } = useDeviceFingerprintContext()
-  const {
-    vpnDetected: vpnBlocked,
-    isChecking: vpnChecking,
-    lastResult: vpnResult,
-    recheck: recheckVPN,
-  } = usePersistentVPNCheck({
-    intervalMs: 30000,
-    checkOnVisibilityChange: true,
-    checkOnNetworkChange: true,
+  const mountedRef = useRef(true)
+  const loadAttemptRef = useRef(0)
+  const isLoadingRef = useRef(true)
+
+  // Simple VPN check state (no blocking hooks)
+  const [vpnState, setVpnState] = useState<VPNCheckState>({
+    isChecking: true,
+    vpnDetected: false,
+    error: null,
   })
 
-  // Adblock detection
-  const { isBlocked: adblockDetected, isFlagged: adblockFlagged } = useAdblock()
+  // Adblock state (simple, non-blocking)
+  const [adblockDetected, setAdblockDetected] = useState(false)
+
+  // Get device fingerprint from context (provided by dashboard layout)
+  const { fingerprint: deviceFingerprint, deviceStatus } = useDeviceFingerprintContext()
 
   const [selectedCrypto, setSelectedCrypto] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [isClaiming, setIsClaiming] = useState(false)
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({})
   const [claimCounts, setClaimCounts] = useState<Record<string, number>>({})
@@ -89,14 +114,21 @@ export default function ManualFaucetPage() {
   const [shortlinkRequired, setShortlinkRequired] = useState(false)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [isVerified, setIsVerified] = useState(false)
-  const [showVerification, setShowVerification] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
 
-  // Fetch crypto prices
-  const { data: pricesData } = useSWR<{ prices: Record<string, CryptoPrice> }>("/api/crypto/prices", fetcher, {
-    refreshInterval: 60000,
-  })
+  // Fetch crypto prices with SWR (already has built-in error handling)
+  const { data: pricesData } = useSWR<{ prices: Record<string, CryptoPrice> }>(
+    "/api/crypto/prices",
+    fetcher,
+    {
+      refreshInterval: 60000,
+      revalidateOnFocus: false,
+      errorRetryCount: 2,
+      errorRetryInterval: 3000,
+      dedupingInterval: 30000,
+    }
+  )
 
   // Calculate crypto amounts based on $0.0001 value
   const getCryptoAmount = useCallback(
@@ -109,48 +141,156 @@ export default function ManualFaucetPage() {
     [pricesData]
   )
 
-  // Load user data and check access
-  const loadUserData = useCallback(async () => {
+  // VPN check - non-blocking with timeout
+  const checkVPN = useCallback(async () => {
+    if (!mountedRef.current) return
+
+    setVpnState((prev) => ({ ...prev, isChecking: true }))
+
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), VPN_CHECK_TIMEOUT_MS)
 
-      setUser(user)
+      const response = await fetch("/api/security/vpn-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          language: navigator.language,
+          userAgent: navigator.userAgent,
+        }),
+        signal: controller.signal,
+      })
 
-      // Get profile
-      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+      clearTimeout(timeout)
 
-      if (profileData) {
-        setProfile(profileData)
+      if (!mountedRef.current) return
+
+      if (response.ok) {
+        const data = await response.json()
+        setVpnState({
+          isChecking: false,
+          vpnDetected: !data.isAllowed,
+          error: null,
+        })
+      } else {
+        // API error - allow the user to continue (fail-open for UX)
+        setVpnState({ isChecking: false, vpnDetected: false, error: null })
+      }
+    } catch (error) {
+      if (!mountedRef.current) return
+      // Network/timeout error - allow the user to continue
+      setVpnState({ isChecking: false, vpnDetected: false, error: null })
+    }
+  }, [])
+
+  // Simple adblock detection
+  const checkAdblock = useCallback(async () => {
+    if (!mountedRef.current) return
+
+    try {
+      // Simple test: create a bait element
+      const bait = document.createElement("div")
+      bait.className = "adsbox ad-banner pub_300x250"
+      bait.style.cssText = "position:absolute;left:-9999px;width:1px;height:1px;"
+      document.body.appendChild(bait)
+
+      // Wait a bit for adblockers to act
+      await new Promise((r) => setTimeout(r, 100))
+
+      if (!mountedRef.current) return
+
+      const isHidden =
+        bait.offsetParent === null || bait.offsetHeight === 0 || bait.offsetWidth === 0 || getComputedStyle(bait).display === "none"
+
+      document.body.removeChild(bait)
+      setAdblockDetected(isHidden)
+    } catch {
+      // If check fails, assume no adblock
+      setAdblockDetected(false)
+    }
+  }, [])
+
+  // Load user data and check access with timeout
+  const loadUserData = useCallback(async () => {
+    if (!mountedRef.current) return
+
+    loadAttemptRef.current++
+    const currentAttempt = loadAttemptRef.current
+
+    try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Load timeout")), LOAD_TIMEOUT_MS)
+      )
+
+      // Get user with timeout
+      const authPromise = supabase.auth.getUser()
+      const { data: { user: authUser } } = await Promise.race([authPromise, timeoutPromise])
+
+      if (!mountedRef.current || currentAttempt !== loadAttemptRef.current) return
+
+      if (!authUser) {
+        setLoadError("Please log in to access the manual faucet.")
+        setIsLoading(false)
+        return
       }
 
-      // Check PTC ads completed today
+      setUser(authUser)
+
+      // Run remaining queries in parallel with individual timeouts
       const today = new Date()
       today.setHours(0, 0, 0, 0)
+      const todayISO = today.toISOString()
 
-      const { count: ptcCount } = await supabase
-        .from("ptc_views")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("completed", true)
-        .gte("viewed_at", today.toISOString())
+      const [profileResult, ptcResult, claimsResult] = await Promise.allSettled([
+        // Profile query
+        Promise.race([
+          supabase.from("profiles").select("*").eq("id", authUser.id).single(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Profile timeout")), 4000)),
+        ]),
+        // PTC count query
+        Promise.race([
+          supabase
+            .from("ptc_views")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", authUser.id)
+            .eq("completed", true)
+            .gte("viewed_at", todayISO),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("PTC timeout")), 4000)),
+        ]),
+        // Claims query
+        Promise.race([
+          supabase
+            .from("manual_faucet_claims")
+            .select("crypto_symbol, claimed_at")
+            .eq("user_id", authUser.id)
+            .gte("claimed_at", todayISO),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Claims timeout")), 4000)),
+        ]),
+      ])
 
-      setPtcAdsCompleted(ptcCount || 0)
-      setIsLocked((ptcCount || 0) < 2)
+      if (!mountedRef.current || currentAttempt !== loadAttemptRef.current) return
 
-      // Get manual faucet claims today
-      const { data: claimsData } = await supabase
-        .from("manual_faucet_claims")
-        .select("crypto_symbol, claimed_at")
-        .eq("user_id", user.id)
-        .gte("claimed_at", today.toISOString())
+      // Process profile result
+      if (profileResult.status === "fulfilled" && profileResult.value.data) {
+        setProfile(profileResult.value.data)
+      }
 
-      if (claimsData) {
+      // Process PTC result
+      let ptcCount = 0
+      if (ptcResult.status === "fulfilled" && ptcResult.value.count != null) {
+        ptcCount = ptcResult.value.count
+      }
+      setPtcAdsCompleted(ptcCount)
+      setIsLocked(ptcCount < 2)
+
+      // Process claims result
+      if (claimsResult.status === "fulfilled" && claimsResult.value.data) {
+        const claimsData = claimsResult.value.data
         const counts: Record<string, number> = {}
         let total = 0
-        claimsData.forEach((claim) => {
+        claimsData.forEach((claim: { crypto_symbol: string; claimed_at: string }) => {
           counts[claim.crypto_symbol] = (counts[claim.crypto_symbol] || 0) + 1
           total++
         })
@@ -159,29 +299,35 @@ export default function ManualFaucetPage() {
 
         // Check if shortlink is required (after every 100 claims)
         if (total > 0 && total % SHORTLINK_REQUIRED_AFTER === 0) {
-          // Check if user completed a shortlink after the last 100th claim
-          const { data: shortlinkData } = await supabase
-            .from("shortlink_views")
-            .select("viewed_at")
-            .eq("user_id", user.id)
-            .gte("viewed_at", today.toISOString())
-            .order("viewed_at", { ascending: false })
-            .limit(1)
+          try {
+            const { data: shortlinkData } = await Promise.race([
+              supabase
+                .from("shortlink_views")
+                .select("viewed_at")
+                .eq("user_id", authUser.id)
+                .gte("viewed_at", todayISO)
+                .order("viewed_at", { ascending: false })
+                .limit(1),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Shortlink timeout")), 3000)),
+            ])
 
-          const lastClaimTime = claimsData[claimsData.length - 1]?.claimed_at
-          const lastShortlinkTime = shortlinkData?.[0]?.viewed_at
+            if (!mountedRef.current) return
 
-          if (!lastShortlinkTime || new Date(lastShortlinkTime) < new Date(lastClaimTime)) {
-            setShortlinkRequired(true)
+            const lastClaimTime = claimsData[claimsData.length - 1]?.claimed_at
+            const lastShortlinkTime = shortlinkData?.[0]?.viewed_at
+
+            if (!lastShortlinkTime || new Date(lastShortlinkTime) < new Date(lastClaimTime)) {
+              setShortlinkRequired(true)
+            }
+          } catch {
+            // If shortlink check fails, don't require it
           }
         }
-      }
 
-      // Calculate cooldowns
-      const newCooldowns: Record<string, number> = {}
-      if (claimsData) {
+        // Calculate cooldowns
+        const newCooldowns: Record<string, number> = {}
         const now = Date.now()
-        claimsData.forEach((claim) => {
+        claimsData.forEach((claim: { crypto_symbol: string; claimed_at: string }) => {
           const claimTime = new Date(claim.claimed_at).getTime()
           const elapsed = (now - claimTime) / 1000
           const remaining = Math.max(0, COOLDOWN_SECONDS - elapsed)
@@ -189,21 +335,51 @@ export default function ManualFaucetPage() {
             newCooldowns[claim.crypto_symbol] = Math.ceil(remaining)
           }
         })
+        setCooldowns(newCooldowns)
       }
-      setCooldowns(newCooldowns)
+
+      setLoadError(null)
     } catch (error) {
-      console.error("Error loading user data:", error)
+      if (!mountedRef.current || currentAttempt !== loadAttemptRef.current) return
+
+      console.error("[v0] Error loading user data:", error)
+      setLoadError("Failed to load data. Please refresh the page.")
     } finally {
-      setIsLoading(false)
+      if (mountedRef.current && currentAttempt === loadAttemptRef.current) {
+        isLoadingRef.current = false
+        setIsLoading(false)
+      }
     }
   }, [supabase])
 
+  // Initialize on mount
   useEffect(() => {
+    mountedRef.current = true
+
+    // Run all initialization in parallel (non-blocking)
     loadUserData()
-  }, [loadUserData])
+    checkVPN()
+    checkAdblock()
+
+    // Set a fallback timeout in case everything hangs
+    const fallbackTimeout = setTimeout(() => {
+      if (mountedRef.current && isLoadingRef.current) {
+        isLoadingRef.current = false
+        setIsLoading(false)
+        setLoadError("Loading took too long. Some features may be unavailable.")
+      }
+    }, LOAD_TIMEOUT_MS + 2000)
+
+    return () => {
+      mountedRef.current = false
+      clearTimeout(fallbackTimeout)
+    }
+  }, [loadUserData, checkVPN, checkAdblock])
 
   // Cooldown countdown timer
   useEffect(() => {
+    if (isLoading) return
+
     const interval = setInterval(() => {
       setCooldowns((prev) => {
         const newCooldowns = { ...prev }
@@ -222,7 +398,7 @@ export default function ManualFaucetPage() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [isLoading])
 
   const handleVerificationComplete = (token: string, metadata?: VerificationMetadata) => {
     setCaptchaToken(token)
@@ -249,7 +425,7 @@ export default function ManualFaucetPage() {
       })
       return
     }
-    if (vpnBlocked) {
+    if (vpnState.vpnDetected) {
       toast.error("VPN/Proxy detected", {
         description: "Please disable your VPN or proxy to claim rewards.",
       })
@@ -259,7 +435,7 @@ export default function ManualFaucetPage() {
       toast.error("This device has been blocked. Please contact support.")
       return
     }
-    if (adblockDetected || adblockFlagged) {
+    if (adblockDetected) {
       toast.error("AdBlock Detected", {
         description: "Please disable your ad blocker to claim rewards. Our site relies on ads to provide free crypto.",
       })
@@ -270,6 +446,10 @@ export default function ManualFaucetPage() {
     setSelectedCrypto(symbol)
 
     try {
+      // Create an abort controller for timeout
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
       const response = await fetch("/api/manual-faucet/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -278,9 +458,17 @@ export default function ManualFaucetPage() {
           captchaToken,
           fingerprint: deviceFingerprint ? { visitorId: deviceFingerprint } : undefined,
         }),
+        signal: controller.signal,
       })
 
-      const data = await response.json()
+      clearTimeout(timeout)
+
+      let data
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error("Invalid response from server")
+      }
 
       if (!response.ok) {
         throw new Error(data.error || "Claim failed")
@@ -319,17 +507,34 @@ export default function ManualFaucetPage() {
       setIsVerified(false)
       setCaptchaToken(null)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to claim")
+      if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          toast.error("Request timed out", {
+            description: "The claim request took too long. Please try again.",
+          })
+        } else {
+          toast.error(error.message || "Failed to claim")
+        }
+      } else {
+        toast.error("Failed to claim", {
+          description: "An unexpected error occurred. Please try again.",
+        })
+      }
     } finally {
       setIsClaiming(false)
       setSelectedCrypto(null)
     }
   }
 
+  // Loading state with timeout-safe skeleton
   if (isLoading) {
     return (
       <div className="min-h-screen p-4 md:p-6 lg:p-8">
         <div className="max-w-6xl mx-auto space-y-6">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="text-muted-foreground">Loading faucet...</span>
+          </div>
           <Skeleton className="h-12 w-64" />
           <Skeleton className="h-32 w-full" />
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -337,6 +542,34 @@ export default function ManualFaucetPage() {
               <Skeleton key={i} className="h-48" />
             ))}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state with retry
+  if (loadError && !user) {
+    return (
+      <div className="min-h-screen p-4 md:p-6 lg:p-8">
+        <div className="max-w-md mx-auto">
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Failed to Load
+              </CardTitle>
+              <CardDescription>{loadError}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex gap-3">
+              <Button onClick={() => { isLoadingRef.current = true; setIsLoading(true); setLoadError(null); loadUserData() }} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/dashboard">Go to Dashboard</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     )
@@ -364,15 +597,44 @@ export default function ManualFaucetPage() {
           </Button>
         </div>
 
+        {/* Load Error Warning (non-blocking) */}
+        {loadError && user && (
+          <Alert variant="destructive" className="border-amber-500/50 bg-amber-500/5">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTitle className="text-amber-600">Partial Load</AlertTitle>
+            <AlertDescription>
+              {loadError}{" "}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLoadError(null)
+                  loadUserData()
+                }}
+                className="mt-2 ml-2"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* VPN Warning */}
-        {vpnBlocked && (
+        {vpnState.vpnDetected && (
           <Alert variant="destructive">
             <Shield className="h-4 w-4" />
             <AlertTitle>VPN/Proxy Detected</AlertTitle>
             <AlertDescription>
               Please disable your VPN, proxy, or Tor connection to claim rewards.
-              <Button variant="outline" size="sm" onClick={() => recheckVPN()} disabled={vpnChecking} className="mt-2 ml-2">
-                <RefreshCw className={`h-3 w-3 mr-1 ${vpnChecking ? "animate-spin" : ""}`} />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => checkVPN()}
+                disabled={vpnState.isChecking}
+                className="mt-2 ml-2"
+              >
+                <RefreshCw className={`h-3 w-3 mr-1 ${vpnState.isChecking ? "animate-spin" : ""}`} />
                 Re-check
               </Button>
             </AlertDescription>
@@ -380,7 +642,7 @@ export default function ManualFaucetPage() {
         )}
 
         {/* AdBlock Warning */}
-        {(adblockDetected || adblockFlagged) && (
+        {adblockDetected && (
           <Alert variant="destructive" className="border-red-500/50 bg-red-500/10">
             <AlertTriangle className="h-4 w-4 text-red-500" />
             <AlertTitle className="text-red-500">AdBlock Detected</AlertTitle>
@@ -529,8 +791,8 @@ export default function ManualFaucetPage() {
                   <Card
                     key={crypto.symbol}
                     className={`relative transition-all duration-300 hover:shadow-lg ${isOnCooldown
-                        ? "opacity-60 border-muted"
-                        : "border-primary/30 hover:border-primary/50 hover:scale-[1.02]"
+                      ? "opacity-60 border-muted"
+                      : "border-primary/30 hover:border-primary/50 hover:scale-[1.02]"
                       }`}
                   >
                     <CardContent className="p-4 flex flex-col items-center text-center gap-3">
@@ -557,7 +819,7 @@ export default function ManualFaucetPage() {
                       {/* Claim Button */}
                       <Button
                         className="w-full gap-2"
-                        disabled={isOnCooldown || isClaiming || vpnBlocked}
+                        disabled={isOnCooldown || isClaiming || vpnState.vpnDetected || adblockDetected}
                         onClick={() => handleClaim(crypto.symbol)}
                       >
                         {isCurrentClaim ? (
