@@ -1,30 +1,30 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Sparkles, RotateCcw } from "lucide-react"
 
 const BOARD_SIZE = 8
-const CELL_SIZE = 36
+const CELL_SIZE = 32
 
 // Multiple color palettes for variety
 const COLOR_PALETTES = [
-  ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7", "#f97316"], // Classic
-  ["#f472b6", "#84cc16", "#06b6d4", "#fbbf24", "#8b5cf6", "#ec4899"], // Candy
-  ["#fb923c", "#a3e635", "#e879f9", "#38bdf8", "#facc15", "#4ade80"], // Neon
-  ["#dc2626", "#16a34a", "#2563eb", "#d97706", "#7c3aed", "#db2777"], // Deep
+  ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7", "#f97316"],
+  ["#f472b6", "#84cc16", "#06b6d4", "#fbbf24", "#8b5cf6", "#ec4899"],
+  ["#fb923c", "#a3e635", "#e879f9", "#38bdf8", "#facc15", "#4ade80"],
+  ["#dc2626", "#16a34a", "#2563eb", "#d97706", "#7c3aed", "#db2777"],
 ]
 
 const getRandomPalette = () => COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)]
 
-// Special block types for extra excitement
+// Special block types
 const SPECIAL_BLOCKS = {
-  bomb: { chance: 0.025, color: "#1f2937", effect: "clear_nearby", icon: "B" },
-  rainbow: { chance: 0.02, color: "rainbow", effect: "match_any", icon: "R" },
-  multiplier: { chance: 0.03, color: "#ffd700", effect: "2x_points", icon: "2x" },
-  lightning: { chance: 0.02, color: "#60a5fa", effect: "clear_row", icon: "L" },
-  star: { chance: 0.015, color: "#f472b6", effect: "clear_color", icon: "S" },
+  bomb: { chance: 0.025, effect: "clear_nearby", icon: "B" },
+  rainbow: { chance: 0.02, effect: "match_any", icon: "R" },
+  multiplier: { chance: 0.03, effect: "2x_points", icon: "2x" },
+  lightning: { chance: 0.02, effect: "clear_row", icon: "L" },
+  star: { chance: 0.015, effect: "clear_color", icon: "S" },
 }
 
 // Achievement messages for big combos
@@ -35,8 +35,6 @@ const COMBO_MESSAGES = [
   { min: 8, message: "Amazing!", color: "text-orange-500" },
   { min: 10, message: "INCREDIBLE!", color: "text-red-500" },
 ]
-
-const COLORS = getRandomPalette()
 
 type SpecialType = "bomb" | "rainbow" | "multiplier" | "lightning" | "star" | null
 type Cell = { color: string | null; id: number; special: SpecialType }
@@ -55,47 +53,83 @@ interface BlockBlastGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
-  winThreshold?: number // Score needed to win and get reward
+  winThreshold?: number
 }
 
 export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200 }: BlockBlastGameProps) {
-  // Apply difficulty settings
   const difficultyLevel = difficulty?.level || 1
   const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
-
-  // Calculate moves based on difficulty (fewer moves at higher difficulty)
   const maxMoves = Math.max(15, 30 - (difficultyLevel - 1) * 2)
+
   const [hasWon, setHasWon] = useState(false)
-  const [board, setBoard] = useState<Board>(() => createBoard())
+  const [board, setBoard] = useState<Board>(() => [])
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
   const [combo, setCombo] = useState(0)
   const [selectedCell, setSelectedCell] = useState<{ x: number; y: number } | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
   const [gameOver, setGameOver] = useState(false)
+  const [gameStarted, setGameStarted] = useState(false)
   const [matchedCells, setMatchedCells] = useState<Set<string>>(new Set())
   const [movesLeft, setMovesLeft] = useState(maxMoves)
-  const [cellIdCounter, setCellIdCounter] = useState(BOARD_SIZE * BOARD_SIZE)
+  const [cellIdCounter, setCellIdCounter] = useState(0)
   const [activeMultiplier, setActiveMultiplier] = useState(1)
-  const [colors] = useState(() => getRandomPalette())
+  const [colors, setColors] = useState<string[]>([])
   const [eventMessage, setEventMessage] = useState<string | null>(null)
   const [comboMessage, setComboMessage] = useState<{ message: string; color: string } | null>(null)
   const [shakeBoard, setShakeBoard] = useState(false)
-  const [particles, setParticles] = useState<{ x: number; y: number; color: string; id: number }[]>([])
 
-  // Reset movesLeft when difficulty changes (new game starts)
+  const boardRef = useRef<HTMLDivElement>(null)
+  const scoreRef = useRef(score)
+  const isAnimatingRef = useRef(isAnimating)
+
   useEffect(() => {
+    scoreRef.current = score
+    isAnimatingRef.current = isAnimating
+  }, [score, isAnimating])
+
+  // Initialize game
+  const initializeGame = useCallback(() => {
+    const palette = getRandomPalette()
+    setColors(palette)
+    let id = 0
+    const newBoard: Board = Array(BOARD_SIZE).fill(null).map(() =>
+      Array(BOARD_SIZE).fill(null).map(() => ({
+        color: palette[Math.floor(Math.random() * palette.length)],
+        id: id++,
+        special: getSpecialType()
+      }))
+    )
+    setBoard(newBoard)
+    setCellIdCounter(id)
+    setScore(0)
+    setMoves(0)
+    setCombo(0)
     setMovesLeft(maxMoves)
+    setSelectedCell(null)
+    setMatchedCells(new Set())
+    setGameOver(false)
+    setHasWon(false)
+    setActiveMultiplier(1)
+    setGameStarted(true)
+    setIsAnimating(false)
   }, [maxMoves])
 
-  // Auto-win detection - when score reaches threshold, trigger win
+  // Start game when active
   useEffect(() => {
-    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+    if (isActive && !gameStarted) {
+      initializeGame()
+    }
+  }, [isActive, gameStarted, initializeGame])
+
+  // Auto-win detection
+  useEffect(() => {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive && gameStarted) {
       setHasWon(true)
       setGameOver(true)
       onGameEnd(score, moves)
     }
-  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
+  }, [score, winThreshold, hasWon, gameOver, isActive, gameStarted, moves, onGameEnd])
 
   function getSpecialType(): SpecialType {
     const roll = Math.random()
@@ -107,18 +141,6 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     return null
   }
 
-  function createBoard(): Board {
-    let id = 0
-    const palette = getRandomPalette()
-    return Array(BOARD_SIZE).fill(null).map(() =>
-      Array(BOARD_SIZE).fill(null).map(() => ({
-        color: palette[Math.floor(Math.random() * palette.length)],
-        id: id++,
-        special: getSpecialType()
-      }))
-    )
-  }
-
   const findMatches = useCallback((boardState: Board): Set<string> => {
     const matches = new Set<string>()
 
@@ -126,7 +148,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     for (let y = 0; y < BOARD_SIZE; y++) {
       let count = 1
       for (let x = 1; x < BOARD_SIZE; x++) {
-        if (boardState[y][x].color === boardState[y][x - 1].color && boardState[y][x].color) {
+        const current = boardState[y]?.[x]
+        const prev = boardState[y]?.[x - 1]
+        if (current?.color && prev?.color && current.color === prev.color) {
           count++
         } else {
           if (count >= 3) {
@@ -148,7 +172,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     for (let x = 0; x < BOARD_SIZE; x++) {
       let count = 1
       for (let y = 1; y < BOARD_SIZE; y++) {
-        if (boardState[y][x].color === boardState[y - 1][x].color && boardState[y][x].color) {
+        const current = boardState[y]?.[x]
+        const prev = boardState[y - 1]?.[x]
+        if (current?.color && prev?.color && current.color === prev.color) {
           count++
         } else {
           if (count >= 3) {
@@ -170,7 +196,6 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   }, [])
 
   const hasValidMoves = useCallback((boardState: Board): boolean => {
-    // Check if any swap would create a match
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
         // Try swapping with right neighbor
@@ -194,24 +219,27 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     return false
   }, [findMatches])
 
-  const removeMatches = useCallback((boardState: Board, matches: Set<string>, currentIdCounter: number): { newBoard: Board; newIdCounter: number; bonusPoints: number } => {
+  const removeMatchesAndFill = useCallback((boardState: Board, matches: Set<string>, currentIdCounter: number): { newBoard: Board; newIdCounter: number; bonusPoints: number } => {
     const newBoard = boardState.map(row => row.map(cell => ({ ...cell })))
     let idCounter = currentIdCounter
     let bonusPoints = 0
+    const expandedMatches = new Set(matches)
 
     // Check for special blocks in matches
     matches.forEach(key => {
-      const [x, y] = key.split(",").map(Number)
-      const cell = newBoard[y][x]
+      const [xStr, yStr] = key.split(",")
+      const x = parseInt(xStr)
+      const y = parseInt(yStr)
+      const cell = newBoard[y]?.[x]
+      if (!cell) return
 
       if (cell.special === "bomb") {
-        // Clear surrounding cells (3x3 area)
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             const nx = x + dx
             const ny = y + dy
             if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
-              matches.add(`${nx},${ny}`)
+              expandedMatches.add(`${nx},${ny}`)
             }
           }
         }
@@ -226,9 +254,8 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         setEventMessage("2x Multiplier!")
         setTimeout(() => setEventMessage(null), 1500)
       } else if (cell.special === "lightning") {
-        // Clear entire row
         for (let lx = 0; lx < BOARD_SIZE; lx++) {
-          matches.add(`${lx},${y}`)
+          expandedMatches.add(`${lx},${y}`)
         }
         bonusPoints += 80
         setEventMessage("Lightning Strike!")
@@ -236,12 +263,11 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         setTimeout(() => setShakeBoard(false), 300)
         setTimeout(() => setEventMessage(null), 1500)
       } else if (cell.special === "star") {
-        // Clear all blocks of the same color
         const targetColor = cell.color
         for (let sy = 0; sy < BOARD_SIZE; sy++) {
           for (let sx = 0; sx < BOARD_SIZE; sx++) {
-            if (newBoard[sy][sx].color === targetColor) {
-              matches.add(`${sx},${sy}`)
+            if (newBoard[sy]?.[sx]?.color === targetColor) {
+              expandedMatches.add(`${sx},${sy}`)
             }
           }
         }
@@ -252,16 +278,20 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     })
 
     // Remove matched cells
-    matches.forEach(key => {
-      const [x, y] = key.split(",").map(Number)
-      newBoard[y][x] = { color: null, id: -1, special: null }
+    expandedMatches.forEach(key => {
+      const [xStr, yStr] = key.split(",")
+      const x = parseInt(xStr)
+      const y = parseInt(yStr)
+      if (newBoard[y]?.[x]) {
+        newBoard[y][x] = { color: null, id: -1, special: null }
+      }
     })
 
     // Drop cells down
     for (let x = 0; x < BOARD_SIZE; x++) {
       let writePos = BOARD_SIZE - 1
       for (let y = BOARD_SIZE - 1; y >= 0; y--) {
-        if (newBoard[y][x].color !== null) {
+        if (newBoard[y]?.[x]?.color !== null) {
           newBoard[writePos][x] = newBoard[y][x]
           if (writePos !== y) {
             newBoard[y][x] = { color: null, id: -1, special: null }
@@ -269,7 +299,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           writePos--
         }
       }
-      // Fill empty cells at top with random colors and occasional specials
+      // Fill empty cells at top
       for (let y = writePos; y >= 0; y--) {
         newBoard[y][x] = {
           color: colors[Math.floor(Math.random() * colors.length)],
@@ -291,7 +321,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
       if (!hasValidMoves(boardState) || movesLeft <= 0) {
         setGameOver(true)
-        onGameEnd(score, moves)
+        onGameEnd(scoreRef.current, moves)
       }
       return
     }
@@ -299,15 +329,15 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     setMatchedCells(matches)
     setIsAnimating(true)
 
-    // Calculate score with multiplier and difficulty bonus
+    // Calculate score
     const difficultyBonus = 1 + (difficultyLevel - 1) * 0.15
     const matchScore = matches.size * 10 * (1 + comboCount * 0.5) * activeMultiplier * scoreMultiplierFromDifficulty * difficultyBonus
-    const newScore = score + Math.floor(matchScore)
+    const newScore = scoreRef.current + Math.floor(matchScore)
     setScore(newScore)
     setCombo(comboCount + 1)
     onScoreUpdate(newScore)
 
-    // Show combo message for high combos
+    // Show combo message
     const comboMsg = COMBO_MESSAGES.filter(m => comboCount + 1 >= m.min).pop()
     if (comboMsg && comboCount >= 1) {
       setComboMessage(comboMsg)
@@ -318,7 +348,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     await new Promise(resolve => setTimeout(resolve, 300))
 
     // Remove matches and fill
-    const { newBoard, newIdCounter, bonusPoints } = removeMatches(boardState, matches, currentIdCounter)
+    const { newBoard, newIdCounter, bonusPoints } = removeMatchesAndFill(boardState, matches, currentIdCounter)
 
     if (bonusPoints > 0) {
       const bonusScore = newScore + bonusPoints * activeMultiplier
@@ -329,13 +359,13 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     setBoard(newBoard)
     setMatchedCells(new Set())
 
-    // Wait a bit then check for new matches
+    // Check for new matches
     await new Promise(resolve => setTimeout(resolve, 200))
     processMatches(newBoard, comboCount + 1, newIdCounter)
-  }, [findMatches, hasValidMoves, movesLeft, onGameEnd, onScoreUpdate, removeMatches, score, moves])
+  }, [findMatches, hasValidMoves, movesLeft, onGameEnd, onScoreUpdate, removeMatchesAndFill, activeMultiplier, difficultyLevel, scoreMultiplierFromDifficulty, moves])
 
-  const handleCellClick = useCallback((x: number, y: number) => {
-    if (!isActive || isAnimating || gameOver || movesLeft <= 0) return
+  const handleCellInteraction = useCallback((x: number, y: number) => {
+    if (!isActive || isAnimatingRef.current || gameOver || movesLeft <= 0) return
 
     if (!selectedCell) {
       setSelectedCell({ x, y })
@@ -366,56 +396,66 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           processMatches(newBoard, 0, cellIdCounter)
         }, 100)
       } else {
-        // Invalid swap - swap back
+        // Invalid swap
         setSelectedCell(null)
       }
     } else {
       // Select new cell
       setSelectedCell({ x, y })
     }
-  }, [isActive, isAnimating, gameOver, movesLeft, selectedCell, board, findMatches, processMatches, cellIdCounter])
+  }, [isActive, gameOver, movesLeft, selectedCell, board, findMatches, processMatches, cellIdCounter])
+
+  // Touch handler
+  const handleTouch = useCallback((e: React.TouchEvent, x: number, y: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    handleCellInteraction(x, y)
+  }, [handleCellInteraction])
+
+  // Click handler
+  const handleClick = useCallback((e: React.MouseEvent, x: number, y: number) => {
+    e.preventDefault()
+    handleCellInteraction(x, y)
+  }, [handleCellInteraction])
+
+  const resetGame = useCallback(() => {
+    initializeGame()
+  }, [initializeGame])
 
   // Initial match check
   useEffect(() => {
-    if (isActive && !gameOver) {
+    if (isActive && gameStarted && !gameOver && board.length > 0) {
       const matches = findMatches(board)
-      if (matches.size > 0) {
+      if (matches.size > 0 && !isAnimating) {
         processMatches(board, 0, cellIdCounter)
       }
     }
-  }, [isActive]) // Only run on initial activation
+  }, [gameStarted])
 
-  const resetGame = () => {
-    setHasWon(false)
-    const newBoard = createBoard()
-    setBoard(newBoard)
-    setScore(0)
-    setMoves(0)
-    setCombo(0)
-    setMovesLeft(maxMoves)
-    setSelectedCell(null)
-    setMatchedCells(new Set())
-    setGameOver(false)
-    setCellIdCounter(BOARD_SIZE * BOARD_SIZE)
-  }
+  const boardWidth = BOARD_SIZE * CELL_SIZE + 24
+  const boardHeight = BOARD_SIZE * CELL_SIZE + 24
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
       {/* Game Board */}
       <div
-        className={`relative bg-gray-900 rounded-lg p-3 border-2 border-gray-700 transition-transform overflow-hidden flex-shrink-0 ${shakeBoard ? "animate-pulse" : ""}`}
+        ref={boardRef}
+        className={`relative bg-gray-900 rounded-lg p-3 border-2 border-gray-700 transition-transform flex-shrink-0 touch-none select-none ${shakeBoard ? "animate-pulse" : ""}`}
         style={{
-          width: BOARD_SIZE * CELL_SIZE + 24,
-          height: BOARD_SIZE * CELL_SIZE + 24,
+          width: boardWidth,
+          height: boardHeight,
           maxWidth: "100%",
-          transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 2 : -2}px)` : "none"
+          transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 2 : -2}px)` : "none",
+          overflow: "hidden"
         }}
       >
         <div
           className="grid gap-1"
           style={{
             gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
-            gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`
+            gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
+            width: BOARD_SIZE * CELL_SIZE,
+            height: BOARD_SIZE * CELL_SIZE
           }}
         >
           {board.flat().map((cell, i) => {
@@ -426,14 +466,15 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
             return (
               <button
-                key={cell.id}
-                onClick={() => handleCellClick(x, y)}
+                key={`${cell.id}-${x}-${y}`}
+                onClick={(e) => handleClick(e, x, y)}
+                onTouchStart={(e) => handleTouch(e, x, y)}
                 disabled={!isActive || isAnimating || gameOver}
                 className={`
-                  rounded-lg transition-all duration-200 relative
-                  ${isSelected ? "ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110 z-10" : ""}
+                  rounded-lg transition-all duration-200 relative touch-none
+                  ${isSelected ? "ring-2 ring-white ring-offset-1 ring-offset-gray-900 scale-110 z-10" : ""}
                   ${isMatched ? "scale-0 opacity-0" : "scale-100 opacity-100"}
-                  ${!isAnimating && !gameOver ? "hover:scale-105 hover:brightness-110 cursor-pointer" : ""}
+                  ${!isAnimating && !gameOver ? "hover:scale-105 hover:brightness-110 active:scale-95" : ""}
                   ${cell.special === "bomb" ? "animate-pulse" : ""}
                   ${cell.special === "rainbow" ? "animate-pulse bg-gradient-to-br from-red-500 via-yellow-500 to-blue-500" : ""}
                   ${cell.special === "multiplier" ? "ring-2 ring-yellow-400" : ""}
@@ -447,7 +488,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                     ? `inset 0 -3px 6px rgba(0,0,0,0.3), inset 0 3px 6px rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.3)`
                     : "none",
                   width: CELL_SIZE,
-                  height: CELL_SIZE
+                  height: CELL_SIZE,
+                  touchAction: "none",
+                  WebkitTapHighlightColor: "transparent"
                 }}
               />
             )
@@ -477,11 +520,21 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           </div>
         )}
 
+        {/* Start Overlay */}
+        {!gameStarted && !gameOver && (
+          <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded-lg">
+            <div className="text-center">
+              <p className="text-white font-bold text-xl mb-2">Block Blast</p>
+              <p className="text-gray-300 text-sm">Loading...</p>
+            </div>
+          </div>
+        )}
+
         {/* Game Over Overlay */}
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-2xl font-bold text-amber-500 mb-2">GAME OVER</p>
+              <p className="text-2xl font-bold text-amber-500 mb-2">{hasWon ? "YOU WIN!" : "GAME OVER"}</p>
               <p className="text-white mb-4">Final Score: {score.toLocaleString()}</p>
               <Button onClick={resetGame} variant="outline">
                 <RotateCcw className="h-4 w-4 mr-2" />
@@ -500,6 +553,10 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
             <div>
               <p className="text-gray-400 text-xs">Score</p>
               <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Target</p>
+              <p className="text-lg font-bold text-green-400">{winThreshold.toLocaleString()}</p>
             </div>
             <div className="flex gap-4">
               <div>
@@ -530,7 +587,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
             <li>Tap an adjacent block to swap</li>
             <li>Match 3+ same colors</li>
             <li>Build combos for bonus points</li>
-            <li>Clear as many as you can!</li>
+            <li>Reach {winThreshold} to win!</li>
           </ul>
         </Card>
 
@@ -542,32 +599,15 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
               {Array.from({ length: 10 }).map((_, i) => (
                 <div
                   key={i}
-                  className={`w-2 h-4 rounded ${i < difficultyLevel
+                  className={`w-2 h-3 rounded-sm ${i < difficultyLevel
                     ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
                     : "bg-gray-700"
                     }`}
                 />
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {difficultyLevel <= 3 ? "Easy" : difficultyLevel <= 6 ? "Medium" : "Hard"} - {maxMoves} moves
-            </p>
           </Card>
         )}
-
-        {/* Progress */}
-        <Card className="p-3 bg-gray-900 border-gray-700">
-          <p className="text-gray-400 text-xs mb-2">Target: 500 points</p>
-          <div className="w-full bg-gray-800 rounded-full h-2">
-            <div
-              className="bg-gradient-to-r from-green-500 to-emerald-400 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(100, (score / 500) * 100)}%` }}
-            />
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            {score >= 500 ? "Target reached!" : `${500 - score} more to go`}
-          </p>
-        </Card>
       </div>
     </div>
   )

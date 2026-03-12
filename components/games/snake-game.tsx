@@ -553,6 +553,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               <p className="text-gray-400 text-xs">Score</p>
               <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
+            <div>
+              <p className="text-gray-400 text-xs">Target</p>
+              <p className="text-lg font-bold text-green-400">{winThreshold.toLocaleString()}</p>
+            </div>
             <div className="flex gap-4">
               <div>
                 <p className="text-gray-400 text-xs">Length</p>
@@ -582,6 +586,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               size="icon"
               className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("UP")}
+              onTouchStart={(e) => { e.preventDefault(); handleDirection("UP") }}
             >
               <ArrowUp className="h-4 w-4" />
             </Button>
@@ -591,6 +596,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               size="icon"
               className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("LEFT")}
+              onTouchStart={(e) => { e.preventDefault(); handleDirection("LEFT") }}
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -599,6 +605,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               size="icon"
               className="h-10 w-10 active:scale-95"
               onClick={() => setIsPaused(p => !p)}
+              onTouchStart={(e) => { e.preventDefault(); setIsPaused(p => !p) }}
             >
               {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
             </Button>
@@ -607,6 +614,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               size="icon"
               className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("RIGHT")}
+              onTouchStart={(e) => { e.preventDefault(); handleDirection("RIGHT") }}
             >
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -616,6 +624,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               size="icon"
               className="h-10 w-10 active:scale-95"
               onClick={() => handleDirection("DOWN")}
+              onTouchStart={(e) => { e.preventDefault(); handleDirection("DOWN") }}
             >
               <ArrowDown className="h-4 w-4" />
             </Button>

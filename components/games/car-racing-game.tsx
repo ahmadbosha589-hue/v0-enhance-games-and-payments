@@ -779,8 +779,12 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
               <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
             <div>
+              <p className="text-gray-400 text-xs">Target</p>
+              <p className="font-bold text-lg text-green-400">{winThreshold.toLocaleString()}</p>
+            </div>
+            <div>
               <p className="text-gray-400 text-xs">Distance</p>
-              <p className="font-bold text-lg text-green-400">{Math.floor(distance)}m</p>
+              <p className="font-bold text-lg text-cyan-400">{Math.floor(distance)}m</p>
             </div>
             <div className="flex gap-4">
               <div>
@@ -821,8 +825,12 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
           <Button
             variant="outline"
             size="lg"
-            className="flex-1 bg-gray-800 border-gray-700 h-14"
+            className="flex-1 bg-gray-800 border-gray-700 h-14 active:scale-95"
             onClick={moveLeft}
+            onTouchStart={(e) => {
+              e.preventDefault()
+              moveLeft()
+            }}
             disabled={!isActive || gameOver}
           >
             <ArrowLeft className="h-6 w-6" />
@@ -830,8 +838,12 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
           <Button
             variant="outline"
             size="lg"
-            className="flex-1 bg-gray-800 border-gray-700 h-14"
+            className="flex-1 bg-gray-800 border-gray-700 h-14 active:scale-95"
             onClick={moveRight}
+            onTouchStart={(e) => {
+              e.preventDefault()
+              moveRight()
+            }}
             disabled={!isActive || gameOver}
           >
             <ArrowRight className="h-6 w-6" />

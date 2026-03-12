@@ -204,10 +204,10 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }
   }, [flippedCards, cards, score, combo, streak, timeLeft, lastMatchTime, config.pairs, moves, perfectGame, onGameEnd, onScoreUpdate])
 
-  const handleCardClick = (cardId: number) => {
+  const handleCardClick = useCallback((cardId: number) => {
     if (!isActive || gameOver || isChecking) return
     if (flippedCards.length >= 2) return
-    if (cards[cardId].isFlipped || cards[cardId].isMatched) return
+    if (cards[cardId]?.isFlipped || cards[cardId]?.isMatched) return
     if (flippedCards.includes(cardId)) return
 
     setCards(prev => prev.map(card =>
@@ -218,7 +218,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     if (flippedCards.length === 1) {
       setMoves(m => m + 1)
     }
-  }
+  }, [isActive, gameOver, isChecking, flippedCards, cards])
 
   const useHint = () => {
     if (hintsUsed >= 3 || gameOver) return
@@ -268,12 +268,11 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           {cards.map((card) => (
             <button
               key={card.id}
-              onClick={() => handleCardClick(card.id)}
-              onTouchStart={(e) => {
+              onClick={(e) => {
                 e.preventDefault()
-                e.stopPropagation()
+                handleCardClick(card.id)
               }}
-              onTouchEnd={(e) => {
+              onTouchStart={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 if (!isChecking && !card.isFlipped && !card.isMatched) {
@@ -342,7 +341,11 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           <div className="space-y-3">
             <div>
               <p className="text-gray-400 text-xs">Score</p>
-              <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
+> <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs">Target</p>
+              <p className="font-bold text-lg text-green-400">{winThreshold.toLocaleString()}</p>
             </div>
             <div className="flex gap-4">
               <div>
