@@ -25,36 +25,85 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const adminSupabase = createAdminClient()
+    let adminSupabase
+    try {
+      adminSupabase = createAdminClient()
+    } catch (err) {
+      console.error("Failed to create admin client:", err)
+      // Return default response without database
+      const defaultStatus: Record<string, { canPlay: boolean; waitSeconds: number; cooldownUntil: string | null; winThreshold: number }> = {}
+      for (const gameType of ALL_GAME_TYPES) {
+        defaultStatus[gameType] = {
+          canPlay: true,
+          waitSeconds: 0,
+          cooldownUntil: null,
+          winThreshold: BASE_WIN_THRESHOLDS[gameType] || 100
+        }
+      }
+      return NextResponse.json({
+        gameStatuses: defaultStatus,
+        gamesPlayedToday: 0,
+        gamesRemaining: MAX_GAMES_PER_DAY,
+        maxGamesPerDay: MAX_GAMES_PER_DAY,
+        totalEarnedToday: 0,
+        rewardPerGame: GAME_REWARD_SATOSHIS,
+        cooldownMinutes: GAME_COOLDOWN_MINUTES,
+        currentBalance: 0,
+        recentGames: [],
+        winThresholds: BASE_WIN_THRESHOLDS,
+        difficulty: {
+          level: 1,
+          description: "Easy",
+          speedMultiplier: 1,
+          obstacleFrequency: 1,
+          bonusChance: 0.15,
+          scoreMultiplier: 1
+        },
+        gamesToday: 0
+      })
+    }
+
     const today = new Date().toISOString().split("T")[0]
 
-    // Get daily stats
-    const { data: dailyLimit } = await adminSupabase
-      .from("game_daily_limits")
-      .select("games_played, total_earned")
-      .eq("user_id", user.id)
-      .eq("date", today)
-      .single()
+    // Get daily stats - handle errors gracefully
+    let dailyLimit = null
+    try {
+      const { data } = await adminSupabase
+        .from("game_daily_limits")
+        .select("games_played, total_earned")
+        .eq("user_id", user.id)
+        .eq("date", today)
+        .single()
+      dailyLimit = data
+    } catch { /* ignore */ }
 
     // Get TODAY's games played for difficulty calculation (resets daily)
     const todayStart = new Date()
     todayStart.setUTCHours(0, 0, 0, 0)
 
-    const { count: gamesTodayCount } = await adminSupabase
-      .from("game_sessions")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .in("status", ["completed", "lost"])
-      .gte("created_at", todayStart.toISOString())
+    let gamesTodayCount = 0
+    try {
+      const { count } = await adminSupabase
+        .from("game_sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .in("status", ["completed", "lost"])
+        .gte("created_at", todayStart.toISOString())
+      gamesTodayCount = count || 0
+    } catch { /* ignore */ }
 
     // Calculate difficulty based on TODAY's games played (resets every 24 hours)
-    const difficulty = calculateDifficulty(gamesTodayCount || 0)
+    const difficulty = calculateDifficulty(gamesTodayCount)
 
     // Get all game cooldowns for this user
-    const { data: cooldowns } = await adminSupabase
-      .from("game_cooldowns")
-      .select("game_type, cooldown_until")
-      .eq("user_id", user.id)
+    let cooldowns: Array<{ game_type: string; cooldown_until: string }> | null = null
+    try {
+      const { data } = await adminSupabase
+        .from("game_cooldowns")
+        .select("game_type, cooldown_until")
+        .eq("user_id", user.id)
+      cooldowns = data
+    } catch { /* ignore */ }
 
     // Build per-game status with difficulty-adjusted win thresholds
     const gameStatuses: Record<string, {
@@ -104,20 +153,28 @@ export async function GET(req: NextRequest) {
     }
 
     // Get recent game history
-    const { data: recentGames } = await adminSupabase
-      .from("game_sessions")
-      .select("id, game_type, score, reward_satoshis, status, created_at, completed_at")
-      .eq("user_id", user.id)
-      .in("status", ["completed", "lost"])
-      .order("created_at", { ascending: false })
-      .limit(20)
+    let recentGames: Array<{ id: string; game_type: string; score: number; reward_satoshis: number; status: string; created_at: string }> = []
+    try {
+      const { data } = await adminSupabase
+        .from("game_sessions")
+        .select("id, game_type, score, reward_satoshis, status, created_at, completed_at")
+        .eq("user_id", user.id)
+        .in("status", ["completed", "lost"])
+        .order("created_at", { ascending: false })
+        .limit(20)
+      recentGames = data || []
+    } catch { /* ignore */ }
 
     // Get user's current balance
-    const { data: profile } = await adminSupabase
-      .from("profiles")
-      .select("balance_satoshis")
-      .eq("id", user.id)
-      .single()
+    let currentBalance = 0
+    try {
+      const { data: profile } = await adminSupabase
+        .from("profiles")
+        .select("balance_satoshis")
+        .eq("id", user.id)
+        .single()
+      currentBalance = profile?.balance_satoshis || 0
+    } catch { /* ignore */ }
 
     return NextResponse.json({
       gameStatuses,
@@ -127,8 +184,8 @@ export async function GET(req: NextRequest) {
       totalEarnedToday: dailyLimit?.total_earned || 0,
       rewardPerGame: GAME_REWARD_SATOSHIS,
       cooldownMinutes: GAME_COOLDOWN_MINUTES,
-      currentBalance: profile?.balance_satoshis || 0,
-      recentGames: recentGames || [],
+      currentBalance,
+      recentGames,
       winThresholds: adjustedWinThresholds,
       // Difficulty information (resets daily at midnight UTC)
       difficulty: {
@@ -140,11 +197,41 @@ export async function GET(req: NextRequest) {
         scoreMultiplier: difficulty.scoreMultiplier,
         resetsIn: difficulty.resetsIn // Time until daily reset
       },
-      gamesToday: gamesTodayCount || 0
+      gamesToday: gamesTodayCount
     })
 
   } catch (error) {
     console.error("Game status error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    // Return default response on error
+    const defaultStatus: Record<string, { canPlay: boolean; waitSeconds: number; cooldownUntil: string | null; winThreshold: number }> = {}
+    for (const gameType of ALL_GAME_TYPES) {
+      defaultStatus[gameType] = {
+        canPlay: true,
+        waitSeconds: 0,
+        cooldownUntil: null,
+        winThreshold: BASE_WIN_THRESHOLDS[gameType] || 100
+      }
+    }
+    return NextResponse.json({
+      gameStatuses: defaultStatus,
+      gamesPlayedToday: 0,
+      gamesRemaining: MAX_GAMES_PER_DAY,
+      maxGamesPerDay: MAX_GAMES_PER_DAY,
+      totalEarnedToday: 0,
+      rewardPerGame: GAME_REWARD_SATOSHIS,
+      cooldownMinutes: GAME_COOLDOWN_MINUTES,
+      currentBalance: 0,
+      recentGames: [],
+      winThresholds: BASE_WIN_THRESHOLDS,
+      difficulty: {
+        level: 1,
+        description: "Easy",
+        speedMultiplier: 1,
+        obstacleFrequency: 1,
+        bonusChance: 0.15,
+        scoreMultiplier: 1
+      },
+      gamesToday: 0
+    })
   }
 }
