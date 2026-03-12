@@ -29,6 +29,8 @@ const typeIcons: Record<string, React.ReactNode> = {
   signup_bonus: <Gift className="h-4 w-4 text-cyan-500" />,
   achievement: <Trophy className="h-4 w-4 text-yellow-500" />,
   adjustment: <FileText className="h-4 w-4 text-muted-foreground" />,
+  ptc: <Zap className="h-4 w-4 text-green-500" />,
+  game_reward: <Trophy className="h-4 w-4 text-blue-500" />,
 }
 
 const typeLabels: Record<string, string> = {
@@ -41,6 +43,8 @@ const typeLabels: Record<string, string> = {
   signup_bonus: "Signup Bonus",
   achievement: "Achievement",
   adjustment: "Adjustment",
+  ptc: "PTC Ad View",
+  game_reward: "Game Reward",
 }
 
 async function searchAction(formData: FormData) {
@@ -180,9 +184,8 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
                 </TableCell>
                 <TableCell>
                   <div
-                    className={`flex items-center gap-1 font-mono text-sm ${
-                      transaction.amount_satoshis >= 0 ? "text-green-500" : "text-red-500"
-                    }`}
+                    className={`flex items-center gap-1 font-mono text-sm ${transaction.amount_satoshis >= 0 ? "text-green-500" : "text-red-500"
+                      }`}
                   >
                     {transaction.amount_satoshis >= 0 ? (
                       <ArrowDownRight className="h-3 w-3" />
