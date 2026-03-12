@@ -56,3 +56,39 @@ export function resetSupabaseClient(): void {
   globalForSupabase.supabaseBrowserClient = undefined
   globalForSupabase.supabaseInitError = undefined
 }
+
+/**
+ * Get the current auth user without ever hanging forever.
+ *
+ * Strategy:
+ *  1. getSession() — reads from localStorage, resolves instantly, no network.
+ *  2. getUser()    — verifies the JWT server-side (background, 6 s timeout).
+ *                    Falls back to the session user on timeout/error so the
+ *                    caller always gets a result quickly.
+ *
+ * Returns null only when there is genuinely no local session.
+ */
+export async function getAuthUser() {
+  const supabase = getClient()
+  if (!supabase) return null
+
+  // Instant local read — never hangs
+  const { data: { session } } = await supabase.auth.getSession()
+  const sessionUser = session?.user ?? null
+  if (!sessionUser) return null
+
+  // Background server verification with a hard timeout
+  try {
+    const raced = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+    ])
+    if (raced && (raced as any).data?.user) {
+      return (raced as any).data.user
+    }
+  } catch {
+    // Verification failed — fall through to session user
+  }
+
+  return sessionUser
+}
