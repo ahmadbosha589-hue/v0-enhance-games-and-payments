@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useMemo, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -93,6 +93,9 @@ export default function SignUpPage() {
 
     const checkSession = async () => {
       try {
+        // Clear orphaned Web Lock before auth operation to prevent hangs
+        await clearOrphanedAuthLock()
+
         const {
           data: { session },
         } = await supabase.auth.getSession()
@@ -372,6 +375,10 @@ export default function SignUpPage() {
         setError("Authentication service is not configured. Please try again later.")
         return
       }
+
+      // Clear orphaned Web Lock before auth operation
+      await clearOrphanedAuthLock()
+
       await supabase.auth.getSession()
       setRetryCount(0)
       setSupabaseAvailable(true)
@@ -439,313 +446,313 @@ export default function SignUpPage() {
       </div>
 
       <AuthSecurityGuard isSignup={true} onSecurityCheck={handleSecurityCheck}>
-      <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm">
-        <CardHeader className="text-center px-4 sm:px-6 pt-4 sm:pt-6">
-          <CardTitle className="text-xl sm:text-2xl">{t("signupTitle", "auth")}</CardTitle>
-          <CardDescription className="text-sm">{t("signupSubtitle", "auth")}</CardDescription>
-        </CardHeader>
-        <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-          {referralCode && isReferralFromUrl && (
-            <div
-              className={`mb-4 flex items-center gap-2 rounded-lg border p-2.5 sm:p-3 text-xs sm:text-sm ${referralValid === true
+        <Card className="w-full max-w-md border-border/50 bg-card/80 backdrop-blur-sm">
+          <CardHeader className="text-center px-4 sm:px-6 pt-4 sm:pt-6">
+            <CardTitle className="text-xl sm:text-2xl">{t("signupTitle", "auth")}</CardTitle>
+            <CardDescription className="text-sm">{t("signupSubtitle", "auth")}</CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            {referralCode && isReferralFromUrl && (
+              <div
+                className={`mb-4 flex items-center gap-2 rounded-lg border p-2.5 sm:p-3 text-xs sm:text-sm ${referralValid === true
                   ? "border-accent/30 bg-accent/10"
                   : referralValid === false
                     ? "border-destructive/30 bg-destructive/10"
                     : "border-accent/20 bg-accent/10"
-                }`}
-              role="status"
-            >
-              <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-              <Gift
-                className={`h-4 w-4 flex-shrink-0 ${referralValid === true ? "text-accent" : referralValid === false ? "text-destructive" : "text-accent"}`}
-                aria-hidden="true"
-              />
-              <span className="flex-1 min-w-0">
-                {isValidatingReferral ? (
-                  t("validating", "common")
-                ) : referralValid === true ? (
-                  <>
-                    {t("referredBy", "auth")}{" "}
-                    <strong className="text-accent">{referrerName || t("aFriend", "auth")}</strong>
-                  </>
-                ) : referralValid === false ? (
-                  <span className="text-destructive">{t("invalidReferral", "auth")}</span>
-                ) : (
-                  <>
-                    {t("code", "common")}: <strong className="text-accent">{referralCode}</strong>
-                  </>
-                )}
-              </span>
-              {referralValid === true && <Check className="h-4 w-4 text-accent flex-shrink-0" />}
-              {referralValid === false && <X className="h-4 w-4 text-destructive flex-shrink-0" />}
-            </div>
-          )}
-
-          {isOffline && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">{t("offlineMessage", "common")}</AlertDescription>
-            </Alert>
-          )}
-
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm flex items-center justify-between gap-2">
-                <span className="flex-1">{error}</span>
-                {error.includes("connect") && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={retryConnection}
-                    disabled={isRetrying}
-                    className="ml-2 h-6 px-2 flex-shrink-0"
-                  >
-                    {isRetrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-                  </Button>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-3 mb-4">
-            <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 p-2.5 sm:p-3 text-xs sm:text-sm">
-              <Gift className="h-4 w-4 text-accent flex-shrink-0" />
-              <span>{t("signupBonus", "auth")}</span>
-            </div>
-          </div>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="w-full mb-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-10 sm:h-11 bg-transparent text-sm sm:text-base hover:bg-muted/50 transition-colors"
-                  onClick={handleGoogleSignUp}
-                  disabled={isGoogleLoading || isLoading || isOffline || !acceptedTerms}
-                >
-                  {isGoogleLoading ? (
+                  }`}
+                role="status"
+              >
+                <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                <Gift
+                  className={`h-4 w-4 flex-shrink-0 ${referralValid === true ? "text-accent" : referralValid === false ? "text-destructive" : "text-accent"}`}
+                  aria-hidden="true"
+                />
+                <span className="flex-1 min-w-0">
+                  {isValidatingReferral ? (
+                    t("validating", "common")
+                  ) : referralValid === true ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      <span className="text-sm">{t("connectingGoogle", "auth")}</span>
+                      {t("referredBy", "auth")}{" "}
+                      <strong className="text-accent">{referrerName || t("aFriend", "auth")}</strong>
                     </>
+                  ) : referralValid === false ? (
+                    <span className="text-destructive">{t("invalidReferral", "auth")}</span>
                   ) : (
                     <>
-                      <GoogleIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                      <span>{t("googleSignUp", "auth")}</span>
+                      {t("code", "common")}: <strong className="text-accent">{referralCode}</strong>
                     </>
                   )}
-                </Button>
+                </span>
+                {referralValid === true && <Check className="h-4 w-4 text-accent flex-shrink-0" />}
+                {referralValid === false && <X className="h-4 w-4 text-destructive flex-shrink-0" />}
               </div>
-            </TooltipTrigger>
-            {!acceptedTerms && (
-              <TooltipContent side="top" className="max-w-[250px] text-center">
-                {t("acceptTermsForGoogle", "auth", "Please accept the Terms of Service and Privacy Policy to enable Google Sign-up")}
-              </TooltipContent>
             )}
-          </Tooltip>
 
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
+            {isOffline && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">{t("offlineMessage", "common")}</AlertDescription>
+              </Alert>
+            )}
+
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm flex items-center justify-between gap-2">
+                  <span className="flex-1">{error}</span>
+                  {error.includes("connect") && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={retryConnection}
+                      disabled={isRetrying}
+                      className="ml-2 h-6 px-2 flex-shrink-0"
+                    >
+                      {isRetrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-3 mb-4">
+              <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 p-2.5 sm:p-3 text-xs sm:text-sm">
+                <Gift className="h-4 w-4 text-accent flex-shrink-0" />
+                <span>{t("signupBonus", "auth")}</span>
+              </div>
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">{t("orContinueWith", "auth")}</span>
-            </div>
-          </div>
 
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
-            <Mail className="h-4 w-4 text-primary flex-shrink-0" />
-            <span>{t("gmailOnly", "auth")}</span>
-          </div>
-
-          {/* Removed redundant Shield icon alert */}
-
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-accent/20 bg-accent/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
-            <Fingerprint className="h-4 w-4 text-accent flex-shrink-0" />
-            <span>{t("deviceTracking", "auth")}</span>
-          </div>
-
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm">
-                {t("email", "auth")}
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading || isOffline}
-                autoComplete="email"
-                className="h-10 sm:h-11 text-sm sm:text-base"
-              />
-              {email && !isGmailAddress(email) && (
-                <p className="text-xs text-destructive">{t("gmailOnlyError", "auth")}</p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="w-full mb-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-10 sm:h-11 bg-transparent text-sm sm:text-base hover:bg-muted/50 transition-colors"
+                    onClick={handleGoogleSignUp}
+                    disabled={isGoogleLoading || isLoading || isOffline || !acceptedTerms}
+                  >
+                    {isGoogleLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                        <span className="text-sm">{t("connectingGoogle", "auth")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <GoogleIcon className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                        <span>{t("googleSignUp", "auth")}</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              {!acceptedTerms && (
+                <TooltipContent side="top" className="max-w-[250px] text-center">
+                  {t("acceptTermsForGoogle", "auth", "Please accept the Terms of Service and Privacy Policy to enable Google Sign-up")}
+                </TooltipContent>
               )}
+            </Tooltip>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">{t("orContinueWith", "auth")}</span>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm">
-                {t("password", "auth")}
-              </Label>
-              <div className="relative">
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
+              <Mail className="h-4 w-4 text-primary flex-shrink-0" />
+              <span>{t("gmailOnly", "auth")}</span>
+            </div>
+
+            {/* Removed redundant Shield icon alert */}
+
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-accent/20 bg-accent/5 p-2.5 sm:p-3 text-xs text-muted-foreground">
+              <Fingerprint className="h-4 w-4 text-accent flex-shrink-0" />
+              <span>{t("deviceTracking", "auth")}</span>
+            </div>
+
+            <form onSubmit={handleSignUp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm">
+                  {t("email", "auth")}
+                </Label>
                 <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder={t("createPassword", "auth")}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  id="email"
+                  type="email"
+                  placeholder="you@gmail.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={isLoading || isOffline}
-                  autoComplete="new-password"
-                  className="pr-10 h-10 sm:h-11 text-sm sm:text-base"
+                  autoComplete="email"
+                  className="h-10 sm:h-11 text-sm sm:text-base"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showPassword ? t("hidePassword", "auth") : t("showPassword", "auth")}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+                {email && !isGmailAddress(email) && (
+                  <p className="text-xs text-destructive">{t("gmailOnlyError", "auth")}</p>
+                )}
               </div>
 
-              {password && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{t("passwordStrength", "auth")}:</span>
-                    <span className={passwordStrength === 100 ? "text-accent" : "text-muted-foreground"}>
-                      {getStrengthLabel(passwordStrength)}
-                    </span>
-                  </div>
-                  <Progress value={passwordStrength} className={`h-1.5 ${getStrengthColor(passwordStrength)}`} />
-                  <ul className="grid grid-cols-2 gap-1 text-xs">
-                    {passwordRequirements_.map((req, index) => (
-                      <li
-                        key={index}
-                        className={`flex items-center gap-1 ${req.test(password) ? "text-accent" : "text-muted-foreground"}`}
-                      >
-                        {req.test(password) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                        {req.label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-sm">
-                {t("confirmPassword", "auth")}
-              </Label>
-              <Input
-                id="confirmPassword"
-                type={showPassword ? "text" : "password"}
-                placeholder={t("confirmYourPassword", "auth")}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                disabled={isLoading || isOffline}
-                autoComplete="new-password"
-                className="h-10 sm:h-11 text-sm sm:text-base"
-              />
-              {confirmPassword && password !== confirmPassword && (
-                <p className="text-xs text-destructive">{t("passwordMismatch", "auth")}</p>
-              )}
-            </div>
-
-            {!isReferralFromUrl && (
               <div className="space-y-2">
-                <Label htmlFor="referral" className="text-sm">
-                  {t("referralCode", "auth")} ({t("optional", "common")})
+                <Label htmlFor="password" className="text-sm">
+                  {t("password", "auth")}
                 </Label>
                 <div className="relative">
                   <Input
-                    id="referral"
-                    type="text"
-                    placeholder={t("enterReferralCode", "auth")}
-                    value={referralCode}
-                    onChange={(e) => {
-                      setReferralCode(e.target.value.toUpperCase())
-                      setIsReferralFromUrl(false)
-                    }}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder={t("createPassword", "auth")}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
                     disabled={isLoading || isOffline}
-                    className="h-10 sm:h-11 text-sm sm:text-base pr-8"
+                    autoComplete="new-password"
+                    className="pr-10 h-10 sm:h-11 text-sm sm:text-base"
                   />
-                  {isValidatingReferral && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                  {!isValidatingReferral && referralValid === true && (
-                    <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent" />
-                  )}
-                  {!isValidatingReferral && referralValid === false && (
-                    <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? t("hidePassword", "auth") : t("showPassword", "auth")}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
-                {referralValid === true && referrerName && (
-                  <p className="text-xs text-accent">
-                    {t("referredBy", "auth")} {referrerName}
-                  </p>
+
+                {password && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">{t("passwordStrength", "auth")}:</span>
+                      <span className={passwordStrength === 100 ? "text-accent" : "text-muted-foreground"}>
+                        {getStrengthLabel(passwordStrength)}
+                      </span>
+                    </div>
+                    <Progress value={passwordStrength} className={`h-1.5 ${getStrengthColor(passwordStrength)}`} />
+                    <ul className="grid grid-cols-2 gap-1 text-xs">
+                      {passwordRequirements_.map((req, index) => (
+                        <li
+                          key={index}
+                          className={`flex items-center gap-1 ${req.test(password) ? "text-accent" : "text-muted-foreground"}`}
+                        >
+                          {req.test(password) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          {req.label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-                {referralValid === false && <p className="text-xs text-destructive">{t("invalidReferral", "auth")}</p>}
               </div>
-            )}
 
-            <div className="flex items-start space-x-2">
-              <Checkbox
-                id="terms"
-                checked={acceptedTerms}
-                onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
-                disabled={isLoading || isOffline}
-              />
-              <label htmlFor="terms" className="text-xs sm:text-sm text-muted-foreground leading-tight cursor-pointer">
-                {t("iAgreeToThe", "auth")}{" "}
-                <Link href="/terms" className="text-primary hover:underline">
-                  {t("termsOfService", "auth")}
-                </Link>{" "}
-                {t("and", "auth")}{" "}
-                <Link href="/privacy" className="text-primary hover:underline">
-                  {t("privacyPolicy", "auth")}
-                </Link>
-              </label>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-sm">
+                  {t("confirmPassword", "auth")}
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  placeholder={t("confirmYourPassword", "auth")}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={isLoading || isOffline}
+                  autoComplete="new-password"
+                  className="h-10 sm:h-11 text-sm sm:text-base"
+                />
+                {confirmPassword && password !== confirmPassword && (
+                  <p className="text-xs text-destructive">{t("passwordMismatch", "auth")}</p>
+                )}
+              </div>
 
-            <Button
-              type="submit"
-              className="w-full h-10 sm:h-11 text-sm sm:text-base"
-              disabled={
-                isLoading ||
-                isGoogleLoading ||
-                isOffline ||
-                !acceptedTerms ||
-                (email.length > 0 && !isGmailAddress(email)) ||
-                passwordStrength < 100 ||
-                password !== confirmPassword
-              }
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                  {t("signingUp", "auth")}
-                </>
-              ) : (
-                t("createAccount", "auth")
+              {!isReferralFromUrl && (
+                <div className="space-y-2">
+                  <Label htmlFor="referral" className="text-sm">
+                    {t("referralCode", "auth")} ({t("optional", "common")})
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="referral"
+                      type="text"
+                      placeholder={t("enterReferralCode", "auth")}
+                      value={referralCode}
+                      onChange={(e) => {
+                        setReferralCode(e.target.value.toUpperCase())
+                        setIsReferralFromUrl(false)
+                      }}
+                      disabled={isLoading || isOffline}
+                      className="h-10 sm:h-11 text-sm sm:text-base pr-8"
+                    />
+                    {isValidatingReferral && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                    {!isValidatingReferral && referralValid === true && (
+                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent" />
+                    )}
+                    {!isValidatingReferral && referralValid === false && (
+                      <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-destructive" />
+                    )}
+                  </div>
+                  {referralValid === true && referrerName && (
+                    <p className="text-xs text-accent">
+                      {t("referredBy", "auth")} {referrerName}
+                    </p>
+                  )}
+                  {referralValid === false && <p className="text-xs text-destructive">{t("invalidReferral", "auth")}</p>}
+                </div>
               )}
-            </Button>
-          </form>
 
-          <p className="mt-4 text-center text-xs sm:text-sm text-muted-foreground">
-            {t("hasAccount", "auth")}{" "}
-            <Link href="/auth/login" className="text-primary hover:underline">
-              {t("signIn", "auth")}
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="terms"
+                  checked={acceptedTerms}
+                  onCheckedChange={(checked) => setAcceptedTerms(checked === true)}
+                  disabled={isLoading || isOffline}
+                />
+                <label htmlFor="terms" className="text-xs sm:text-sm text-muted-foreground leading-tight cursor-pointer">
+                  {t("iAgreeToThe", "auth")}{" "}
+                  <Link href="/terms" className="text-primary hover:underline">
+                    {t("termsOfService", "auth")}
+                  </Link>{" "}
+                  {t("and", "auth")}{" "}
+                  <Link href="/privacy" className="text-primary hover:underline">
+                    {t("privacyPolicy", "auth")}
+                  </Link>
+                </label>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-10 sm:h-11 text-sm sm:text-base"
+                disabled={
+                  isLoading ||
+                  isGoogleLoading ||
+                  isOffline ||
+                  !acceptedTerms ||
+                  (email.length > 0 && !isGmailAddress(email)) ||
+                  passwordStrength < 100 ||
+                  password !== confirmPassword
+                }
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    {t("signingUp", "auth")}
+                  </>
+                ) : (
+                  t("createAccount", "auth")
+                )}
+              </Button>
+            </form>
+
+            <p className="mt-4 text-center text-xs sm:text-sm text-muted-foreground">
+              {t("hasAccount", "auth")}{" "}
+              <Link href="/auth/login" className="text-primary hover:underline">
+                {t("signIn", "auth")}
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
       </AuthSecurityGuard>
     </div>
   )
