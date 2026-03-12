@@ -42,6 +42,7 @@ interface SnakeGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
+  winThreshold?: number // Score needed to win and get reward
 }
 
 const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: number }> = {
@@ -52,10 +53,11 @@ const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: numb
   slow: { color: "#a855f7", points: 15, chance: 0.05 },
 }
 
-export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: SnakeGameProps) {
+export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 50 }: SnakeGameProps) {
   // Apply difficulty - faster snake at higher levels
   const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
   const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }])
+  const [hasWon, setHasWon] = useState(false)
   const [direction, setDirection] = useState<Direction>("RIGHT")
   const [food, setFood] = useState<Food>({ x: 15, y: 10, type: "normal", points: 10 })
   const [bonusFood, setBonusFood] = useState<Food | null>(null)
@@ -75,6 +77,15 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: Sn
   const directionRef = useRef(direction)
   const directionQueueRef = useRef<Direction[]>([])
   const boardRef = useRef<HTMLDivElement>(null)
+
+  // Auto-win detection - when score reaches threshold, trigger win
+  useEffect(() => {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+      setHasWon(true)
+      setGameOver(true)
+      onGameEnd(score, moves)
+    }
+  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
 
   const getRandomFoodType = (): FoodType => {
     const rand = Math.random()
@@ -394,6 +405,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: Sn
   }, [isActive, gameOver, queueDirection])
 
   const resetGame = () => {
+    setHasWon(false)
     setSnake([{ x: 10, y: 10 }])
     setDirection("RIGHT")
     directionRef.current = "RIGHT"

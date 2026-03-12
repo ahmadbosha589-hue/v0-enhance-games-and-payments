@@ -35,11 +35,13 @@ interface FlappyGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
+  winThreshold?: number // Score needed to win and get reward
 }
 
-export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty }: FlappyGameProps) {
+export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, winThreshold = 15 }: FlappyGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [birdY, setBirdY] = useState(CANVAS_HEIGHT / 2)
+  const [hasWon, setHasWon] = useState(false)
   const [birdVelocity, setBirdVelocity] = useState(0)
   const [pipes, setPipes] = useState<Pipe[]>([])
   const [score, setScore] = useState(0)
@@ -79,6 +81,15 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     powerUpRef.current = powerUp
   }, [birdY, birdVelocity, pipes, score, coins, moves, powerUp])
 
+  // Auto-win detection - when score reaches threshold, trigger win
+  useEffect(() => {
+    if (score >= winThreshold && !hasWon && !gameOver && gameStarted) {
+      setHasWon(true)
+      setGameOver(true)
+      onGameEnd(score, moves)
+    }
+  }, [score, winThreshold, hasWon, gameOver, gameStarted, moves, onGameEnd])
+
   const jump = useCallback(() => {
     if (gameOver) return
 
@@ -91,6 +102,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   }, [gameOver, gameStarted])
 
   const resetGame = useCallback(() => {
+    setHasWon(false)
     setBirdY(CANVAS_HEIGHT / 2)
     setBirdVelocity(0)
     setPipes([])

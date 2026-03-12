@@ -55,16 +55,17 @@ interface BlockBlastGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
+  winThreshold?: number // Score needed to win and get reward
 }
 
-export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: BlockBlastGameProps) {
+export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200 }: BlockBlastGameProps) {
   // Apply difficulty settings
   const difficultyLevel = difficulty?.level || 1
   const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
 
   // Calculate moves based on difficulty (fewer moves at higher difficulty)
   const maxMoves = Math.max(15, 30 - (difficultyLevel - 1) * 2)
-
+  const [hasWon, setHasWon] = useState(false)
   const [board, setBoard] = useState<Board>(() => createBoard())
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
@@ -86,6 +87,15 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty 
   useEffect(() => {
     setMovesLeft(maxMoves)
   }, [maxMoves])
+
+  // Auto-win detection - when score reaches threshold, trigger win
+  useEffect(() => {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+      setHasWon(true)
+      setGameOver(true)
+      onGameEnd(score, moves)
+    }
+  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
 
   function getSpecialType(): SpecialType {
     const roll = Math.random()
@@ -376,6 +386,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty 
   }, [isActive]) // Only run on initial activation
 
   const resetGame = () => {
+    setHasWon(false)
     const newBoard = createBoard()
     setBoard(newBoard)
     setScore(0)
@@ -531,8 +542,8 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty 
                 <div
                   key={i}
                   className={`w-2 h-4 rounded ${i < difficultyLevel
-                      ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
-                      : "bg-gray-700"
+                    ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
+                    : "bg-gray-700"
                     }`}
                 />
               ))}

@@ -31,6 +31,7 @@ interface MemoryGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
+  winThreshold?: number // Score needed to win and get reward
 }
 
 const GRID_SIZES = {
@@ -39,7 +40,7 @@ const GRID_SIZES = {
   hard: { cols: 6, rows: 4, pairs: 12, timeBonus: 600 }
 }
 
-export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty }: MemoryGameProps) {
+export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, winThreshold = 100 }: MemoryGameProps) {
   // Choose grid difficulty based on level
   const gridDifficulty = externalDifficulty && externalDifficulty.level >= 5
     ? "hard"
@@ -47,6 +48,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       ? "medium"
       : "easy"
   const [difficulty] = useState<keyof typeof GRID_SIZES>(gridDifficulty)
+  const [hasWon, setHasWon] = useState(false)
   const [cards, setCards] = useState<MemoryCard[]>([])
   const [flippedCards, setFlippedCards] = useState<number[]>([])
   const [matchedPairs, setMatchedPairs] = useState(0)
@@ -66,8 +68,18 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const config = GRID_SIZES[difficulty]
 
+  // Auto-win detection - when score reaches threshold, trigger win
+  useEffect(() => {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+      setHasWon(true)
+      setGameOver(true)
+      onGameEnd(score, moves)
+    }
+  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
+
   // Initialize game
   const initializeGame = useCallback(() => {
+    setHasWon(false)
     const selectedIcons = CARD_ICONS.slice(0, config.pairs)
     const cardPairs = [...selectedIcons, ...selectedIcons]
 

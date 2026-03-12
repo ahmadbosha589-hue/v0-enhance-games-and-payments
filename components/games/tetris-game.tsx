@@ -59,6 +59,7 @@ interface TetrisGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
+  winThreshold?: number // Score needed to win and get reward
 }
 
 // Random events to keep gameplay fresh
@@ -104,11 +105,12 @@ interface Particle {
   life: number
 }
 
-export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: TetrisGameProps) {
+export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300 }: TetrisGameProps) {
   // Apply difficulty settings
   const difficultyLevel = difficulty?.level || 1
   const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
   const speedMultiplierFromDifficulty = difficulty?.speedMultiplier || 1
+  const [hasWon, setHasWon] = useState(false)
 
   const [board, setBoard] = useState<Board>(() => createEmptyBoard())
   const [currentPiece, setCurrentPiece] = useState<{
@@ -146,6 +148,15 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: T
   const boardRef = useRef<HTMLDivElement>(null)
   const eventTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const particleIdRef = useRef(0)
+
+  // Auto-win detection - when score reaches threshold, trigger win
+  useEffect(() => {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+      setHasWon(true)
+      setGameOver(true)
+      onGameEnd(score, moves)
+    }
+  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
 
   function createEmptyBoard(): Board {
     return Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(null))
@@ -784,6 +795,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: T
   }
 
   const resetGame = () => {
+    setHasWon(false)
     setBoard(createEmptyBoard())
     setCurrentPiece(null)
     setNextPieces([])
@@ -1070,8 +1082,8 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: T
                 <div
                   key={i}
                   className={`w-2 h-3 rounded-sm ${i < difficultyLevel
-                      ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
-                      : "bg-gray-700"
+                    ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
+                    : "bg-gray-700"
                     }`}
                 />
               ))}

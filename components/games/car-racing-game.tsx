@@ -64,14 +64,16 @@ interface CarRacingGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
+  winThreshold?: number // Score needed to win and get reward
 }
 
-export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty }: CarRacingGameProps) {
+export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300 }: CarRacingGameProps) {
   // Apply difficulty settings
   const speedMultiplier = difficulty?.speedMultiplier || 1
   const obstacleFrequency = difficulty?.obstacleFrequency || 1
   const bonusChance = difficulty?.bonusChance || 0.15
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [hasWon, setHasWon] = useState(false)
   const gameLoopRef = useRef<number | null>(null)
   const [score, setScore] = useState(0)
   const [distance, setDistance] = useState(0)
@@ -98,6 +100,15 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty }
   const playerX = (lane * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
 
   const obstacleColors = ["#dc2626", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"]
+
+  // Auto-win detection - when score reaches threshold, trigger win
+  useEffect(() => {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+      setHasWon(true)
+      setGameOver(true)
+      onGameEnd(score, moves)
+    }
+  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
 
   const spawnObstacle = useCallback(() => {
     const newLane = Math.floor(Math.random() * LANE_COUNT)
