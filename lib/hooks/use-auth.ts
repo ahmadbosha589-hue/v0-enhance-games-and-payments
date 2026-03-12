@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 interface UseAuthReturn {
@@ -19,6 +19,10 @@ export function useAuth(): UseAuthReturn {
         toast.error("Service unavailable")
         return
       }
+
+      // Clear orphaned Web Lock before auth operation
+      await clearOrphanedAuthLock()
+
       const { error } = await supabase.auth.signOut()
 
       if (error) throw error
@@ -37,6 +41,10 @@ export function useAuth(): UseAuthReturn {
       if (!supabase) {
         throw new Error("Service unavailable")
       }
+
+      // Clear orphaned Web Lock before auth operation
+      await clearOrphanedAuthLock()
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
