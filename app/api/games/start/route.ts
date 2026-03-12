@@ -3,8 +3,8 @@ import { createClient, createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import crypto from "crypto"
 
-const GAME_COOLDOWN_MINUTES = 3
-const MAX_GAMES_PER_DAY = 25
+const GAME_COOLDOWN_MINUTES = 3 // 3 minutes cooldown per game
+const MAX_GAMES_PER_DAY = 20 // 20 games per day
 const VALID_GAME_TYPES = ["tetris", "block_blast", "car_racing", "snake", "memory", "flappy"]
 
 // Generate a cryptographic challenge for anti-bot validation
@@ -67,27 +67,44 @@ export async function POST(req: NextRequest) {
       }, { status: 429 })
     }
 
-    // Check cooldown (last game must be at least 3 minutes ago)
-    const cooldownTime = new Date(Date.now() - GAME_COOLDOWN_MINUTES * 60 * 1000).toISOString()
-    const { data: recentGame } = await adminSupabase
-      .from("game_sessions")
-      .select("created_at")
+    // Check per-game cooldown from game_cooldowns table
+    const { data: cooldown } = await adminSupabase
+      .from("game_cooldowns")
+      .select("cooldown_until")
       .eq("user_id", user.id)
-      .gte("created_at", cooldownTime)
-      .order("created_at", { ascending: false })
-      .limit(1)
+      .eq("game_type", gameType)
       .single()
 
-    if (recentGame) {
-      const lastGameTime = new Date(recentGame.created_at).getTime()
-      const nextGameTime = lastGameTime + (GAME_COOLDOWN_MINUTES * 60 * 1000)
-      const waitSeconds = Math.ceil((nextGameTime - Date.now()) / 1000)
+    if (cooldown) {
+      const cooldownUntil = new Date(cooldown.cooldown_until).getTime()
+      const now = Date.now()
 
-      return NextResponse.json({
-        error: "Please wait before playing again",
-        waitSeconds,
-        nextGameAt: new Date(nextGameTime).toISOString()
-      }, { status: 429 })
+      if (now < cooldownUntil) {
+        const waitSeconds = Math.ceil((cooldownUntil - now) / 1000)
+        return NextResponse.json({
+          error: `Please wait before playing ${gameType} again`,
+          waitSeconds,
+          nextGameAt: cooldown.cooldown_until,
+          gameType
+        }, { status: 429 })
+      }
+    }
+
+    // Also check if there's an in-progress session for this game type
+    const { data: existingSession } = await adminSupabase
+      .from("game_sessions")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("game_type", gameType)
+      .eq("status", "in_progress")
+      .single()
+
+    // If there's an existing in-progress session, expire it first
+    if (existingSession) {
+      await adminSupabase
+        .from("game_sessions")
+        .update({ status: "expired", completed_at: new Date().toISOString() })
+        .eq("id", existingSession.id)
     }
 
     // Generate challenge for anti-bot verification
