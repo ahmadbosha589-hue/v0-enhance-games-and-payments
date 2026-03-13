@@ -93,63 +93,60 @@ export async function POST(request: NextRequest) {
         verificationError = "Verification service temporarily unavailable - you can still try claiming"
       }
     }
-  } else if (!isFaucetPayConfigured()) {
-    // Auto-verify in development mode or when API not configured
-    isVerified = true
-  }
+    // If FaucetPay API is not configured, isVerified is already set to true by default
 
-  // Update the profile with the new FaucetPay email
-  const { data, error } = await adminSupabase
-    .from("profiles")
-    .update({
-      faucetpay_email: normalizedEmail,
-      faucetpay_verified: isVerified,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id)
-    .select("faucetpay_email, faucetpay_verified")
-    .single()
+    // Update the profile with the new FaucetPay email
+    const { data, error } = await adminSupabase
+      .from("profiles")
+      .update({
+        faucetpay_email: normalizedEmail,
+        faucetpay_verified: isVerified,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id)
+      .select("faucetpay_email, faucetpay_verified")
+      .single()
 
-  if (error) {
-    log.error("Failed to save FaucetPay email", { error, userId: user.id })
+    if (error) {
+      log.error("Failed to save FaucetPay email", { error, userId: user.id })
 
-    // Provide more specific error messages
-    if (error.code === "23505") {
-      return NextResponse.json({ success: false, error: "This email is already in use" }, { status: 400 })
+      // Provide more specific error messages
+      if (error.code === "23505") {
+        return NextResponse.json({ success: false, error: "This email is already in use" }, { status: 400 })
+      }
+
+      return NextResponse.json({ success: false, error: "Failed to save email. Please try again." }, { status: 500 })
     }
 
-    return NextResponse.json({ success: false, error: "Failed to save email. Please try again." }, { status: 500 })
-  }
+    // Verify the email was actually saved
+    if (!data?.faucetpay_email) {
+      log.error("FaucetPay email not returned after save", { userId: user.id })
+      return NextResponse.json({
+        success: false,
+        error: "Failed to confirm email was saved. Please refresh and try again."
+      }, { status: 500 })
+    }
 
-  // Verify the email was actually saved
-  if (!data?.faucetpay_email) {
-    log.error("FaucetPay email not returned after save", { userId: user.id })
+    log.info("FaucetPay email saved successfully", {
+      userId: user.id,
+      verified: isVerified,
+      email: normalizedEmail.substring(0, 5) + "***"
+    })
+
     return NextResponse.json({
-      success: false,
-      error: "Failed to confirm email was saved. Please refresh and try again."
-    }, { status: 500 })
+      success: true,
+      message: isVerified
+        ? "FaucetPay email saved and verified successfully!"
+        : "FaucetPay email saved. You can now claim and withdraw.",
+      email: data.faucetpay_email,
+      verified: isVerified,
+      verificationError: verificationError,
+    })
+  } catch (error) {
+    log.error("FaucetPay save error", { error })
+    return NextResponse.json(
+      { success: false, error: "An unexpected error occurred. Please try again." },
+      { status: 500 },
+    )
   }
-
-  log.info("FaucetPay email saved successfully", {
-    userId: user.id,
-    verified: isVerified,
-    email: normalizedEmail.substring(0, 5) + "***"
-  })
-
-  return NextResponse.json({
-    success: true,
-    message: isVerified
-      ? "FaucetPay email saved and verified successfully!"
-      : "FaucetPay email saved. You can now claim and withdraw.",
-    email: data.faucetpay_email,
-    verified: isVerified,
-    verificationError: verificationError,
-  })
-} catch (error) {
-  log.error("FaucetPay save error", { error })
-  return NextResponse.json(
-    { success: false, error: "An unexpected error occurred. Please try again." },
-    { status: 500 },
-  )
-}
 }
