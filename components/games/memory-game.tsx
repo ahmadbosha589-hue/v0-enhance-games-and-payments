@@ -68,14 +68,10 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const config = GRID_SIZES[difficulty]
 
-  // Auto-win detection - when score reaches threshold, trigger win
-  useEffect(() => {
-    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
-      setHasWon(true)
-      setGameOver(true)
-      onGameEnd(score, moves)
-    }
-  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
+  // Win detection - game ends when ALL pairs are matched (not score threshold)
+  // The score threshold is just for determining if player "wins" the reward
+  // The game itself must be completed (all pairs found) before ending
+  // REMOVED auto-win based on score - this was causing premature wins
 
   // Initialize game
   const initializeGame = useCallback(() => {
@@ -165,23 +161,34 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
             ? { ...card, isMatched: true, isFlipped: true }
             : card
         ))
-        setMatchedPairs(prev => {
-          const newPairs = prev + 1
-          if (newPairs === config.pairs) {
-            // Game won!
-            const finalBonus = perfectGame ? 500 : 0
-            const newScore = score + points + finalBonus
-            setScore(newScore)
-            onScoreUpdate(newScore)
-            setGameOver(true)
-            onGameEnd(newScore, moves)
-          }
-          return newPairs
-        })
 
+        // First update the score
         const newScore = score + points
         setScore(newScore)
         onScoreUpdate(newScore)
+
+        setMatchedPairs(prev => {
+          const newPairs = prev + 1
+
+          // Only end game when ALL pairs are matched
+          if (newPairs === config.pairs) {
+            // All pairs found - game complete!
+            const finalBonus = perfectGame ? 500 : 0
+            const finalScore = newScore + finalBonus
+
+            // Update final score with bonus
+            setScore(finalScore)
+            onScoreUpdate(finalScore)
+            setHasWon(true)
+            setGameOver(true)
+
+            // Small delay to let state update before calling onGameEnd
+            setTimeout(() => {
+              onGameEnd(finalScore, moves)
+            }, 100)
+          }
+          return newPairs
+        })
 
         setFlippedCards([])
         setIsChecking(false)
