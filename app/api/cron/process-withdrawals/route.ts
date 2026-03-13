@@ -1,7 +1,7 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
-import { getFaucetPayClient } from "@/lib/faucetpay/client"
+import { getFaucetPayClient, FaucetPayError, isFaucetPayConfigured } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
 
 // This endpoint should be called by a cron job (e.g., Vercel Cron)
@@ -52,22 +52,23 @@ export async function GET(request: Request) {
       })
     }
 
-    let faucetPay: ReturnType<typeof getFaucetPayClient> | null = null
-    try {
-      faucetPay = getFaucetPayClient()
-    } catch (e) {
+    // Check FaucetPay configuration first
+    if (!isFaucetPayConfigured()) {
       log.warn("FaucetPay not configured, skipping payout processing")
       return NextResponse.json({
         success: false,
-        message: "FaucetPay not configured",
+        message: "FaucetPay not configured - please set FAUCETPAY_API_KEY",
         processed: 0,
       })
     }
+
+    const adminSupabase = createAdminClient()
 
     const results = {
       processed: 0,
       successful: 0,
       failed: 0,
+      skipped: 0,
       errors: [] as string[],
     }
 
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
 
       try {
         // Mark as processing
-        await supabase
+        await adminSupabase
           .from("withdrawals")
           .update({
             status: "processing",
@@ -86,31 +87,55 @@ export async function GET(request: Request) {
 
         // Skip if flagged user
         if (withdrawal.profiles?.is_flagged && withdrawal.profiles?.fraud_score >= 70) {
-          await supabase
+          await adminSupabase
+            .from("withdrawals")
+            .update({
+              status: "review",
+              failure_reason: "Account flagged for review - requires manual approval",
+            })
+            .eq("id", withdrawal.id)
+
+          results.skipped++
+          continue
+        }
+
+        // Get payment address (FaucetPay email)
+        const paymentAddress = withdrawal.payment_address || withdrawal.profiles?.faucetpay_email
+        if (!paymentAddress) {
+          await adminSupabase
             .from("withdrawals")
             .update({
               status: "failed",
-              failure_reason: "Account flagged for review",
+              failure_reason: "No FaucetPay email linked. Please add your FaucetPay email in settings.",
               completed_at: new Date().toISOString(),
             })
             .eq("id", withdrawal.id)
 
+          // Refund balance
+          await refundWithdrawal(adminSupabase, withdrawal, "No FaucetPay email linked")
           results.failed++
           continue
         }
 
-        // Get payment address
-        const paymentAddress = withdrawal.payment_address || withdrawal.profiles?.faucetpay_email
-        if (!paymentAddress) {
-          await supabase
+        // Get the currency from withdrawal or default to BTC
+        const currency = withdrawal.payment_currency || "BTC"
+
+        // Get FaucetPay client for this currency
+        let faucetPay
+        try {
+          faucetPay = getFaucetPayClient(currency)
+        } catch (error) {
+          const errorMessage = error instanceof FaucetPayError ? error.message : "FaucetPay configuration error"
+          await adminSupabase
             .from("withdrawals")
             .update({
               status: "failed",
-              failure_reason: "No payment address",
+              failure_reason: errorMessage,
               completed_at: new Date().toISOString(),
             })
             .eq("id", withdrawal.id)
 
+          await refundWithdrawal(adminSupabase, withdrawal, errorMessage)
           results.failed++
           continue
         }
@@ -124,7 +149,7 @@ export async function GET(request: Request) {
         )
 
         // Update withdrawal as completed
-        await supabase
+        await adminSupabase
           .from("withdrawals")
           .update({
             status: "completed",
@@ -134,7 +159,7 @@ export async function GET(request: Request) {
           .eq("id", withdrawal.id)
 
         // Update transaction
-        await supabase
+        await adminSupabase
           .from("transactions")
           .update({
             status: "completed",
@@ -143,16 +168,16 @@ export async function GET(request: Request) {
           .eq("withdrawal_id", withdrawal.id)
 
         // Create notification
-        await supabase.from("notifications").insert({
+        await adminSupabase.from("notifications").insert({
           user_id: withdrawal.user_id,
           type: "withdrawal_completed",
           title: "Withdrawal Completed",
-          message: `Your withdrawal of ${withdrawal.amount_satoshis} satoshis has been processed.`,
+          message: `Your withdrawal of ${withdrawal.amount_satoshis} satoshis has been sent to your FaucetPay account.`,
           data: { withdrawal_id: withdrawal.id, tx_id: paymentResult.payout_id },
         })
 
         // Audit log
-        await supabase.from("audit_logs").insert({
+        await adminSupabase.from("audit_logs").insert({
           actor_id: withdrawal.user_id,
           actor_role: "system",
           action: "withdrawal_processed",
@@ -160,7 +185,9 @@ export async function GET(request: Request) {
           resource_id: withdrawal.id,
           metadata: {
             amount: withdrawal.amount_satoshis,
+            net_amount: withdrawal.net_amount_satoshis,
             external_tx_id: paymentResult.payout_id,
+            faucetpay_balance: paymentResult.balance,
           },
         })
 
@@ -168,50 +195,83 @@ export async function GET(request: Request) {
         log.info("Withdrawal processed", {
           withdrawalId: withdrawal.id,
           amount: withdrawal.net_amount_satoshis,
+          payoutId: paymentResult.payout_id,
         })
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        let errorMessage = "Unknown error"
+        let shouldRefund = true
+
+        if (error instanceof FaucetPayError) {
+          errorMessage = error.message
+          // Don't refund for user errors - they need to fix their FaucetPay account
+          // Only refund for system errors (insufficient funds, API issues, etc.)
+          shouldRefund = !error.isUserError
+        } else if (error instanceof Error) {
+          errorMessage = error.message
+        }
+
         results.errors.push(`${withdrawal.id}: ${errorMessage}`)
         results.failed++
 
         // Mark as failed
-        await supabase
+        await adminSupabase
           .from("withdrawals")
           .update({
             status: "failed",
             failure_reason: errorMessage,
             retry_count: (withdrawal.retry_count || 0) + 1,
+            completed_at: new Date().toISOString(),
           })
           .eq("id", withdrawal.id)
 
-        // Refund balance if payment failed
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("balance_satoshis")
-          .eq("id", withdrawal.user_id)
-          .single()
-
-        if (profile) {
-          await supabase
-            .from("profiles")
-            .update({
-              balance_satoshis: Number(profile.balance_satoshis) + withdrawal.amount_satoshis,
-            })
-            .eq("id", withdrawal.user_id)
-
-          // Notification for failed withdrawal
-          await supabase.from("notifications").insert({
-            user_id: withdrawal.user_id,
-            type: "withdrawal_failed",
-            title: "Withdrawal Failed",
-            message: `Your withdrawal of ${withdrawal.amount_satoshis} satoshis failed. Balance has been refunded.`,
-            data: { withdrawal_id: withdrawal.id, reason: errorMessage },
-          })
+        // Refund balance if payment failed (unless it's a user error)
+        if (shouldRefund) {
+          await refundWithdrawal(adminSupabase, withdrawal, errorMessage)
+        } else {
+          // For user errors, still refund but with a different message
+          await refundWithdrawal(adminSupabase, withdrawal, errorMessage, true)
         }
 
         log.error("Withdrawal processing failed", {
           withdrawalId: withdrawal.id,
           error: errorMessage,
+          shouldRefund,
+        })
+      }
+    }
+
+    // Helper function to refund a withdrawal
+    async function refundWithdrawal(
+      db: ReturnType<typeof createAdminClient>,
+      withdrawal: typeof withdrawals[0],
+      reason: string,
+      isUserError = false
+    ) {
+      const { data: profile } = await db
+        .from("profiles")
+        .select("balance_satoshis")
+        .eq("id", withdrawal.user_id)
+        .single()
+
+      if (profile) {
+        await db
+          .from("profiles")
+          .update({
+            balance_satoshis: Number(profile.balance_satoshis) + withdrawal.amount_satoshis,
+          })
+          .eq("id", withdrawal.user_id)
+
+        // Notification for failed withdrawal
+        const message = isUserError
+          ? `Your withdrawal of ${withdrawal.amount_satoshis} satoshis failed: ${reason}. Your balance has been refunded. Please fix the issue and try again.`
+          : `Your withdrawal of ${withdrawal.amount_satoshis} satoshis failed. Balance has been refunded. Please try again later.`
+
+        await db.from("notifications").insert({
+          user_id: withdrawal.user_id,
+          type: "withdrawal_failed",
+          title: "Withdrawal Failed",
+          message,
+          data: { withdrawal_id: withdrawal.id, reason },
         })
       }
     }
