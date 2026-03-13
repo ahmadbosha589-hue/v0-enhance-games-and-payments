@@ -129,7 +129,21 @@ function withStrictTimeout<T>(
   ])
 }
 
-// Robust fetch with abort controller
+// User-friendly error messages for common HTTP status codes
+const HTTP_ERROR_MESSAGES: Record<number, string> = {
+  400: "Invalid request. Please check your input and try again.",
+  401: "You need to be logged in to perform this action.",
+  403: "You don't have permission to perform this action.",
+  404: "The requested resource was not found.",
+  408: "The request timed out. Please try again.",
+  429: "Too many requests. Please wait a moment and try again.",
+  500: "Server error. Please try again later or contact support.",
+  502: "Service temporarily unavailable. Please try again.",
+  503: "Service is under maintenance. Please try again later.",
+  504: "Request timed out. Please try again.",
+}
+
+// Robust fetch with abort controller and better error messages
 async function robustFetch<T>(
   url: string,
   options?: RequestInit,
@@ -149,19 +163,41 @@ async function robustFetch<T>(
       })
       clearTimeout(timeout)
 
+      // Try to parse JSON response even on error to get detailed error message
+      const data = await response.json().catch(() => null)
+
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+        // Extract error message from response body if available
+        const serverError = data?.error || data?.message
+        if (serverError) {
+          throw new Error(serverError)
+        }
+        // Fall back to HTTP status message
+        const httpMessage = HTTP_ERROR_MESSAGES[response.status] || `Request failed (Error ${response.status})`
+        throw new Error(httpMessage)
       }
-      return await response.json()
+
+      return data as T
     } catch (error) {
       clearTimeout(timeout)
-      lastError = error instanceof Error ? error : new Error(String(error))
+
+      if (error instanceof Error) {
+        // Handle abort/timeout
+        if (error.name === "AbortError") {
+          lastError = new Error("Request timed out. Please check your connection and try again.")
+        } else {
+          lastError = error
+        }
+      } else {
+        lastError = new Error(String(error))
+      }
+
       if (attempt < maxRetries - 1) {
         await new Promise((r) => setTimeout(r, 200 * (attempt + 1)))
       }
     }
   }
-  throw lastError || new Error("Fetch failed")
+  throw lastError || new Error("Request failed. Please try again.")
 }
 
 // SWR fetcher
@@ -1097,7 +1133,26 @@ function ManualFaucetContent() {
         setIsVerified(false)
         setVerificationToken(null)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to claim")
+        const errorMessage = error instanceof Error ? error.message : "Failed to claim"
+
+        // Provide helpful context based on error type
+        let description = ""
+        if (errorMessage.includes("FaucetPay")) {
+          description = "Please check your FaucetPay account settings."
+        } else if (errorMessage.includes("email") || errorMessage.includes("registered")) {
+          description = "Go to Settings to link your FaucetPay account."
+        } else if (errorMessage.includes("funds") || errorMessage.includes("balance")) {
+          description = "The faucet is temporarily low on funds. Try again later."
+        } else if (errorMessage.includes("limit")) {
+          description = "You've reached the daily claim limit. Try again tomorrow."
+        } else if (errorMessage.includes("timed out") || errorMessage.includes("connection")) {
+          description = "Check your internet connection and try again."
+        }
+
+        toast.error("Claim Failed", {
+          description: description || errorMessage,
+          duration: 5000,
+        })
       } finally {
         setIsClaiming(false)
         setSelectedCrypto(null)
