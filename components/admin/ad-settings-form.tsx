@@ -147,10 +147,9 @@ export function AdSettingsForm() {
     setIsLoading(true)
     setLoadError(null)
 
-    // Create a timeout promise to prevent infinite loading
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Request timed out. Please try again.")), 10000)
-    })
+    // Use AbortController for clean timeout handling
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
 
     try {
       const supabase = createBrowserClient()
@@ -159,17 +158,23 @@ export function AdSettingsForm() {
         throw new Error("Database connection not available. Please check your configuration.")
       }
 
-      // Race between the actual query and the timeout
-      const { data, error } = await Promise.race([
-        supabase.from("ad_settings").select("*").order("position", { ascending: true }),
-        timeoutPromise
-      ])
+      // Execute the query with proper timeout handling
+      const { data, error } = await supabase
+        .from("ad_settings")
+        .select("*")
+        .order("position", { ascending: true })
+        .abortSignal(controller.signal)
+
+      clearTimeout(timeoutId)
 
       if (error) {
         console.error("[v0] Supabase error:", error)
         // Check for common errors
         if (error.message?.includes("does not exist") || error.code === "42P01") {
           throw new Error("Ad settings table not found. Please run the database migration first.")
+        }
+        if (error.message?.includes("aborted")) {
+          throw new Error("Request timed out. Please try again.")
         }
         throw new Error(error.message || "Failed to fetch ad settings from database")
       }
@@ -183,6 +188,7 @@ export function AdSettingsForm() {
 
       setLoadError(null)
     } catch (error) {
+      clearTimeout(timeoutId)
       const errorMessage = error instanceof Error ? error.message : "Failed to load ad settings"
       console.error("[v0] fetchSettings error:", errorMessage)
       setLoadError(errorMessage)

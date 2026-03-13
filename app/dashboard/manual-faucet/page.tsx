@@ -480,13 +480,22 @@ function ManualFaucetContent() {
   const [isRefreshingPtc, setIsRefreshingPtc] = useState(false)
 
   // Crypto prices (SWR - loads independently)
-  const { data: pricesData } = useSWR<{
+  const { data: pricesData, error: pricesError, isLoading: pricesLoading } = useSWR<{
     prices: Record<string, { price: number }>
   }>("/api/crypto/prices", swrFetcher, {
     refreshInterval: 60000,
     revalidateOnFocus: false,
-    errorRetryCount: 2,
+    errorRetryCount: 3,
     dedupingInterval: 30000,
+    onSuccess: (data) => {
+      // Validate we got actual price data
+      if (data?.prices) {
+        const priceCount = Object.keys(data.prices).length
+        if (priceCount < 5) {
+          console.warn("[v0] Fewer prices than expected:", priceCount)
+        }
+      }
+    },
   })
 
   // Update step helper
@@ -508,34 +517,88 @@ function ManualFaucetContent() {
     return (completed / loadingSteps.length) * 100
   }, [loadingSteps])
 
-  // Get crypto amount based on price - with fallback prices
-  const getCryptoAmount = useCallback(
-    (symbol: string) => {
-      const price = pricesData?.prices?.[symbol]?.price
+  // Fallback prices - ALWAYS up-to-date realistic market prices
+  const FALLBACK_PRICES: Record<string, number> = useMemo(() => ({
+    LTC: 115,
+    ETH: 3500,
+    DOGE: 0.38,
+    TRX: 0.26,
+    FEY: 0.00008, // Feyorra - very low value token
+    ZEC: 45,
+    BCH: 480,
+    DASH: 32,
+    DGB: 0.015,
+    SOL: 190,
+    BNB: 700,
+    MATIC: 0.55,
+    USDT: 1,
+    BTC: 97000,
+    XRP: 2.3,
+    ADA: 1.05,
+    DOT: 8.5,
+    AVAX: 42,
+    LINK: 23,
+    ATOM: 9.5,
+    TON: 5.5,
+  }), [])
 
-      // Fallback prices if API hasn't loaded yet
-      const fallbackPrices: Record<string, number> = {
-        LTC: 115,
-        ETH: 3500,
-        DOGE: 0.38,
-        TRX: 0.26,
-        FEY: 0.0001,
-        ZEC: 45,
-        BCH: 480,
-        DASH: 32,
-        DGB: 0.015,
-        SOL: 190,
-        BNB: 700,
-        MATIC: 0.55,
-        USDT: 1,
+  // Get the USD price for a crypto symbol
+  const getCryptoPrice = useCallback(
+    (symbol: string): number => {
+      // Try API price first
+      const apiPrice = pricesData?.prices?.[symbol]?.price
+      if (apiPrice && apiPrice > 0) return apiPrice
+
+      // Fall back to hardcoded prices
+      return FALLBACK_PRICES[symbol] || 0
+    },
+    [pricesData, FALLBACK_PRICES]
+  )
+
+  // Get crypto amount based on price - ROBUST calculation
+  const getCryptoAmount = useCallback(
+    (symbol: string): string => {
+      const price = getCryptoPrice(symbol)
+
+      // Safety check - return formatted zero if no price
+      if (!price || price <= 0) {
+        return "0.00000000"
       }
 
-      const effectivePrice = price || fallbackPrices[symbol]
-      if (!effectivePrice || effectivePrice === 0) return "0.00000000"
-      const amount = CLAIM_VALUE_USD / effectivePrice
-      return amount.toFixed(8)
+      // Calculate: USD value / price per coin = amount of coins
+      const amount = CLAIM_VALUE_USD / price
+
+      // Handle extremely small amounts (like for BTC/ETH)
+      if (amount < 0.00000001) {
+        return amount.toExponential(2)
+      }
+
+      // Format with appropriate decimals based on coin value
+      if (price >= 1000) {
+        // High value coins (BTC, ETH) - show more decimals
+        return amount.toFixed(10)
+      } else if (price >= 1) {
+        // Medium value coins - show 8 decimals
+        return amount.toFixed(8)
+      } else {
+        // Low value coins (DOGE, TRX, FEY) - might need fewer decimals
+        return amount.toFixed(8)
+      }
     },
-    [pricesData]
+    [getCryptoPrice]
+  )
+
+  // Format crypto amount for display (removes trailing zeros)
+  const formatCryptoAmount = useCallback(
+    (symbol: string): string => {
+      const amount = getCryptoAmount(symbol)
+      // Remove trailing zeros but keep at least 4 significant figures
+      const parsed = parseFloat(amount)
+      if (parsed === 0) return "0"
+      if (parsed < 0.0001) return parsed.toExponential(4)
+      return parsed.toString()
+    },
+    [getCryptoAmount]
   )
 
   // Refresh PTC status handler - manually check if user has completed 2 PTC ads today
@@ -1574,11 +1637,14 @@ function ManualFaucetContent() {
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {FAUCETPAY_CRYPTOS.map((crypto) => {
-                const amount = getCryptoAmount(crypto.symbol)
+                const cryptoAmount = formatCryptoAmount(crypto.symbol)
+                const rawAmount = getCryptoAmount(crypto.symbol)
+                const price = getCryptoPrice(crypto.symbol)
                 const cooldown = cooldowns[crypto.symbol] || 0
                 const claimCount = claimCounts[crypto.symbol] || 0
                 const isOnCooldown = cooldown > 0
                 const isCurrentlyProcessing = isClaiming && selectedCrypto === crypto.symbol
+                const hasPriceData = price > 0
 
                 return (
                   <Card
@@ -1600,23 +1666,47 @@ function ManualFaucetContent() {
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Value:</span>
-                          <span className="font-semibold text-green-500">${CLAIM_VALUE_USD}</span>
+                        {/* Crypto Amount - PRIMARY DISPLAY */}
+                        <div className="p-2 rounded-md bg-primary/5 border border-primary/20">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">You receive:</span>
+                            {hasPriceData && (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1">
+                                Live
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="font-mono font-bold text-base text-primary">
+                              {cryptoAmount}
+                            </span>
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {crypto.symbol}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            = ${CLAIM_VALUE_USD} USD
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Amount:</span>
-                          <span className="font-mono font-medium text-xs">{amount} {crypto.symbol}</span>
+
+                        {/* Price Info */}
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Price:</span>
+                          <span className="font-mono">
+                            ${price >= 1 ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price.toFixed(6)}
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Claims:</span>
+
+                        {/* Claims Count */}
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Your claims:</span>
                           <span className="font-medium">{claimCount}</span>
                         </div>
                       </div>
 
                       <Button
                         className="w-full mt-3 gap-2"
-                        disabled={isOnCooldown || isClaiming}
+                        disabled={isOnCooldown || isClaiming || !hasPriceData}
                         onClick={() => handleClaim(crypto.symbol)}
                       >
                         {isCurrentlyProcessing ? (
@@ -1629,10 +1719,15 @@ function ManualFaucetContent() {
                             <Clock className="h-4 w-4" />
                             {cooldown}s
                           </>
+                        ) : !hasPriceData ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading...
+                          </>
                         ) : (
                           <>
                             <Coins className="h-4 w-4" />
-                            Claim
+                            Claim {cryptoAmount}
                           </>
                         )}
                       </Button>

@@ -39,10 +39,12 @@ export function AnalyticsCharts() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+
     async function fetchAnalyticsData() {
       // Create abort controller for timeout
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
       try {
         const response = await fetch("/api/admin/analytics-data", {
@@ -51,12 +53,19 @@ export function AnalyticsCharts() {
         })
         clearTimeout(timeoutId)
 
+        if (!isMounted) return
+
         if (response.ok) {
           const data = await response.json()
-          setDailyData(data.dailyData || [])
-          setFraudData(data.fraudData || [])
+          setDailyData(data.dailyData || generateFallbackDailyData())
+          setFraudData(data.fraudData || [
+            { type: "Clean", value: 85 },
+            { type: "Low Risk", value: 10 },
+            { type: "Medium Risk", value: 4 },
+            { type: "High Risk", value: 1 },
+          ])
         } else {
-          console.error("Analytics API returned error:", response.status)
+          console.error("[v0] Analytics API returned error:", response.status)
           // Set fallback data
           setDailyData(generateFallbackDailyData())
           setFraudData([
@@ -68,10 +77,12 @@ export function AnalyticsCharts() {
         }
       } catch (error) {
         clearTimeout(timeoutId)
+        if (!isMounted) return
+
         if (error instanceof Error && error.name === "AbortError") {
-          console.error("Analytics request timed out")
+          console.error("[v0] Analytics request timed out")
         } else {
-          console.error("Failed to fetch analytics data:", error)
+          console.error("[v0] Failed to fetch analytics data:", error)
         }
         // Set fallback data so charts still render
         setDailyData(generateFallbackDailyData())
@@ -82,11 +93,17 @@ export function AnalyticsCharts() {
           { type: "High Risk", value: 1 },
         ])
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchAnalyticsData()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   // Generate fallback daily data with dates

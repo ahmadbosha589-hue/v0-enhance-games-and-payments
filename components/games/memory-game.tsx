@@ -110,15 +110,17 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }
   }, [isActive, initializeGame])
 
-  // Timer
+  // Timer - with proper cleanup and state handling
   useEffect(() => {
-    if (!isActive || gameOver || timeLeft <= 0) return
+    if (!isActive || gameOver || hasWon || timeLeft <= 0) return
 
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
+          // Time ran out - game over (loss)
           setGameOver(true)
-          onGameEnd(score, moves)
+          // Use setTimeout to avoid state update during render
+          setTimeout(() => onGameEnd(score, moves), 0)
           return 0
         }
         return prev - 1
@@ -126,16 +128,27 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }, 1000)
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
     }
-  }, [isActive, gameOver, score, moves, onGameEnd])
+  }, [isActive, gameOver, hasWon, score, moves, onGameEnd, timeLeft])
 
-  // Check for matches
+  // Check for matches - FIXED: Only win when ALL pairs are matched, not based on score
   useEffect(() => {
     if (flippedCards.length !== 2) return
+    if (gameOver) return // Prevent processing if game already ended
 
     setIsChecking(true)
     const [first, second] = flippedCards
+
+    // Validate indices
+    if (!cards[first] || !cards[second]) {
+      setFlippedCards([])
+      setIsChecking(false)
+      return
+    }
 
     if (cards[first].icon === cards[second].icon) {
       // Match found
@@ -156,39 +169,40 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       const points = basePoints + comboBonus + timeBonus + streakBonus
 
       setTimeout(() => {
+        // Update matched cards
         setCards(prev => prev.map(card =>
           card.id === first || card.id === second
             ? { ...card, isMatched: true, isFlipped: true }
             : card
         ))
 
-        // First update the score
+        // Calculate new score
         const newScore = score + points
         setScore(newScore)
         onScoreUpdate(newScore)
 
-        setMatchedPairs(prev => {
-          const newPairs = prev + 1
+        // Update matched pairs count and check for game completion
+        const newMatchedPairs = matchedPairs + 1
+        setMatchedPairs(newMatchedPairs)
 
-          // Only end game when ALL pairs are matched
-          if (newPairs === config.pairs) {
-            // All pairs found - game complete!
-            const finalBonus = perfectGame ? 500 : 0
-            const finalScore = newScore + finalBonus
+        // CRITICAL FIX: Only end game when ALL pairs are matched
+        // The game has config.pairs total pairs - player must match ALL of them
+        if (newMatchedPairs >= config.pairs) {
+          // All pairs found - game complete!
+          const finalBonus = perfectGame ? 500 : 0
+          const finalScore = newScore + finalBonus
 
-            // Update final score with bonus
-            setScore(finalScore)
-            onScoreUpdate(finalScore)
-            setHasWon(true)
-            setGameOver(true)
+          // Update final score with bonus
+          setScore(finalScore)
+          onScoreUpdate(finalScore)
+          setHasWon(true)
+          setGameOver(true)
 
-            // Small delay to let state update before calling onGameEnd
-            setTimeout(() => {
-              onGameEnd(finalScore, moves)
-            }, 100)
-          }
-          return newPairs
-        })
+          // Small delay to let state update before calling onGameEnd
+          setTimeout(() => {
+            onGameEnd(finalScore, moves)
+          }, 100)
+        }
 
         setFlippedCards([])
         setIsChecking(false)
@@ -209,7 +223,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         setIsChecking(false)
       }, 1000)
     }
-  }, [flippedCards, cards, score, combo, streak, timeLeft, lastMatchTime, config.pairs, moves, perfectGame, onGameEnd, onScoreUpdate])
+  }, [flippedCards, cards, score, combo, streak, timeLeft, lastMatchTime, config.pairs, moves, perfectGame, onGameEnd, onScoreUpdate, matchedPairs, gameOver])
 
   const handleCardClick = useCallback((cardId: number) => {
     if (!isActive || gameOver || isChecking) return

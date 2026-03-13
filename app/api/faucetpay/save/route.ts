@@ -16,34 +16,74 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse the request body
-    const body = await request.json()
+    let body: { email?: string; skipVerification?: boolean }
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ success: false, error: "Invalid request body" }, { status: 400 })
+    }
+
     const { email, skipVerification } = body
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ success: false, error: "Email is required" }, { status: 400 })
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    // Validate and normalize email
     const normalizedEmail = email.trim().toLowerCase()
 
+    // More comprehensive email validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
     if (!emailRegex.test(normalizedEmail)) {
       return NextResponse.json({ success: false, error: "Invalid email format" }, { status: 400 })
     }
 
+    // Check email length
+    if (normalizedEmail.length > 254) {
+      return NextResponse.json({ success: false, error: "Email address too long" }, { status: 400 })
+    }
+
     // Use admin client to bypass RLS
     const adminSupabase = createAdminClient()
+
+    if (!adminSupabase) {
+      log.error("Failed to create admin Supabase client")
+      return NextResponse.json({ success: false, error: "Service unavailable" }, { status: 503 })
+    }
+
+    // Check if email is already used by another user
+    const { data: existingUser, error: checkError } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("faucetpay_email", normalizedEmail)
+      .neq("id", user.id)
+      .maybeSingle()
+
+    if (checkError) {
+      log.error("Error checking existing FaucetPay email", { error: checkError })
+    } else if (existingUser) {
+      return NextResponse.json({
+        success: false,
+        error: "This FaucetPay email is already linked to another account"
+      }, { status: 400 })
+    }
 
     // Try to verify with FaucetPay if API is configured and not skipping verification
     let isVerified = false
     let verificationError: string | undefined
 
     if (isFaucetPayConfigured() && !skipVerification) {
-      const verification = await verifyFaucetPayEmail(normalizedEmail)
-      isVerified = verification.valid
-      verificationError = verification.error
+      try {
+        const verification = await verifyFaucetPayEmail(normalizedEmail)
+        isVerified = verification.valid
+        verificationError = verification.error
+      } catch (verifyErr) {
+        log.warn("FaucetPay verification failed", { error: verifyErr })
+        // Don't fail the save - just mark as unverified
+        verificationError = "Verification service unavailable"
+      }
     } else if (!isFaucetPayConfigured()) {
-      // Auto-verify in development mode
+      // Auto-verify in development mode or when API not configured
       isVerified = true
     }
 
@@ -61,21 +101,36 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       log.error("Failed to save FaucetPay email", { error, userId: user.id })
+
+      // Provide more specific error messages
+      if (error.code === "23505") {
+        return NextResponse.json({ success: false, error: "This email is already in use" }, { status: 400 })
+      }
+
       return NextResponse.json({ success: false, error: "Failed to save email. Please try again." }, { status: 500 })
     }
 
-    log.info("FaucetPay email saved", {
+    // Verify the email was actually saved
+    if (!data?.faucetpay_email) {
+      log.error("FaucetPay email not returned after save", { userId: user.id })
+      return NextResponse.json({
+        success: false,
+        error: "Failed to confirm email was saved. Please refresh and try again."
+      }, { status: 500 })
+    }
+
+    log.info("FaucetPay email saved successfully", {
       userId: user.id,
       verified: isVerified,
-      email: normalizedEmail.substring(0, 5) + "..."
+      email: normalizedEmail.substring(0, 5) + "***"
     })
 
     return NextResponse.json({
       success: true,
       message: isVerified
         ? "FaucetPay email saved and verified successfully!"
-        : "FaucetPay email saved. Please verify your account.",
-      email: data?.faucetpay_email,
+        : "FaucetPay email saved. You can now claim and withdraw.",
+      email: data.faucetpay_email,
       verified: isVerified,
       verificationError: verificationError,
     })

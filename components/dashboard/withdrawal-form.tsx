@@ -57,11 +57,13 @@ export function WithdrawalForm({ profile, canWithdraw }: WithdrawalFormProps) {
     fetchWithdrawalStats()
   }, [])
 
-  // Validation errors
+  // Validation errors - be more lenient with FaucetPay check
   const getValidationErrors = (): string[] => {
     const errors: string[] = []
-    if (!profile.faucetpay_email) {
-      errors.push("FaucetPay email not configured")
+    // Check FaucetPay email - trim whitespace and check properly
+    const faucetPayEmail = profile.faucetpay_email?.trim()
+    if (!faucetPayEmail) {
+      errors.push("FaucetPay email not configured - go to Settings to add it")
     }
     if (amountNum > 0 && amountNum < WITHDRAWAL_CONFIG.minimumSatoshis) {
       errors.push(`Minimum withdrawal is ${formatSatoshisDisplay(WITHDRAWAL_CONFIG.minimumSatoshis)}`)
@@ -162,12 +164,14 @@ export function WithdrawalForm({ profile, canWithdraw }: WithdrawalFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* FaucetPay Status */}
-      {!profile.faucetpay_email && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
+      {!profile.faucetpay_email?.trim() && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertCircle className="h-4 w-4 text-amber-500" />
           <AlertDescription className="flex items-center justify-between">
-            <span>Configure your FaucetPay email to enable withdrawals</span>
-            <Button variant="link" size="sm" className="h-auto p-0" asChild>
+            <span className="text-amber-600 dark:text-amber-400">
+              Configure your FaucetPay email to enable withdrawals
+            </span>
+            <Button variant="outline" size="sm" className="h-auto py-1 px-2 bg-transparent border-amber-500/50" asChild>
               <Link href="/dashboard/settings">Setup Now</Link>
             </Button>
           </AlertDescription>
@@ -302,9 +306,15 @@ export function WithdrawalForm({ profile, canWithdraw }: WithdrawalFormProps) {
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium">FaucetPay</p>
-            <p className="text-xs text-muted-foreground font-mono">{profile.faucetpay_email || "Not configured"}</p>
+            <p className="text-xs text-muted-foreground font-mono">
+              {profile.faucetpay_email?.trim() || "Not configured - go to Settings"}
+            </p>
           </div>
-          {profile.faucetpay_email && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+          {profile.faucetpay_email?.trim() ? (
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          ) : (
+            <AlertCircle className="h-5 w-5 text-amber-500" />
+          )}
         </div>
       </div>
 

@@ -79,16 +79,34 @@ export async function POST(request: Request) {
 
     const requiresManualReview = profile.fraud_score >= FRAUD_CONFIG.manualReviewScore
 
-    // Check FaucetPay email with detailed error
-    if (!profile.faucetpay_email) {
+    // Check FaucetPay email with detailed error - be more lenient
+    const faucetPayEmail = profile.faucetpay_email?.trim()
+
+    if (!faucetPayEmail) {
       log.warn("Withdrawal attempted without FaucetPay email", {
         userId: user.id,
         hasEmail: !!profile.faucetpay_email,
-        emailValue: profile.faucetpay_email
+        rawValue: profile.faucetpay_email,
+        verified: profile.faucetpay_verified
       })
       return NextResponse.json({
-        error: "FaucetPay email not configured. Go to Settings > FaucetPay Withdrawal to add your email.",
+        error: "FaucetPay email not configured. Please go to Settings and add your FaucetPay email first.",
         code: "FAUCETPAY_NOT_CONFIGURED",
+        action: "settings",
+        detail: "Go to Dashboard > Settings > Payment Settings to configure your FaucetPay email"
+      }, { status: 400 })
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(faucetPayEmail)) {
+      log.warn("Invalid FaucetPay email format", {
+        userId: user.id,
+        email: faucetPayEmail
+      })
+      return NextResponse.json({
+        error: "Invalid FaucetPay email format. Please update your email in Settings.",
+        code: "INVALID_FAUCETPAY_EMAIL",
         action: "settings"
       }, { status: 400 })
     }
@@ -96,7 +114,7 @@ export async function POST(request: Request) {
     // Log the FaucetPay email being used for debugging
     log.info("Withdrawal using FaucetPay email", {
       userId: user.id,
-      email: profile.faucetpay_email,
+      email: faucetPayEmail.substring(0, 5) + "***",
       verified: profile.faucetpay_verified
     })
 

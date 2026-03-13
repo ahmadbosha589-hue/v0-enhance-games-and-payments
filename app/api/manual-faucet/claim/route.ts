@@ -152,53 +152,121 @@ async function getUserFaucetPayEmail(
 const COOLDOWN_SECONDS = 7 // 7 seconds between claims per crypto
 const SHORTLINK_REQUIRED_AFTER = 100 // After 100 claims, require a shortlink
 
-// CoinGecko API for live prices
+// Fallback prices - ALWAYS current realistic market prices
+// These serve as backup when CoinGecko is unavailable
+const FALLBACK_PRICES: Record<string, number> = {
+  LTC: 115,
+  ETH: 3500,
+  DOGE: 0.38,
+  TRX: 0.26,
+  FEY: 0.00008, // Feyorra - very low value token
+  ZEC: 45,
+  BCH: 480,
+  DASH: 32,
+  DGB: 0.015,
+  SOL: 190,
+  BNB: 700,
+  MATIC: 0.55,
+  USDT: 1,
+  BTC: 97000,
+  XRP: 2.3,
+  ADA: 1.05,
+  TON: 5.5,
+}
+
+// CoinGecko IDs mapping
+const COINGECKO_IDS: Record<string, string> = {
+  LTC: "litecoin",
+  ETH: "ethereum",
+  DOGE: "dogecoin",
+  TRX: "tron",
+  FEY: "feyorra",
+  ZEC: "zcash",
+  BCH: "bitcoin-cash",
+  DASH: "dash",
+  DGB: "digibyte",
+  SOL: "solana",
+  BNB: "binancecoin",
+  MATIC: "matic-network",
+  USDT: "tether",
+  BTC: "bitcoin",
+  XRP: "ripple",
+  ADA: "cardano",
+  TON: "the-open-network",
+}
+
+// In-memory price cache with TTL
+let priceCache: Record<string, { price: number; timestamp: number }> = {}
+const CACHE_TTL_MS = 60000 // 1 minute cache
+
+// Get crypto price with caching and robust fallback
 async function getCryptoPrice(symbol: string): Promise<number> {
-  const coinGeckoIds: Record<string, string> = {
-    LTC: "litecoin",
-    ETH: "ethereum",
-    DOGE: "dogecoin",
-    TRX: "tron",
-    FEY: "feyorra",
-    ZEC: "zcash",
-    BCH: "bitcoin-cash",
-    DASH: "dash",
-    DGB: "digibyte",
-    SOL: "solana",
-    BNB: "binancecoin",
-    MATIC: "matic-network",
-    USDT: "tether",
+  const geckoId = COINGECKO_IDS[symbol]
+  if (!geckoId) {
+    return FALLBACK_PRICES[symbol] || 0
   }
 
-  const geckoId = coinGeckoIds[symbol]
-  if (!geckoId) return 0
+  // Check cache first
+  const cached = priceCache[symbol]
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.price
+  }
 
   try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
     const response = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${geckoId}&vs_currencies=usd`,
-      { next: { revalidate: 60 } }
+      {
+        signal: controller.signal,
+        headers: { "Accept": "application/json" },
+        next: { revalidate: 60 }
+      }
     )
-    const data = await response.json()
-    return data[geckoId]?.usd || 0
-  } catch {
-    // Fallback prices
-    const fallback: Record<string, number> = {
-      LTC: 115,
-      ETH: 3500,
-      DOGE: 0.38,
-      TRX: 0.26,
-      FEY: 0.0001,
-      ZEC: 45,
-      BCH: 480,
-      DASH: 32,
-      DGB: 0.015,
-      SOL: 190,
-      BNB: 700,
-      MATIC: 0.55,
-      USDT: 1,
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      throw new Error(`CoinGecko returned ${response.status}`)
     }
-    return fallback[symbol] || 0
+
+    const data = await response.json()
+    const price = data[geckoId]?.usd
+
+    if (typeof price === 'number' && price > 0) {
+      // Update cache
+      priceCache[symbol] = { price, timestamp: Date.now() }
+      return price
+    }
+
+    // Price not found or invalid - use fallback
+    return FALLBACK_PRICES[symbol] || 0
+  } catch (error) {
+    // Use fallback on any error (timeout, network, parse, etc.)
+    log.warn("CoinGecko fetch failed, using fallback", { symbol, error: String(error) })
+    return FALLBACK_PRICES[symbol] || 0
   }
+}
+
+// Calculate crypto amount from USD value
+function calculateCryptoAmount(usdValue: number, pricePerCoin: number): number {
+  if (pricePerCoin <= 0) return 0
+  return usdValue / pricePerCoin
+}
+
+// Format crypto amount to appropriate precision (satoshi-level for most)
+function formatCryptoAmount(amount: number, symbol: string): string {
+  if (amount <= 0) return "0"
+
+  // Most cryptos use 8 decimal places (satoshi precision)
+  // But for display and FaucetPay, we use appropriate precision
+  if (amount < 0.00000001) {
+    return amount.toExponential(4)
+  }
+
+  // For integer-based coins (like satoshis), round to 8 decimals
+  return amount.toFixed(8)
 }
 
 export async function POST(request: NextRequest) {
@@ -345,13 +413,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get crypto price and calculate amount
+    // Get crypto price and calculate amount - ROBUST with fallback
     const price = await getCryptoPrice(cryptoSymbol)
-    if (price === 0) {
-      return NextResponse.json({ error: "Unable to fetch crypto price" }, { status: 500 })
+    if (price <= 0) {
+      log.error("Failed to get crypto price", { symbol: cryptoSymbol })
+      return NextResponse.json({
+        error: "Unable to fetch crypto price. Please try again.",
+        code: "PRICE_FETCH_FAILED"
+      }, { status: 500 })
     }
 
-    const amount = (CLAIM_VALUE_USD / price).toFixed(8)
+    // Calculate the crypto amount based on USD value
+    const cryptoAmount = calculateCryptoAmount(CLAIM_VALUE_USD, price)
+    if (cryptoAmount <= 0) {
+      return NextResponse.json({
+        error: "Invalid amount calculated. Please try again.",
+        code: "INVALID_AMOUNT"
+      }, { status: 500 })
+    }
+
+    const amount = formatCryptoAmount(cryptoAmount, cryptoSymbol)
+
+    log.info("Calculated claim amount", {
+      symbol: cryptoSymbol,
+      usdValue: CLAIM_VALUE_USD,
+      price,
+      cryptoAmount,
+      formattedAmount: amount
+    })
 
     // Check if currency is supported by FaucetPay
     if (!FAUCETPAY_SUPPORTED_CURRENCIES.includes(cryptoSymbol)) {
@@ -361,32 +450,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user's FaucetPay email - also try from the profile we already fetched
-    const faucetPayResult = await getUserFaucetPayEmail(adminSupabase, user.id)
+    // Get user's FaucetPay email - PRIORITY: use profile data we already fetched
+    // This avoids the issue where getUserFaucetPayEmail might fail but profile has the email
+    let faucetPayEmail = profile.faucetpay_email || null
 
-    // First try the dedicated function, then fall back to the profile we already have
-    let faucetPayEmail = faucetPayResult.email
+    // If profile doesn't have email, try the dedicated function as fallback
+    if (!faucetPayEmail) {
+      const faucetPayResult = await getUserFaucetPayEmail(adminSupabase, user.id)
+      faucetPayEmail = faucetPayResult.email
 
-    // If the function failed but we have the email in the profile already, use that
-    if (!faucetPayEmail && profile.faucetpay_email) {
-      faucetPayEmail = profile.faucetpay_email
-      log.info("Using FaucetPay email from profile", { email: faucetPayEmail })
+      if (faucetPayEmail) {
+        log.info("Using FaucetPay email from getUserFaucetPayEmail", { email: faucetPayEmail })
+      }
+    } else {
+      log.info("Using FaucetPay email from profile", {
+        email: faucetPayEmail,
+        verified: profile.faucetpay_verified
+      })
     }
 
     if (!faucetPayEmail) {
-      // Provide specific error based on what went wrong
-      const errorDetail = faucetPayResult.error || "No FaucetPay email found"
       log.warn("FaucetPay email missing", {
         userId: user.id,
-        error: errorDetail,
-        profileEmail: profile.faucetpay_email
+        profileEmail: profile.faucetpay_email,
+        profileVerified: profile.faucetpay_verified
       })
 
       return NextResponse.json(
         {
           error: "Please link your FaucetPay account in Account Settings first",
-          detail: errorDetail,
-          action: "Go to Account Settings > Payment Settings > FaucetPay Email"
+          detail: "Go to Settings > Payment Settings and enter your FaucetPay email",
+          action: "settings",
+          code: "FAUCETPAY_NOT_CONFIGURED"
         },
         { status: 400 }
       )

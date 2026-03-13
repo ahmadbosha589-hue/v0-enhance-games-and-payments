@@ -228,15 +228,31 @@ export function isFaucetPayConfigured(): boolean {
 }
 
 // Verify a FaucetPay email is valid and registered
+// This is a "soft" verification - we allow saving even if verification fails
+// The actual payment will fail if the email is invalid, which is a better UX
 export async function verifyFaucetPayEmail(email: string, currency = "BTC"): Promise<{ valid: boolean; error?: string }> {
+  // First validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email.trim())) {
+    return { valid: false, error: "Invalid email format" }
+  }
+
+  // If FaucetPay API is not configured, assume valid (for development)
+  if (!isFaucetPayConfigured()) {
+    return { valid: true }
+  }
+
   try {
     const client = getFaucetPayClient(currency)
-    await client.checkAddress(email)
+    await client.checkAddress(email.trim())
     return { valid: true }
   } catch (error) {
     if (error instanceof FaucetPayError) {
+      // Return specific error for user-fixable issues
       return { valid: false, error: error.message }
     }
-    return { valid: false, error: "Failed to verify FaucetPay email" }
+    // Network errors etc - don't block the user
+    log.warn("FaucetPay verification error (non-blocking)", { email: email.substring(0, 5) + "***", error })
+    return { valid: false, error: "Verification service temporarily unavailable" }
   }
 }
