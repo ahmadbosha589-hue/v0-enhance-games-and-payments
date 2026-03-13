@@ -110,12 +110,12 @@ async function sendFaucetPayPayment(
   }
 }
 
-// Get user's FaucetPay linked email
+// Get user's FaucetPay linked email - with detailed error handling
 async function getUserFaucetPayEmail(
   supabase: ReturnType<typeof createAdminClient>,
   userId: string
-): Promise<{ email: string | null; verified: boolean }> {
-  if (!supabase) return { email: null, verified: false }
+): Promise<{ email: string | null; verified: boolean; error?: string }> {
+  if (!supabase) return { email: null, verified: false, error: "Database not available" }
 
   try {
     const { data, error } = await supabase
@@ -125,16 +125,28 @@ async function getUserFaucetPayEmail(
       .single()
 
     if (error) {
-      log.error("Failed to get user FaucetPay email", { error })
-      return { email: null, verified: false }
+      log.error("Failed to get user FaucetPay email", { error, userId })
+      // Check for specific error types
+      if (error.code === "PGRST116") {
+        return { email: null, verified: false, error: "Profile not found" }
+      }
+      if (error.message?.includes("faucetpay_email")) {
+        return { email: null, verified: false, error: "FaucetPay column not configured in database" }
+      }
+      return { email: null, verified: false, error: `Database error: ${error.message}` }
+    }
+
+    if (!data) {
+      return { email: null, verified: false, error: "Profile data not found" }
     }
 
     return {
-      email: data?.faucetpay_email || null,
-      verified: data?.faucetpay_verified || false
+      email: data.faucetpay_email || null,
+      verified: data.faucetpay_verified || false
     }
-  } catch {
-    return { email: null, verified: false }
+  } catch (err) {
+    log.error("Exception getting FaucetPay email", { err, userId })
+    return { email: null, verified: false, error: "Failed to fetch profile" }
   }
 }
 const COOLDOWN_SECONDS = 7 // 7 seconds between claims per crypto
@@ -215,16 +227,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
     }
 
-    // Get user profile
+    // Get user profile with detailed error handling
     const { data: profile, error: profileError } = await adminSupabase
       .from("profiles")
       .select("*")
       .eq("id", user.id)
       .single()
 
-    if (profileError || !profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+    if (profileError) {
+      log.error("Profile fetch error", { error: profileError, userId: user.id })
+      return NextResponse.json({
+        error: "Unable to load your profile. Please refresh and try again.",
+        detail: profileError.message
+      }, { status: 500 })
     }
+
+    if (!profile) {
+      log.error("Profile not found", { userId: user.id })
+      return NextResponse.json({ error: "Profile not found. Please contact support." }, { status: 404 })
+    }
+
+    log.info("Profile loaded for claim", {
+      userId: user.id,
+      hasFaucetPayEmail: !!profile.faucetpay_email,
+      faucetpayVerified: profile.faucetpay_verified
+    })
 
     // Check if user is active
     if (profile.status !== "active") {
@@ -334,12 +361,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user's FaucetPay email
-    const { email: faucetPayEmail, verified } = await getUserFaucetPayEmail(adminSupabase, user.id)
+    // Get user's FaucetPay email - also try from the profile we already fetched
+    const faucetPayResult = await getUserFaucetPayEmail(adminSupabase, user.id)
+
+    // First try the dedicated function, then fall back to the profile we already have
+    let faucetPayEmail = faucetPayResult.email
+
+    // If the function failed but we have the email in the profile already, use that
+    if (!faucetPayEmail && profile.faucetpay_email) {
+      faucetPayEmail = profile.faucetpay_email
+      log.info("Using FaucetPay email from profile", { email: faucetPayEmail })
+    }
 
     if (!faucetPayEmail) {
+      // Provide specific error based on what went wrong
+      const errorDetail = faucetPayResult.error || "No FaucetPay email found"
+      log.warn("FaucetPay email missing", {
+        userId: user.id,
+        error: errorDetail,
+        profileEmail: profile.faucetpay_email
+      })
+
       return NextResponse.json(
-        { error: "Please link your FaucetPay account in settings first" },
+        {
+          error: "Please link your FaucetPay account in Account Settings first",
+          detail: errorDetail,
+          action: "Go to Account Settings > Payment Settings > FaucetPay Email"
+        },
         { status: 400 }
       )
     }
