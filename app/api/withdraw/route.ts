@@ -79,9 +79,26 @@ export async function POST(request: Request) {
 
     const requiresManualReview = profile.fraud_score >= FRAUD_CONFIG.manualReviewScore
 
+    // Check FaucetPay email with detailed error
     if (!profile.faucetpay_email) {
-      return NextResponse.json({ error: "Please set your FaucetPay email in settings first" }, { status: 400 })
+      log.warn("Withdrawal attempted without FaucetPay email", {
+        userId: user.id,
+        hasEmail: !!profile.faucetpay_email,
+        emailValue: profile.faucetpay_email
+      })
+      return NextResponse.json({
+        error: "FaucetPay email not configured. Go to Settings > FaucetPay Withdrawal to add your email.",
+        code: "FAUCETPAY_NOT_CONFIGURED",
+        action: "settings"
+      }, { status: 400 })
     }
+
+    // Log the FaucetPay email being used for debugging
+    log.info("Withdrawal using FaucetPay email", {
+      userId: user.id,
+      email: profile.faucetpay_email,
+      verified: profile.faucetpay_verified
+    })
 
     // Validate amount
     if (amount < WITHDRAWAL_CONFIG.minimumSatoshis) {
