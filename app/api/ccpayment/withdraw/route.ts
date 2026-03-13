@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -46,17 +46,22 @@ export async function POST(request: Request) {
       .single()
 
     if (profileError || !profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+      return NextResponse.json({ error: "Unable to load your profile. Please refresh the page and try again." }, { status: 404 })
     }
 
     // Check balance
     if (Number(profile.balance_satoshis) < amountSatoshis) {
-      return NextResponse.json({ error: "Insufficient balance" }, { status: 400 })
+      const shortage = amountSatoshis - Number(profile.balance_satoshis)
+      return NextResponse.json({
+        error: `Insufficient balance. You need ${shortage.toLocaleString()} more satoshis to complete this withdrawal.`
+      }, { status: 400 })
     }
 
     // Check if account is flagged
     if (profile.is_flagged && profile.fraud_score >= 50) {
-      return NextResponse.json({ error: "Account under review. Withdrawals disabled." }, { status: 403 })
+      return NextResponse.json({
+        error: "Your account is currently under review. Withdrawals are temporarily disabled. Please contact support if you need assistance."
+      }, { status: 403 })
     }
 
     // Convert satoshis to USD for withdrawal
@@ -65,7 +70,7 @@ export async function POST(request: Request) {
 
     try {
       const ccpayment = getCCPaymentClient()
-      
+
       const withdrawal = await ccpayment.withdraw({
         coinId,
         address,
@@ -79,7 +84,7 @@ export async function POST(request: Request) {
       const newBalance = Number(profile.balance_satoshis) - amountSatoshis
       await adminSupabase
         .from("profiles")
-        .update({ 
+        .update({
           balance_satoshis: newBalance,
           total_withdrawn_satoshis: Number(profile.total_withdrawn_satoshis) + amountSatoshis
         })
@@ -110,7 +115,7 @@ export async function POST(request: Request) {
         balance_before: profile.balance_satoshis,
         balance_after: newBalance,
         description: `CCPayment withdrawal to ${coinId}`,
-        metadata: { 
+        metadata: {
           ccpayment_order_id: withdrawal.orderId,
           address,
           coin_id: coinId,
@@ -149,13 +154,33 @@ export async function POST(request: Request) {
       })
     } catch (ccError) {
       log.error("CCPayment withdrawal API error", { error: ccError })
-      return NextResponse.json({ 
-        error: ccError instanceof Error ? ccError.message : "CCPayment API error" 
-      }, { status: 500 })
+
+      // Extract meaningful error message for user
+      let userMessage = "CCPayment service encountered an error. Please try again later."
+      if (ccError instanceof Error) {
+        const errorLower = ccError.message.toLowerCase()
+        if (errorLower.includes("address") || errorLower.includes("invalid")) {
+          userMessage = "Invalid wallet address. Please check the address and network match correctly."
+        } else if (errorLower.includes("amount") || errorLower.includes("minimum")) {
+          userMessage = "Withdrawal amount is below the minimum for this cryptocurrency."
+        } else if (errorLower.includes("insufficient") || errorLower.includes("funds")) {
+          userMessage = "CCPayment service has insufficient funds. Please try a smaller amount or different cryptocurrency."
+        } else if (errorLower.includes("network") || errorLower.includes("chain")) {
+          userMessage = "Selected network is not available. Please choose a different network."
+        } else if (errorLower.includes("api") || errorLower.includes("key")) {
+          userMessage = "CCPayment service is temporarily unavailable. Please try again later or use FaucetPay withdrawal."
+        } else if (ccError.message) {
+          userMessage = ccError.message
+        }
+      }
+
+      return NextResponse.json({ error: userMessage }, { status: 500 })
     }
   } catch (error) {
     log.error("CCPayment withdrawal error", { error })
-    return NextResponse.json({ error: "Failed to process withdrawal" }, { status: 500 })
+    return NextResponse.json({
+      error: "Something went wrong processing your withdrawal. Please try again or contact support if the issue persists."
+    }, { status: 500 })
   }
 }
 
@@ -172,7 +197,7 @@ export async function GET(request: Request) {
 
     // Get supported coins for withdrawal
     const { searchParams } = new URL(request.url)
-    
+
     if (searchParams.get("coins") === "true") {
       try {
         const ccpayment = getCCPaymentClient()
@@ -180,7 +205,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ coins })
       } catch {
         // Return default coins if API fails
-        return NextResponse.json({ 
+        return NextResponse.json({
           coins: [
             { coinId: "BTC", symbol: "BTC", name: "Bitcoin", chains: [{ chainId: "BTC", chainName: "Bitcoin", minWithdrawAmount: "0.0001", withdrawFee: "0.00005" }] },
             { coinId: "ETH", symbol: "ETH", name: "Ethereum", chains: [{ chainId: "ETH", chainName: "Ethereum", minWithdrawAmount: "0.01", withdrawFee: "0.005" }] },
