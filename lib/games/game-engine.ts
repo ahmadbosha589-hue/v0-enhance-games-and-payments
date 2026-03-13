@@ -361,58 +361,61 @@ export function updateStreak(lastPlayedAt: string | null): { currentStreak: numb
   return { currentStreak: 1, isNewDay: true } // Streak broken, start fresh
 }
 
-// Tournament mock data generator
+// Tournament mock data generator - simulates real tournaments
+// In production, these would come from a tournaments database table
 export function generateMockTournaments(): TournamentInfo[] {
   const now = new Date()
 
+  // Generate realistic-looking tournaments based on current time
+  const hour = now.getHours()
+  const dayOfWeek = now.getDay()
+
+  // Active tournament during peak hours (12-22)
+  const isActiveTournament = hour >= 12 && hour <= 22
+
+  // Generate semi-random but consistent participant counts based on time
+  const baseParticipants = Math.floor((hour + dayOfWeek * 3) % 50) + 20
+
   return [
     {
-      id: "t1",
+      id: `t-${Date.now()}-1`,
       name: "Tetris Championship",
       gameType: "tetris",
-      startTime: new Date(now.getTime() + 3600000).toISOString(),
-      endTime: new Date(now.getTime() + 7200000).toISOString(),
-      prizePool: 10000,
-      entryFee: 100,
-      participants: 45,
-      maxParticipants: 100,
-      status: "upcoming"
-    },
-    {
-      id: "t2",
-      name: "Snake Sprint",
-      gameType: "snake",
-      startTime: new Date(now.getTime() - 1800000).toISOString(),
-      endTime: new Date(now.getTime() + 5400000).toISOString(),
+      startTime: isActiveTournament
+        ? new Date(now.getTime() - 1800000).toISOString()
+        : new Date(now.getTime() + 3600000).toISOString(),
+      endTime: isActiveTournament
+        ? new Date(now.getTime() + 5400000).toISOString()
+        : new Date(now.getTime() + 7200000).toISOString(),
       prizePool: 5000,
       entryFee: 50,
-      participants: 78,
+      participants: Math.min(baseParticipants + 25, 100),
       maxParticipants: 100,
-      status: "active"
+      status: isActiveTournament ? "active" : "upcoming"
     },
     {
-      id: "t3",
-      name: "Memory Masters",
-      gameType: "memory",
-      startTime: new Date(now.getTime() + 86400000).toISOString(),
-      endTime: new Date(now.getTime() + 90000000).toISOString(),
-      prizePool: 7500,
-      entryFee: 75,
-      participants: 23,
+      id: `t-${Date.now()}-2`,
+      name: "Snake Sprint",
+      gameType: "snake",
+      startTime: new Date(now.getTime() + 7200000).toISOString(),
+      endTime: new Date(now.getTime() + 14400000).toISOString(),
+      prizePool: 3000,
+      entryFee: 30,
+      participants: Math.min(baseParticipants + 10, 50),
       maxParticipants: 50,
       status: "upcoming"
     },
     {
-      id: "t4",
-      name: "Flappy Frenzy",
-      gameType: "flappy",
-      startTime: new Date(now.getTime() - 7200000).toISOString(),
-      endTime: new Date(now.getTime() - 3600000).toISOString(),
-      prizePool: 3000,
-      entryFee: 30,
-      participants: 100,
-      maxParticipants: 100,
-      status: "ended"
+      id: `t-${Date.now()}-3`,
+      name: "Memory Masters",
+      gameType: "memory",
+      startTime: new Date(now.getTime() + 86400000).toISOString(),
+      endTime: new Date(now.getTime() + 90000000).toISOString(),
+      prizePool: 2500,
+      entryFee: 25,
+      participants: Math.min(baseParticipants, 50),
+      maxParticipants: 50,
+      status: "upcoming"
     }
   ]
 }
@@ -490,33 +493,44 @@ export interface LeaderboardEntry {
   isCurrent?: boolean
 }
 
-// Generate mock leaderboard data
+// Generate leaderboard data - uses realistic scores based on game type
+// In production, this would fetch from a game_leaderboards database table
 export function generateMockLeaderboard(gameType: string, userScore?: number): LeaderboardEntry[] {
+  // Use game-appropriate usernames
   const names = [
-    "CryptoKing", "BlockMaster", "SatoshiFan", "BTCWhale", "HashHero",
-    "ChainChamp", "NodeNinja", "MinerMax", "TokenTiger", "WalletWiz",
-    "CoinCrusher", "KeyKeeper", "LedgerLord", "P2PPlayer", "DeFiDude"
+    "CryptoMaster", "BlockChamp", "SatoshiPro", "BitcoinKing", "HashMaster",
+    "ChainPlayer", "NodeRunner", "CoinHunter", "TokenPro", "WalletKing",
+    "CryptoNinja", "KeyHolder", "LedgerPro", "P2PGamer", "DeFiMaster"
   ]
 
-  const baseScores: Record<string, number> = {
-    tetris: 15000,
-    snake: 2500,
-    memory: 4000,
-    flappy: 800,
-    car_racing: 6000,
-    block_blast: 4500
+  // Realistic score ranges for each game based on actual gameplay
+  const scoreRanges: Record<string, { top: number; dropoff: number }> = {
+    tetris: { top: 8000, dropoff: 0.08 },      // Top score ~8000, steady dropoff
+    snake: { top: 1500, dropoff: 0.1 },        // Top score ~1500
+    memory: { top: 3000, dropoff: 0.07 },      // Top score ~3000
+    flappy: { top: 150, dropoff: 0.12 },       // Top score ~150 (pipes passed)
+    car_racing: { top: 4000, dropoff: 0.09 },  // Top score ~4000
+    block_blast: { top: 3500, dropoff: 0.08 }  // Top score ~3500
   }
 
-  const base = baseScores[gameType] || 5000
+  const range = scoreRanges[gameType] || { top: 5000, dropoff: 0.1 }
 
-  const entries: LeaderboardEntry[] = Array.from({ length: 15 }, (_, i) => ({
-    rank: i + 1,
-    username: names[i],
-    score: Math.floor(base * (1 - i * 0.05) + Math.random() * 500),
-    isCurrent: false
-  }))
+  // Generate consistent but varying scores
+  const entries: LeaderboardEntry[] = Array.from({ length: 15 }, (_, i) => {
+    // Exponential dropoff for more realistic distribution
+    const scoreMultiplier = Math.pow(1 - range.dropoff, i)
+    const variance = range.top * 0.05 * (Math.sin(i * 1.5) + 0.5) // Small consistent variance
+    const score = Math.floor(range.top * scoreMultiplier + variance)
 
-  // Sort by score descending
+    return {
+      rank: i + 1,
+      username: names[i],
+      score: Math.max(10, score),
+      isCurrent: false
+    }
+  })
+
+  // Sort by score descending (should already be sorted, but ensure it)
   entries.sort((a, b) => b.score - a.score)
 
   // Update ranks
@@ -525,7 +539,7 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
   })
 
   // Insert user if score provided
-  if (userScore) {
+  if (userScore && userScore > 0) {
     const userEntry: LeaderboardEntry = {
       rank: 0,
       username: "You",
@@ -533,7 +547,7 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
       isCurrent: true
     }
 
-    // Find position
+    // Find position based on score
     let inserted = false
     for (let i = 0; i < entries.length; i++) {
       if (userScore > entries[i].score) {
@@ -551,7 +565,7 @@ export function generateMockLeaderboard(gameType: string, userScore?: number): L
       entry.rank = i + 1
     })
 
-    // Keep only top 15 + user
+    // Keep only top 15 + user if user is beyond that
     const userIndex = entries.findIndex(e => e.isCurrent)
     if (userIndex > 14) {
       return [...entries.slice(0, 14), entries[userIndex]]
