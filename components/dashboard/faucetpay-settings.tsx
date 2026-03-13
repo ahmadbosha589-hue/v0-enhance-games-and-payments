@@ -129,12 +129,22 @@ export function FaucetPaySettings({ profile }: FaucetPaySettingsProps) {
 
   return (
     <div className="space-y-4">
-      {/* Success Status */}
-      {profile.faucetpay_verified && (
+      {/* Success Status - show when verified */}
+      {profile.faucetpay_verified && profile.faucetpay_email && (
         <Alert className="border-green-500 bg-green-500/10">
           <CheckCircle className="h-4 w-4 text-green-500" />
           <AlertDescription className="text-green-600 dark:text-green-400">
-            Your FaucetPay account is verified and ready for withdrawals.
+            <strong>FaucetPay Connected!</strong> Your account ({profile.faucetpay_email}) is verified and ready for withdrawals and claims.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Show when email is saved but not verified */}
+      {profile.faucetpay_email && !profile.faucetpay_verified && (
+        <Alert className="border-amber-500 bg-amber-500/10">
+          <Mail className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-amber-600 dark:text-amber-400">
+            Your email is saved. Click "Verify" to confirm your FaucetPay account, or proceed with claiming (verification will be done automatically).
           </AlertDescription>
         </Alert>
       )}

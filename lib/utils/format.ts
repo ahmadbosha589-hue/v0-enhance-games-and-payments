@@ -1,12 +1,42 @@
 // Utility functions for formatting
 
 /**
- * Format satoshis to BTC with proper decimal places
+ * Format a number without scientific notation (e.g., 1.5e-7 becomes 0.00000015)
+ * Useful for very small crypto amounts
+ */
+export function formatNoScientific(num: number, maxDecimals: number = 10): string {
+  if (num === 0) return "0"
+  if (!Number.isFinite(num)) return "0"
+
+  // Use toFixed to avoid scientific notation
+  const fixed = num.toFixed(maxDecimals)
+
+  // Remove trailing zeros but keep at least one decimal for clarity
+  const trimmed = fixed.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+
+  // Handle case where all decimals are zeros but num > 0
+  if (trimmed === '0' && num > 0) {
+    const str = num.toFixed(20)
+    const match = str.match(/0\.(0*)([1-9])/)
+    if (match) {
+      const zeros = match[1].length
+      if (zeros < maxDecimals) {
+        return num.toFixed(zeros + 1)
+      }
+    }
+    return `<0.${'0'.repeat(maxDecimals - 1)}1`
+  }
+
+  return trimmed
+}
+
+/**
+ * Format satoshis to BTC with proper decimal places (no scientific notation)
  */
 export function formatSatoshis(satoshis: number | null | undefined, decimals = 8): string {
   if (satoshis == null) return "0.00000000"
   const btc = satoshis / 100_000_000
-  return btc.toFixed(decimals)
+  return formatNoScientific(btc, decimals)
 }
 
 /**

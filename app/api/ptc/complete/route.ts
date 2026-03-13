@@ -60,16 +60,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Ad not found or expired" }, { status: 404 })
     }
 
-    // Check if user already watched this ad (unique constraint on user_id, ad_id)
-    const { data: existingView } = await supabaseAdmin
+    // Check if user already watched this ad TODAY (daily reset at midnight UTC)
+    const today = new Date()
+    today.setUTCHours(0, 0, 0, 0)
+    const todayISO = today.toISOString()
+
+    const { data: existingViewToday } = await supabaseAdmin
       .from("ptc_views")
       .select("id")
       .eq("user_id", user.id)
       .eq("ad_id", adId)
-      .single()
+      .gte("created_at", todayISO)
+      .maybeSingle()
 
-    if (existingView) {
-      return NextResponse.json({ error: "Already watched this ad" }, { status: 400 })
+    if (existingViewToday) {
+      return NextResponse.json({ error: "You already watched this ad today. Come back tomorrow!" }, { status: 400 })
     }
 
     // Get user profile

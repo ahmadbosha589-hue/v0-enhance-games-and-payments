@@ -7,8 +7,6 @@ const ADMIN_ROLES = ["admin", "superadmin"]
 
 export async function POST(request: Request) {
   try {
-    console.log("[v0] Settings API called")
-
     const supabase = await createClient()
     const headersList = await headers()
 
@@ -17,10 +15,7 @@ export async function POST(request: Request) {
       error: authError,
     } = await supabase.auth.getUser()
 
-    console.log("[v0] Auth result:", { user: user?.id, authError })
-
     if (!user) {
-      console.log("[v0] No user found - returning 401")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -30,17 +25,12 @@ export async function POST(request: Request) {
       .eq("id", user.id)
       .single()
 
-    console.log("[v0] Profile result:", { profile, profileError })
-
     if (!profile || !ADMIN_ROLES.includes(profile.role)) {
-      console.log("[v0] Not admin - returning 403")
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const body = await request.json()
     const { category, updates } = body
-
-    console.log("[v0] Request body:", { category, updates })
 
     if (!category || !updates || typeof updates !== "object") {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
@@ -61,8 +51,6 @@ export async function POST(request: Request) {
 
     const results = []
     for (const [key, value] of Object.entries(updates)) {
-      console.log("[v0] Upserting setting:", { key, value })
-
       const { data: upsertData, error } = await supabase
         .from("system_settings")
         .upsert(
@@ -76,8 +64,6 @@ export async function POST(request: Request) {
         )
         .select()
 
-      console.log("[v0] Upsert result:", { key, upsertData, error })
-
       if (error) {
         log.error("Failed to update setting", { key, error })
         results.push({ key, success: false, error: error.message })
@@ -87,7 +73,6 @@ export async function POST(request: Request) {
     }
 
     const failedUpdates = results.filter((r) => !r.success)
-    console.log("[v0] Results:", { results, failedUpdates })
 
     if (failedUpdates.length > 0) {
       return NextResponse.json(

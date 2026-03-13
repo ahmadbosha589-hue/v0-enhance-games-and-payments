@@ -55,15 +55,21 @@ const COOLDOWN_SECONDS = 7
 const SHORTLINK_REQUIRED_AFTER = 100
 const PAGE_LOAD_WAIT_SECONDS = 7 // Wait time on subsequent page loads
 
-// Cache keys for session storage
+// Cache keys for session storage (session data) and localStorage (persistent flags)
 const CACHE_KEYS = {
   AUTH_USER: "mf_auth_user_v1",
   PROFILE: "mf_profile_v1",
   PTC_COUNT: "mf_ptc_count_v1",
   CLAIMS_DATA: "mf_claims_data_v1",
   CACHE_TIME: "mf_cache_time_v1",
-  HAS_LOADED_BEFORE: "mf_has_loaded_v1", // Track if user has loaded page before
-  LAST_VISIT_TIME: "mf_last_visit_v1", // Track last visit timestamp
+}
+// Keys stored in localStorage for persistence across sessions
+const PERSISTENT_KEYS = {
+  HAS_LOADED_BEFORE: "mf_has_loaded_v2", // Track if user has EVER loaded page before (persists across sessions)
+}
+// Session-only keys
+const SESSION_KEYS = {
+  LAST_VISIT_TIME: "mf_last_visit_v2", // Track last visit timestamp (resets on browser close)
 }
 const CACHE_TTL_MS = 30000 // 30 seconds cache TTL
 
@@ -76,7 +82,7 @@ interface LoadingStep {
   retryCount?: number
 }
 
-// Safe sessionStorage helper
+// Safe sessionStorage helper for cache data
 const safeStorage = {
   get: <T,>(key: string): T | null => {
     try {
@@ -101,6 +107,27 @@ const safeStorage = {
       Object.values(CACHE_KEYS).forEach((key) => sessionStorage.removeItem(key))
     } catch {
       // Ignore
+    }
+  },
+}
+
+// Safe localStorage helper for persistent data (survives browser close)
+const safePersistentStorage = {
+  get: <T,>(key: string): T | null => {
+    try {
+      if (typeof window === "undefined") return null
+      const item = localStorage.getItem(key)
+      return item ? JSON.parse(item) : null
+    } catch {
+      return null
+    }
+  },
+  set: (key: string, value: unknown): void => {
+    try {
+      if (typeof window === "undefined") return
+      localStorage.setItem(key, JSON.stringify(value))
+    } catch {
+      // Ignore storage errors
     }
   },
 }
@@ -555,6 +582,36 @@ function ManualFaucetContent() {
     [pricesData, FALLBACK_PRICES]
   )
 
+  // Helper to format small numbers without scientific notation
+  const formatSmallNumber = useCallback((num: number, maxDecimals: number = 10): string => {
+    if (num === 0) return "0"
+
+    // Avoid scientific notation by using toFixed with enough decimals
+    // then trimming trailing zeros
+    const fixed = num.toFixed(maxDecimals)
+
+    // Remove trailing zeros but keep at least one decimal place for clarity
+    const trimmed = fixed.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+
+    // If the number is extremely small and all decimals are zeros, show a minimal representation
+    if (trimmed === '0' && num > 0) {
+      // Find first non-zero decimal position
+      const str = num.toFixed(20)
+      const match = str.match(/0\.(0*)([1-9])/)
+      if (match) {
+        const zeros = match[1].length
+        const firstDigit = match[2]
+        // Show as 0.000...001 format (max 10 decimals)
+        if (zeros < 10) {
+          return num.toFixed(zeros + 1)
+        }
+      }
+      return `<0.${'0'.repeat(9)}1`
+    }
+
+    return trimmed
+  }, [])
+
   // Get crypto amount based on price - ROBUST calculation
   const getCryptoAmount = useCallback(
     (symbol: string): string => {
@@ -568,35 +625,29 @@ function ManualFaucetContent() {
       // Calculate: USD value / price per coin = amount of coins
       const amount = CLAIM_VALUE_USD / price
 
-      // Handle extremely small amounts (like for BTC/ETH)
-      if (amount < 0.00000001) {
-        return amount.toExponential(2)
-      }
-
-      // Format with appropriate decimals based on coin value
+      // Format with appropriate decimals based on coin value - NO scientific notation
       if (price >= 1000) {
         // High value coins (BTC, ETH) - show more decimals
-        return amount.toFixed(10)
+        return formatSmallNumber(amount, 10)
       } else if (price >= 1) {
         // Medium value coins - show 8 decimals
-        return amount.toFixed(8)
+        return formatSmallNumber(amount, 8)
       } else {
         // Low value coins (DOGE, TRX, FEY) - might need fewer decimals
-        return amount.toFixed(8)
+        return formatSmallNumber(amount, 8)
       }
     },
-    [getCryptoPrice]
+    [getCryptoPrice, formatSmallNumber]
   )
 
-  // Format crypto amount for display (removes trailing zeros)
+  // Format crypto amount for display (removes trailing zeros, no scientific notation)
   const formatCryptoAmount = useCallback(
     (symbol: string): string => {
       const amount = getCryptoAmount(symbol)
-      // Remove trailing zeros but keep at least 4 significant figures
       const parsed = parseFloat(amount)
       if (parsed === 0) return "0"
-      if (parsed < 0.0001) return parsed.toExponential(4)
-      return parsed.toString()
+      // Already formatted without scientific notation by getCryptoAmount
+      return amount
     },
     [getCryptoAmount]
   )
@@ -660,13 +711,17 @@ function ManualFaucetContent() {
     const initId = ++initCountRef.current
 
     // Check if this is a subsequent load (not first time)
-    const hasLoadedBefore = safeStorage.get<boolean>(CACHE_KEYS.HAS_LOADED_BEFORE)
-    const lastVisitTime = safeStorage.get<number>(CACHE_KEYS.LAST_VISIT_TIME)
+    // Use localStorage for persistent "has loaded before" flag
+    const hasLoadedBefore = safePersistentStorage.get<boolean>(PERSISTENT_KEYS.HAS_LOADED_BEFORE)
+    // Use sessionStorage for last visit time (resets when browser closes)
+    const lastVisitTime = safeStorage.get<number>(SESSION_KEYS.LAST_VISIT_TIME)
     const now = Date.now()
 
-    // If loaded before and revisiting within session, show wait timer instead of loading steps
-    if (hasLoadedBefore && lastVisitTime && (now - lastVisitTime) < 60000) {
-      // Within 1 minute of last visit - show wait timer, not loading steps
+    // Logic:
+    // - First EVER visit: show loading steps (hasLoadedBefore = false)
+    // - Second+ visit: show 7 second timer, do background checks silently
+    if (hasLoadedBefore) {
+      // User has visited before - show wait timer, do background checks silently
       setShowLoadingSteps(false)
       setIsWaiting(true)
       setWaitTimer(PAGE_LOAD_WAIT_SECONDS)
@@ -683,11 +738,10 @@ function ManualFaucetContent() {
         })
       }, 1000)
 
-      // Do silent background checks during wait
-      // Mark visit time
-      safeStorage.set(CACHE_KEYS.LAST_VISIT_TIME, Date.now())
+      // Update last visit time
+      safeStorage.set(SESSION_KEYS.LAST_VISIT_TIME, Date.now())
     } else {
-      // First load or after a while - show loading steps
+      // First EVER load - show loading steps
       setShowLoadingSteps(true)
       setIsWaiting(false)
       setWaitTimer(0)
@@ -1120,9 +1174,9 @@ function ManualFaucetContent() {
       // PAGE READY!
       setPageReady(true)
 
-      // Mark that user has loaded the page before (for subsequent loads)
-      safeStorage.set(CACHE_KEYS.HAS_LOADED_BEFORE, true)
-      safeStorage.set(CACHE_KEYS.LAST_VISIT_TIME, Date.now())
+      // Mark that user has loaded the page before (persists in localStorage for subsequent visits)
+      safePersistentStorage.set(PERSISTENT_KEYS.HAS_LOADED_BEFORE, true)
+      safeStorage.set(SESSION_KEYS.LAST_VISIT_TIME, Date.now())
     }
   }, [updateStep, user, fingerprintLoading])
 
@@ -1269,11 +1323,13 @@ function ManualFaucetContent() {
 
         if (errorMessage.toLowerCase().includes("link your faucetpay") ||
           errorMessage.toLowerCase().includes("faucetpay email") ||
-          errorMessage.toLowerCase().includes("account settings")) {
-          title = "FaucetPay Not Linked"
-          description = "You need to link your FaucetPay email to claim."
-          actionHint = "Go to Settings > FaucetPay Withdrawal to add your email."
-        } else if (errorMessage.includes("not registered")) {
+          errorMessage.toLowerCase().includes("account settings") ||
+          errorMessage.toLowerCase().includes("not configured") ||
+          errorMessage.toLowerCase().includes("faucetpay_not_configured")) {
+          title = "FaucetPay Email Required"
+          description = "Please add your FaucetPay email address in Settings."
+          actionHint = "Click Settings (top-right) > Payment Settings > FaucetPay Withdrawal."
+        } else if (errorMessage.toLowerCase().includes("not registered") || errorMessage.includes("456")) {
           title = "FaucetPay Account Not Found"
           description = "Your email is not registered on FaucetPay."
           actionHint = "Create a free FaucetPay account with the same email first."
@@ -1342,26 +1398,65 @@ function ManualFaucetContent() {
     if (isWaiting && !showLoadingSteps) {
       return (
         <div className="min-h-screen p-4 md:p-6 lg:p-8">
-          <div className="max-w-xl mx-auto">
+          <div className="max-w-xl mx-auto space-y-4">
+            {/* Timer Card */}
             <Card className="border-primary/20">
-              <CardHeader className="text-center">
-                <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-4">
-                  <Clock className="h-10 w-10 text-amber-500" />
+              <CardHeader className="text-center pb-3">
+                <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-3">
+                  <Clock className="h-8 w-8 text-amber-500" />
                 </div>
-                <CardTitle className="text-xl">Please Wait</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-lg">Please Wait</CardTitle>
+                <CardDescription className="text-sm">
                   Preparing the faucet for you...
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 pt-0">
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-primary mb-2">{waitTimer}</div>
-                  <p className="text-sm text-muted-foreground">seconds remaining</p>
+                  <div className="text-4xl font-bold text-primary mb-1">{waitTimer}</div>
+                  <p className="text-xs text-muted-foreground">seconds remaining</p>
                 </div>
                 <Progress value={((PAGE_LOAD_WAIT_SECONDS - waitTimer) / PAGE_LOAD_WAIT_SECONDS) * 100} className="h-2" />
-                <p className="text-center text-xs text-muted-foreground">
-                  Running security checks in the background...
-                </p>
+              </CardContent>
+            </Card>
+
+            {/* Show verification status below timer */}
+            <Card className="border-border/50">
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  Background Security Checks
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="py-3 pt-0">
+                <div className="grid grid-cols-2 gap-2">
+                  {loadingSteps.map((step) => (
+                    <div
+                      key={step.id}
+                      className="flex items-center gap-2 p-2 rounded-md bg-muted/30 text-xs"
+                    >
+                      {step.status === "pending" && (
+                        <div className="w-3 h-3 rounded-full border border-muted-foreground/30" />
+                      )}
+                      {step.status === "loading" && (
+                        <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                      )}
+                      {(step.status === "success" || step.status === "cached") && (
+                        <CheckCircle className="w-3 h-3 text-green-500" />
+                      )}
+                      {step.status === "error" && (
+                        <AlertTriangle className="w-3 h-3 text-destructive" />
+                      )}
+                      <span className={`truncate ${step.status === "success" || step.status === "cached"
+                          ? "text-green-600"
+                          : step.status === "error"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                        }`}>
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>

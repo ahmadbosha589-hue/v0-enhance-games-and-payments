@@ -255,18 +255,17 @@ function calculateCryptoAmount(usdValue: number, pricePerCoin: number): number {
   return usdValue / pricePerCoin
 }
 
-// Format crypto amount to appropriate precision (satoshi-level for most)
+// Format crypto amount to appropriate precision (no scientific notation)
 function formatCryptoAmount(amount: number, symbol: string): string {
   if (amount <= 0) return "0"
 
   // Most cryptos use 8 decimal places (satoshi precision)
-  // But for display and FaucetPay, we use appropriate precision
-  if (amount < 0.00000001) {
-    return amount.toExponential(4)
-  }
+  // Always use toFixed to avoid scientific notation like 1.5e-7
+  const decimals = amount < 0.00000001 ? 10 : 8
+  const fixed = amount.toFixed(decimals)
 
-  // For integer-based coins (like satoshis), round to 8 decimals
-  return amount.toFixed(8)
+  // Remove trailing zeros but keep meaningful precision
+  return fixed.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') || "0"
 }
 
 export async function POST(request: NextRequest) {
@@ -476,12 +475,36 @@ export async function POST(request: NextRequest) {
         profileVerified: profile.faucetpay_verified
       })
 
+      // More specific error message based on what we know
+      const isVerified = profile.faucetpay_verified
+      let errorMessage = "Please link your FaucetPay email in Settings to claim rewards"
+      let detailMessage = "Go to Settings > Payment Settings > FaucetPay Withdrawal and enter your FaucetPay email"
+
+      // Check if email exists but maybe wasn't loaded properly
+      if (profile.faucetpay_email === null || profile.faucetpay_email === undefined) {
+        errorMessage = "FaucetPay email not configured"
+        detailMessage = "Please add your FaucetPay email in Settings > Payment Settings"
+      }
+
       return NextResponse.json(
         {
-          error: "Please link your FaucetPay account in Account Settings first",
-          detail: "Go to Settings > Payment Settings and enter your FaucetPay email",
+          error: errorMessage,
+          detail: detailMessage,
           action: "settings",
           code: "FAUCETPAY_NOT_CONFIGURED"
+        },
+        { status: 400 }
+      )
+    }
+
+    // Double check the email is valid format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(faucetPayEmail.trim())) {
+      return NextResponse.json(
+        {
+          error: "Invalid FaucetPay email format",
+          detail: "Please update your FaucetPay email in Settings with a valid email address",
+          code: "INVALID_EMAIL"
         },
         { status: 400 }
       )

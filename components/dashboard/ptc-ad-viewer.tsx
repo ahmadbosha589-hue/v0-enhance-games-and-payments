@@ -218,10 +218,13 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
         adWindowRef.current.close()
       }
 
-      // Clear session/local storage caches for PTC
+      // Clear session/local storage caches for PTC - clear ALL cache to ensure fresh data
       try {
         sessionStorage.removeItem("mf_ptc_count_v1")
         sessionStorage.removeItem("mf_cache_time_v1")
+        sessionStorage.removeItem("mf_claims_data_v1")
+        sessionStorage.removeItem("mf_profile_v1")
+        // Don't clear the persistent HAS_LOADED_BEFORE flag - that should stay
       } catch { }
 
       // Force HARD refresh - clear all caches and reload

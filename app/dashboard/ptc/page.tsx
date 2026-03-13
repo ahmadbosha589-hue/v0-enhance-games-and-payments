@@ -88,8 +88,10 @@ async function PTCStats({ userId }: { userId: string }) {
 async function AvailableAds({ userId }: { userId: string }) {
   const adminSupabase = createAdminClient()
 
-  // Get ads that user hasn't watched today
-  const today = new Date().toISOString().split("T")[0]
+  // Get ads that user hasn't watched TODAY (midnight UTC reset)
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+  const todayISO = today.toISOString()
 
   const [ads, watchedToday] = await Promise.all([
     safeQuery(
@@ -103,18 +105,33 @@ async function AvailableAds({ userId }: { userId: string }) {
           .order("reward_satoshis", { ascending: false }),
       [],
     ) as Promise<PTCAd[]>,
-    safeQuery(() => adminSupabase.from("ptc_views").select("ad_id").eq("user_id", userId).gte("created_at", today), []),
+    safeQuery(() => adminSupabase.from("ptc_views").select("ad_id").eq("user_id", userId).gte("created_at", todayISO), []),
   ])
 
   const watchedAdIds = new Set((watchedToday || []).map((v: any) => v.ad_id))
   const availableAds = (ads || []).filter((ad) => !watchedAdIds.has(ad.id))
 
+  // Check if user watched all ads today
+  const watchedAllToday = watchedAdIds.size > 0 && ads.length > 0 && watchedAdIds.size >= ads.length
+
   if (availableAds.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Play className="h-12 w-12 mx-auto mb-4 opacity-50" />
-        <p className="text-base font-medium">No ads available right now</p>
-        <p className="text-sm mt-1">Check back later for new ads to watch!</p>
+        {watchedAllToday ? (
+          <>
+            <p className="text-base font-medium text-green-600">All ads watched for today!</p>
+            <p className="text-sm mt-1">You&apos;ve completed all available PTC ads. Come back tomorrow for more!</p>
+            <p className="text-xs mt-3 text-muted-foreground">
+              Ads reset daily at midnight UTC
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-base font-medium">No ads available right now</p>
+            <p className="text-sm mt-1">Check back later for new ads to watch!</p>
+          </>
+        )}
       </div>
     )
   }

@@ -63,14 +63,21 @@ export default async function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* FaucetPay Settings - Now passing profile object with required fields */}
-        <Card>
+        {/* FaucetPay Settings - REQUIRED for Manual Faucet Claims */}
+        <Card id="payment-settings" className={!profile.faucetpay_email ? "border-amber-500/50 ring-2 ring-amber-500/20" : ""}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Wallet className="h-5 w-5" />
-              FaucetPay Withdrawal
+              <Wallet className="h-5 w-5 text-amber-500" />
+              Payment Settings
+              {!profile.faucetpay_email && (
+                <span className="text-xs bg-amber-500/20 text-amber-600 px-2 py-0.5 rounded-full font-normal">
+                  Action Required
+                </span>
+              )}
             </CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Configure your withdrawal destination</CardDescription>
+            <CardDescription className="text-xs sm:text-sm">
+              Connect your FaucetPay account to claim rewards from the Manual Faucet
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <FaucetPaySettings

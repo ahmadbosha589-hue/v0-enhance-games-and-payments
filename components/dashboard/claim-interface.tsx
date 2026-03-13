@@ -92,11 +92,6 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
     setIsVerified(true)
     setState("ready")
 
-    // Log verification metadata for debugging
-    if (metadata) {
-      console.log("[v0] Verification complete with score:", metadata.behaviorScore)
-    }
-
     toast.success("Verification complete!", { description: "You can now claim your reward" })
   }
 

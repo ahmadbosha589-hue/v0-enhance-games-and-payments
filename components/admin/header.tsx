@@ -86,7 +86,7 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
               id: `withdrawal-${w.id}`,
               type: "withdrawal",
               title: "Withdrawal Pending",
-              message: `${(w.amount_satoshis / 100000000).toFixed(8)} BTC awaiting review`,
+              message: `${w.amount_satoshis.toLocaleString()} sats awaiting review`,
               created_at: w.created_at,
             })
           })
