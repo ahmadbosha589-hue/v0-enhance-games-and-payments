@@ -116,7 +116,33 @@ export function WithdrawalForm({ profile, canWithdraw }: WithdrawalFormProps) {
       }, 2000)
     } catch (error) {
       setState("error")
-      toast.error(error instanceof Error ? error.message : "Failed to withdraw")
+      const errorMessage = error instanceof Error ? error.message : "Failed to withdraw"
+
+      // Provide helpful context based on error type
+      let title = "Withdrawal Failed"
+      let description = errorMessage
+
+      if (errorMessage.includes("FaucetPay") || errorMessage.includes("email")) {
+        title = "FaucetPay Issue"
+        description = "Please check your FaucetPay email in settings and make sure it's verified."
+      } else if (errorMessage.includes("balance") || errorMessage.includes("Insufficient")) {
+        title = "Insufficient Balance"
+        description = "You don't have enough balance to complete this withdrawal."
+      } else if (errorMessage.includes("limit")) {
+        title = "Limit Reached"
+        description = errorMessage
+      } else if (errorMessage.includes("pending")) {
+        title = "Pending Withdrawals"
+        description = "Please wait for your existing withdrawals to process before requesting more."
+      } else if (errorMessage.includes("review") || errorMessage.includes("flagged") || errorMessage.includes("suspended")) {
+        title = "Account Review"
+        description = "Your account is under review. Please contact support if you need assistance."
+      } else if (errorMessage.includes("rate") || errorMessage.includes("Too many")) {
+        title = "Too Many Requests"
+        description = "Please wait a moment before trying again."
+      }
+
+      toast.error(title, { description, duration: 6000 })
       setTimeout(() => setState("idle"), 2000)
     }
   }

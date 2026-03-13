@@ -27,12 +27,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { formatSatoshisDisplay } from "@/lib/utils/format"
-import { 
-  Loader2, 
-  Wallet, 
-  AlertCircle, 
-  CheckCircle2, 
-  Info, 
+import {
+  Loader2,
+  Wallet,
+  AlertCircle,
+  CheckCircle2,
+  Info,
   Bitcoin,
   ArrowRight,
   Clock,
@@ -110,16 +110,16 @@ const COIN_ICONS: Record<string, { color: string; bgColor: string }> = {
 
 // Extended list of supported coins
 const DEFAULT_COINS: CoinInfo[] = [
-  { 
-    coinId: "BTC", symbol: "BTC", name: "Bitcoin", 
+  {
+    coinId: "BTC", symbol: "BTC", name: "Bitcoin",
     chains: [
       { chainId: "BTC", chainName: "Bitcoin Network", minWithdrawAmount: "0.0001", withdrawFee: "0.00005", estimatedTime: "30-60 min" },
       { chainId: "LIGHTNING", chainName: "Lightning Network", minWithdrawAmount: "0.00001", withdrawFee: "0.000001", estimatedTime: "Instant" }
     ],
     price: "67000", change24h: 2.5
   },
-  { 
-    coinId: "ETH", symbol: "ETH", name: "Ethereum", 
+  {
+    coinId: "ETH", symbol: "ETH", name: "Ethereum",
     chains: [
       { chainId: "ETH", chainName: "Ethereum", minWithdrawAmount: "0.01", withdrawFee: "0.005", estimatedTime: "5-15 min" },
       { chainId: "ARBITRUM", chainName: "Arbitrum One", minWithdrawAmount: "0.001", withdrawFee: "0.0005", estimatedTime: "1-5 min" },
@@ -127,8 +127,8 @@ const DEFAULT_COINS: CoinInfo[] = [
     ],
     price: "4000", change24h: 3.2
   },
-  { 
-    coinId: "USDT", symbol: "USDT", name: "Tether", 
+  {
+    coinId: "USDT", symbol: "USDT", name: "Tether",
     chains: [
       { chainId: "TRC20", chainName: "Tron (TRC20)", minWithdrawAmount: "10", withdrawFee: "1", estimatedTime: "1-3 min" },
       { chainId: "ERC20", chainName: "Ethereum (ERC20)", minWithdrawAmount: "50", withdrawFee: "15", estimatedTime: "5-15 min" },
@@ -138,8 +138,8 @@ const DEFAULT_COINS: CoinInfo[] = [
     ],
     price: "1", change24h: 0.01
   },
-  { 
-    coinId: "USDC", symbol: "USDC", name: "USD Coin", 
+  {
+    coinId: "USDC", symbol: "USDC", name: "USD Coin",
     chains: [
       { chainId: "ERC20", chainName: "Ethereum (ERC20)", minWithdrawAmount: "50", withdrawFee: "15", estimatedTime: "5-15 min" },
       { chainId: "SOL", chainName: "Solana", minWithdrawAmount: "1", withdrawFee: "0.1", estimatedTime: "Instant" },
@@ -147,58 +147,58 @@ const DEFAULT_COINS: CoinInfo[] = [
     ],
     price: "1", change24h: 0.0
   },
-  { 
-    coinId: "LTC", symbol: "LTC", name: "Litecoin", 
+  {
+    coinId: "LTC", symbol: "LTC", name: "Litecoin",
     chains: [
       { chainId: "LTC", chainName: "Litecoin", minWithdrawAmount: "0.001", withdrawFee: "0.0001", estimatedTime: "5-15 min" }
     ],
     price: "85", change24h: 1.8
   },
-  { 
-    coinId: "BNB", symbol: "BNB", name: "BNB", 
+  {
+    coinId: "BNB", symbol: "BNB", name: "BNB",
     chains: [
       { chainId: "BEP20", chainName: "BNB Smart Chain", minWithdrawAmount: "0.01", withdrawFee: "0.001", estimatedTime: "1-3 min" },
       { chainId: "BEP2", chainName: "BNB Beacon Chain", minWithdrawAmount: "0.01", withdrawFee: "0.001", estimatedTime: "1-3 min" }
     ],
     price: "620", change24h: -0.5
   },
-  { 
-    coinId: "XRP", symbol: "XRP", name: "Ripple", 
+  {
+    coinId: "XRP", symbol: "XRP", name: "Ripple",
     chains: [
       { chainId: "XRP", chainName: "XRP Ledger", minWithdrawAmount: "10", withdrawFee: "0.1", estimatedTime: "Instant" }
     ],
     price: "0.62", change24h: 4.1
   },
-  { 
-    coinId: "DOGE", symbol: "DOGE", name: "Dogecoin", 
+  {
+    coinId: "DOGE", symbol: "DOGE", name: "Dogecoin",
     chains: [
       { chainId: "DOGE", chainName: "Dogecoin", minWithdrawAmount: "10", withdrawFee: "1", estimatedTime: "5-15 min" }
     ],
     price: "0.12", change24h: 5.2
   },
-  { 
-    coinId: "SOL", symbol: "SOL", name: "Solana", 
+  {
+    coinId: "SOL", symbol: "SOL", name: "Solana",
     chains: [
       { chainId: "SOL", chainName: "Solana", minWithdrawAmount: "0.1", withdrawFee: "0.01", estimatedTime: "Instant" }
     ],
     price: "150", change24h: 6.8
   },
-  { 
-    coinId: "TRX", symbol: "TRX", name: "Tron", 
+  {
+    coinId: "TRX", symbol: "TRX", name: "Tron",
     chains: [
       { chainId: "TRX", chainName: "Tron", minWithdrawAmount: "10", withdrawFee: "1", estimatedTime: "1-3 min" }
     ],
     price: "0.12", change24h: 1.2
   },
-  { 
-    coinId: "MATIC", symbol: "MATIC", name: "Polygon", 
+  {
+    coinId: "MATIC", symbol: "MATIC", name: "Polygon",
     chains: [
       { chainId: "POLYGON", chainName: "Polygon", minWithdrawAmount: "10", withdrawFee: "0.1", estimatedTime: "1-3 min" }
     ],
     price: "0.75", change24h: 2.1
   },
-  { 
-    coinId: "ADA", symbol: "ADA", name: "Cardano", 
+  {
+    coinId: "ADA", symbol: "ADA", name: "Cardano",
     chains: [
       { chainId: "ADA", chainName: "Cardano", minWithdrawAmount: "5", withdrawFee: "0.5", estimatedTime: "5-15 min" }
     ],
@@ -222,7 +222,7 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
 
   const { data: coinsData, isLoading: isLoadingCoins } = useSWR("/api/ccpayment/withdraw?coins=true", fetcher)
   const { data: historyData, mutate: refreshHistory } = useSWR("/api/ccpayment/withdraw", fetcher)
-  
+
   // Fetch real crypto prices
   const { data: pricesData } = useSWR<{ prices: Record<string, CryptoPrice> }>(
     "/api/crypto/prices",
@@ -250,8 +250,8 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
   const filteredCoins = useMemo(() => {
     if (!searchCoin) return coins
     const search = searchCoin.toLowerCase()
-    return coins.filter(c => 
-      c.symbol.toLowerCase().includes(search) || 
+    return coins.filter(c =>
+      c.symbol.toLowerCase().includes(search) ||
       c.name.toLowerCase().includes(search)
     )
   }, [coins, searchCoin])
@@ -271,7 +271,7 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
 
   const getValidationErrors = (): string[] => {
     const errors: string[] = []
-    
+
     if (!selectedCoin) errors.push("Select a cryptocurrency")
     if (!selectedChain) errors.push("Select a network/chain")
     if (!address || address.length < 10) errors.push("Enter a valid wallet address")
@@ -280,7 +280,7 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
     if (profile.is_flagged && profile.fraud_score >= 50) {
       errors.push("Account under review - withdrawals temporarily disabled")
     }
-    
+
     return errors
   }
 
@@ -326,7 +326,33 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
       setMemo("")
       refreshHistory()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Withdrawal failed")
+      const errorMessage = error instanceof Error ? error.message : "Withdrawal failed"
+
+      // Provide helpful context based on error type
+      let title = "Withdrawal Failed"
+      let description = errorMessage
+
+      if (errorMessage.includes("address") || errorMessage.includes("invalid")) {
+        title = "Invalid Address"
+        description = "Please check your wallet address and make sure it's correct for the selected network."
+      } else if (errorMessage.includes("balance") || errorMessage.includes("Insufficient")) {
+        title = "Insufficient Balance"
+        description = "You don't have enough balance to complete this withdrawal."
+      } else if (errorMessage.includes("minimum") || errorMessage.includes("too small")) {
+        title = "Amount Too Low"
+        description = "The withdrawal amount is below the minimum required for this cryptocurrency."
+      } else if (errorMessage.includes("CCPayment") || errorMessage.includes("configured")) {
+        title = "Service Unavailable"
+        description = "CCPayment service is temporarily unavailable. Please try FaucetPay withdrawal instead."
+      } else if (errorMessage.includes("review") || errorMessage.includes("flagged")) {
+        title = "Account Review"
+        description = "Your account is under review. Please contact support for assistance."
+      } else if (errorMessage.includes("network") || errorMessage.includes("chain")) {
+        title = "Network Error"
+        description = "Please select a valid network/chain for your withdrawal."
+      }
+
+      toast.error(title, { description, duration: 6000 })
     } finally {
       setIsSubmitting(false)
     }
@@ -428,8 +454,8 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     <div className="p-2 sticky top-0 bg-popover">
-                      <Input 
-                        placeholder="Search coins..." 
+                      <Input
+                        placeholder="Search coins..."
                         value={searchCoin}
                         onChange={(e) => setSearchCoin(e.target.value)}
                         className="h-8"
@@ -494,8 +520,8 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
                         onClick={() => setSelectedChain(chain.chainId)}
                         className={cn(
                           "flex items-center justify-between p-3 rounded-lg border text-left transition-all",
-                          selectedChain === chain.chainId 
-                            ? "border-primary bg-primary/5" 
+                          selectedChain === chain.chainId
+                            ? "border-primary bg-primary/5"
                             : "hover:bg-muted/50"
                         )}
                       >
@@ -533,9 +559,9 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
                     onChange={(e) => setAddress(e.target.value)}
                     className="font-mono text-sm pr-10"
                   />
-                  <Button 
+                  <Button
                     type="button"
-                    variant="ghost" 
+                    variant="ghost"
                     size="icon"
                     className="absolute right-1 top-1 h-8 w-8"
                     onClick={() => navigator.clipboard.readText().then(setAddress)}
@@ -675,7 +701,7 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
                   {withdrawals.map((withdrawal) => {
                     const StatusIcon = getStatusIcon(withdrawal.status)
                     return (
-                      <div 
+                      <div
                         key={withdrawal.id}
                         className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                       >
@@ -701,17 +727,17 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge 
-                            variant={withdrawal.status === "completed" ? "default" : 
-                                    withdrawal.status === "pending" ? "secondary" : "destructive"}
+                          <Badge
+                            variant={withdrawal.status === "completed" ? "default" :
+                              withdrawal.status === "pending" ? "secondary" : "destructive"}
                             className="gap-1"
                           >
                             <StatusIcon className="h-3 w-3" />
                             {withdrawal.status}
                           </Badge>
                           {withdrawal.tx_hash && (
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => window.open(`https://blockchair.com/search?q=${withdrawal.tx_hash}`, "_blank")}
@@ -772,14 +798,14 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
               </span>
             </div>
             <div className="flex gap-3">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="flex-1"
                 onClick={() => setShowConfirmDialog(false)}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 className="flex-1 bg-gradient-to-r from-orange-500 to-amber-500"
                 onClick={confirmWithdrawal}
                 disabled={isSubmitting}
