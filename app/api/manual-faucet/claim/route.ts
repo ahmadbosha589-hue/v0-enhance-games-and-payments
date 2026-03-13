@@ -1,43 +1,140 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUser, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
-import { FaucetPayClient } from "@/lib/faucetpay/client"
+import { log } from "@/lib/logger"
 
 const CLAIM_VALUE_USD = 0.0001 // $0.0001 per claim
+const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
 
-// Get FaucetPay API key for a specific currency from admin settings
-async function getFaucetPayApiKey(supabase: ReturnType<typeof createAdminClient>, currency: string): Promise<string | null> {
-  if (!supabase) return null
+// FaucetPay supported currencies - these are the ONLY ones FaucetPay supports
+const FAUCETPAY_SUPPORTED_CURRENCIES = [
+  "BTC", "LTC", "ETH", "DOGE", "BCH", "DASH", "DGB", "TRX", "FEY", "ZEC",
+  "BNB", "SOL", "XRP", "MATIC", "ADA", "TON", "USDT", "SHIB", "USDC"
+]
 
+// Get FaucetPay API key - uses a single API key for all currencies
+function getFaucetPayApiKey(): string | null {
+  return process.env.FAUCETPAY_API_KEY || null
+}
+
+// Send FaucetPay payment directly with proper error handling
+async function sendFaucetPayPayment(
+  apiKey: string,
+  toEmail: string,
+  amount: number,
+  currency: string,
+  ipAddress: string
+): Promise<{ success: boolean; payoutId?: string; error?: string; balance?: number }> {
   try {
-    const { data } = await supabase
-      .from("admin_settings")
-      .select("value")
-      .eq("key", `faucetpay_api_key_${currency.toLowerCase()}`)
-      .single()
+    const formData = new URLSearchParams()
+    formData.append("api_key", apiKey)
+    formData.append("to", toEmail)
+    formData.append("amount", String(amount))
+    formData.append("currency", currency)
+    formData.append("ip_address", ipAddress)
+    formData.append("referral", "false")
 
-    return data?.value || null
-  } catch {
-    // Fall back to environment variable
-    return process.env.FAUCETPAY_API_KEY || null
+    log.info("FaucetPay payment request", {
+      to: toEmail,
+      amount,
+      currency,
+      ip: ipAddress.substring(0, 10) + "..."
+    })
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    const response = await fetch(`${FAUCETPAY_API_URL}/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData.toString(),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    const result = await response.json()
+
+    log.info("FaucetPay response", { status: result.status, message: result.message })
+
+    // FaucetPay API status codes:
+    // 200 = Success
+    // 400 = Invalid API key / General error  
+    // 401 = Invalid API key
+    // 402 = Insufficient funds
+    // 403 = Disabled payouts / IP banned
+    // 405 = Too many requests (rate limited)
+    // 450 = Invalid currency
+    // 456 = Invalid to address (email not registered on FaucetPay)
+    // 457 = Payout amount too small
+    // 458 = Daily limit reached
+    // 459 = Referral payout limit reached
+    // 460 = User suspended
+    // 461 = Wrong currency for this user
+
+    if (result.status === 200) {
+      return {
+        success: true,
+        payoutId: result.payout_id,
+        balance: result.balance
+      }
+    }
+
+    // Map FaucetPay errors to user-friendly messages
+    const errorMessages: Record<number, string> = {
+      400: "FaucetPay API error. Please contact support.",
+      401: "FaucetPay API key is invalid. Please contact support.",
+      402: "Faucet is temporarily out of funds. Please try again later.",
+      403: "FaucetPay payouts are temporarily disabled.",
+      405: "Too many requests. Please wait a moment and try again.",
+      450: `${currency} is not supported by FaucetPay.`,
+      456: "Your email is not registered on FaucetPay. Please create a FaucetPay account first.",
+      457: "Payout amount is too small for FaucetPay minimum.",
+      458: "Daily payout limit reached. Please try again tomorrow.",
+      459: "Referral payout limit reached.",
+      460: "Your FaucetPay account is suspended.",
+      461: `Your FaucetPay account cannot receive ${currency}. Please link this currency on FaucetPay.`,
+    }
+
+    const errorMessage = errorMessages[result.status] || result.message || "FaucetPay payment failed"
+
+    return { success: false, error: errorMessage }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { success: false, error: "FaucetPay request timed out. Please try again." }
+    }
+    log.error("FaucetPay payment exception", { error })
+    return { success: false, error: "Failed to connect to FaucetPay. Please try again." }
   }
 }
 
-// Get user's FaucetPay linked address for a currency
-async function getUserFaucetPayAddress(supabase: ReturnType<typeof createAdminClient>, userId: string, currency: string): Promise<string | null> {
-  if (!supabase) return null
+// Get user's FaucetPay linked email
+async function getUserFaucetPayEmail(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string
+): Promise<{ email: string | null; verified: boolean }> {
+  if (!supabase) return { email: null, verified: false }
 
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
-      .select("faucetpay_email")
+      .select("faucetpay_email, faucetpay_verified")
       .eq("id", userId)
       .single()
 
-    // FaucetPay uses email as the identifier for payouts
-    return data?.faucetpay_email || null
+    if (error) {
+      log.error("Failed to get user FaucetPay email", { error })
+      return { email: null, verified: false }
+    }
+
+    return {
+      email: data?.faucetpay_email || null,
+      verified: data?.faucetpay_verified || false
+    }
   } catch {
-    return null
+    return { email: null, verified: false }
   }
 }
 const COOLDOWN_SECONDS = 7 // 7 seconds between claims per crypto
@@ -229,8 +326,17 @@ export async function POST(request: NextRequest) {
 
     const amount = (CLAIM_VALUE_USD / price).toFixed(8)
 
+    // Check if currency is supported by FaucetPay
+    if (!FAUCETPAY_SUPPORTED_CURRENCIES.includes(cryptoSymbol)) {
+      return NextResponse.json(
+        { error: `${cryptoSymbol} is not supported by FaucetPay` },
+        { status: 400 }
+      )
+    }
+
     // Get user's FaucetPay email
-    const faucetPayEmail = await getUserFaucetPayAddress(adminSupabase, user.id, cryptoSymbol)
+    const { email: faucetPayEmail, verified } = await getUserFaucetPayEmail(adminSupabase, user.id)
+
     if (!faucetPayEmail) {
       return NextResponse.json(
         { error: "Please link your FaucetPay account in settings first" },
@@ -238,46 +344,56 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get FaucetPay API key for this currency
-    const apiKey = await getFaucetPayApiKey(adminSupabase, cryptoSymbol)
+    // Get FaucetPay API key
+    const apiKey = getFaucetPayApiKey()
     if (!apiKey) {
+      log.error("FAUCETPAY_API_KEY not configured")
       return NextResponse.json(
-        { error: "FaucetPay not configured for this currency" },
+        { error: "FaucetPay is not configured. Please contact support." },
         { status: 500 }
+      )
+    }
+
+    // Convert amount to satoshis/smallest unit for FaucetPay
+    const amountInSmallestUnit = Math.floor(parseFloat(amount) * 100000000)
+
+    // Check minimum payout (FaucetPay has minimums per currency)
+    if (amountInSmallestUnit < 1) {
+      return NextResponse.json(
+        { error: "Amount too small for FaucetPay minimum" },
+        { status: 400 }
       )
     }
 
     // Send payment via FaucetPay
-    let faucetPayResult = null
-    let payoutId = null
+    const paymentResult = await sendFaucetPayPayment(
+      apiKey,
+      faucetPayEmail,
+      amountInSmallestUnit,
+      cryptoSymbol,
+      ip
+    )
 
-    try {
-      const faucetPayClient = new FaucetPayClient({
-        apiKey,
-        currency: cryptoSymbol,
+    if (!paymentResult.success) {
+      log.error("FaucetPay payment failed", {
+        error: paymentResult.error,
+        email: faucetPayEmail,
+        currency: cryptoSymbol
       })
-
-      // Convert amount to satoshis for FaucetPay (they use smallest unit)
-      const amountInSmallestUnit = Math.floor(parseFloat(amount) * 100000000)
-
-      faucetPayResult = await faucetPayClient.sendPayment(
-        faucetPayEmail,
-        amountInSmallestUnit,
-        ip,
-        false // not a referral
-      )
-
-      payoutId = faucetPayResult.payout_id
-      console.log("[v0] FaucetPay payment successful:", faucetPayResult)
-    } catch (faucetPayError) {
-      console.error("[v0] FaucetPay payment failed:", faucetPayError)
       return NextResponse.json(
-        { error: faucetPayError instanceof Error ? faucetPayError.message : "FaucetPay payment failed" },
-        { status: 500 }
+        { error: paymentResult.error || "FaucetPay payment failed" },
+        { status: 400 }
       )
     }
 
+    log.info("FaucetPay payment successful", {
+      payoutId: paymentResult.payoutId,
+      amount: amountInSmallestUnit,
+      currency: cryptoSymbol
+    })
+
     // Record the claim only after successful FaucetPay payment
+    // Note: Use faucetpay_tx_id column as that's what the table has
     const { error: insertError } = await adminSupabase.from("manual_faucet_claims").insert({
       user_id: user.id,
       crypto_symbol: cryptoSymbol,
@@ -285,12 +401,12 @@ export async function POST(request: NextRequest) {
       usd_value: CLAIM_VALUE_USD,
       ip_address: ip,
       fingerprint: fingerprint?.visitorId || null,
-      faucetpay_payout_id: payoutId,
+      faucetpay_tx_id: paymentResult.payoutId, // Use correct column name
       status: "completed",
     })
 
     if (insertError) {
-      console.error("[v0] Failed to record claim (but payment was sent):", insertError)
+      log.error("Failed to record claim (but payment was sent)", { error: insertError })
       // Don't fail the request since payment was already sent
     }
 
@@ -299,7 +415,7 @@ export async function POST(request: NextRequest) {
       amount,
       symbol: cryptoSymbol,
       usdValue: CLAIM_VALUE_USD,
-      payoutId,
+      payoutId: paymentResult.payoutId,
       message: `Sent ${amount} ${cryptoSymbol} to your FaucetPay account!`,
     })
   } catch (error) {
