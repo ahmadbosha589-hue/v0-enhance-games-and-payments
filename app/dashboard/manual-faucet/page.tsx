@@ -53,6 +53,7 @@ const FAUCETPAY_CRYPTOS = [
 const CLAIM_VALUE_USD = 0.0001
 const COOLDOWN_SECONDS = 7
 const SHORTLINK_REQUIRED_AFTER = 100
+const PAGE_LOAD_WAIT_SECONDS = 7 // Wait time on subsequent page loads
 
 // Cache keys for session storage
 const CACHE_KEYS = {
@@ -61,6 +62,8 @@ const CACHE_KEYS = {
   PTC_COUNT: "mf_ptc_count_v1",
   CLAIMS_DATA: "mf_claims_data_v1",
   CACHE_TIME: "mf_cache_time_v1",
+  HAS_LOADED_BEFORE: "mf_has_loaded_v1", // Track if user has loaded page before
+  LAST_VISIT_TIME: "mf_last_visit_v1", // Track last visit timestamp
 }
 const CACHE_TTL_MS = 30000 // 30 seconds cache TTL
 
@@ -438,6 +441,9 @@ function ManualFaucetContent() {
   const [configError, setConfigError] = useState(false)
   const [fatalError, setFatalError] = useState<string | null>(null)
   const [fatalErrorDetails, setFatalErrorDetails] = useState<string | undefined>()
+  const [showLoadingSteps, setShowLoadingSteps] = useState(true) // Show loading steps only on first load
+  const [waitTimer, setWaitTimer] = useState(0) // Wait timer for subsequent loads
+  const [isWaiting, setIsWaiting] = useState(false) // Whether we're in waiting mode
 
   // Loading steps
   const [loadingSteps, setLoadingSteps] = useState<LoadingStep[]>([
@@ -502,12 +508,31 @@ function ManualFaucetContent() {
     return (completed / loadingSteps.length) * 100
   }, [loadingSteps])
 
-  // Get crypto amount based on price
+  // Get crypto amount based on price - with fallback prices
   const getCryptoAmount = useCallback(
     (symbol: string) => {
       const price = pricesData?.prices?.[symbol]?.price
-      if (!price || price === 0) return "0.00000000"
-      const amount = CLAIM_VALUE_USD / price
+
+      // Fallback prices if API hasn't loaded yet
+      const fallbackPrices: Record<string, number> = {
+        LTC: 115,
+        ETH: 3500,
+        DOGE: 0.38,
+        TRX: 0.26,
+        FEY: 0.0001,
+        ZEC: 45,
+        BCH: 480,
+        DASH: 32,
+        DGB: 0.015,
+        SOL: 190,
+        BNB: 700,
+        MATIC: 0.55,
+        USDT: 1,
+      }
+
+      const effectivePrice = price || fallbackPrices[symbol]
+      if (!effectivePrice || effectivePrice === 0) return "0.00000000"
+      const amount = CLAIM_VALUE_USD / effectivePrice
       return amount.toFixed(8)
     },
     [pricesData]
@@ -570,6 +595,40 @@ function ManualFaucetContent() {
     if (!mountedRef.current) return
 
     const initId = ++initCountRef.current
+
+    // Check if this is a subsequent load (not first time)
+    const hasLoadedBefore = safeStorage.get<boolean>(CACHE_KEYS.HAS_LOADED_BEFORE)
+    const lastVisitTime = safeStorage.get<number>(CACHE_KEYS.LAST_VISIT_TIME)
+    const now = Date.now()
+
+    // If loaded before and revisiting within session, show wait timer instead of loading steps
+    if (hasLoadedBefore && lastVisitTime && (now - lastVisitTime) < 60000) {
+      // Within 1 minute of last visit - show wait timer, not loading steps
+      setShowLoadingSteps(false)
+      setIsWaiting(true)
+      setWaitTimer(PAGE_LOAD_WAIT_SECONDS)
+
+      // Start countdown
+      const countdownInterval = setInterval(() => {
+        setWaitTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval)
+            setIsWaiting(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+
+      // Do silent background checks during wait
+      // Mark visit time
+      safeStorage.set(CACHE_KEYS.LAST_VISIT_TIME, Date.now())
+    } else {
+      // First load or after a while - show loading steps
+      setShowLoadingSteps(true)
+      setIsWaiting(false)
+      setWaitTimer(0)
+    }
 
     // Reset states
     setPageReady(false)
@@ -997,6 +1056,10 @@ function ManualFaucetContent() {
 
       // PAGE READY!
       setPageReady(true)
+
+      // Mark that user has loaded the page before (for subsequent loads)
+      safeStorage.set(CACHE_KEYS.HAS_LOADED_BEFORE, true)
+      safeStorage.set(CACHE_KEYS.LAST_VISIT_TIME, Date.now())
     }
   }, [updateStep, user, fingerprintLoading])
 
@@ -1134,24 +1197,52 @@ function ManualFaucetContent() {
         setVerificationToken(null)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to claim"
+        console.error("[v0] Claim error:", errorMessage)
 
-        // Provide helpful context based on error type
-        let description = ""
-        if (errorMessage.includes("FaucetPay")) {
-          description = "Please check your FaucetPay account settings."
-        } else if (errorMessage.includes("email") || errorMessage.includes("registered")) {
-          description = "Go to Settings to link your FaucetPay account."
-        } else if (errorMessage.includes("funds") || errorMessage.includes("balance")) {
-          description = "The faucet is temporarily low on funds. Try again later."
-        } else if (errorMessage.includes("limit")) {
-          description = "You've reached the daily claim limit. Try again tomorrow."
-        } else if (errorMessage.includes("timed out") || errorMessage.includes("connection")) {
-          description = "Check your internet connection and try again."
+        // Provide helpful context based on error type with clear actions
+        let title = "Claim Failed"
+        let description = errorMessage
+        let actionHint = ""
+
+        if (errorMessage.toLowerCase().includes("link your faucetpay") ||
+          errorMessage.toLowerCase().includes("faucetpay email") ||
+          errorMessage.toLowerCase().includes("account settings")) {
+          title = "FaucetPay Not Linked"
+          description = "You need to link your FaucetPay email to claim."
+          actionHint = "Go to Settings > FaucetPay Withdrawal to add your email."
+        } else if (errorMessage.includes("not registered")) {
+          title = "FaucetPay Account Not Found"
+          description = "Your email is not registered on FaucetPay."
+          actionHint = "Create a free FaucetPay account with the same email first."
+        } else if (errorMessage.includes("funds") || errorMessage.includes("Insufficient") || errorMessage.includes("402")) {
+          title = "Faucet Low on Funds"
+          description = "The faucet is temporarily out of funds."
+          actionHint = "Please try again in a few hours."
+        } else if (errorMessage.includes("limit") || errorMessage.includes("458")) {
+          title = "Daily Limit Reached"
+          description = "You've reached your daily claim limit."
+          actionHint = "Try again tomorrow!"
+        } else if (errorMessage.includes("timed out") || errorMessage.includes("connection") || errorMessage.includes("network")) {
+          title = "Connection Error"
+          description = "Could not connect to the server."
+          actionHint = "Check your internet and try again."
+        } else if (errorMessage.includes("profile") || errorMessage.includes("Profile")) {
+          title = "Profile Error"
+          description = "Could not load your profile."
+          actionHint = "Try refreshing the page."
+        } else if (errorMessage.includes("suspended") || errorMessage.includes("460")) {
+          title = "Account Suspended"
+          description = "Your FaucetPay account is suspended."
+          actionHint = "Contact FaucetPay support for help."
+        } else if (errorMessage.includes("currency") || errorMessage.includes("461")) {
+          title = "Currency Not Linked"
+          description = `Your FaucetPay account cannot receive ${symbol}.`
+          actionHint = "Enable this currency in your FaucetPay wallet settings."
         }
 
-        toast.error("Claim Failed", {
-          description: description || errorMessage,
-          duration: 5000,
+        toast.error(title, {
+          description: actionHint ? `${description} ${actionHint}` : description,
+          duration: 6000,
         })
       } finally {
         setIsClaiming(false)
@@ -1182,8 +1273,40 @@ function ManualFaucetContent() {
     return <ConfigErrorScreen />
   }
 
-  // Render loading
+  // Render loading or wait timer
   if (!pageReady && !fatalError) {
+    // Show wait timer on subsequent loads (silent background checks)
+    if (isWaiting && !showLoadingSteps) {
+      return (
+        <div className="min-h-screen p-4 md:p-6 lg:p-8">
+          <div className="max-w-xl mx-auto">
+            <Card className="border-primary/20">
+              <CardHeader className="text-center">
+                <div className="mx-auto w-20 h-20 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-4">
+                  <Clock className="h-10 w-10 text-amber-500" />
+                </div>
+                <CardTitle className="text-xl">Please Wait</CardTitle>
+                <CardDescription>
+                  Preparing the faucet for you...
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-primary mb-2">{waitTimer}</div>
+                  <p className="text-sm text-muted-foreground">seconds remaining</p>
+                </div>
+                <Progress value={((PAGE_LOAD_WAIT_SECONDS - waitTimer) / PAGE_LOAD_WAIT_SECONDS) * 100} className="h-2" />
+                <p className="text-center text-xs text-muted-foreground">
+                  Running security checks in the background...
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )
+    }
+
+    // Show detailed loading steps on first load
     return (
       <DetailedLoadingScreen
         steps={loadingSteps}
@@ -1478,8 +1601,12 @@ function ManualFaucetContent() {
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Value:</span>
+                          <span className="font-semibold text-green-500">${CLAIM_VALUE_USD}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Amount:</span>
-                          <span className="font-mono font-medium">{amount}</span>
+                          <span className="font-mono font-medium text-xs">{amount} {crypto.symbol}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Claims:</span>
