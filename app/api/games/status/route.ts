@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
-import { calculateDifficulty } from "@/lib/games/game-engine"
+import { calculateDifficulty, BASE_WIN_THRESHOLDS, getAdjustedWinThreshold } from "@/lib/games/game-engine"
 
-const GAME_COOLDOWN_MINUTES = 3 // 3 minutes cooldown per game
-const MAX_GAMES_PER_DAY = 20 // 20 games per day
-const GAME_REWARD_SATOSHIS = 3 // Base reward - max 3 satoshis per game win
+const GAME_COOLDOWN_MINUTES = 3
+const MAX_GAMES_PER_DAY = 20
+const GAME_REWARD_SATOSHIS = 3
 
 const ALL_GAME_TYPES = ["tetris", "block_blast", "car_racing", "snake", "flappy", "memory"]
-
-// Base win thresholds for each game (will be adjusted by difficulty)
-const BASE_WIN_THRESHOLDS: Record<string, number> = {
-  tetris: 300,
-  block_blast: 200,
-  car_racing: 300,
-  snake: 30,
-  flappy: 10,
-  memory: 80,
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -114,11 +104,10 @@ export async function GET(req: NextRequest) {
     }> = {}
 
     // Calculate win thresholds adjusted by difficulty
+    // Use the shared helper so status and complete routes always agree
     const adjustedWinThresholds: Record<string, number> = {}
     for (const gameType of ALL_GAME_TYPES) {
-      // Win threshold increases with difficulty (but reward also increases)
-      const baseThreshold = BASE_WIN_THRESHOLDS[gameType] || 100
-      adjustedWinThresholds[gameType] = Math.floor(baseThreshold * (1 + (difficulty.level - 1) * 0.1))
+      adjustedWinThresholds[gameType] = getAdjustedWinThreshold(gameType, difficulty.level)
     }
 
     const now = Date.now()
