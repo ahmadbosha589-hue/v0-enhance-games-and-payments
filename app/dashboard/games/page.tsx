@@ -55,8 +55,6 @@ import useSWR from "swr"
 import Image from "next/image"
 import {
   GAME_ACHIEVEMENTS,
-  generateMockTournaments,
-  generateMockLeaderboard,
   type TournamentInfo,
   type LeaderboardEntry
 } from "@/lib/games/game-engine"
@@ -173,9 +171,28 @@ export default function GamesPage() {
     winThreshold: number
     newBalance: number
   } | null>(null)
-  const [tournaments] = useState<TournamentInfo[]>(() => generateMockTournaments())
+  const { data: tournamentsData } = useSWR<{ tournaments: TournamentInfo[] }>(
+    "/api/games/tournaments",
+    fetcher,
+    { refreshInterval: 60000, revalidateOnFocus: false }
+  )
+  const tournaments = tournamentsData?.tournaments ?? []
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
 
+  const { data: leaderboardData } = useSWR<{ entries: LeaderboardEntry[] }>(
+    `/api/games/leaderboard?gameType=${selectedLeaderboardGame}`,
+    fetcher,
+    { refreshInterval: 30000, revalidateOnFocus: false }
+  )
+
+  // Update leaderboard from server data, fall back to empty
+  useEffect(() => {
+    if (leaderboardData?.entries) {
+      setLeaderboard(leaderboardData.entries)
+    } else {
+      setLeaderboard([])
+    }
+  }, [leaderboardData, selectedLeaderboardGame])
   const { data: gameStatus, mutate: refreshStatus } = useSWR<GameStatus>(
     "/api/games/status",
     fetcher,
@@ -194,11 +211,6 @@ export default function GamesPage() {
     }
     return scores
   }, [gameStatus?.recentGames])
-
-  // Update leaderboard when game type changes
-  useEffect(() => {
-    setLeaderboard(generateMockLeaderboard(selectedLeaderboardGame, userHighScores[selectedLeaderboardGame]))
-  }, [selectedLeaderboardGame, userHighScores])
 
   // Per-game countdown timers - more robust implementation
   useEffect(() => {
@@ -398,13 +410,18 @@ export default function GamesPage() {
         isWin: data.isWinner
       })
 
-      // Check for new achievements
-      const unlockedAchievement = GAME_ACHIEVEMENTS.find(a =>
-        !a.unlocked && Math.random() < 0.1 // Simulated achievement unlock
-      )
-      if (unlockedAchievement && data.isWinner) {
-        setNewAchievement(unlockedAchievement)
-        setShowAchievementModal(true)
+      // Check for newly unlocked achievements via server after a win
+      if (data.isWinner) {
+        try {
+          const achRes = await fetch("/api/achievements/check", { method: "POST" })
+          if (achRes.ok) {
+            const achData = await achRes.json()
+            if (achData.newlyUnlocked && achData.newlyUnlocked.length > 0) {
+              setNewAchievement({ ...achData.newlyUnlocked[0], unlocked: true })
+              setShowAchievementModal(true)
+            }
+          }
+        } catch { /* non-critical */ }
       }
 
       refreshStatus()
@@ -896,7 +913,7 @@ export default function GamesPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold">Active Tournaments</h2>
-                <p className="text-sm text-muted-foreground">Compete for prize pools and glory</p>
+                <p className="text-sm text-muted-foreground">Tournaments are coming soon — stay tuned!</p>
               </div>
               <Badge variant="outline" className="gap-1">
                 <Users className="h-3 w-3" />
@@ -904,81 +921,87 @@ export default function GamesPage() {
               </Badge>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              {tournaments.map((tournament) => (
-                <Card
-                  key={tournament.id}
-                  className={cn(
-                    "border-2 transition-all hover:shadow-lg",
-                    tournament.status === "active" ? "border-green-500/30 bg-green-500/5" :
-                      tournament.status === "upcoming" ? "border-blue-500/30 bg-blue-500/5" :
-                        "border-muted/30 bg-muted/5 opacity-75"
-                  )}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Crown className={cn(
-                          "h-5 w-5",
-                          tournament.status === "active" ? "text-green-500" :
-                            tournament.status === "upcoming" ? "text-blue-500" : "text-muted-foreground"
-                        )} />
-                        {tournament.name}
-                      </CardTitle>
-                      <Badge
-                        variant={tournament.status === "active" ? "default" :
-                          tournament.status === "upcoming" ? "secondary" : "outline"}
-                      >
-                        {tournament.status === "active" && <Sparkles className="h-3 w-3 mr-1" />}
-                        {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Prize Pool</p>
-                        <p className="text-lg font-bold text-yellow-500">
-                          {tournament.prizePool.toLocaleString()} sats
-                        </p>
+            {tournaments.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Trophy className="h-16 w-16 text-muted-foreground/20 mb-4" />
+                <p className="text-lg font-medium text-muted-foreground">No tournaments yet</p>
+                <p className="text-sm text-muted-foreground/70 mt-1">Tournaments with real prize pools are coming soon.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {tournaments.map((tournament) => (
+                  <Card
+                    key={tournament.id}
+                    className={cn(
+                      "border-2 transition-all hover:shadow-lg",
+                      tournament.status === "active" ? "border-green-500/30 bg-green-500/5" :
+                        tournament.status === "upcoming" ? "border-blue-500/30 bg-blue-500/5" :
+                          "border-muted/30 bg-muted/5 opacity-75"
+                    )}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Crown className={cn(
+                            "h-5 w-5",
+                            tournament.status === "active" ? "text-green-500" :
+                              tournament.status === "upcoming" ? "text-blue-500" : "text-muted-foreground"
+                          )} />
+                          {tournament.name}
+                        </CardTitle>
+                        <Badge
+                          variant={tournament.status === "active" ? "default" :
+                            tournament.status === "upcoming" ? "secondary" : "outline"}
+                        >
+                          {tournament.status === "active" && <Sparkles className="h-3 w-3 mr-1" />}
+                          {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+                        </Badge>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Entry Fee</p>
-                        <p className="text-lg font-bold">{tournament.entryFee} sats</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Prize Pool</p>
+                          <p className="text-lg font-bold text-yellow-500">
+                            {tournament.prizePool.toLocaleString()} sats
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Entry Fee</p>
+                          <p className="text-lg font-bold">{tournament.entryFee} sats</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Players</p>
+                          <p className="text-lg font-bold">{tournament.participants}/{tournament.maxParticipants}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Players</p>
-                        <p className="text-lg font-bold">{tournament.participants}/{tournament.maxParticipants}</p>
-                      </div>
-                    </div>
 
-                    <Progress
-                      value={(tournament.participants / tournament.maxParticipants) * 100}
-                      className="h-1"
-                    />
+                      <Progress
+                        value={(tournament.participants / tournament.maxParticipants) * 100}
+                        className="h-1"
+                      />
 
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        {tournament.status === "ended" ? "Ended" :
-                          tournament.status === "active" ? "Ends in 2h" : "Starts in 1h"}
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Calendar className="h-4 w-4" />
+                          {tournament.status === "ended" ? "Ended" :
+                            tournament.status === "active" ? "Ends in 2h" : "Starts in 1h"}
+                        </div>
+                        <Button
+                          size="sm"
+                          disabled={true}
+                          variant="outline"
+                          className="opacity-60"
+                        >
+                          Coming Soon
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        disabled={tournament.status === "ended"}
-                        className={cn(
-                          tournament.status === "active" ? "bg-green-600 hover:bg-green-700" : ""
-                        )}
-                      >
-                        {tournament.status === "ended" ? "View Results" :
-                          tournament.status === "active" ? "Join Now" : "Register"}
-                        <ChevronRight className="h-4 w-4 ml-1" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
             {/* Tournament Rules */}
             <Card className="border-primary/20 bg-primary/5">
@@ -1185,6 +1208,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
+                winThreshold={gameStatus?.winThresholds?.["tetris"]}
               />
             )}
             {selectedGame === "block_blast" && (
@@ -1193,6 +1217,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
+                winThreshold={gameStatus?.winThresholds?.["block_blast"]}
               />
             )}
             {selectedGame === "car_racing" && (
@@ -1201,6 +1226,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
+                winThreshold={gameStatus?.winThresholds?.["car_racing"]}
               />
             )}
             {selectedGame === "snake" && (
@@ -1209,6 +1235,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
+                winThreshold={gameStatus?.winThresholds?.["snake"]}
               />
             )}
             {selectedGame === "memory" && (
@@ -1217,6 +1244,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
+                winThreshold={gameStatus?.winThresholds?.["memory"]}
               />
             )}
             {selectedGame === "flappy" && (
@@ -1225,6 +1253,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
+                winThreshold={gameStatus?.winThresholds?.["flappy"]}
               />
             )}
           </CardContent>
