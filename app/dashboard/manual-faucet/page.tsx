@@ -50,10 +50,9 @@ const FAUCETPAY_CRYPTOS = [
   { symbol: "USDT", name: "Tether", decimals: 6 },
 ]
 
-const CLAIM_VALUE_USD = 0.0001
-const COOLDOWN_SECONDS = 7
+const CLAIM_VALUE_USD = 0.0009
+const COOLDOWN_SECONDS = 60
 const SHORTLINK_REQUIRED_AFTER = 100
-const PAGE_LOAD_WAIT_SECONDS = 7 // Wait time on subsequent page loads
 
 // Cache keys for session storage (session data) and localStorage (persistent flags)
 const CACHE_KEYS = {
@@ -65,7 +64,7 @@ const CACHE_KEYS = {
 }
 // Keys stored in localStorage for persistence across sessions
 const PERSISTENT_KEYS = {
-  HAS_LOADED_BEFORE: "mf_has_loaded_v2", // Track if user has EVER loaded page before (persists across sessions)
+  HAS_CLAIMED_BEFORE: "mf_has_claimed_v3", // Show timer only AFTER first successful claim
 }
 // Session-only keys
 const SESSION_KEYS = {
@@ -258,7 +257,7 @@ function DetailedLoadingScreen({
               )}
             </div>
             <CardTitle className="text-xl">
-              {hasError ? "Loading Issue Detected" : "Initializing Manual Faucet"}
+              {hasError ? "Loading Issue Detected" : "Initializing Direct Faucet"}
             </CardTitle>
             <CardDescription>
               {hasError
@@ -425,7 +424,7 @@ function ErrorState({
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              Failed to Load Manual Faucet
+              Failed to Load Direct Faucet
             </CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
@@ -452,7 +451,7 @@ function ErrorState({
 }
 
 // Main faucet content - ULTRA ROBUST with state caching
-function ManualFaucetContent() {
+function DirectFaucetContent() {
   const mountedRef = useRef(true)
   const initCountRef = useRef(0)
 
@@ -710,41 +709,23 @@ function ManualFaucetContent() {
 
     const initId = ++initCountRef.current
 
-    // Check if this is a subsequent load (not first time)
-    // Use localStorage for persistent "has loaded before" flag
-    const hasLoadedBefore = safePersistentStorage.get<boolean>(PERSISTENT_KEYS.HAS_LOADED_BEFORE)
-    // Use sessionStorage for last visit time (resets when browser closes)
-    const lastVisitTime = safeStorage.get<number>(SESSION_KEYS.LAST_VISIT_TIME)
     const now = Date.now()
 
-    // Logic:
-    // - First EVER visit: show loading steps (hasLoadedBefore = false)
-    // - Second+ visit: show 7 second timer, do background checks silently
-    if (hasLoadedBefore) {
-      // User has visited before - show wait timer, do background checks silently
-      setShowLoadingSteps(false)
-      setIsWaiting(true)
-      setWaitTimer(PAGE_LOAD_WAIT_SECONDS)
+    // Check if user has claimed before and still has active cooldown
+    // Only show the wait timer if there is an actual active cooldown remaining
+    const hasClaimedBefore = safePersistentStorage.get<boolean>(PERSISTENT_KEYS.HAS_CLAIMED_BEFORE)
 
-      // Start countdown
-      const countdownInterval = setInterval(() => {
-        setWaitTimer(prev => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval)
-            setIsWaiting(false)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-
-      // Update last visit time
-      safeStorage.set(SESSION_KEYS.LAST_VISIT_TIME, Date.now())
-    } else {
-      // First EVER load - show loading steps
+    // We'll check for active cooldown after loading claims data below.
+    // For now: if they've never claimed, skip the timer entirely.
+    if (!hasClaimedBefore) {
       setShowLoadingSteps(true)
       setIsWaiting(false)
       setWaitTimer(0)
+    } else {
+      // Has claimed before — show loading steps silently, timer set later
+      // if an active cooldown is found from claims data.
+      setShowLoadingSteps(false)
+      setIsWaiting(false)
     }
 
     // Reset states
@@ -864,7 +845,7 @@ function ManualFaucetContent() {
           if (mountedRef.current && initId === initCountRef.current) {
             updateStep("auth", "error", "Please log in to continue")
             setFatalError("Authentication required")
-            setFatalErrorDetails("Please log in to access the Manual Faucet")
+            setFatalErrorDetails("Please log in to access the Direct Faucet")
           }
           return
         }
@@ -874,7 +855,7 @@ function ManualFaucetContent() {
         if (mountedRef.current && initId === initCountRef.current) {
           updateStep("auth", "error", "Please log in to continue")
           setFatalError("Authentication required")
-          setFatalErrorDetails("Please log in to access the Manual Faucet")
+          setFatalErrorDetails("Please log in to access the Direct Faucet")
         }
         return
       }
@@ -949,28 +930,27 @@ function ManualFaucetContent() {
     }
 
     // PTC status task - fetch actual count of completed PTC ads today
-    if (!cacheValid || cachedPtcCount === null) {
-      tasks.push(
-        (async () => {
-          try {
-            const { value, timedOut } = await withStrictTimeout(
-              supabase!
-                .from("ptc_views")
-                .select("*", { count: "exact", head: true })
-                .eq("user_id", currentUser.id)
-                .eq("completed", true)
-                .gte("created_at", todayISO),
-              5000,
-              { count: 0, error: null }
-            )
-            if (timedOut) throw new Error("Timeout")
-            return { type: "ptc", count: value.count || 0, error: value.error }
-          } catch (err) {
-            return { type: "ptc", count: 0, error: err }
-          }
-        })()
-      )
-    }
+    // PTC always re-fetched — never trust cache (user may have just completed ads)
+    tasks.push(
+      (async () => {
+        try {
+          const { value, timedOut } = await withStrictTimeout(
+            supabase!
+              .from("ptc_views")
+              .select("*", { count: "exact", head: true })
+              .eq("user_id", currentUser.id)
+              .eq("completed", true)
+              .gte("created_at", todayISO),
+            5000,
+            { count: 0, error: null }
+          )
+          if (timedOut) throw new Error("Timeout")
+          return { type: "ptc", count: value.count || 0, error: value.error }
+        } catch (err) {
+          return { type: "ptc", count: 0, error: err }
+        }
+      })()
+    )
 
     // Claims task
     if (!cacheValid || !cachedClaimsData) {
@@ -1048,24 +1028,56 @@ function ManualFaucetContent() {
       })()
     )
 
-    // Adblock check task
+    // Adblock check — multi-signal to avoid false positives from extension-based blockers
+    // Extension blockers block network requests but DON'T hide DOM elements the same way
+    // We require 3+ independent signals before flagging to eliminate false positives
     tasks.push(
       (async () => {
         try {
           if (typeof document === "undefined") return { type: "adblock", detected: false }
-          const bait = document.createElement("div")
-          bait.className = "adsbox ad-banner pub_300x250"
-          bait.style.cssText = "position:absolute;left:-9999px;width:1px;height:1px;"
-          document.body.appendChild(bait)
-          await new Promise((r) => setTimeout(r, 80))
-          const isHidden =
-            bait.offsetParent === null ||
-            bait.offsetHeight === 0 ||
-            getComputedStyle(bait).display === "none"
+          let signals = 0
+
+          // Signal 1: bait div hidden by CSS injection (network/DNS blockers)
           try {
+            const bait = document.createElement("div")
+            bait.id = "Dv3GxMPe9W" // random ID — avoids element-hide rules
+            bait.className = "pub_300x250 pub_300x250m pub_728x90 adsbox"
+            bait.style.cssText = "position:absolute;left:-99999px;width:1px;height:1px;opacity:0;"
+            document.body.appendChild(bait)
+            await new Promise(r => setTimeout(r, 100))
+            const s = getComputedStyle(bait)
+            if (bait.offsetHeight === 0 || s.display === "none" || s.visibility === "hidden" || s.opacity === "0") {
+              signals++
+            }
             document.body.removeChild(bait)
-          } catch { }
-          return { type: "adblock", detected: isHidden }
+          } catch { /* ignore */ }
+
+          // Signal 2: second bait with different classes
+          try {
+            const bait2 = document.createElement("ins")
+            bait2.className = "adsbygoogle"
+            bait2.style.cssText = "position:absolute;left:-99999px;width:1px;height:1px;"
+            document.body.appendChild(bait2)
+            await new Promise(r => setTimeout(r, 80))
+            if (bait2.offsetHeight === 0 || getComputedStyle(bait2).display === "none") signals++
+            document.body.removeChild(bait2)
+          } catch { /* ignore */ }
+
+          // Signal 3: blocked ad script URL probe (network blockers only)
+          try {
+            const testImg = new Image()
+            let blocked = false
+            await new Promise<void>(resolve => {
+              testImg.onload = () => resolve()
+              testImg.onerror = () => { blocked = true; resolve() }
+              setTimeout(() => { blocked = true; resolve() }, 800)
+              testImg.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?cx=" + Date.now()
+            })
+            if (blocked) signals++
+          } catch { /* ignore */ }
+
+          // Require 2+ signals to flag — eliminates extension false positives
+          return { type: "adblock", detected: signals >= 2 }
         } catch {
           return { type: "adblock", detected: false }
         }
@@ -1106,8 +1118,14 @@ function ManualFaucetContent() {
             updateStep("profile", value.error && !value.data ? "error" : "success")
             break
           case "ptc":
+            // Always use fresh PTC count — this fixes the stale-cache unlock issue
             ptcCount = value.count ?? 0
             safeStorage.set(CACHE_KEYS.PTC_COUNT, ptcCount)
+            // Immediately update UI so lock state reflects reality
+            if (mountedRef.current) {
+              setPtcAdsCompleted(ptcCount)
+              setIsLocked(ptcCount < 2)
+            }
             updateStep("ptc", value.error ? "error" : "success")
             break
           case "claims":
@@ -1173,10 +1191,15 @@ function ManualFaucetContent() {
 
       // PAGE READY!
       setPageReady(true)
-
-      // Mark that user has loaded the page before (persists in localStorage for subsequent visits)
-      safePersistentStorage.set(PERSISTENT_KEYS.HAS_LOADED_BEFORE, true)
       safeStorage.set(SESSION_KEYS.LAST_VISIT_TIME, Date.now())
+
+      // After loading claims, start the countdown timer if there is an active cooldown
+      // (any coin on cooldown means the user has claimed recently)
+      const activeCooldown = Object.values(newCooldowns).find(v => v > 0)
+      if (activeCooldown && activeCooldown > 0) {
+        setIsWaiting(true)
+        setWaitTimer(activeCooldown)
+      }
     }
   }, [updateStep, user, fingerprintLoading])
 
@@ -1219,6 +1242,22 @@ function ManualFaucetContent() {
 
     return () => clearInterval(interval)
   }, [pageReady])
+
+  // Wait timer countdown (post-claim cooldown display)
+  useEffect(() => {
+    if (!isWaiting || waitTimer <= 0) return
+    const id = setInterval(() => {
+      setWaitTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(id)
+          setIsWaiting(false)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [isWaiting]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Verification handlers
   const handleVerificationComplete = useCallback((token: string) => {
@@ -1307,6 +1346,13 @@ function ManualFaucetContent() {
           return newTotal
         })
 
+        // Mark that user has made their first claim — subsequent page loads show timer
+        safePersistentStorage.set(PERSISTENT_KEYS.HAS_CLAIMED_BEFORE, true)
+
+        // Start the 45s wait timer display
+        setIsWaiting(true)
+        setWaitTimer(COOLDOWN_SECONDS)
+
         // Invalidate cache after claim
         safeStorage.clear()
 
@@ -1393,76 +1439,40 @@ function ManualFaucetContent() {
   }
 
   // Render loading or wait timer
-  if (!pageReady && !fatalError) {
-    // Show wait timer on subsequent loads (silent background checks)
-    if (isWaiting && !showLoadingSteps) {
-      return (
-        <div className="min-h-screen p-4 md:p-6 lg:p-8">
-          <div className="max-w-xl mx-auto space-y-4">
-            {/* Timer Card */}
-            <Card className="border-primary/20">
-              <CardHeader className="text-center pb-3">
-                <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-3">
-                  <Clock className="h-8 w-8 text-amber-500" />
-                </div>
-                <CardTitle className="text-lg">Please Wait</CardTitle>
-                <CardDescription className="text-sm">
-                  Preparing the faucet for you...
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-0">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-primary mb-1">{waitTimer}</div>
-                  <p className="text-xs text-muted-foreground">seconds remaining</p>
-                </div>
-                <Progress value={((PAGE_LOAD_WAIT_SECONDS - waitTimer) / PAGE_LOAD_WAIT_SECONDS) * 100} className="h-2" />
-              </CardContent>
-            </Card>
-
-            {/* Show verification status below timer */}
-            <Card className="border-border/50">
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-primary" />
-                  Background Security Checks
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="py-3 pt-0">
-                <div className="grid grid-cols-2 gap-2">
-                  {loadingSteps.map((step) => (
-                    <div
-                      key={step.id}
-                      className="flex items-center gap-2 p-2 rounded-md bg-muted/30 text-xs"
-                    >
-                      {step.status === "pending" && (
-                        <div className="w-3 h-3 rounded-full border border-muted-foreground/30" />
-                      )}
-                      {step.status === "loading" && (
-                        <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                      )}
-                      {(step.status === "success" || step.status === "cached") && (
-                        <CheckCircle className="w-3 h-3 text-green-500" />
-                      )}
-                      {step.status === "error" && (
-                        <AlertTriangle className="w-3 h-3 text-destructive" />
-                      )}
-                      <span className={`truncate ${step.status === "success" || step.status === "cached"
-                          ? "text-green-600"
-                          : step.status === "error"
-                            ? "text-destructive"
-                            : "text-muted-foreground"
-                        }`}>
-                        {step.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+  // Show cooldown timer after a successful claim while page is ready
+  // This must be AFTER pageReady check so it doesn't block the loading screen
+  if (pageReady && isWaiting) {
+    return (
+      <div className="min-h-screen p-4 md:p-6 lg:p-8">
+        <div className="max-w-xl mx-auto space-y-4">
+          <Card className="border-primary/20">
+            <CardHeader className="text-center pb-3">
+              <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-3">
+                <Clock className="h-8 w-8 text-amber-500" />
+              </div>
+              <CardTitle className="text-lg">Cooldown Active</CardTitle>
+              <CardDescription className="text-sm">
+                Your last claim was processed. Wait for the timer to claim again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0">
+              <div className="text-center">
+                <div className="text-5xl font-bold text-primary mb-1 tabular-nums">{waitTimer}</div>
+                <p className="text-xs text-muted-foreground">seconds remaining</p>
+              </div>
+              <Progress value={((COOLDOWN_SECONDS - waitTimer) / COOLDOWN_SECONDS) * 100} className="h-2" />
+              <p className="text-center text-xs text-muted-foreground">
+                You can claim again in {waitTimer}s. You may also browse other earning methods.
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      )
-    }
+      </div>
+    )
+  }
+
+  if (!pageReady && !fatalError) {
+    // Loading screen shown below
 
     // Show detailed loading steps on first load
     return (
@@ -1489,9 +1499,9 @@ function ManualFaucetContent() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 mb-4">
               <Coins className="h-8 w-8 text-amber-500" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Manual Crypto Faucet</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">Direct Crypto Faucet</h1>
             <p className="text-muted-foreground">
-              Claim small amounts of crypto every 7 seconds - sent directly to FaucetPay
+              Claim small amounts of crypto every 60 seconds - sent directly to FaucetPay
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1780,7 +1790,7 @@ function ManualFaucetContent() {
                             </span>
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5">
-                            = ${CLAIM_VALUE_USD} USD
+                            = $0.0009 USD
                           </div>
                         </div>
 
@@ -1848,9 +1858,9 @@ function ManualFaucetContent() {
           <CardContent className="p-4">
             <h3 className="font-semibold mb-2">How it works:</h3>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-4">
-              <li>Complete 2 PTC ads daily to unlock the manual faucet</li>
+              <li>Complete 2 PTC ads daily to unlock the direct faucet</li>
               <li>Complete verification to prove you are human</li>
-              <li>Claim from any cryptocurrency every {COOLDOWN_SECONDS} seconds</li>
+              <li>Claim from any cryptocurrency every 60 seconds (1 minute per coin)</li>
               <li>
                 After {SHORTLINK_REQUIRED_AFTER} claims, complete 1 shortlink to continue
               </li>
@@ -1864,19 +1874,19 @@ function ManualFaucetContent() {
 }
 
 // Main export with Suspense
-export default function ManualFaucetPage() {
+export default function DirectFaucetPage() {
   return (
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p className="text-muted-foreground">Loading Manual Faucet...</p>
+            <p className="text-muted-foreground">Loading Direct Faucet...</p>
           </div>
         </div>
       }
     >
-      <ManualFaucetContent />
+      <DirectFaucetContent />
     </Suspense>
   )
 }
