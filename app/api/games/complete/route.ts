@@ -1,32 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
+import {
+  calculateDifficulty,
+  getAdjustedWinThreshold,
+  MIN_GAME_DURATIONS_MS,
+} from "@/lib/games/game-engine"
 
-const GAME_REWARD_SATOSHIS = 3 // Fixed 3 satoshis per win - no bonuses above this
-const GAME_COOLDOWN_MINUTES = 3 // 3 minutes cooldown per game
-const MIN_GAME_DURATION_MS = 15000 // Minimum 15 seconds to complete a game (stricter)
-const MAX_GAME_DURATION_MS = 600000 // Maximum 10 minutes
-const MAX_GAMES_PER_DAY = 20 // 20 games per day
-const MAX_DAILY_GAME_EARNINGS = 60 // Max 60 satoshis from games per day (20 games x 3 sats)
+const GAME_REWARD_SATOSHIS = 3
+const GAME_COOLDOWN_MINUTES = 3
+const MAX_GAME_DURATION_MS = 600000 // 10 minutes
+const MAX_GAMES_PER_DAY = 20
+const MAX_DAILY_GAME_EARNINGS = 60
 
-// Required scores to WIN and get rewards (HIGHER thresholds - harder to win)
-const WIN_THRESHOLDS: Record<string, number> = {
-  tetris: 800,      // Increased from 500
-  block_blast: 500, // Increased from 300
-  car_racing: 800,  // Increased from 500
-  snake: 80,        // Increased from 50
-  flappy: 35,       // Increased from 20
-  memory: 150,      // Increased from 100
-}
-
-// Score validation ranges for each game type
+// Score validation ranges — upper bound is generous to avoid false rejects
 const SCORE_RANGES: Record<string, { min: number; max: number }> = {
-  tetris: { min: 0, max: 1000000 },
-  block_blast: { min: 0, max: 500000 },
-  car_racing: { min: 0, max: 10000000 },
-  snake: { min: 0, max: 50000 },
-  flappy: { min: 0, max: 10000 },
-  memory: { min: 0, max: 10000 },
+  tetris: { min: 0, max: 1_000_000 },
+  block_blast: { min: 0, max: 500_000 },
+  car_racing: { min: 0, max: 10_000_000 },
+  snake: { min: 0, max: 50_000 },
+  flappy: { min: 0, max: 10_000 },
+  memory: { min: 0, max: 10_000 },
 }
 
 export async function POST(req: NextRequest) {
@@ -69,7 +63,8 @@ export async function POST(req: NextRequest) {
       console.error("Failed to create admin client:", err)
       // Return success response without database tracking
       const gameType = bodyGameType || "unknown"
-      const winThreshold = WIN_THRESHOLDS[gameType] || 100
+      // Difficulty unknown without DB — default to level 1
+      const winThreshold = getAdjustedWinThreshold(gameType, 1)
       const isWinner = score >= winThreshold
       return NextResponse.json({
         success: true,
@@ -130,9 +125,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Verification failed" }, { status: 400 })
       }
 
-      // Verify game duration
+      // Verify game duration — use per-game minimum so fast games (flappy, memory)
+      // aren't unfairly rejected while still catching bots on slower games.
       const gameDuration = Date.now() - verificationData.startTime
-      if (gameDuration < MIN_GAME_DURATION_MS) {
+      const minDurationMs = MIN_GAME_DURATIONS_MS[gameType] ?? 8000
+      if (gameDuration < minDurationMs) {
         try {
           await adminSupabase
             .from("game_sessions")
@@ -144,7 +141,7 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore */ }
 
         return NextResponse.json({
-          error: "Game completed too quickly. Please play legitimately."
+          error: `Game completed too quickly (${Math.round(gameDuration / 1000)}s). Please play legitimately.`
         }, { status: 400 })
       }
 
@@ -179,12 +176,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid score" }, { status: 400 })
     }
 
-    // Determine if user WON (reached win threshold)
-    const winThreshold = WIN_THRESHOLDS[gameType] || 100
+    // Determine if user WON using the SAME difficulty-adjusted threshold as the
+    // status route.  Fetch today's completed/lost game count so we can compute
+    // the correct difficulty level for this user right now.
+    let gamesTodayForDifficulty = 0
+    try {
+      const todayStart = new Date()
+      todayStart.setUTCHours(0, 0, 0, 0)
+      const { count } = await adminSupabase
+        .from("game_sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .in("status", ["completed", "lost"])
+        .gte("created_at", todayStart.toISOString())
+      gamesTodayForDifficulty = count ?? 0
+    } catch { /* default to level 1 */ }
+
+    const { level: difficultyLevel } = calculateDifficulty(gamesTodayForDifficulty)
+    const winThreshold = getAdjustedWinThreshold(gameType, difficultyLevel)
     const isWinner = score >= winThreshold
-    // Fixed 3 satoshis per win - no bonuses, no multipliers
-    // Users should use offerwalls and shortlinks for bigger rewards
-    const rewardAmount = isWinner ? Math.min(GAME_REWARD_SATOSHIS, 3) : 0
+    const rewardAmount = isWinner ? GAME_REWARD_SATOSHIS : 0
 
     const today = new Date().toISOString().split("T")[0]
     const cooldownUntil = new Date(Date.now() + GAME_COOLDOWN_MINUTES * 60 * 1000).toISOString()
@@ -330,7 +341,7 @@ export async function POST(req: NextRequest) {
       isWinner: false,
       reward: 0,
       score: 0,
-      winThreshold: 100,
+      winThreshold: getAdjustedWinThreshold(typeof bodyGameType === "string" ? bodyGameType : "unknown", 1),
       newBalance: 0,
       cooldownMinutes: GAME_COOLDOWN_MINUTES,
       cooldownUntil: new Date(Date.now() + GAME_COOLDOWN_MINUTES * 60 * 1000).toISOString(),
