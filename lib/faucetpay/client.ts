@@ -202,9 +202,10 @@ export class FaucetPayClient {
 const faucetPayClients: Map<string, FaucetPayClient> = new Map()
 
 export function getFaucetPayClient(currency = "BTC"): FaucetPayClient {
+  // Note: use resolveFaucetPayApiKey() from API routes for DB-first lookup
   const apiKey = process.env.FAUCETPAY_API_KEY
   if (!apiKey) {
-    throw new FaucetPayError("FAUCETPAY_API_KEY not configured", 500)
+    throw new FaucetPayError("FaucetPay API key not configured. Set it in Admin → Settings → FaucetPay.", 500)
   }
 
   // Validate currency
@@ -223,8 +224,27 @@ export function getFaucetPayClient(currency = "BTC"): FaucetPayClient {
 }
 
 // Check if FaucetPay is configured
+// Check if FaucetPay is configured (env var only — DB check requires async)
 export function isFaucetPayConfigured(): boolean {
   return !!process.env.FAUCETPAY_API_KEY
+}
+
+// Async version that checks DB first — use this in API routes
+export async function resolveFaucetPayApiKey(
+  supabase?: { from: (table: string) => any }
+): Promise<string | null> {
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "faucetpay_api_key")
+        .single()
+      const dbKey = (data?.value as string | null)?.trim()
+      if (dbKey) return dbKey
+    } catch { /* fall through */ }
+  }
+  return process.env.FAUCETPAY_API_KEY?.trim() || null
 }
 
 // Verify a FaucetPay email is valid and registered

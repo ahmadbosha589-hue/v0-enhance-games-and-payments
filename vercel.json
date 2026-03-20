@@ -2,7 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/process-withdrawals",
-      "schedule": "0 6 * * *"
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/retry-postbacks",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

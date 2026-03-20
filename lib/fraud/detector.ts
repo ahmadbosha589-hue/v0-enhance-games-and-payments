@@ -108,6 +108,16 @@ export async function calculateFraudScore(
       addFlag(FRAUD_FLAG_TYPES.MULTIPLE_ACCOUNTS_IP, `${uniqueUsers.size} accounts on this IP`)
     }
 
+    // Detect rapid account creation from same IP (bot farm pattern)
+    const recentAccountsOnIP = ipData.filter((ip: any) => {
+      if (!ip.created_at) return false
+      const ageHours = (Date.now() - new Date(ip.created_at).getTime()) / (1000 * 60 * 60)
+      return ageHours < 24 // accounts created in last 24h from this IP
+    })
+    if (recentAccountsOnIP.length > 2) {
+      addFlag(FRAUD_FLAG_TYPES.MULTIPLE_ACCOUNTS_IP, `${recentAccountsOnIP.length} new accounts from this IP in 24h`)
+    }
+
     const flaggedIp = ipData.find((ip) => ip.is_flagged)
     if (flaggedIp && !isNewAccount) {
       addFlag(FRAUD_FLAG_TYPES.FLAGGED_IP, "IP address manually flagged")
@@ -138,7 +148,7 @@ export async function calculateFraudScore(
         addFlag(FRAUD_FLAG_TYPES.BANNED_DEVICE_LINK, `Device linked to ${bannedOnDevice.length} banned account(s)`)
       }
 
-      if (uniqueDeviceUsers.size > FRAUD_CONFIG.maxAccountsPerDevice) {
+      if (uniqueDeviceUsers.size >= FRAUD_CONFIG.maxAccountsPerDevice) {
         addFlag(FRAUD_FLAG_TYPES.MULTIPLE_ACCOUNTS_DEVICE, `${uniqueDeviceUsers.size} accounts on this device`)
       }
 

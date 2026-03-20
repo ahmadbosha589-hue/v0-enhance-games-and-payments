@@ -233,6 +233,8 @@ export type TranslationKey =
   | "dashboard.nav.earnMore"
   | "dashboard.nav.allEarnOptions"
   | "dashboard.nav.manualFaucet"
+  | "dashboard.nav.directFaucet"
+  | "admin.nav.shortlinks"
   | "dashboard.nav.games"
   | "dashboard.nav.coupons"
   | "dashboard.nav.shortlinks"
@@ -665,6 +667,8 @@ const en: Record<TranslationKey, string> = {
   "dashboard.nav.earnMore": "Earn More",
   "dashboard.nav.allEarnOptions": "All Earn Options",
   "dashboard.nav.manualFaucet": "Manual Faucet",
+  "dashboard.nav.directFaucet": "Direct Faucet",
+  "admin.nav.shortlinks": "Shortlinks",
   "dashboard.nav.games": "Games",
   "dashboard.nav.coupons": "Coupons",
   "dashboard.nav.shortlinks": "Shortlinks",
@@ -1055,6 +1059,7 @@ const es: Record<TranslationKey, string> = {
   "dashboard.nav.earnMore": "Ganar más",
   "dashboard.nav.allEarnOptions": "Todas las opciones de ganancia",
   "dashboard.nav.manualFaucet": "Grifo Manual",
+  "dashboard.nav.directFaucet": "Grifo Directo",
   "dashboard.nav.games": "Juegos",
   "dashboard.nav.coupons": "Cupones",
   "dashboard.nav.shortlinks": "Enlaces Cortos",
@@ -1442,6 +1447,7 @@ const ru: Record<TranslationKey, string> = {
   "dashboard.nav.earnMore": "Зарабатывать больше",
   "dashboard.nav.allEarnOptions": "Все варианты заработка",
   "dashboard.nav.manualFaucet": "Ручной кран",
+  "dashboard.nav.directFaucet": "Прямой кран",
   "dashboard.nav.games": "Игры",
   "dashboard.nav.coupons": "Купоны",
   "dashboard.nav.shortlinks": "Короткие ссылки",
@@ -1819,6 +1825,7 @@ const zh: Record<TranslationKey, string> = {
   "dashboard.nav.earnMore": "赚更多",
   "dashboard.nav.allEarnOptions": "所有赚钱选项",
   "dashboard.nav.manualFaucet": "手动水龙头",
+  "dashboard.nav.directFaucet": "直接水龙头",
   "dashboard.nav.games": "游戏",
   "dashboard.nav.coupons": "优惠券",
   "dashboard.nav.shortlinks": "短链接",
@@ -2204,6 +2211,7 @@ const ja: Record<TranslationKey, string> = {
   "dashboard.nav.earnMore": "もっと稼ぐ",
   "dashboard.nav.allEarnOptions": "すべての稼ぎ方",
   "dashboard.nav.manualFaucet": "手動蛇口",
+  "dashboard.nav.directFaucet": "直接蛇口",
   "dashboard.nav.games": "ゲーム",
   "dashboard.nav.coupons": "クーポン",
   "dashboard.nav.shortlinks": "ショートリンク",
@@ -2583,6 +2591,7 @@ const ko: Record<TranslationKey, string> = {
   "dashboard.nav.earnMore": "더 벌기",
   "dashboard.nav.allEarnOptions": "모든 수익 옵션",
   "dashboard.nav.manualFaucet": "수동 수도꼭지",
+  "dashboard.nav.directFaucet": "직접 수도꼭지",
   "dashboard.nav.games": "게임",
   "dashboard.nav.coupons": "쿠폰",
   "dashboard.nav.shortlinks": "숏링크",

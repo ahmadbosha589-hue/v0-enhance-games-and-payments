@@ -70,6 +70,7 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
     { nameKey: "admin.nav.auditLogs", href: "/admin/audit", icon: Activity },
     { nameKey: "admin.nav.notifications", href: "/admin/notifications", icon: Bell },
     { nameKey: "admin.nav.adManagement", href: "/admin/ads", icon: Megaphone },
+    { nameKey: "admin.nav.shortlinks", href: "/admin/shortlinks", icon: Link2 },
   ]
 
   const settingsNav = [

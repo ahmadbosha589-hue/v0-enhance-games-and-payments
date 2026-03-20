@@ -1,6 +1,40 @@
 // Centralized game engine with achievements, leaderboards, and rewards
 import { create } from "zustand"
 
+// ─── SINGLE SOURCE OF TRUTH FOR WIN CONDITIONS ──────────────────────────────
+// These are the BASE thresholds at difficulty level 1.
+// Both the status route and the complete route MUST import from here.
+// The complete route applies the same difficulty scaling as the status route,
+// so the client threshold and the server threshold are always identical.
+export const BASE_WIN_THRESHOLDS: Record<string, number> = {
+  tetris: 500,   // ~1-2 min of solid play
+  block_blast: 300,
+  car_racing: 450,
+  snake: 50,
+  flappy: 20,
+  memory: 120,
+}
+
+// Per-game minimum play durations (ms). Fast games like flappy/memory can
+// legitimately end in 8 s; Tetris needs at least 15 s to reach threshold.
+export const MIN_GAME_DURATIONS_MS: Record<string, number> = {
+  tetris: 15000,
+  block_blast: 12000,
+  car_racing: 10000,
+  snake: 10000,
+  flappy: 8000,
+  memory: 8000,
+}
+
+// Compute the difficulty-adjusted win threshold for a given game type and
+// difficulty level (1-10).  Uses the same formula in both routes.
+export function getAdjustedWinThreshold(gameType: string, difficultyLevel: number): number {
+  const base = BASE_WIN_THRESHOLDS[gameType] ?? 100
+  // +15% per level above 1, capped at level 10 (+135%)
+  return Math.floor(base * (1 + (difficultyLevel - 1) * 0.15))
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface GameAchievement {
   id: string
   name: string
