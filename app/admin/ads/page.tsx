@@ -29,25 +29,31 @@ export const dynamic = "force-dynamic"
 
 interface AdSetting {
   id: string
-  network_name: string
-  network_key: string
-  is_enabled: boolean
-  config: Record<string, string>
-  priority: number
-  description: string
+  position: string
+  provider: "aads" | "coinzilla" | "bitsmedia"
+  enabled: boolean
+  aads_id: string | null
+  coinzilla_zone: string | null
+  bitsmedia_id: string | null
+  bitsmedia_slot: string | null
+  impressions: number
+  clicks: number
+  revenue_satoshis: number
+  created_at: string
+  updated_at: string
 }
 
 async function AdStats() {
   try {
     const adminSupabase = createAdminClient()
-    const { data: ads, error } = await adminSupabase.from("ad_settings").select("*").order("priority")
+    const { data: ads, error } = await adminSupabase.from("ad_settings").select("*").order("position")
 
     if (error) {
       console.error("AdStats error:", error)
       return <AdStatsEmpty />
     }
 
-    const activeNetworks = ads?.filter((ad) => ad.is_enabled).length || 0
+    const activeNetworks = ads?.filter((ad) => ad.enabled).length || 0
     const totalNetworks = ads?.length || 0
 
     const stats = [
@@ -169,8 +175,8 @@ async function ActiveNetworksList() {
     const { data: ads, error } = await adminSupabase
       .from("ad_settings")
       .select("*")
-      .eq("is_enabled", true)
-      .order("priority")
+      .eq("enabled", true)
+      .order("position")
 
     if (error || !ads || ads.length === 0) {
       return (
@@ -182,14 +188,9 @@ async function ActiveNetworksList() {
     }
 
     const networkColors: Record<string, string> = {
-      google_adsense: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-      a_ads: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+      aads: "bg-orange-500/10 text-orange-500 border-orange-500/20",
       coinzilla: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-      bitmedia: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-      cointraffic: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
-      propeller_ads: "bg-red-500/10 text-red-500 border-red-500/20",
-      adsterra: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-      anonymous_ads: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+      bitsmedia: "bg-purple-500/10 text-purple-500 border-purple-500/20",
     }
 
     return (
@@ -204,13 +205,13 @@ async function ActiveNetworksList() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{ad.network_name}</h3>
-                      <Badge variant="outline" className={networkColors[ad.network_key] || ""}>
+                      <h3 className="font-semibold">{ad.provider === "aads" ? "A-ADS" : ad.provider === "coinzilla" ? "CoinZilla" : "Bitmedia"} — {ad.position}</h3>
+                      <Badge variant="outline" className={networkColors[ad.provider] || ""}>
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Active
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Priority: {ad.priority}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Position: {ad.position}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
