@@ -1,7 +1,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
-import { getFaucetPayClient, FaucetPayError, isFaucetPayConfigured } from "@/lib/faucetpay/client"
+import { getFaucetPayClient, FaucetPayError, isFaucetPayConfigured, resolveFaucetPayApiKey } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
 
 // This endpoint should be called by a cron job (e.g., Vercel Cron)
@@ -52,17 +52,17 @@ export async function GET(request: Request) {
       })
     }
 
-    // Check FaucetPay configuration first
-    if (!isFaucetPayConfigured()) {
+    // Check FaucetPay configuration — DB key takes priority over env var
+    const adminSupabase = createAdminClient()  // single instance reused throughout
+    const resolvedApiKey = await resolveFaucetPayApiKey(adminSupabase)
+    if (!resolvedApiKey) {
       log.warn("FaucetPay not configured, skipping payout processing")
       return NextResponse.json({
         success: false,
-        message: "FaucetPay not configured - please set FAUCETPAY_API_KEY",
+        message: "FaucetPay not configured — set the API key in Admin → Settings → FaucetPay",
         processed: 0,
       })
     }
-
-    const adminSupabase = createAdminClient()
 
     const results = {
       processed: 0,
