@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     // Validate category
-    const validCategories = ["claim", "withdrawal", "security", "referral"]
+    const validCategories = ["claim", "withdrawal", "security", "referral", "faucetpay"]
     if (!validCategories.includes(category)) {
       return NextResponse.json({ error: "Invalid category" }, { status: 400 })
     }
