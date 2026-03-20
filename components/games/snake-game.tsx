@@ -77,6 +77,12 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const directionRef = useRef(direction)
   const directionQueueRef = useRef<Direction[]>([])
   const boardRef = useRef<HTMLDivElement>(null)
+  const snakeRef = useRef(snake)
+  const foodRef = useRef(food)
+  const bonusFoodRef = useRef(bonusFood)
+  useEffect(() => { snakeRef.current = snake }, [snake])
+  useEffect(() => { foodRef.current = food }, [food])
+  useEffect(() => { bonusFoodRef.current = bonusFood }, [bonusFood])
 
   // Auto-win detection - when score reaches threshold, trigger win
   useEffect(() => {
@@ -104,14 +110,14 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
         x: Math.floor(Math.random() * BOARD_SIZE),
         y: Math.floor(Math.random() * BOARD_SIZE)
       }
-    } while (snake.some(segment => segment.x === newPos.x && segment.y === newPos.y))
+    } while (snakeRef.current.some(segment => segment.x === newPos.x && segment.y === newPos.y))
 
     const type = getRandomFoodType()
     return { ...newPos, type, points: FOOD_TYPES[type].points }
-  }, [snake])
+  }, []) // no deps — uses ref
 
   const spawnBonusFood = useCallback(() => {
-    if (Math.random() < 0.12 && !bonusFood) {
+    if (Math.random() < 0.12 && !bonusFoodRef.current) {
       let newPos: Position
       do {
         newPos = {
@@ -119,8 +125,8 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
           y: Math.floor(Math.random() * BOARD_SIZE)
         }
       } while (
-        snake.some(segment => segment.x === newPos.x && segment.y === newPos.y) ||
-        (food.x === newPos.x && food.y === newPos.y)
+        snakeRef.current.some(segment => segment.x === newPos.x && segment.y === newPos.y) ||
+        (foodRef.current.x === newPos.x && foodRef.current.y === newPos.y)
       )
 
       setBonusFood({
@@ -130,7 +136,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
         expireAt: Date.now() + 5000
       })
     }
-  }, [snake, food, bonusFood])
+  }, []) // no deps — uses refs
 
   const moveSnake = useCallback(() => {
     if (!isActive || isPaused || gameOver) return
@@ -532,9 +538,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 mb-2">GAME OVER</p>
+              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-red-500"}`}>{hasWon ? "🎉 YOU WIN!" : "GAME OVER"}</p>
+              {hasWon && <p className="text-yellow-400 text-sm mb-1">+3 satoshis earned!</p>}
               <p className="text-white mb-1">Score: {score.toLocaleString()}</p>
-              <p className="text-gray-400 text-sm mb-4">Length: {snake.length}</p>
+              <p className="text-gray-400 text-sm mb-4">Length: {snake.length} | Target: {winThreshold}</p>
               <Button onClick={resetGame} variant="outline" size="sm">
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Play Again
@@ -554,8 +561,14 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Target</p>
-              <p className="text-lg font-bold text-green-400">{winThreshold.toLocaleString()}</p>
+              <p className="text-gray-400 text-xs mb-1">Progress to win</p>
+              <div className="w-full bg-gray-800 rounded-full h-2 mb-1">
+                <div
+                  className="h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-emerald-500 to-green-400"
+                  style={{ width: `${Math.min(100, (score / winThreshold) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-green-400 font-bold">{score.toLocaleString()} / {winThreshold.toLocaleString()}</p>
             </div>
             <div className="flex gap-4">
               <div>

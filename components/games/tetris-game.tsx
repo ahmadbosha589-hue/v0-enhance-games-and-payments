@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -99,12 +99,27 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
   const scoreRef = useRef(score)
   const gameOverRef = useRef(gameOver)
   const isPausedRef = useRef(isPaused)
+  // Extra refs to avoid game loop restarts on every state change
+  const boardStateRef = useRef(board)
+  const linesRef = useRef(lines)
+  const levelRef = useRef(level)
+  const movesRef = useRef(moves)
+  const comboRef = useRef(combo)
+  const nextPiecesRef = useRef(nextPieces)
+  const currentPieceRef = useRef(currentPiece)
 
   useEffect(() => {
     scoreRef.current = score
     gameOverRef.current = gameOver
     isPausedRef.current = isPaused
-  }, [score, gameOver, isPaused])
+    boardStateRef.current = board
+    linesRef.current = lines
+    levelRef.current = level
+    movesRef.current = moves
+    comboRef.current = combo
+    nextPiecesRef.current = nextPieces
+    currentPieceRef.current = currentPiece
+  }, [score, gameOver, isPaused, board, lines, level, moves, combo, nextPieces, currentPiece])
 
   function createEmptyBoard(): Board {
     return Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(null))
@@ -545,8 +560,8 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
     }
   }, [isActive, gameOver, isPaused, movePiece, rotatePiece, hardDrop])
 
-  // Render the board with current piece and ghost piece
-  const renderBoard = () => {
+  // Render the board with current piece and ghost piece — memoized to avoid recomputing on every re-render
+  const renderedBoard = useMemo(() => {
     const displayBoard: { color: string | null; isGhost?: boolean }[][] = board.map(row =>
       row.map(cell => ({ color: cell, isGhost: false }))
     )
@@ -585,7 +600,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
     }
 
     return displayBoard
-  }
+  }, [board, currentPiece, tetrominos, showGhostPiece, checkCollision])
 
   const renderPiecePreview = (type: TetrominoType | null, size: number = 4) => {
     if (!type) return null
@@ -661,7 +676,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
             overflow: "hidden"
           }}
         >
-          {renderBoard().flat().map((cell, i) => (
+          {renderedBoard.flat().map((cell, i) => (
             <div
               key={i}
               className={cn(
@@ -715,9 +730,10 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg z-30">
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 mb-2">{hasWon ? "YOU WIN!" : "GAME OVER"}</p>
+              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-red-500"}`}>{hasWon ? "🎉 YOU WIN!" : "GAME OVER"}</p>
+              {hasWon && <p className="text-yellow-400 text-sm mb-1">+3 satoshis earned!</p>}
               <p className="text-white mb-1">Score: {score.toLocaleString()}</p>
-              <p className="text-gray-400 text-sm mb-4">Level: {level} | Lines: {lines}</p>
+              <p className="text-gray-400 text-sm mb-4">Level: {level} | Lines: {lines} | Target: {winThreshold.toLocaleString()}</p>
               <Button onClick={resetGame} variant="outline" size="sm">
                 <RotateCw className="h-4 w-4 mr-2" />
                 Play Again
@@ -737,8 +753,14 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
               <p className="text-xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Target</p>
-              <p className="text-lg font-bold text-green-400">{winThreshold.toLocaleString()}</p>
+              <p className="text-gray-400 text-xs mb-1">Progress</p>
+              <div className="w-full bg-gray-800 rounded-full h-2 mb-1">
+                <div
+                  className="h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-cyan-500 to-green-400"
+                  style={{ width: `${Math.min(100, (score / winThreshold) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-green-400 font-bold">{score.toLocaleString()} / {winThreshold.toLocaleString()}</p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>

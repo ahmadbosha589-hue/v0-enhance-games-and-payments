@@ -534,7 +534,8 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-2xl font-bold text-amber-500 mb-2">{hasWon ? "YOU WIN!" : "GAME OVER"}</p>
+              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-amber-500"}`}>{hasWon ? "🎉 YOU WIN!" : "GAME OVER"}</p>
+              {hasWon && <p className="text-yellow-400 text-sm mb-1">+3 satoshis earned!</p>}
               <p className="text-white mb-4">Final Score: {score.toLocaleString()}</p>
               <Button onClick={resetGame} variant="outline">
                 <RotateCcw className="h-4 w-4 mr-2" />
@@ -555,8 +556,14 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
               <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs">Target</p>
-              <p className="text-lg font-bold text-green-400">{winThreshold.toLocaleString()}</p>
+              <p className="text-gray-400 text-xs mb-1">Progress to win</p>
+              <div className="w-full bg-gray-800 rounded-full h-2 mb-1">
+                <div
+                  className="h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-amber-500 to-green-400"
+                  style={{ width: `${Math.min(100, (score / winThreshold) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-green-400 font-bold">{score.toLocaleString()} / {winThreshold.toLocaleString()}</p>
             </div>
             <div className="flex gap-4">
               <div>
