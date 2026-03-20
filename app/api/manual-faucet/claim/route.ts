@@ -3,7 +3,7 @@ import { getUser, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 
-const CLAIM_VALUE_USD = 0.0001 // $0.0001 per claim
+const CLAIM_VALUE_USD = 0.0009 // $0.0009 per claim
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
 
 // FaucetPay supported currencies - these are the ONLY ones FaucetPay supports
@@ -13,8 +13,21 @@ const FAUCETPAY_SUPPORTED_CURRENCIES = [
 ]
 
 // Get FaucetPay API key - uses a single API key for all currencies
-function getFaucetPayApiKey(): string | null {
-  return process.env.FAUCETPAY_API_KEY || null
+// Resolves FaucetPay API key: DB (admin-configured) takes priority over env var
+async function getFaucetPayApiKey(db?: ReturnType<typeof createAdminClient>): Promise<string | null> {
+  // Try DB first so admins can rotate keys without redeploying
+  if (db) {
+    try {
+      const { data } = await db
+        .from("system_settings")
+        .select("value")
+        .eq("key", "faucetpay_api_key")
+        .single()
+      const dbKey = (data?.value as string | null)?.trim()
+      if (dbKey) return dbKey
+    } catch { /* fall through to env */ }
+  }
+  return process.env.FAUCETPAY_API_KEY?.trim() || null
 }
 
 // Send FaucetPay payment directly with proper error handling
@@ -149,7 +162,7 @@ async function getUserFaucetPayEmail(
     return { email: null, verified: false, error: "Failed to fetch profile" }
   }
 }
-const COOLDOWN_SECONDS = 7 // 7 seconds between claims per crypto
+const COOLDOWN_SECONDS = 60 // 60 seconds (1 minute) between claims per crypto
 const SHORTLINK_REQUIRED_AFTER = 100 // After 100 claims, require a shortlink
 
 // Fallback prices - ALWAYS current realistic market prices
@@ -449,23 +462,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get user's FaucetPay email - PRIORITY: use profile data we already fetched
-    // This avoids the issue where getUserFaucetPayEmail might fail but profile has the email
-    let faucetPayEmail = profile.faucetpay_email || null
+    // Get FaucetPay email - robust 3-level fallback chain
+    // Fix: trim whitespace, treat empty string as missing (common save bug)
+    let faucetPayEmail: string | null = (profile.faucetpay_email || "").trim() || null
 
-    // If profile doesn't have email, try the dedicated function as fallback
+    // Fallback 1: direct fresh DB fetch in case profile was cached/stale
     if (!faucetPayEmail) {
-      const faucetPayResult = await getUserFaucetPayEmail(adminSupabase, user.id)
-      faucetPayEmail = faucetPayResult.email
+      try {
+        const { data: freshProfile } = await adminSupabase
+          .from("profiles")
+          .select("faucetpay_email")
+          .eq("id", user.id)
+          .single()
+        faucetPayEmail = (freshProfile?.faucetpay_email || "").trim() || null
+        if (faucetPayEmail) log.info("FaucetPay email found on re-fetch", { userId: user.id })
+      } catch { /* continue to fallback 2 */ }
+    }
 
-      if (faucetPayEmail) {
-        log.info("Using FaucetPay email from getUserFaucetPayEmail", { email: faucetPayEmail })
-      }
-    } else {
-      log.info("Using FaucetPay email from profile", {
-        email: faucetPayEmail,
-        verified: profile.faucetpay_verified
-      })
+    // Fallback 2: dedicated helper function
+    if (!faucetPayEmail) {
+      const fp = await getUserFaucetPayEmail(adminSupabase, user.id)
+      faucetPayEmail = (fp.email || "").trim() || null
+    }
+
+    if (faucetPayEmail) {
+      log.info("FaucetPay email resolved", { verified: profile.faucetpay_verified })
     }
 
     if (!faucetPayEmail) {
@@ -475,16 +496,8 @@ export async function POST(request: NextRequest) {
         profileVerified: profile.faucetpay_verified
       })
 
-      // More specific error message based on what we know
-      const isVerified = profile.faucetpay_verified
-      let errorMessage = "Please link your FaucetPay email in Settings to claim rewards"
-      let detailMessage = "Go to Settings > Payment Settings > FaucetPay Withdrawal and enter your FaucetPay email"
-
-      // Check if email exists but maybe wasn't loaded properly
-      if (profile.faucetpay_email === null || profile.faucetpay_email === undefined) {
-        errorMessage = "FaucetPay email not configured"
-        detailMessage = "Please add your FaucetPay email in Settings > Payment Settings"
-      }
+      const errorMessage = "FaucetPay email not found. Please go to Settings → Payment Settings and save your FaucetPay email again."
+      const detailMessage = "If you already saved it, try removing and re-entering your FaucetPay email in Account Settings."
 
       return NextResponse.json(
         {
@@ -510,8 +523,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get FaucetPay API key
-    const apiKey = getFaucetPayApiKey()
+    // Get FaucetPay API key — DB-configured key takes priority over env var
+    const apiKey = await getFaucetPayApiKey(adminSupabase)
     if (!apiKey) {
       log.error("FAUCETPAY_API_KEY not configured")
       return NextResponse.json(
