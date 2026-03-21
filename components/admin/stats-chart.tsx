@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
-import { createClient } from "@/lib/supabase/client"
+import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -44,25 +44,36 @@ export function AdminStatsChart() {
     const timeoutId = setTimeout(() => controller.abort(), 8000)
 
     try {
-      const supabase = createClient()
+      // Use the admin API route so we can see all claims (user client is RLS-restricted)
+      // We keep createBrowserClient available but query via our own admin endpoint instead
 
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-      const { data: claims, error: claimsError } = await supabase
-        .from("claims")
-        .select("created_at, amount_satoshis, user_id")
-        .gte("created_at", sevenDaysAgo.toISOString())
-        .limit(1000)
-        .abortSignal(controller.signal)
-
+      const statsRes = await fetch(
+        `/api/admin/stats/daily?days=7`,
+        { signal: controller.signal, credentials: "include" }
+      )
       clearTimeout(timeoutId)
 
-      if (claimsError) {
+      if (!statsRes.ok) {
         setData(generateEmptyData())
         setIsLoading(false)
         return
       }
+
+      const statsJson = await statsRes.json()
+      if (statsJson.data) {
+        setData(statsJson.data)
+        setIsLoading(false)
+        return
+      }
+
+      // Fallback: show empty data - the admin API is the primary source
+      // Direct browser client queries are blocked by RLS for non-self data
+      setData(generateEmptyData())
+      setIsLoading(false)
+      return
 
       // Group by day
       const dailyData: Record<string, { claims: number; users: Set<string>; satoshis: number }> = {}

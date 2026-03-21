@@ -215,7 +215,7 @@ function buildCleanBoard(pal: string[]): { board: Board; idCounter: number } {
 // ─── component ────────────────────────────────────────────────────────────────
 
 export function BlockBlastGame({
-  onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200
+  onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300
 }: BlockBlastGameProps) {
   const difficultyLevel = difficulty?.level || 1
   const scoreMultiplierFromDiff = difficulty?.scoreMultiplier || 1

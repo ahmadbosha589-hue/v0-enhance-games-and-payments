@@ -1014,7 +1014,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["tetris"]}
+                winThreshold={gameStatus?.winThresholds?.["tetris"] ?? 500}
               />
             )}
             {selectedGame === "block_blast" && (
@@ -1023,7 +1023,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["block_blast"]}
+                winThreshold={gameStatus?.winThresholds?.["block_blast"] ?? 300}
               />
             )}
             {selectedGame === "car_racing" && (
@@ -1032,7 +1032,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["car_racing"]}
+                winThreshold={gameStatus?.winThresholds?.["car_racing"] ?? 450}
               />
             )}
             {selectedGame === "snake" && (
@@ -1041,7 +1041,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["snake"]}
+                winThreshold={gameStatus?.winThresholds?.["snake"] ?? 50}
               />
             )}
             {selectedGame === "memory" && (
@@ -1050,7 +1050,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["memory"]}
+                winThreshold={gameStatus?.winThresholds?.["memory"] ?? 120}
               />
             )}
             {selectedGame === "flappy" && (
@@ -1059,7 +1059,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["flappy"]}
+                winThreshold={gameStatus?.winThresholds?.["flappy"] ?? 20}
               />
             )}
           </CardContent>

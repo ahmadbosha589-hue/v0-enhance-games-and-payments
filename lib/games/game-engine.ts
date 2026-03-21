@@ -19,7 +19,7 @@ export const BASE_WIN_THRESHOLDS: Record<string, number> = {
 // legitimately end in 8 s; Tetris needs at least 15 s to reach threshold.
 export const MIN_GAME_DURATIONS_MS: Record<string, number> = {
   tetris: 15000,
-  block_blast: 12000,
+  block_blast: 3000,  // cascade mechanic can win fast; session starts before board renders so real elapsed time is session_create + board_load + player_time
   car_racing: 10000,
   snake: 10000,
   flappy: 8000,

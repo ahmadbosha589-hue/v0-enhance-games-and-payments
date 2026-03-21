@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { getUser, getProfile, createAdminClient, safeQuery } from "@/lib/supabase/server"
+import { getUser, createAdminClient, safeQuery } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -32,21 +32,37 @@ interface TournamentInfo {
   status: "active" | "upcoming" | "ended"
 }
 
+// ─── data fetcher ─────────────────────────────────────────────────────────────
+
+async function fetchTournaments(): Promise<TournamentInfo[]> {
+  try {
+    const adminSupabase = createAdminClient()
+    if (!adminSupabase) return []
+
+    const result = await safeQuery(
+      () =>
+        adminSupabase
+          .from("game_tournaments")
+          .select("*")
+          .order("start_time", { ascending: true })
+          .limit(20),
+      [],
+    )
+    return (result || []) as TournamentInfo[]
+  } catch {
+    return []
+  }
+}
+
+// ─── stats row ────────────────────────────────────────────────────────────────
+
 async function TournamentStats() {
-  const adminSupabase = createAdminClient()
+  const list = await fetchTournaments()
 
-  const { data: tournaments } = await adminSupabase
-    .from("game_tournaments")
-    .select("*")
-    .limit(50)
-    .catch(() => ({ data: null }))
-
-  const list = (tournaments || []) as TournamentInfo[]
-
-  const active   = list.filter(t => t.status === "active").length
+  const active = list.filter(t => t.status === "active").length
   const upcoming = list.filter(t => t.status === "upcoming").length
   const totalPrize = list
-    .filter(t => t.status === "active" || t.status === "upcoming")
+    .filter(t => t.status !== "ended")
     .reduce((s, t) => s + (t.prize_pool || 0), 0)
   const totalPlayers = list.reduce((s, t) => s + (t.participants || 0), 0)
 
@@ -92,7 +108,10 @@ async function TournamentStats() {
   return (
     <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
       {stats.map(stat => (
-        <Card key={stat.label} className={cn("border bg-gradient-to-br to-transparent", stat.border, stat.bg)}>
+        <Card
+          key={stat.label}
+          className={cn("border bg-gradient-to-br to-transparent", stat.border, stat.bg)}
+        >
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className={cn("p-2 rounded-lg", stat.iconBg)}>
@@ -110,17 +129,10 @@ async function TournamentStats() {
   )
 }
 
+// ─── tournament list ──────────────────────────────────────────────────────────
+
 async function TournamentList() {
-  const adminSupabase = createAdminClient()
-
-  const { data: tournaments, error } = await adminSupabase
-    .from("game_tournaments")
-    .select("*")
-    .order("start_time", { ascending: true })
-    .limit(20)
-    .catch(() => ({ data: null, error: new Error("Table not found") }))
-
-  const list = (tournaments || []) as TournamentInfo[]
+  const list = await fetchTournaments()
 
   if (list.length === 0) {
     return (
@@ -133,55 +145,70 @@ async function TournamentList() {
         </div>
         <h3 className="text-xl font-semibold mb-2">No Tournaments Yet</h3>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Real prize-pool tournaments with leaderboard tracking are on the way. Stay tuned for announcements!
+          Real prize-pool tournaments with leaderboard tracking are on the way.
+          Stay tuned for announcements!
         </p>
       </div>
     )
   }
 
   const grouped = {
-    active:   list.filter(t => t.status === "active"),
+    active: list.filter(t => t.status === "active"),
     upcoming: list.filter(t => t.status === "upcoming"),
-    ended:    list.filter(t => t.status === "ended"),
+    ended: list.filter(t => t.status === "ended"),
   }
 
   const renderCard = (tournament: TournamentInfo) => {
-    const isActive   = tournament.status === "active"
+    const isActive = tournament.status === "active"
     const isUpcoming = tournament.status === "upcoming"
-    const fillPct    = tournament.max_participants > 0
-      ? (tournament.participants / tournament.max_participants) * 100 : 0
+    const fillPct =
+      tournament.max_participants > 0
+        ? (tournament.participants / tournament.max_participants) * 100
+        : 0
 
     return (
       <Card
         key={tournament.id}
         className={cn(
-          "border-2 transition-all duration-300 hover:shadow-lg group overflow-hidden",
-          isActive   ? "border-green-500/40 bg-gradient-to-br from-green-500/5 to-transparent" :
-          isUpcoming ? "border-blue-500/40 bg-gradient-to-br from-blue-500/5 to-transparent" :
-                       "border-muted/30 bg-muted/5 opacity-70",
+          "border-2 transition-all duration-300 hover:shadow-lg overflow-hidden",
+          isActive
+            ? "border-green-500/40 bg-gradient-to-br from-green-500/5 to-transparent"
+            : isUpcoming
+              ? "border-blue-500/40 bg-gradient-to-br from-blue-500/5 to-transparent"
+              : "border-muted/30 bg-muted/5 opacity-70",
         )}
       >
-        {/* Color strip on top */}
-        <div className={cn(
-          "h-1 w-full",
-          isActive   ? "bg-gradient-to-r from-green-500 to-emerald-400" :
-          isUpcoming ? "bg-gradient-to-r from-blue-500 to-cyan-400" :
-                       "bg-gradient-to-r from-muted to-muted/50",
-        )} />
+        {/* Color strip */}
+        <div
+          className={cn(
+            "h-1 w-full",
+            isActive
+              ? "bg-gradient-to-r from-green-500 to-emerald-400"
+              : isUpcoming
+                ? "bg-gradient-to-r from-blue-500 to-cyan-400"
+                : "bg-muted",
+          )}
+        />
 
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className={cn(
-                "p-2 rounded-lg",
-                isActive   ? "bg-green-500/15" :
-                isUpcoming ? "bg-blue-500/15" : "bg-muted",
-              )}>
-                <Crown className={cn(
-                  "h-5 w-5",
-                  isActive   ? "text-green-500" :
-                  isUpcoming ? "text-blue-500" : "text-muted-foreground",
-                )} />
+              <div
+                className={cn(
+                  "p-2 rounded-lg",
+                  isActive ? "bg-green-500/15" : isUpcoming ? "bg-blue-500/15" : "bg-muted",
+                )}
+              >
+                <Crown
+                  className={cn(
+                    "h-5 w-5",
+                    isActive
+                      ? "text-green-500"
+                      : isUpcoming
+                        ? "text-blue-500"
+                        : "text-muted-foreground",
+                  )}
+                />
               </div>
               <div>
                 <CardTitle className="text-base sm:text-lg leading-tight">
@@ -192,6 +219,7 @@ async function TournamentList() {
                 </CardDescription>
               </div>
             </div>
+
             <Badge
               variant={isActive ? "default" : isUpcoming ? "secondary" : "outline"}
               className={cn(
@@ -234,16 +262,22 @@ async function TournamentList() {
               <span>Spots filled</span>
               <span>{Math.round(fillPct)}%</span>
             </div>
-            <Progress value={fillPct} className={cn("h-1.5", isActive ? "[&>div]:bg-green-500" : "")} />
+            <Progress
+              value={fillPct}
+              className={cn("h-1.5", isActive ? "[&>div]:bg-green-500" : "")}
+            />
           </div>
 
-          {/* Footer */}
+          {/* Footer row */}
           <div className="flex items-center justify-between pt-1">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />
               <span>
-                {tournament.status === "ended"   ? "Ended" :
-                 tournament.status === "active"  ? "Ends soon" : "Starting soon"}
+                {tournament.status === "ended"
+                  ? "Ended"
+                  : tournament.status === "active"
+                    ? "Ends soon"
+                    : "Starting soon"}
               </span>
             </div>
             <Button size="sm" variant="outline" disabled className="opacity-60 text-xs h-8">
@@ -263,25 +297,31 @@ async function TournamentList() {
           <h2 className="text-base font-semibold flex items-center gap-2">
             <Zap className="h-4 w-4 text-green-500" />
             Active Tournaments
-            <Badge variant="secondary" className="text-xs">{grouped.active.length}</Badge>
+            <Badge variant="secondary" className="text-xs">
+              {grouped.active.length}
+            </Badge>
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
             {grouped.active.map(renderCard)}
           </div>
         </div>
       )}
+
       {grouped.upcoming.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-base font-semibold flex items-center gap-2">
             <Clock className="h-4 w-4 text-blue-500" />
             Upcoming Tournaments
-            <Badge variant="secondary" className="text-xs">{grouped.upcoming.length}</Badge>
+            <Badge variant="secondary" className="text-xs">
+              {grouped.upcoming.length}
+            </Badge>
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
             {grouped.upcoming.map(renderCard)}
           </div>
         </div>
       )}
+
       {grouped.ended.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-base font-semibold text-muted-foreground flex items-center gap-2">
@@ -296,6 +336,8 @@ async function TournamentList() {
     </div>
   )
 }
+
+// ─── page ─────────────────────────────────────────────────────────────────────
 
 export default async function TournamentsPage() {
   const user = await getUser()
@@ -329,9 +371,12 @@ export default async function TournamentsPage() {
               <AlertCircle className="h-5 w-5 text-amber-500" />
             </div>
             <div>
-              <p className="font-semibold text-amber-600 dark:text-amber-400">Tournaments are coming soon</p>
+              <p className="font-semibold text-amber-600 dark:text-amber-400">
+                Tournaments are coming soon
+              </p>
               <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                Real prize-pool tournaments with live leaderboards are in development. Follow announcements for launch details.
+                Real prize-pool tournaments with live leaderboards are in development.
+                Follow announcements for launch details.
               </p>
             </div>
           </div>
@@ -342,18 +387,22 @@ export default async function TournamentsPage() {
       <Suspense
         fallback={
           <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-20" />
+            ))}
           </div>
         }
       >
         <TournamentStats />
       </Suspense>
 
-      {/* Tournament List */}
+      {/* List */}
       <Suspense
         fallback={
           <div className="grid gap-4 md:grid-cols-2">
-            {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-64" />)}
+            {[...Array(2)].map((_, i) => (
+              <Skeleton key={i} className="h-64" />
+            ))}
           </div>
         }
       >
@@ -370,22 +419,17 @@ export default async function TournamentsPage() {
         </CardHeader>
         <CardContent>
           <ul className="text-sm text-muted-foreground space-y-1.5">
-            <li className="flex items-start gap-2">
-              <span className="text-primary mt-0.5">•</span>
-              Entry fee is deducted from your balance when you register
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-primary mt-0.5">•</span>
-              Your best score during the tournament period counts toward the leaderboard
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-primary mt-0.5">•</span>
-              Top 10 players split the prize pool — 50%, 25%, 10%, 5%, then equal shares
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-primary mt-0.5">•</span>
-              Cheating or score manipulation results in immediate disqualification and account ban
-            </li>
+            {[
+              "Entry fee is deducted from your balance when you register",
+              "Your best score during the tournament period counts toward the leaderboard",
+              "Top 10 players split the prize pool — 50%, 25%, 10%, 5%, then equal shares",
+              "Cheating or score manipulation results in immediate disqualification and account ban",
+            ].map(rule => (
+              <li key={rule} className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                {rule}
+              </li>
+            ))}
           </ul>
         </CardContent>
       </Card>
