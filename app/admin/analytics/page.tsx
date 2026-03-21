@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AnalyticsCharts } from "@/components/admin/analytics-charts"
 import { formatNumber } from "@/lib/utils"
@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 export const dynamic = "force-dynamic"
 
 export default async function AnalyticsPage() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   if (!supabase) {
     return (
@@ -61,7 +61,8 @@ export default async function AnalyticsPage() {
   }
 
   try {
-    const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+    const { data: rpcData, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 })
+    const data = Array.isArray(rpcData) ? rpcData[0] : rpcData
     if (!error && data) {
       adblockStats = data
     } else {

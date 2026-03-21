@@ -199,12 +199,12 @@ async function robustFetch<T>(
       if (!response.ok) {
         // Extract error message from response body if available
         const serverError = data?.error || data?.message
-        if (serverError) {
-          throw new Error(serverError)
-        }
-        // Fall back to HTTP status message
-        const httpMessage = HTTP_ERROR_MESSAGES[response.status] || `Request failed (Error ${response.status})`
-        throw new Error(httpMessage)
+        const errorCode = data?.code || ""
+        const msg = serverError || HTTP_ERROR_MESSAGES[response.status] || `Request failed (Error ${response.status})`
+        // Attach code so catch block can use it without string matching
+        const err = new Error(msg) as Error & { code?: string }
+        err.code = errorCode
+        throw err
       }
 
       return data as T
@@ -222,8 +222,12 @@ async function robustFetch<T>(
         lastError = new Error(String(error))
       }
 
-      if (attempt < maxRetries - 1) {
+      // Don't retry if this was a deliberate server rejection (has error code)
+      const hasCode = lastError && (lastError as any).code
+      if (!hasCode && attempt < maxRetries - 1) {
         await new Promise((r) => setTimeout(r, 200 * (attempt + 1)))
+      } else if (hasCode) {
+        break
       }
     }
   }
@@ -1275,7 +1279,7 @@ function DirectFaucetContent() {
       setSelectedCrypto(symbol)
 
       try {
-        const response = await robustFetch<{ amount: string; error?: string }>(
+        const response = await robustFetch<{ amount: string; error?: string; code?: string }>(
           "/api/manual-faucet/claim",
           {
             method: "POST",
@@ -1290,7 +1294,11 @@ function DirectFaucetContent() {
           12000
         )
 
-        if (response.error) throw new Error(response.error)
+        if (response.error) {
+          const err = new Error(response.error) as Error & { code?: string }
+          if (response.code) err.code = response.code
+          throw err
+        }
 
         try {
           confetti({
@@ -1336,7 +1344,9 @@ function DirectFaucetContent() {
         let description = errorMessage
         let actionHint = ""
 
-        if (errorMessage.toLowerCase().includes("link your faucetpay") ||
+        const errorCode = (error as any)?.code || ""
+        if (errorCode === "FAUCETPAY_NOT_CONFIGURED" ||
+          errorMessage.toLowerCase().includes("link your faucetpay") ||
           errorMessage.toLowerCase().includes("faucetpay email") ||
           errorMessage.toLowerCase().includes("account settings") ||
           errorMessage.toLowerCase().includes("not configured") ||
@@ -1348,10 +1358,10 @@ function DirectFaucetContent() {
           title = "FaucetPay Account Not Found"
           description = "Your email is not registered on FaucetPay."
           actionHint = "Create a free FaucetPay account with the same email first."
-        } else if (errorMessage.includes("funds") || errorMessage.includes("Insufficient") || errorMessage.includes("402")) {
-          title = "Faucet Low on Funds"
-          description = "The faucet is temporarily out of funds."
-          actionHint = "Please try again in a few hours."
+        } else if (errorMessage.includes("funds") || errorMessage.includes("Insufficient") || errorMessage.includes("402") || errorMessage.includes("out of funds")) {
+          title = "Faucet Has Insufficient Funds"
+          description = "This faucet doesn\'t have sufficient funds to complete your transaction right now."
+          actionHint = "Please try again later — the faucet is refilled periodically."
         } else if (errorMessage.includes("limit") || errorMessage.includes("458")) {
           title = "Daily Limit Reached"
           description = "You've reached your daily claim limit."
