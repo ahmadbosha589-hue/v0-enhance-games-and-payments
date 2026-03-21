@@ -185,9 +185,9 @@ export function AdminFaucetPayForm() {
           <h3 className="text-sm font-medium">{status?.configured && status.source === "database" ? "Replace API Key" : "Set API Key"}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Get your API key from{" "}
-            <a href="https://faucetpay.io/account/webmaster" target="_blank" rel="noopener noreferrer"
+            <a href="https://faucetpay.io/page/faucet-admin" target="_blank" rel="noopener noreferrer"
               className="text-primary underline underline-offset-2">
-              faucetpay.io → Account → Webmaster Tools
+              faucetpay.io → Faucet Admin
             </a>
           </p>
         </div>
