@@ -224,8 +224,15 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
         sessionStorage.removeItem("mf_cache_time_v1")
         sessionStorage.removeItem("mf_claims_data_v1")
         sessionStorage.removeItem("mf_profile_v1")
-        // Don't clear the persistent HAS_LOADED_BEFORE flag - that should stay
       } catch { }
+
+      // Broadcast PTC completion so the Direct Faucet page auto-unlocks
+      // without needing a manual "Refresh Status" click.
+      try {
+        const bc = new BroadcastChannel("ptc_completed")
+        bc.postMessage({ type: "ptc_completed", timestamp: Date.now() })
+        bc.close()
+      } catch { /* BroadcastChannel not supported in this env */ }
 
       // Force HARD refresh - clear all caches and reload
       setTimeout(() => {

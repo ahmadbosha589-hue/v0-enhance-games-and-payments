@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Sparkles, RotateCcw } from "lucide-react"
 
-const BOARD_SIZE = 8
-const CELL_SIZE = 32
+const BOARD_COLS = 8
+const BOARD_ROWS = 8
+const CELL_SIZE = 36
 
-// Multiple color palettes for variety
 const COLOR_PALETTES = [
   ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7", "#f97316"],
   ["#f472b6", "#84cc16", "#06b6d4", "#fbbf24", "#8b5cf6", "#ec4899"],
@@ -16,18 +16,14 @@ const COLOR_PALETTES = [
   ["#dc2626", "#16a34a", "#2563eb", "#d97706", "#7c3aed", "#db2777"],
 ]
 
-const getRandomPalette = () => COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)]
-
-// Special block types
 const SPECIAL_BLOCKS = {
-  bomb: { chance: 0.025, effect: "clear_nearby", icon: "B" },
-  rainbow: { chance: 0.02, effect: "match_any", icon: "R" },
-  multiplier: { chance: 0.03, effect: "2x_points", icon: "2x" },
-  lightning: { chance: 0.02, effect: "clear_row", icon: "L" },
-  star: { chance: 0.015, effect: "clear_color", icon: "S" },
+  bomb: { chance: 0.025, effect: "clear_nearby" },
+  rainbow: { chance: 0.02, effect: "match_any" },
+  multiplier: { chance: 0.03, effect: "2x_points" },
+  lightning: { chance: 0.02, effect: "clear_row" },
+  star: { chance: 0.015, effect: "clear_color" },
 }
 
-// Achievement messages for big combos
 const COMBO_MESSAGES = [
   { min: 2, message: "Nice!", color: "text-blue-400" },
   { min: 4, message: "Great!", color: "text-green-400" },
@@ -37,8 +33,8 @@ const COMBO_MESSAGES = [
 ]
 
 type SpecialType = "bomb" | "rainbow" | "multiplier" | "lightning" | "star" | null
-type Cell = { color: string | null; id: number; special: SpecialType }
-type Board = Cell[][]
+type Cell = { color: string; id: number; special: SpecialType }
+type Board = (Cell | null)[][]
 
 interface DifficultySettings {
   level: number
@@ -56,73 +52,230 @@ interface BlockBlastGameProps {
   winThreshold?: number
 }
 
-export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200 }: BlockBlastGameProps) {
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function getSpecialType(): SpecialType {
+  const roll = Math.random()
+  let cum = 0
+  for (const [type, cfg] of Object.entries(SPECIAL_BLOCKS)) {
+    cum += cfg.chance
+    if (roll < cum) return type as SpecialType
+  }
+  return null
+}
+
+/** Flood-fill: all cells connected to (sx,sy) with the same color. */
+function floodFill(board: Board, sx: number, sy: number): Array<{ x: number; y: number }> {
+  const target = board[sy]?.[sx]?.color
+  if (!target) return []
+  const visited = new Set<string>()
+  const group: Array<{ x: number; y: number }> = []
+  const stack = [{ x: sx, y: sy }]
+  while (stack.length) {
+    const { x, y } = stack.pop()!
+    const key = `${x},${y}`
+    if (visited.has(key)) continue
+    if (x < 0 || x >= BOARD_COLS || y < 0 || y >= BOARD_ROWS) continue
+    if (board[y]?.[x]?.color !== target) continue
+    visited.add(key)
+    group.push({ x, y })
+    stack.push({ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 })
+  }
+  return group
+}
+
+/**
+ * Expand a set of cells to remove by applying special-block effects.
+ * Also returns bonus points and side effects (multiplier, shake, messages).
+ */
+function expandSpecials(
+  board: Board,
+  baseKeys: Set<string>,
+  setEventMessage: (m: string | null) => void,
+  setActiveMultiplier: (v: number) => void,
+  setShakeBoard: (v: boolean) => void,
+): { expandedKeys: Set<string>; bonusPoints: number } {
+  const expanded = new Set(baseKeys)
+  let bonus = 0
+
+  baseKeys.forEach(key => {
+    const [x, y] = key.split(",").map(Number)
+    const cell = board[y]?.[x]
+    if (!cell?.special) return
+
+    if (cell.special === "bomb") {
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy
+          if (nx >= 0 && nx < BOARD_COLS && ny >= 0 && ny < BOARD_ROWS)
+            expanded.add(`${nx},${ny}`)
+        }
+      bonus += 50
+      setEventMessage("💣 Bomb Blast!")
+      setShakeBoard(true)
+      setTimeout(() => setShakeBoard(false), 300)
+      setTimeout(() => setEventMessage(null), 1500)
+
+    } else if (cell.special === "multiplier") {
+      setActiveMultiplier(2)
+      setTimeout(() => setActiveMultiplier(1), 5000)
+      setEventMessage("⚡ 2× Multiplier!")
+      setTimeout(() => setEventMessage(null), 1500)
+
+    } else if (cell.special === "lightning") {
+      for (let lx = 0; lx < BOARD_COLS; lx++) expanded.add(`${lx},${y}`)
+      bonus += 80
+      setEventMessage("⚡ Lightning Strike!")
+      setShakeBoard(true)
+      setTimeout(() => setShakeBoard(false), 300)
+      setTimeout(() => setEventMessage(null), 1500)
+
+    } else if (cell.special === "star") {
+      const targetColor = cell.color
+      for (let sy2 = 0; sy2 < BOARD_ROWS; sy2++)
+        for (let sx2 = 0; sx2 < BOARD_COLS; sx2++)
+          if (board[sy2]?.[sx2]?.color === targetColor) expanded.add(`${sx2},${sy2}`)
+      bonus += 100
+      setEventMessage("⭐ Color Clear!")
+      setTimeout(() => setEventMessage(null), 1500)
+
+    } else if (cell.special === "rainbow") {
+      // Rainbow matches any color — its whole connected group is already included
+      bonus += 30
+      setEventMessage("🌈 Rainbow!")
+      setTimeout(() => setEventMessage(null), 1500)
+    }
+  })
+
+  return { expandedKeys: expanded, bonusPoints: bonus }
+}
+
+/** Drop non-null cells down, fill gaps from top with new random blocks. */
+function dropAndFill(
+  board: Board, pal: string[], idCtr: number
+): { newBoard: Board; newIdCounter: number } {
+  const nb: Board = Array.from({ length: BOARD_ROWS }, () => Array(BOARD_COLS).fill(null))
+  let ctr = idCtr
+  for (let x = 0; x < BOARD_COLS; x++) {
+    const col: Cell[] = []
+    for (let y = BOARD_ROWS - 1; y >= 0; y--)
+      if (board[y][x]) col.push(board[y][x]!)
+    for (let i = 0; i < col.length; i++) nb[BOARD_ROWS - 1 - i][x] = col[i]
+    for (let y = BOARD_ROWS - 1 - col.length; y >= 0; y--)
+      nb[y][x] = { color: pal[Math.floor(Math.random() * pal.length)], id: ctr++, special: getSpecialType() }
+  }
+  return { newBoard: nb, newIdCounter: ctr }
+}
+
+/** True if any connected group of 3+ same-color cells exists. */
+function hasBlastableGroup(board: Board): boolean {
+  const visited = new Set<string>()
+  for (let y = 0; y < BOARD_ROWS; y++)
+    for (let x = 0; x < BOARD_COLS; x++) {
+      if (!board[y][x]) continue
+      const key = `${x},${y}`
+      if (visited.has(key)) continue
+      const g = floodFill(board, x, y)
+      g.forEach(p => visited.add(`${p.x},${p.y}`))
+      if (g.length >= 3) return true
+    }
+  return false
+}
+
+/**
+ * Generate a clean starting board with NO pre-existing blastable groups.
+ * This prevents auto-blasting on game start.
+ */
+function buildCleanBoard(pal: string[]): { board: Board; idCounter: number } {
+  for (let attempt = 0; attempt < 300; attempt++) {
+    let id = 0
+    const board: Board = Array.from({ length: BOARD_ROWS }, () =>
+      Array.from({ length: BOARD_COLS }, () => ({
+        color: pal[Math.floor(Math.random() * pal.length)],
+        id: id++,
+        special: getSpecialType(),
+      }))
+    )
+    if (!hasBlastableGroup(board)) return { board, idCounter: id }
+  }
+  // Fallback (very rare with 6 colors)
+  let id = 0
+  return {
+    board: Array.from({ length: BOARD_ROWS }, () =>
+      Array.from({ length: BOARD_COLS }, () => ({
+        color: pal[Math.floor(Math.random() * pal.length)],
+        id: id++,
+        special: getSpecialType(),
+      }))
+    ),
+    idCounter: id,
+  }
+}
+
+// ─── component ────────────────────────────────────────────────────────────────
+
+export function BlockBlastGame({
+  onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200
+}: BlockBlastGameProps) {
   const difficultyLevel = difficulty?.level || 1
-  const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
+  const scoreMultiplierFromDiff = difficulty?.scoreMultiplier || 1
   const maxMoves = Math.max(15, 30 - (difficultyLevel - 1) * 2)
 
   const [hasWon, setHasWon] = useState(false)
-  const [board, setBoard] = useState<Board>(() => [])
+  const [board, setBoard] = useState<Board>([])
+  const [palette, setPalette] = useState<string[]>([])
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
+  const [movesLeft, setMovesLeft] = useState(maxMoves)
   const [combo, setCombo] = useState(0)
-  const [selectedCell, setSelectedCell] = useState<{ x: number; y: number } | null>(null)
-  const [isAnimating, setIsAnimating] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [gameStarted, setGameStarted] = useState(false)
-  const [matchedCells, setMatchedCells] = useState<Set<string>>(new Set())
-  const [movesLeft, setMovesLeft] = useState(maxMoves)
-  const [cellIdCounter, setCellIdCounter] = useState(0)
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [idCounter, setIdCounter] = useState(0)
   const [activeMultiplier, setActiveMultiplier] = useState(1)
-  const [colors, setColors] = useState<string[]>([])
   const [eventMessage, setEventMessage] = useState<string | null>(null)
-  const [comboMessage, setComboMessage] = useState<{ message: string; color: string } | null>(null)
   const [shakeBoard, setShakeBoard] = useState(false)
+  // group highlighted (first tap) / blasting (second tap)
+  const [selectedGroup, setSelectedGroup] = useState<Set<string>>(new Set())
+  const [blastingCells, setBlastingCells] = useState<Set<string>>(new Set())
+  const [comboMessage, setComboMessage] = useState<{ message: string; color: string } | null>(null)
 
-  const boardRef = useRef<HTMLDivElement>(null)
-  const scoreRef = useRef(score)
-  const isAnimatingRef = useRef(isAnimating)
+  const scoreRef = useRef(0)
+  const isAnimatingRef = useRef(false)
+  const activeMultRef = useRef(1)
+  useEffect(() => { scoreRef.current = score }, [score])
+  useEffect(() => { isAnimatingRef.current = isAnimating }, [isAnimating])
+  useEffect(() => { activeMultRef.current = activeMultiplier }, [activeMultiplier])
 
-  useEffect(() => {
-    scoreRef.current = score
-    isAnimatingRef.current = isAnimating
-  }, [score, isAnimating])
+  // ── init ──────────────────────────────────────────────────────────────────
 
-  // Initialize game
   const initializeGame = useCallback(() => {
-    const palette = getRandomPalette()
-    setColors(palette)
-    let id = 0
-    const newBoard: Board = Array(BOARD_SIZE).fill(null).map(() =>
-      Array(BOARD_SIZE).fill(null).map(() => ({
-        color: palette[Math.floor(Math.random() * palette.length)],
-        id: id++,
-        special: getSpecialType()
-      }))
-    )
-    setBoard(newBoard)
-    setCellIdCounter(id)
+    const pal = COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)]
+    const { board: b, idCounter: id } = buildCleanBoard(pal)
+    setPalette(pal)
+    setBoard(b)
+    setIdCounter(id)
     setScore(0)
     setMoves(0)
-    setCombo(0)
     setMovesLeft(maxMoves)
-    setSelectedCell(null)
-    setMatchedCells(new Set())
+    setCombo(0)
     setGameOver(false)
     setHasWon(false)
-    setActiveMultiplier(1)
-    setGameStarted(true)
     setIsAnimating(false)
+    setActiveMultiplier(1)
+    setEventMessage(null)
+    setShakeBoard(false)
+    setSelectedGroup(new Set())
+    setBlastingCells(new Set())
+    setGameStarted(true)
   }, [maxMoves])
 
-  // Start game when active
   useEffect(() => {
-    if (isActive && !gameStarted) {
-      initializeGame()
-    }
+    if (isActive && !gameStarted) initializeGame()
   }, [isActive, gameStarted, initializeGame])
 
-  // Auto-win detection
+  // ── win detection ─────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (score >= winThreshold && !hasWon && !gameOver && isActive && gameStarted) {
       setHasWon(true)
@@ -131,392 +284,274 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     }
   }, [score, winThreshold, hasWon, gameOver, isActive, gameStarted, moves, onGameEnd])
 
-  function getSpecialType(): SpecialType {
-    const roll = Math.random()
-    let cumulative = 0
-    for (const [type, config] of Object.entries(SPECIAL_BLOCKS)) {
-      cumulative += config.chance
-      if (roll < cumulative) return type as SpecialType
-    }
-    return null
-  }
+  // ── cascade: auto-blast groups formed by falling blocks ───────────────────
 
-  const findMatches = useCallback((boardState: Board): Set<string> => {
-    const matches = new Set<string>()
-
-    // Check horizontal matches
-    for (let y = 0; y < BOARD_SIZE; y++) {
-      let count = 1
-      for (let x = 1; x < BOARD_SIZE; x++) {
-        const current = boardState[y]?.[x]
-        const prev = boardState[y]?.[x - 1]
-        if (current?.color && prev?.color && current.color === prev.color) {
-          count++
-        } else {
-          if (count >= 3) {
-            for (let i = x - count; i < x; i++) {
-              matches.add(`${i},${y}`)
-            }
-          }
-          count = 1
-        }
+  const cascade = useCallback(async (
+    currentBoard: Board,
+    currentIdCtr: number,
+    comboCount: number,
+    currentPalette: string[],
+    currentMoves: number,
+    currentMovesLeft: number,
+  ) => {
+    // Find the largest blastable group
+    const visited = new Set<string>()
+    let biggest: Array<{ x: number; y: number }> = []
+    for (let y = 0; y < BOARD_ROWS; y++)
+      for (let x = 0; x < BOARD_COLS; x++) {
+        if (!currentBoard[y][x]) continue
+        const key = `${x},${y}`
+        if (visited.has(key)) continue
+        const g = floodFill(currentBoard, x, y)
+        g.forEach(p => visited.add(`${p.x},${p.y}`))
+        if (g.length >= 3 && g.length > biggest.length) biggest = g
       }
-      if (count >= 3) {
-        for (let i = BOARD_SIZE - count; i < BOARD_SIZE; i++) {
-          matches.add(`${i},${y}`)
-        }
-      }
-    }
 
-    // Check vertical matches
-    for (let x = 0; x < BOARD_SIZE; x++) {
-      let count = 1
-      for (let y = 1; y < BOARD_SIZE; y++) {
-        const current = boardState[y]?.[x]
-        const prev = boardState[y - 1]?.[x]
-        if (current?.color && prev?.color && current.color === prev.color) {
-          count++
-        } else {
-          if (count >= 3) {
-            for (let i = y - count; i < y; i++) {
-              matches.add(`${x},${i}`)
-            }
-          }
-          count = 1
-        }
-      }
-      if (count >= 3) {
-        for (let i = BOARD_SIZE - count; i < BOARD_SIZE; i++) {
-          matches.add(`${x},${i}`)
-        }
-      }
-    }
-
-    return matches
-  }, [])
-
-  const hasValidMoves = useCallback((boardState: Board): boolean => {
-    for (let y = 0; y < BOARD_SIZE; y++) {
-      for (let x = 0; x < BOARD_SIZE; x++) {
-        // Try swapping with right neighbor
-        if (x < BOARD_SIZE - 1) {
-          const testBoard = boardState.map(row => row.map(cell => ({ ...cell })))
-          const temp = testBoard[y][x]
-          testBoard[y][x] = testBoard[y][x + 1]
-          testBoard[y][x + 1] = temp
-          if (findMatches(testBoard).size > 0) return true
-        }
-        // Try swapping with bottom neighbor
-        if (y < BOARD_SIZE - 1) {
-          const testBoard = boardState.map(row => row.map(cell => ({ ...cell })))
-          const temp = testBoard[y][x]
-          testBoard[y][x] = testBoard[y + 1][x]
-          testBoard[y + 1][x] = temp
-          if (findMatches(testBoard).size > 0) return true
-        }
-      }
-    }
-    return false
-  }, [findMatches])
-
-  const removeMatchesAndFill = useCallback((boardState: Board, matches: Set<string>, currentIdCounter: number): { newBoard: Board; newIdCounter: number; bonusPoints: number } => {
-    const newBoard = boardState.map(row => row.map(cell => ({ ...cell })))
-    let idCounter = currentIdCounter
-    let bonusPoints = 0
-    const expandedMatches = new Set(matches)
-
-    // Check for special blocks in matches
-    matches.forEach(key => {
-      const [xStr, yStr] = key.split(",")
-      const x = parseInt(xStr)
-      const y = parseInt(yStr)
-      const cell = newBoard[y]?.[x]
-      if (!cell) return
-
-      if (cell.special === "bomb") {
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const nx = x + dx
-            const ny = y + dy
-            if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
-              expandedMatches.add(`${nx},${ny}`)
-            }
-          }
-        }
-        bonusPoints += 50
-        setEventMessage("Bomb Blast!")
-        setShakeBoard(true)
-        setTimeout(() => setShakeBoard(false), 300)
-        setTimeout(() => setEventMessage(null), 1500)
-      } else if (cell.special === "multiplier") {
-        setActiveMultiplier(2)
-        setTimeout(() => setActiveMultiplier(1), 5000)
-        setEventMessage("2x Multiplier!")
-        setTimeout(() => setEventMessage(null), 1500)
-      } else if (cell.special === "lightning") {
-        for (let lx = 0; lx < BOARD_SIZE; lx++) {
-          expandedMatches.add(`${lx},${y}`)
-        }
-        bonusPoints += 80
-        setEventMessage("Lightning Strike!")
-        setShakeBoard(true)
-        setTimeout(() => setShakeBoard(false), 300)
-        setTimeout(() => setEventMessage(null), 1500)
-      } else if (cell.special === "star") {
-        const targetColor = cell.color
-        for (let sy = 0; sy < BOARD_SIZE; sy++) {
-          for (let sx = 0; sx < BOARD_SIZE; sx++) {
-            if (newBoard[sy]?.[sx]?.color === targetColor) {
-              expandedMatches.add(`${sx},${sy}`)
-            }
-          }
-        }
-        bonusPoints += 100
-        setEventMessage("Color Clear!")
-        setTimeout(() => setEventMessage(null), 1500)
-      }
-    })
-
-    // Remove matched cells
-    expandedMatches.forEach(key => {
-      const [xStr, yStr] = key.split(",")
-      const x = parseInt(xStr)
-      const y = parseInt(yStr)
-      if (newBoard[y]?.[x]) {
-        newBoard[y][x] = { color: null, id: -1, special: null }
-      }
-    })
-
-    // Drop cells down
-    for (let x = 0; x < BOARD_SIZE; x++) {
-      let writePos = BOARD_SIZE - 1
-      for (let y = BOARD_SIZE - 1; y >= 0; y--) {
-        if (newBoard[y]?.[x]?.color !== null) {
-          newBoard[writePos][x] = newBoard[y][x]
-          if (writePos !== y) {
-            newBoard[y][x] = { color: null, id: -1, special: null }
-          }
-          writePos--
-        }
-      }
-      // Fill empty cells at top
-      for (let y = writePos; y >= 0; y--) {
-        newBoard[y][x] = {
-          color: colors[Math.floor(Math.random() * colors.length)],
-          id: idCounter++,
-          special: getSpecialType()
-        }
-      }
-    }
-
-    return { newBoard, newIdCounter: idCounter, bonusPoints }
-  }, [colors])
-
-  const processMatches = useCallback(async (boardState: Board, comboCount: number, currentIdCounter: number) => {
-    const matches = findMatches(boardState)
-
-    if (matches.size === 0) {
-      setCombo(0)
+    if (biggest.length === 0) {
       setIsAnimating(false)
-
-      if (!hasValidMoves(boardState) || movesLeft <= 0) {
+      setCombo(0)
+      if (currentMovesLeft <= 0) {
         setGameOver(true)
-        onGameEnd(scoreRef.current, moves)
+        onGameEnd(scoreRef.current, currentMoves)
       }
       return
     }
 
-    setMatchedCells(matches)
-    setIsAnimating(true)
+    const baseKeys = new Set(biggest.map(p => `${p.x},${p.y}`))
+    const { expandedKeys, bonusPoints } = expandSpecials(
+      currentBoard, baseKeys, setEventMessage, setActiveMultiplier, setShakeBoard
+    )
 
-    // Calculate score
-    const difficultyBonus = 1 + (difficultyLevel - 1) * 0.15
-    const matchScore = matches.size * 10 * (1 + comboCount * 0.5) * activeMultiplier * scoreMultiplierFromDifficulty * difficultyBonus
-    const newScore = scoreRef.current + Math.floor(matchScore)
+    setBlastingCells(expandedKeys)
+    await new Promise(r => setTimeout(r, 300))
+
+    const diffBonus = 1 + (difficultyLevel - 1) * 0.15
+    const pts = Math.floor(
+      (biggest.length * 15 * (1 + comboCount * 0.6) + bonusPoints)
+      * activeMultRef.current * scoreMultiplierFromDiff * diffBonus
+    )
+    const newScore = scoreRef.current + pts
     setScore(newScore)
-    setCombo(comboCount + 1)
     onScoreUpdate(newScore)
 
-    // Show combo message
-    const comboMsg = COMBO_MESSAGES.filter(m => comboCount + 1 >= m.min).pop()
-    if (comboMsg && comboCount >= 1) {
-      setComboMessage(comboMsg)
-      setTimeout(() => setComboMessage(null), 1500)
+    const newCombo = comboCount + 1
+    setCombo(newCombo)
+    const msg = COMBO_MESSAGES.filter(m => newCombo >= m.min).pop()
+    if (msg && newCombo >= 2) {
+      setComboMessage(msg)
+      setTimeout(() => setComboMessage(null), 1200)
     }
 
-    // Wait for animation
-    await new Promise(resolve => setTimeout(resolve, 300))
+    const afterBlast: Board = currentBoard.map(row => [...row])
+    expandedKeys.forEach(key => {
+      const [x, y] = key.split(",").map(Number)
+      afterBlast[y][x] = null
+    })
 
-    // Remove matches and fill
-    const { newBoard, newIdCounter, bonusPoints } = removeMatchesAndFill(boardState, matches, currentIdCounter)
-
-    if (bonusPoints > 0) {
-      const bonusScore = newScore + bonusPoints * activeMultiplier
-      setScore(bonusScore)
-      onScoreUpdate(bonusScore)
-    }
-    setCellIdCounter(newIdCounter)
+    const { newBoard, newIdCounter } = dropAndFill(afterBlast, currentPalette, currentIdCtr)
+    setBlastingCells(new Set())
     setBoard(newBoard)
-    setMatchedCells(new Set())
+    setIdCounter(newIdCounter)
 
-    // Check for new matches
-    await new Promise(resolve => setTimeout(resolve, 200))
-    processMatches(newBoard, comboCount + 1, newIdCounter)
-  }, [findMatches, hasValidMoves, movesLeft, onGameEnd, onScoreUpdate, removeMatchesAndFill, activeMultiplier, difficultyLevel, scoreMultiplierFromDifficulty, moves])
+    await new Promise(r => setTimeout(r, 180))
+    cascade(newBoard, newIdCounter, newCombo, currentPalette, currentMoves, currentMovesLeft)
+  }, [difficultyLevel, scoreMultiplierFromDiff, onScoreUpdate, onGameEnd])
 
-  const handleCellInteraction = useCallback((x: number, y: number) => {
+  // ── cell click ────────────────────────────────────────────────────────────
+
+  const handleCellClick = useCallback((x: number, y: number) => {
     if (!isActive || isAnimatingRef.current || gameOver || movesLeft <= 0) return
+    if (!board[y]?.[x]) return
 
-    if (!selectedCell) {
-      setSelectedCell({ x, y })
+    const key = `${x},${y}`
+
+    if (selectedGroup.has(key)) {
+      // ── BLAST the selected group ──
+      const group = Array.from(selectedGroup).map(k => {
+        const [gx, gy] = k.split(",").map(Number)
+        return { x: gx, y: gy }
+      })
+
+      const baseKeys = new Set(selectedGroup)
+      const { expandedKeys, bonusPoints } = expandSpecials(
+        board, baseKeys, setEventMessage, setActiveMultiplier, setShakeBoard
+      )
+
+      setSelectedGroup(new Set())
+      setIsAnimating(true)
+      setBlastingCells(expandedKeys)
+
+      const newMoves = moves + 1
+      const newMovesLeft = movesLeft - 1
+      setMoves(newMoves)
+      setMovesLeft(newMovesLeft)
+
+      setTimeout(async () => {
+        const diffBonus = 1 + (difficultyLevel - 1) * 0.15
+        const pts = Math.floor(
+          (group.length * 10 + bonusPoints)
+          * activeMultRef.current * scoreMultiplierFromDiff * diffBonus
+        )
+        const newScore = scoreRef.current + pts
+        setScore(newScore)
+        onScoreUpdate(newScore)
+
+        const afterBlast: Board = board.map(row => [...row])
+        expandedKeys.forEach(k => {
+          const [ex, ey] = k.split(",").map(Number)
+          afterBlast[ey][ex] = null
+        })
+
+        await new Promise(r => setTimeout(r, 300))
+        setBlastingCells(new Set())
+
+        const { newBoard, newIdCounter } = dropAndFill(afterBlast, palette, idCounter)
+        setBoard(newBoard)
+        setIdCounter(newIdCounter)
+
+        await new Promise(r => setTimeout(r, 180))
+        cascade(newBoard, newIdCounter, 1, palette, newMoves, newMovesLeft)
+      }, 50)
+
       return
     }
 
-    // Check if adjacent
-    const dx = Math.abs(x - selectedCell.x)
-    const dy = Math.abs(y - selectedCell.y)
+    // ── HIGHLIGHT group (first tap) ──
+    // Rainbow blocks can join any adjacent group — treat them as wildcard
+    let group = floodFill(board, x, y)
 
-    if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
-      // Swap cells
-      const newBoard = board.map(row => row.map(cell => ({ ...cell })))
-      const temp = newBoard[y][x]
-      newBoard[y][x] = newBoard[selectedCell.y][selectedCell.x]
-      newBoard[selectedCell.y][selectedCell.x] = temp
+    // If this cell is rainbow, expand to include adjacent non-matching colors too
+    if (board[y][x]?.special === "rainbow" && group.length < 3) {
+      // Include all cells adjacent to rainbow cells
+      const rainbowAdj = new Set<string>()
+      group.forEach(({ x: rx, y: ry }) => {
+        ;[{ x: rx + 1, y: ry }, { x: rx - 1, y: ry }, { x: rx, y: ry + 1 }, { x: rx, y: ry - 1 }]
+          .filter(p => p.x >= 0 && p.x < BOARD_COLS && p.y >= 0 && p.y < BOARD_ROWS && board[p.y][p.x])
+          .forEach(p => rainbowAdj.add(`${p.x},${p.y}`))
+      })
+      rainbowAdj.forEach(k => {
+        const [ax, ay] = k.split(",").map(Number)
+        const ext = floodFill(board, ax, ay)
+        ext.forEach(p => { if (!group.some(g => g.x === p.x && g.y === p.y)) group.push(p) })
+      })
+    }
 
-      // Check if swap creates match
-      const matches = findMatches(newBoard)
-      if (matches.size > 0) {
-        setBoard(newBoard)
-        setMoves(m => m + 1)
-        setMovesLeft(m => m - 1)
-        setSelectedCell(null)
-
-        // Process matches
-        setTimeout(() => {
-          processMatches(newBoard, 0, cellIdCounter)
-        }, 100)
-      } else {
-        // Invalid swap
-        setSelectedCell(null)
-      }
+    if (group.length >= 3) {
+      setSelectedGroup(new Set(group.map(p => `${p.x},${p.y}`)))
     } else {
-      // Select new cell
-      setSelectedCell({ x, y })
+      setSelectedGroup(new Set())
     }
-  }, [isActive, gameOver, movesLeft, selectedCell, board, findMatches, processMatches, cellIdCounter])
+  }, [
+    isActive, gameOver, movesLeft, board, selectedGroup,
+    palette, idCounter, moves, difficultyLevel, scoreMultiplierFromDiff,
+    onScoreUpdate, cascade,
+  ])
 
-  // Touch handler
   const handleTouch = useCallback((e: React.TouchEvent, x: number, y: number) => {
-    e.preventDefault()
-    e.stopPropagation()
-    handleCellInteraction(x, y)
-  }, [handleCellInteraction])
+    e.preventDefault(); e.stopPropagation(); handleCellClick(x, y)
+  }, [handleCellClick])
 
-  // Click handler
-  const handleClick = useCallback((e: React.MouseEvent, x: number, y: number) => {
-    e.preventDefault()
-    handleCellInteraction(x, y)
-  }, [handleCellInteraction])
+  const handleMouse = useCallback((e: React.MouseEvent, x: number, y: number) => {
+    e.preventDefault(); handleCellClick(x, y)
+  }, [handleCellClick])
 
-  const resetGame = useCallback(() => {
-    initializeGame()
-  }, [initializeGame])
+  const resetGame = useCallback(() => { initializeGame() }, [initializeGame])
 
-  // Initial match check
-  useEffect(() => {
-    if (isActive && gameStarted && !gameOver && board.length > 0) {
-      const matches = findMatches(board)
-      if (matches.size > 0 && !isAnimating) {
-        processMatches(board, 0, cellIdCounter)
-      }
-    }
-  }, [gameStarted])
+  const BOARD_W = BOARD_COLS * CELL_SIZE
+  const BOARD_H = BOARD_ROWS * CELL_SIZE
 
-  const boardWidth = BOARD_SIZE * CELL_SIZE + 24
-  const boardHeight = BOARD_SIZE * CELL_SIZE + 24
+  // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
+
       {/* Game Board */}
       <div
-        ref={boardRef}
-        className={`relative bg-gray-900 rounded-lg p-3 border-2 border-gray-700 transition-transform flex-shrink-0 touch-none select-none ${shakeBoard ? "animate-pulse" : ""}`}
+        className={`relative bg-gray-900 rounded-lg p-1.5 border-2 border-gray-700 flex-shrink-0 touch-none select-none overflow-hidden ${shakeBoard ? "animate-pulse" : ""}`}
         style={{
-          width: boardWidth,
-          height: boardHeight,
+          width: BOARD_W + 12,
           maxWidth: "100%",
-          transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 2 : -2}px)` : "none",
-          overflow: "hidden"
+          transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 3 : -3}px)` : "none",
         }}
       >
-        <div
-          className="grid gap-1"
-          style={{
-            gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
-            gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
-            width: BOARD_SIZE * CELL_SIZE,
-            height: BOARD_SIZE * CELL_SIZE
-          }}
-        >
-          {board.flat().map((cell, i) => {
-            const x = i % BOARD_SIZE
-            const y = Math.floor(i / BOARD_SIZE)
-            const isSelected = selectedCell?.x === x && selectedCell?.y === y
-            const isMatched = matchedCells.has(`${x},${y}`)
+        <div className="relative" style={{ width: BOARD_W, height: BOARD_H }}>
+          {board.map((row, y) =>
+            row.map((cell, x) => {
+              if (!cell) return null
+              const key = `${x},${y}`
+              const isHighlighted = selectedGroup.has(key)
+              const isBlasting = blastingCells.has(key)
+              const isRainbow = cell.special === "rainbow"
 
-            return (
-              <button
-                key={`${cell.id}-${x}-${y}`}
-                onClick={(e) => handleClick(e, x, y)}
-                onTouchStart={(e) => handleTouch(e, x, y)}
-                disabled={!isActive || isAnimating || gameOver}
-                className={`
-                  rounded-lg transition-all duration-200 relative touch-none
-                  ${isSelected ? "ring-2 ring-white ring-offset-1 ring-offset-gray-900 scale-110 z-10" : ""}
-                  ${isMatched ? "scale-0 opacity-0" : "scale-100 opacity-100"}
-                  ${!isAnimating && !gameOver ? "hover:scale-105 hover:brightness-110 active:scale-95" : ""}
-                  ${cell.special === "bomb" ? "animate-pulse" : ""}
-                  ${cell.special === "rainbow" ? "animate-pulse bg-gradient-to-br from-red-500 via-yellow-500 to-blue-500" : ""}
-                  ${cell.special === "multiplier" ? "ring-2 ring-yellow-400" : ""}
-                  ${cell.special === "lightning" ? "ring-2 ring-blue-400 animate-pulse" : ""}
-                  ${cell.special === "star" ? "ring-2 ring-pink-400 animate-pulse" : ""}
-                  disabled:cursor-not-allowed
-                `}
-                style={{
-                  backgroundColor: cell.special === "rainbow" ? undefined : (cell.special === "bomb" ? "#374151" : cell.color || "#1a1a2e"),
-                  boxShadow: cell.color
-                    ? `inset 0 -3px 6px rgba(0,0,0,0.3), inset 0 3px 6px rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.3)`
-                    : "none",
-                  width: CELL_SIZE,
-                  height: CELL_SIZE,
-                  touchAction: "none",
-                  WebkitTapHighlightColor: "transparent"
-                }}
-              />
-            )
-          })}
+              return (
+                <button
+                  key={cell.id}
+                  onClick={e => handleMouse(e, x, y)}
+                  onTouchStart={e => handleTouch(e, x, y)}
+                  disabled={!isActive || isAnimating || gameOver}
+                  className={[
+                    "absolute rounded-md transition-all duration-150 touch-none disabled:cursor-not-allowed",
+                    isRainbow ? "animate-pulse" : "",
+                    cell.special === "bomb" ? "animate-pulse" : "",
+                    cell.special === "lightning" ? "ring-2 ring-blue-400 animate-pulse" : "",
+                    cell.special === "multiplier" ? "ring-2 ring-yellow-400" : "",
+                    cell.special === "star" ? "ring-2 ring-pink-400 animate-pulse" : "",
+                  ].join(" ")}
+                  style={{
+                    left: x * CELL_SIZE + 1,
+                    top: y * CELL_SIZE + 1,
+                    width: CELL_SIZE - 2,
+                    height: CELL_SIZE - 2,
+                    background: isRainbow
+                      ? "linear-gradient(135deg,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#a855f7)"
+                      : cell.special === "bomb" ? "#374151" : cell.color,
+                    boxShadow: isHighlighted
+                      ? `0 0 0 3px white, 0 0 14px ${cell.color}, inset 0 2px 4px rgba(255,255,255,0.5)`
+                      : `inset 0 -3px 6px rgba(0,0,0,0.3), inset 0 3px 6px rgba(255,255,255,0.25)`,
+                    transform: isBlasting
+                      ? "scale(0) rotate(15deg)"
+                      : isHighlighted ? "scale(1.1)" : "scale(1)",
+                    opacity: isBlasting ? 0 : 1,
+                    zIndex: isHighlighted ? 10 : 1,
+                    touchAction: "none",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  {/* Special block label */}
+                  {cell.special && cell.special !== "rainbow" && (
+                    <span className="absolute inset-0 flex items-center justify-center text-white font-black text-[9px] pointer-events-none select-none">
+                      {cell.special === "bomb" ? "💣" :
+                        cell.special === "multiplier" ? "2×" :
+                          cell.special === "lightning" ? "⚡" :
+                            cell.special === "star" ? "⭐" : ""}
+                    </span>
+                  )}
+                </button>
+              )
+            })
+          )}
         </div>
 
         {/* Event Message */}
         {eventMessage && !gameOver && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 rounded-lg shadow-lg animate-bounce z-20">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2 rounded-lg shadow-lg animate-bounce z-20 pointer-events-none">
             <p className="text-white font-bold text-sm whitespace-nowrap">{eventMessage}</p>
           </div>
         )}
 
         {/* Combo Message */}
         {comboMessage && !gameOver && (
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
-            <p className={`text-3xl font-black ${comboMessage.color} drop-shadow-lg animate-pulse`}>
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+            <p className={`text-3xl font-black drop-shadow-lg animate-bounce ${comboMessage.color}`}>
               {comboMessage.message}
             </p>
           </div>
         )}
 
-        {/* Multiplier Indicator */}
+        {/* Active Multiplier */}
         {activeMultiplier > 1 && !gameOver && (
           <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-amber-500 px-3 py-1 rounded-full shadow-lg z-20">
-            <p className="text-white font-bold text-sm">{activeMultiplier}x</p>
+            <p className="text-white font-bold text-sm">{activeMultiplier}×</p>
           </div>
         )}
 
@@ -525,7 +560,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center rounded-lg">
             <div className="text-center">
               <p className="text-white font-bold text-xl mb-2">Block Blast</p>
-              <p className="text-gray-300 text-sm">Loading...</p>
+              <p className="text-gray-300 text-sm">Loading…</p>
             </div>
           </div>
         )}
@@ -534,10 +569,12 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-amber-500"}`}>{hasWon ? "🎉 YOU WIN!" : "GAME OVER"}</p>
+              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-amber-500"}`}>
+                {hasWon ? "🎉 YOU WIN!" : "GAME OVER"}
+              </p>
               {hasWon && <p className="text-yellow-400 text-sm mb-1">+3 satoshis earned!</p>}
-              <p className="text-white mb-4">Final Score: {score.toLocaleString()}</p>
-              <Button onClick={resetGame} variant="outline">
+              <p className="text-white mb-4">Score: {score.toLocaleString()}</p>
+              <Button onClick={resetGame} variant="outline" size="sm">
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Play Again
               </Button>
@@ -548,7 +585,6 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
       {/* Side Panel */}
       <div className="flex flex-col gap-3 min-w-[160px]">
-        {/* Stats */}
         <Card className="p-4 bg-gray-900 border-gray-700">
           <div className="space-y-3">
             <div>
@@ -568,37 +604,47 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
             <div className="flex gap-4">
               <div>
                 <p className="text-gray-400 text-xs">Moves Left</p>
-                <p className={`font-bold text-lg ${movesLeft <= 5 ? "text-red-400" : "text-green-400"}`}>
-                  {movesLeft}
-                </p>
+                <p className={`font-bold text-lg ${movesLeft <= 5 ? "text-red-400" : "text-green-400"}`}>{movesLeft}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-xs">Moves Made</p>
+                <p className="text-gray-400 text-xs">Blasted</p>
                 <p className="font-bold text-lg text-blue-400">{moves}</p>
               </div>
             </div>
             {combo > 1 && (
               <div className="flex items-center gap-2 text-amber-400">
                 <Sparkles className="h-4 w-4" />
-                <span className="font-bold">{combo}x Combo!</span>
+                <span className="font-bold">{combo}× Cascade!</span>
               </div>
             )}
           </div>
         </Card>
 
-        {/* How to Play */}
         <Card className="p-3 bg-gray-900 border-gray-700">
           <p className="text-gray-400 text-xs mb-2 font-medium">How to Play</p>
           <ul className="text-xs text-gray-500 space-y-1">
-            <li>Tap a block to select it</li>
-            <li>Tap an adjacent block to swap</li>
-            <li>Match 3+ same colors</li>
-            <li>Build combos for bonus points</li>
+            <li>Tap a block to select its group</li>
+            <li>Groups of 3+ glow white</li>
+            <li>Tap again to blast them!</li>
+            <li>Cascades score bonus points</li>
             <li>Reach {winThreshold} to win!</li>
           </ul>
         </Card>
 
-        {/* Difficulty */}
+        <Card className="p-3 bg-gray-900 border-gray-700">
+          <p className="text-gray-400 text-xs mb-2 font-medium">Special Blocks</p>
+          <div className="space-y-1 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5"><span>💣</span><span>Bomb — clears 3×3 area</span></div>
+            <div className="flex items-center gap-1.5"><span>⚡</span><span>Lightning — clears whole row</span></div>
+            <div className="flex items-center gap-1.5"><span>⭐</span><span>Star — clears all of one color</span></div>
+            <div className="flex items-center gap-1.5"><span>2×</span><span>Multiplier — 2× points 5 s</span></div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ background: "linear-gradient(135deg,#ef4444,#22c55e,#3b82f6)" }} />
+              <span>Rainbow — matches any color</span>
+            </div>
+          </div>
+        </Card>
+
         {difficultyLevel > 1 && (
           <Card className="p-3 bg-gray-900 border-gray-700">
             <p className="text-gray-400 text-xs mb-2">Difficulty Level</p>
@@ -608,8 +654,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                   key={i}
                   className={`w-2 h-3 rounded-sm ${i < difficultyLevel
                     ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
-                    : "bg-gray-700"
-                    }`}
+                    : "bg-gray-700"}`}
                 />
               ))}
             </div>

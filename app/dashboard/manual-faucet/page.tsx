@@ -28,6 +28,7 @@ import { createClient, isSupabaseConfigured, clearOrphanedAuthLock } from "@/lib
 import { toast } from "sonner"
 import Link from "next/link"
 import useSWR from "swr"
+import { useAdblock } from "@/components/adblock/adblock-provider"
 import { CryptoIcon } from "@/components/crypto-icon"
 import confetti from "canvas-confetti"
 import { AntiBotVerification } from "@/components/captcha/anti-bot-verification"
@@ -496,7 +497,10 @@ function DirectFaucetContent() {
 
   // Security states
   const [vpnDetected, setVpnDetected] = useState(false)
-  const [adblockDetected, setAdblockDetected] = useState(false)
+  // Use the enterprise-grade adblock detection system already running in AdblockProvider
+  // (wired into the dashboard layout). This replaces the custom per-page detection
+  // which had false positives from self-triggered CSS checks.
+  const { isFlagged: adblockDetected } = useAdblock()
 
   // Claim states
   const [isClaiming, setIsClaiming] = useState(false)
@@ -1028,61 +1032,7 @@ function DirectFaucetContent() {
       })()
     )
 
-    // Adblock check — multi-signal to avoid false positives from extension-based blockers
-    // Extension blockers block network requests but DON'T hide DOM elements the same way
-    // We require 3+ independent signals before flagging to eliminate false positives
-    tasks.push(
-      (async () => {
-        try {
-          if (typeof document === "undefined") return { type: "adblock", detected: false }
-          let signals = 0
-
-          // Signal 1: bait div hidden by CSS injection (network/DNS blockers)
-          try {
-            const bait = document.createElement("div")
-            bait.id = "Dv3GxMPe9W" // random ID — avoids element-hide rules
-            bait.className = "pub_300x250 pub_300x250m pub_728x90 adsbox"
-            bait.style.cssText = "position:absolute;left:-99999px;width:1px;height:1px;opacity:0;"
-            document.body.appendChild(bait)
-            await new Promise(r => setTimeout(r, 100))
-            const s = getComputedStyle(bait)
-            if (bait.offsetHeight === 0 || s.display === "none" || s.visibility === "hidden" || s.opacity === "0") {
-              signals++
-            }
-            document.body.removeChild(bait)
-          } catch { /* ignore */ }
-
-          // Signal 2: second bait with different classes
-          try {
-            const bait2 = document.createElement("ins")
-            bait2.className = "adsbygoogle"
-            bait2.style.cssText = "position:absolute;left:-99999px;width:1px;height:1px;"
-            document.body.appendChild(bait2)
-            await new Promise(r => setTimeout(r, 80))
-            if (bait2.offsetHeight === 0 || getComputedStyle(bait2).display === "none") signals++
-            document.body.removeChild(bait2)
-          } catch { /* ignore */ }
-
-          // Signal 3: blocked ad script URL probe (network blockers only)
-          try {
-            const testImg = new Image()
-            let blocked = false
-            await new Promise<void>(resolve => {
-              testImg.onload = () => resolve()
-              testImg.onerror = () => { blocked = true; resolve() }
-              setTimeout(() => { blocked = true; resolve() }, 800)
-              testImg.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?cx=" + Date.now()
-            })
-            if (blocked) signals++
-          } catch { /* ignore */ }
-
-          // Require 2+ signals to flag — eliminates extension false positives
-          return { type: "adblock", detected: signals >= 2 }
-        } catch {
-          return { type: "adblock", detected: false }
-        }
-      })()
-    )
+    // Adblock detection is handled by the enterprise AdblockProvider in the dashboard layout.
 
     // Wait for all tasks with a global timeout
     const { value: results, timedOut: globalTimeout } = await withStrictTimeout(
@@ -1104,7 +1054,7 @@ function DirectFaucetContent() {
     let claimsData = cachedClaimsData ?? []
     let shortlinkData: any[] = []
     let vpnAllowed = true
-    let adblockIsDetected = false
+
 
     for (const result of results) {
       if (result.status === "fulfilled") {
@@ -1139,9 +1089,7 @@ function DirectFaucetContent() {
           case "shortlink":
             shortlinkData = value.data ?? []
             break
-          case "adblock":
-            adblockIsDetected = value.detected ?? false
-            break
+
         }
       }
     }
@@ -1155,7 +1103,7 @@ function DirectFaucetContent() {
       setPtcAdsCompleted(ptcCount)
       setIsLocked(ptcCount < 2)
       setVpnDetected(!vpnAllowed)
-      setAdblockDetected(adblockIsDetected)
+
 
       // Process claims
       const counts: Record<string, number> = {}
@@ -1220,6 +1168,27 @@ function DirectFaucetContent() {
       mountedRef.current = false
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for PTC completion broadcast from the PTC page.
+  // When the user completes a PTC ad in another tab/same tab, this fires
+  // and immediately re-checks PTC status so the faucet unlocks automatically.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return
+    let bc: BroadcastChannel
+    try {
+      bc = new BroadcastChannel("ptc_completed")
+      bc.onmessage = () => {
+        // Clear PTC cache so next check re-fetches
+        try {
+          sessionStorage.removeItem("mf_ptc_count_v1")
+          sessionStorage.removeItem("mf_cache_time_v1")
+        } catch { }
+        // Re-fetch PTC status immediately
+        handleRefreshPtcStatus()
+      }
+    } catch { /* ignore */ }
+    return () => { try { bc?.close() } catch { } }
+  }, [handleRefreshPtcStatus])
 
   // Cooldown timer
   useEffect(() => {

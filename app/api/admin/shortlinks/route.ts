@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { shortenUrl, isShortlinkConfigured } from "@/lib/shortlinks/provider"
@@ -6,7 +8,7 @@ async function getAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
   if (!profile || !["admin", "superadmin"].includes(profile.role)) return null
   return user
 }

@@ -241,6 +241,7 @@ export type TranslationKey =
   | "dashboard.nav.offerwalls"
   | "dashboard.nav.ptcAds"
   | "dashboard.nav.achievements"
+  | "dashboard.nav.tournaments"
   | "dashboard.nav.swap"
   | "dashboard.nav.advertise"
   | "dashboard.nav.support"
@@ -675,6 +676,7 @@ const en: Record<TranslationKey, string> = {
   "dashboard.nav.offerwalls": "Offerwalls",
   "dashboard.nav.ptcAds": "PTC Ads",
   "dashboard.nav.achievements": "Achievements",
+  "dashboard.nav.tournaments": "Tournaments",
   "dashboard.nav.swap": "Crypto Swap",
   "dashboard.nav.advertise": "Advertise",
   "dashboard.nav.support": "Support",
@@ -1066,6 +1068,7 @@ const es: Record<TranslationKey, string> = {
   "dashboard.nav.offerwalls": "Offerwalls",
   "dashboard.nav.ptcAds": "Anuncios PTC",
   "dashboard.nav.achievements": "Logros",
+  "dashboard.nav.tournaments": "Torneos",
   "dashboard.nav.support": "Soporte",
   "dashboard.nav.settings": "Configuración",
   "dashboard.nav.helpCenter": "Centro de ayuda",
@@ -1454,6 +1457,7 @@ const ru: Record<TranslationKey, string> = {
   "dashboard.nav.offerwalls": "Offerwalls",
   "dashboard.nav.ptcAds": "PTC-реклама",
   "dashboard.nav.achievements": "Достижения",
+  "dashboard.nav.tournaments": "Турниры",
   "dashboard.nav.support": "Поддержка",
   "dashboard.nav.settings": "Настройки",
   "dashboard.nav.helpCenter": "Справочный центр",
@@ -1832,6 +1836,7 @@ const zh: Record<TranslationKey, string> = {
   "dashboard.nav.offerwalls": "Offerwalls",
   "dashboard.nav.ptcAds": "PTC广告",
   "dashboard.nav.achievements": "成就",
+  "dashboard.nav.tournaments": "锦标赛",
   "dashboard.nav.support": "支持",
   "dashboard.nav.settings": "设置",
   "dashboard.nav.helpCenter": "帮助中心",
@@ -2218,6 +2223,7 @@ const ja: Record<TranslationKey, string> = {
   "dashboard.nav.offerwalls": "Offerwalls",
   "dashboard.nav.ptcAds": "PTC広告",
   "dashboard.nav.achievements": "実績",
+  "dashboard.nav.tournaments": "トーナメント",
   "dashboard.nav.support": "サポート",
   "dashboard.nav.settings": "設定",
   "dashboard.nav.helpCenter": "ヘルプセンター",
@@ -2598,6 +2604,7 @@ const ko: Record<TranslationKey, string> = {
   "dashboard.nav.offerwalls": "Offerwalls",
   "dashboard.nav.ptcAds": "PTC 광고",
   "dashboard.nav.achievements": "업적",
+  "dashboard.nav.tournaments": "토너먼트",
   "dashboard.nav.support": "지원",
   "dashboard.nav.settings": "설정",
   "dashboard.nav.helpCenter": "고객센터",

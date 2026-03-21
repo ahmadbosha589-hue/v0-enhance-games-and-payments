@@ -44,6 +44,7 @@ import {
   ArrowDownUp,
   Megaphone,
   HandCoins,
+  Crown,
 } from "lucide-react"
 import { formatSatoshisDisplay } from "@/lib/utils/format"
 import { cn } from "@/lib/utils"
@@ -79,8 +80,9 @@ export function DashboardSidebar({ profile: initialProfile }: DashboardSidebarPr
 
   const earnNavItems = [
     { icon: Sparkles, labelKey: "dashboard.nav.allEarnOptions", href: "/dashboard/earn", badge: "badge.new" },
-    { icon: HandCoins, labelKey: "dashboard.nav.manualFaucet", href: "/dashboard/manual-faucet", badge: "badge.hot" },
+    { icon: HandCoins, labelKey: "dashboard.nav.directFaucet", href: "/dashboard/manual-faucet", badge: "badge.hot" },
     { icon: Gamepad2, labelKey: "dashboard.nav.games", href: "/dashboard/games", badge: "badge.hot" },
+    { icon: Crown, labelKey: "dashboard.nav.tournaments", href: "/dashboard/tournaments", badge: "badge.new" },
     { icon: Ticket, labelKey: "dashboard.nav.coupons", href: "/dashboard/coupons", badge: "badge.new" },
     { icon: Link2, labelKey: "dashboard.nav.shortlinks", href: "/dashboard/shortlinks", badge: null },
     { icon: Gift, labelKey: "dashboard.nav.offerwalls", href: "/dashboard/offerwalls", badge: null },
