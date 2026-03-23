@@ -144,30 +144,58 @@ export async function clearOrphanedAuthLock(): Promise<void> {
  * and the queued getUser() unblocks. The timer is cancelled immediately if
  * getUser() resolves normally (healthy case has zero overhead).
  */
+/**
+ * getAuthUser — server-first auth with client fallback.
+ *
+ * Strategy (in order):
+ *  1. Hit /api/auth/me — runs on the server, reads the httpOnly session cookie
+ *     directly via @supabase/ssr. Always reliable, no Web Lock dependency.
+ *  2. If the API call fails, fall back to the browser client with orphaned-lock
+ *     mitigation and a hard 4-second timeout.
+ *  3. Last resort: getSession() reads from localStorage — no network, no locks.
+ */
 export async function getAuthUser() {
+  // ── STEP 1: Server-side auth (most reliable) ──────────────────────────────
+  try {
+    const res = await fetch("/api/auth/me", {
+      credentials: "include",
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.user) return data.user
+    }
+  } catch {
+    // Network error or timeout — fall through to client-side
+  }
+
+  // ── STEP 2: Client-side getUser() with lock mitigation ───────────────────
   const supabase = getClient()
   if (!supabase) return null
 
-  // Pre-check: steal any orphan that is already detectable (pendingCount >= 1
-  // from a previous caller still in flight).
-  await clearOrphanedAuthLock()
-
-  // Start the request — our lock acquisition is now in the pending queue.
-  const getUserPromise = supabase.auth.getUser()
-
-  // Schedule a post-queue check. After 500 ms our request will be visible as
-  // a pending entry (pendingCount = 1), so clearOrphanedAuthLock will now
-  // detect an orphaned held lock and steal it, unblocking our request.
-  const retryTimer = setTimeout(clearOrphanedAuthLock, 500)
-
   try {
-    const { data: { user } } = await getUserPromise
+    await clearOrphanedAuthLock()
+    const getUserPromise = supabase.auth.getUser()
+    const retryTimer = setTimeout(clearOrphanedAuthLock, 500)
+    const result = await Promise.race([
+      getUserPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("getUser timeout")), 4000)
+      ),
+    ])
     clearTimeout(retryTimer)
-    return user ?? null
+    const user = (result as any)?.data?.user ?? null
+    if (user) return user
   } catch {
-    // If getUser() throws (e.g. after the lock steal aborts the request),
-    // swallow the error and return null — the caller will handle it.
-    clearTimeout(retryTimer)
+    // Timed out or lock error — fall through to session fallback
+  }
+
+  // ── STEP 3: Last resort — read session from localStorage (no network) ─────
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.user ?? null
+  } catch {
     return null
   }
 }

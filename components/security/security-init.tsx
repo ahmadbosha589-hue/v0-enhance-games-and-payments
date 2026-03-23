@@ -12,30 +12,32 @@ export function SecurityInit() {
   useEffect(() => {
     // Initialize console protection
     initConsoleProtection()
-    
+
     // Additional security measures
-    
+
     // 1. Disable text selection on sensitive elements
+    // NOTE: e.target can be the document node itself (not an Element) when
+    // selectstart fires — guard before calling .closest() to prevent crash
     const disableSelection = (e: Event) => {
-      const target = e.target as HTMLElement
-      if (target.closest("[data-protected]")) {
+      const target = e.target
+      if (target instanceof Element && target.closest("[data-protected]")) {
         e.preventDefault()
       }
     }
-    
+
     // 2. Monitor for DOM tampering
     let lastDOMCheck = 0
     const checkDOMIntegrity = () => {
       const now = Date.now()
       if (now - lastDOMCheck < 5000) return // Throttle checks
       lastDOMCheck = now
-      
+
       // Check for injected scripts
       const scripts = document.querySelectorAll("script")
       scripts.forEach(script => {
         const src = script.src || ""
         const content = script.textContent || ""
-        
+
         // Check for suspicious script sources or content
         const suspiciousPatterns = [
           /tampermonkey/i,
@@ -47,18 +49,18 @@ export function SecurityInit() {
           /document\.cookie\s*=/,
           /localStorage\.setItem\s*\(/,
         ]
-        
+
         const isSuspicious = suspiciousPatterns.some(
           pattern => pattern.test(src) || pattern.test(content)
         )
-        
+
         if (isSuspicious) {
           console.warn("[Security] Suspicious script detected")
           // Could report to server here
         }
       })
     }
-    
+
     // 3. Monitor for iframe injection attempts
     const checkForIframes = () => {
       const iframes = document.querySelectorAll("iframe")
@@ -72,27 +74,27 @@ export function SecurityInit() {
             "youtube.com",
             "player.vimeo.com",
           ]
-          
+
           const isAllowed = allowedSources.some(source => src.includes(source))
-          
+
           if (!isAllowed && src) {
             console.warn("[Security] Unauthorized iframe detected:", src)
           }
         }
       })
     }
-    
+
     // 4. Monitor for MutationObserver abuse (userscripts often use this)
     const originalMutationObserver = window.MutationObserver
     let observerCount = 0
     const MAX_OBSERVERS = 50
-    
+
     try {
       ; (window as any).MutationObserver = class extends originalMutationObserver {
         constructor(callback: MutationCallback) {
           super(callback)
           observerCount++
-          
+
           if (observerCount > MAX_OBSERVERS) {
             console.warn("[Security] Excessive MutationObservers detected")
           }
@@ -101,13 +103,13 @@ export function SecurityInit() {
     } catch {
       // Can't override, that's okay
     }
-    
+
     // 5. Detect window property additions (userscripts add properties)
     const knownWindowProps = new Set(Object.keys(window))
     const checkNewWindowProps = () => {
       const currentProps = Object.keys(window)
       const newProps = currentProps.filter(prop => !knownWindowProps.has(prop))
-      
+
       // Check for suspicious new properties
       const suspiciousProps = newProps.filter(prop => {
         const lowerProp = prop.toLowerCase()
@@ -120,28 +122,28 @@ export function SecurityInit() {
           lowerProp.startsWith("__")
         )
       })
-      
+
       if (suspiciousProps.length > 0) {
         console.warn("[Security] Suspicious window properties detected:", suspiciousProps)
       }
     }
-    
+
     // Run checks
     document.addEventListener("selectstart", disableSelection)
-    
+
     // Periodic integrity checks
     const integrityInterval = setInterval(() => {
       checkDOMIntegrity()
       checkForIframes()
       checkNewWindowProps()
     }, 10000)
-    
+
     // Cleanup
     return () => {
       document.removeEventListener("selectstart", disableSelection)
       clearInterval(integrityInterval)
     }
   }, [])
-  
+
   return null
 }
