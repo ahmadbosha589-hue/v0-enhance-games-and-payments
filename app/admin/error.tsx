@@ -32,7 +32,7 @@ export default function AdminError({
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-2">
             <Button onClick={() => reset()} className="flex-1">
-              <RefreshCw className={`h-4 w-4 mr-2 transition-transform ${isLoading ? "animate-spin" : ""}`} />
+              <RefreshCw className="h-4 w-4 mr-2" />
               Try Again
             </Button>
             <Button variant="outline" asChild className="flex-1 bg-transparent">

@@ -697,7 +697,7 @@ export function CryptoSwap() {
               {/* Refresh Quote */}
               {quote && quoteExpiry <= 0 && (
                 <Button variant="outline" className="w-full" onClick={fetchQuote}>
-                  <RefreshCw className={`h-4 w-4 mr-2 transition-transform ${isLoading ? "animate-spin" : ""}`} />
+                  <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh Quote
                 </Button>
               )}
