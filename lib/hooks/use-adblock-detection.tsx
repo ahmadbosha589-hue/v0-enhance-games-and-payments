@@ -269,7 +269,7 @@ import { runAllInvisibleProbes, type InvisibleProbeResult } from "../adblock/inv
 const CONFIG = {
   // ===== TIMING CONFIGURATION (optimized for speed + accuracy) =====
   /** Initial delay before first detection (ms) - allows page to fully load */
-  INITIAL_DELAY_MS: 1200, // Faster initial check (v6.0)
+  INITIAL_DELAY_MS: 5000, // Faster initial check (v6.0)
   /** Interval between detection cycles (ms) */
   CHECK_INTERVAL_MS: 4000, // More frequent checks (v6.0)
   /** Time to wait for bait elements to be hidden (ms) */
