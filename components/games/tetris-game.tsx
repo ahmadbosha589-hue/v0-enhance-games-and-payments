@@ -99,12 +99,15 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
   const scoreRef = useRef(score)
   const gameOverRef = useRef(gameOver)
   const isPausedRef = useRef(isPaused)
+  const movesRef = useRef(moves)
+  const hasEndedRef = useRef(false)
 
   useEffect(() => {
     scoreRef.current = score
     gameOverRef.current = gameOver
     isPausedRef.current = isPaused
-  }, [score, gameOver, isPaused])
+    movesRef.current = moves
+  }, [score, gameOver, isPaused, moves])
 
   function createEmptyBoard(): Board {
     return Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(null))
@@ -288,15 +291,18 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
     }
 
     if (checkCollision(newSpawnedPiece, newBoard)) {
-      setGameOver(true)
-      onGameEnd(newScore, moves + 1)
+      if (!hasEndedRef.current) {
+        hasEndedRef.current = true
+        setGameOver(true)
+        setTimeout(() => onGameEnd(newScore, movesRef.current + 1), 0)
+      }
     } else {
       setCurrentPiece(newSpawnedPiece)
       setNextPieces(prev => prev.slice(1))
       setCanHold(true)
       fillNextPieces()
     }
-  }, [currentPiece, board, checkCollision, mergePiece, clearLines, level, lines, moves, nextPieces, getRandomPiece, onScoreUpdate, onGameEnd, tetrominos, fillNextPieces, combo, scoreMultiplierFromDifficulty])
+  }, [currentPiece, board, checkCollision, mergePiece, clearLines, level, lines, nextPieces, getRandomPiece, onScoreUpdate, onGameEnd, tetrominos, fillNextPieces, combo, scoreMultiplierFromDifficulty])
 
   const holdCurrentPiece = useCallback(() => {
     if (!currentPiece || !canHold || isPausedRef.current || gameOverRef.current) return
@@ -392,8 +398,11 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
         }
 
         if (checkCollision(newSpawnedPiece, newBoard)) {
-          setGameOver(true)
-          onGameEnd(newScore, moves)
+          if (!hasEndedRef.current) {
+            hasEndedRef.current = true
+            setGameOver(true)
+            setTimeout(() => onGameEnd(newScore, movesRef.current), 0)
+          }
         } else {
           setCurrentPiece(newSpawnedPiece)
           setNextPieces(prev => prev.slice(1))
@@ -628,6 +637,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
     setCombo(0)
     setGameStarted(false)
     setTetrominos(createTetrominos(getColorScheme()))
+    hasEndedRef.current = false
   }
 
   const boardWidth = BOARD_WIDTH * CELL_SIZE + 16

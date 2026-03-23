@@ -53,8 +53,29 @@ export default function CouponsPage() {
 
   async function loadRedemptions() {
     try {
-      const user = await getAuthUser()
-      if (!user) return
+      if (!supabase) {
+        setIsLoading(false)
+        return
+      }
+
+      // Add a timeout to prevent infinite hanging
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error("Auth timeout")), 8000)
+      )
+
+      let user
+      try {
+        user = await Promise.race([getAuthUser(), timeoutPromise])
+      } catch {
+        console.error("Auth check timed out or failed")
+        setIsLoading(false)
+        return
+      }
+
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
 
       const { data, error } = await supabase
         .from("coupon_redemptions")

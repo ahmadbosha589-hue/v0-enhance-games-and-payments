@@ -93,7 +93,12 @@ export async function generateDeviceFingerprint(): Promise<string> {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     const audioContext = new AudioCtx()
     components.push(String(audioContext.sampleRate))
-    audioContext.close()
+    // Only close if not already closed to avoid "Cannot close a closed AudioContext" error
+    if (audioContext.state !== "closed") {
+      audioContext.close().catch(() => {
+        // Ignore errors when closing - context may have been garbage collected
+      })
+    }
   } catch {
     components.push("no-audio")
   }

@@ -82,11 +82,16 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   const boardRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef(score)
   const isAnimatingRef = useRef(isAnimating)
+  const movesRef = useRef(moves)
+  const movesLeftRef = useRef(movesLeft)
+  const hasEndedRef = useRef(false)
 
   useEffect(() => {
     scoreRef.current = score
     isAnimatingRef.current = isAnimating
-  }, [score, isAnimating])
+    movesRef.current = moves
+    movesLeftRef.current = movesLeft
+  }, [score, isAnimating, moves, movesLeft])
 
   // Initialize game
   const initializeGame = useCallback(() => {
@@ -113,6 +118,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     setActiveMultiplier(1)
     setGameStarted(true)
     setIsAnimating(false)
+    hasEndedRef.current = false
   }, [maxMoves])
 
   // Start game when active
@@ -124,10 +130,11 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
   // Auto-win detection
   useEffect(() => {
-    if (score >= winThreshold && !hasWon && !gameOver && isActive && gameStarted) {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive && gameStarted && !hasEndedRef.current) {
+      hasEndedRef.current = true
       setHasWon(true)
       setGameOver(true)
-      onGameEnd(score, moves)
+      setTimeout(() => onGameEnd(score, moves), 0)
     }
   }, [score, winThreshold, hasWon, gameOver, isActive, gameStarted, moves, onGameEnd])
 
@@ -319,9 +326,10 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       setCombo(0)
       setIsAnimating(false)
 
-      if (!hasValidMoves(boardState) || movesLeft <= 0) {
+      if ((!hasValidMoves(boardState) || movesLeftRef.current <= 0) && !hasEndedRef.current) {
+        hasEndedRef.current = true
         setGameOver(true)
-        onGameEnd(scoreRef.current, moves)
+        setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
       }
       return
     }
@@ -362,7 +370,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     // Check for new matches
     await new Promise(resolve => setTimeout(resolve, 200))
     processMatches(newBoard, comboCount + 1, newIdCounter)
-  }, [findMatches, hasValidMoves, movesLeft, onGameEnd, onScoreUpdate, removeMatchesAndFill, activeMultiplier, difficultyLevel, scoreMultiplierFromDifficulty, moves])
+  }, [findMatches, hasValidMoves, onGameEnd, onScoreUpdate, removeMatchesAndFill, activeMultiplier, difficultyLevel, scoreMultiplierFromDifficulty])
 
   const handleCellInteraction = useCallback((x: number, y: number) => {
     if (!isActive || isAnimatingRef.current || gameOver || movesLeft <= 0) return
@@ -422,15 +430,20 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     initializeGame()
   }, [initializeGame])
 
-  // Initial match check
+  // Initial match check - run once when game starts
   useEffect(() => {
-    if (isActive && gameStarted && !gameOver && board.length > 0) {
+    if (isActive && gameStarted && !gameOver && board.length > 0 && !isAnimating) {
       const matches = findMatches(board)
-      if (matches.size > 0 && !isAnimating) {
-        processMatches(board, 0, cellIdCounter)
+      if (matches.size > 0) {
+        // Small delay to let state settle
+        const timer = setTimeout(() => {
+          processMatches(board, 0, cellIdCounter)
+        }, 100)
+        return () => clearTimeout(timer)
       }
     }
-  }, [gameStarted])
+    // Only run when gameStarted changes to true, not on every board change
+  }, [gameStarted, isActive])
 
   const boardWidth = BOARD_SIZE * CELL_SIZE + 24
   const boardHeight = BOARD_SIZE * CELL_SIZE + 24

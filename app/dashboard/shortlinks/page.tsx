@@ -64,17 +64,40 @@ export default function ShortlinksPage() {
   const loadData = useCallback(async () => {
     try {
       // Guard: supabase client may be null when env vars are not configured
-      if (!supabase) return
+      if (!supabase) {
+        setIsLoading(false)
+        return
+      }
 
-      const user = await getAuthUser()
-      if (!user) return
+      // Add a timeout to prevent infinite hanging
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error("Auth timeout")), 8000)
+      )
 
-      // Load shortlinks
-      const { data: linksData } = await supabase
+      let user
+      try {
+        user = await Promise.race([getAuthUser(), timeoutPromise])
+      } catch {
+        console.error("Auth check timed out or failed")
+        setIsLoading(false)
+        return
+      }
+
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
+
+      // Load shortlinks with timeout
+      const { data: linksData, error: linksError } = await supabase
         .from("shortlinks")
         .select("*")
         .eq("is_active", true)
         .order("reward_satoshis", { ascending: false })
+
+      if (linksError) {
+        console.error("Error loading shortlinks:", linksError)
+      }
 
       if (linksData) {
         setShortlinks(linksData)
@@ -84,11 +107,15 @@ export default function ShortlinksPage() {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
 
-      const { data: visitsData } = await supabase
+      const { data: visitsData, error: visitsError } = await supabase
         .from("shortlink_views")
         .select("shortlink_id, reward_satoshis")
         .eq("user_id", user.id)
         .gte("viewed_at", today.toISOString())
+
+      if (visitsError) {
+        console.error("Error loading visits:", visitsError)
+      }
 
       if (visitsData) {
         const visited = new Set(visitsData.map(v => v.shortlink_id))
@@ -101,7 +128,7 @@ export default function ShortlinksPage() {
       }
 
       // Load recent visits
-      const { data: recentData } = await supabase
+      const { data: recentData, error: recentError } = await supabase
         .from("shortlink_views")
         .select(`
           id,
@@ -113,6 +140,10 @@ export default function ShortlinksPage() {
         .eq("user_id", user.id)
         .order("viewed_at", { ascending: false })
         .limit(5)
+
+      if (recentError) {
+        console.error("Error loading recent visits:", recentError)
+      }
 
       if (recentData) {
         setRecentVisits(recentData as unknown as ShortlinkVisit[])

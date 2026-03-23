@@ -9,8 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target, Gamepad2, Ticket, Link2, HandCoins } from "lucide-react"
 
 export const metadata = {
-  title: "Earn | CryptoFaucet",
-  description: "Multiple ways to earn free satoshis - Faucet, Offerwalls, PTC Ads, and Achievements",
+  title: "All Earning Options | CryptoFaucet",
+  description: "8+ ways to earn free Bitcoin and crypto - Faucet claims, Direct Crypto Faucet to FaucetPay, Games, Shortlinks, Offerwalls, PTC Ads, Coupons, and Achievements",
 }
 
 function EarnPageSkeleton() {
@@ -142,15 +142,15 @@ export default async function EarnPage() {
       badgeColor: "bg-blue-500",
     },
     {
-      title: "Manual Crypto Faucet",
-      description: "Claim 13 different cryptocurrencies every 7 seconds - sent to FaucetPay!",
+      title: "Direct Crypto Faucet",
+      description: "Claim from 13 different cryptocurrencies every 60 seconds - instant payouts to FaucetPay wallet!",
       icon: HandCoins,
       color: "text-orange-500",
       bgColor: "bg-gradient-to-br from-orange-500/20 to-amber-500/10",
       borderColor: "border-orange-500/30",
       href: "/dashboard/manual-faucet",
-      reward: "$0.0001/claim",
-      badge: "Multi-Crypto",
+      reward: "$0.0009/claim",
+      badge: "13 Cryptos",
       badgeColor: "bg-orange-500",
     },
     {
@@ -248,9 +248,9 @@ export default async function EarnPage() {
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-6">
       {/* Header */}
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Earn Satoshis</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">All Earning Options</h1>
         <p className="text-sm sm:text-base text-muted-foreground">
-          Multiple ways to earn free Bitcoin - choose your favorite method!
+          8+ ways to earn free Bitcoin and crypto - from instant faucet claims to high-paying offerwalls!
         </p>
       </div>
 
@@ -345,19 +345,27 @@ export default async function EarnPage() {
           <ul className="grid gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground grid-cols-1 sm:grid-cols-2">
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">1.</span>
-              <span>Claim from the faucet every 5 minutes to build your streak bonus</span>
+              <span>Claim from the main faucet every 5 minutes to build your streak bonus</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">2.</span>
-              <span>Complete high-paying offerwall tasks during your wait time</span>
+              <span>Use the Direct Crypto Faucet for instant FaucetPay payouts in 13 different cryptos</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">3.</span>
-              <span>Watch PTC ads for quick, easy satoshis</span>
+              <span>Complete high-paying offerwall tasks during your wait time</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">4.</span>
-              <span>Refer friends to earn passive income from their claims</span>
+              <span>Watch PTC ads and play games for quick, easy satoshis</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-primary font-bold">5.</span>
+              <span>Refer friends to earn 10% passive income from their claims forever</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-primary font-bold">6.</span>
+              <span>Follow us on social media for exclusive coupon codes and bonuses</span>
             </li>
           </ul>
         </CardContent>

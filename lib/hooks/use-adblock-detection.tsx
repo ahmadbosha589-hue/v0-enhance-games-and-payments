@@ -1848,9 +1848,14 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
               sum += Math.abs(data[j])
             }
             results.push(sum)
-            oscillator.stop()
+            try {
+              oscillator.stop()
+            } catch { /* already stopped */ }
             processor.disconnect()
-            ctx.close()
+            // Only close if not already closed to avoid "Cannot close a closed AudioContext" error
+            if (ctx.state !== "closed") {
+              ctx.close().catch(() => { /* ignore */ })
+            }
             resolve()
           }
         })

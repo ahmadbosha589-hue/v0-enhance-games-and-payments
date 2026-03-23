@@ -102,6 +102,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     setHintsUsed(0)
     setPerfectGame(true)
     setMatchAnimation([])
+    hasEndedRef.current = false
   }, [config.pairs])
 
   useEffect(() => {
@@ -110,20 +111,35 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }
   }, [isActive, initializeGame])
 
+  // Track if game has ended to prevent multiple onGameEnd calls
+  const hasEndedRef = useRef(false)
+
   // Timer - with proper cleanup and state handling
   useEffect(() => {
-    if (!isActive || gameOver || hasWon || timeLeft <= 0) return
+    // Reset hasEnded when game restarts
+    if (!gameOver && !hasWon) {
+      hasEndedRef.current = false
+    }
+
+    if (!isActive || gameOver || hasWon) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      return
+    }
 
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) {
+        if (prev <= 1 && !hasEndedRef.current) {
+          hasEndedRef.current = true
           // Time ran out - game over (loss)
           setGameOver(true)
           // Use setTimeout to avoid state update during render
           setTimeout(() => onGameEnd(score, moves), 0)
           return 0
         }
-        return prev - 1
+        return prev > 0 ? prev - 1 : 0
       })
     }, 1000)
 
@@ -133,7 +149,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         timerRef.current = null
       }
     }
-  }, [isActive, gameOver, hasWon, score, moves, onGameEnd, timeLeft])
+  }, [isActive, gameOver, hasWon, score, moves, onGameEnd])
 
   // Check for matches - FIXED: Only win when ALL pairs are matched, not based on score
   useEffect(() => {
@@ -187,7 +203,8 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
         // CRITICAL FIX: Only end game when ALL pairs are matched
         // The game has config.pairs total pairs - player must match ALL of them
-        if (newMatchedPairs >= config.pairs) {
+        if (newMatchedPairs >= config.pairs && !hasEndedRef.current) {
+          hasEndedRef.current = true
           // All pairs found - game complete!
           const finalBonus = perfectGame ? 500 : 0
           const finalScore = newScore + finalBonus

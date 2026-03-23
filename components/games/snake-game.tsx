@@ -56,6 +56,8 @@ const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: numb
 export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 50 }: SnakeGameProps) {
   // Apply difficulty - faster snake at higher levels
   const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
+  const baseSpeedRef = useRef(baseSpeed)
+  baseSpeedRef.current = baseSpeed
   const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }])
   const [hasWon, setHasWon] = useState(false)
   const [direction, setDirection] = useState<Direction>("RIGHT")
@@ -77,6 +79,16 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const directionRef = useRef(direction)
   const directionQueueRef = useRef<Direction[]>([])
   const boardRef = useRef<HTMLDivElement>(null)
+  const scoreRef = useRef(score)
+  const movesRef = useRef(moves)
+  const gameOverRef = useRef(gameOver)
+
+  // Keep refs in sync
+  useEffect(() => {
+    scoreRef.current = score
+    movesRef.current = moves
+    gameOverRef.current = gameOver
+  }, [score, moves, gameOver])
 
   // Auto-win detection - when score reaches threshold, trigger win
   useEffect(() => {
@@ -155,15 +167,20 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
 
       // Wall collision
       if (head.x < 0 || head.x >= BOARD_SIZE || head.y < 0 || head.y >= BOARD_SIZE) {
-        setGameOver(true)
-        onGameEnd(score, moves)
+        if (!gameOverRef.current) {
+          setGameOver(true)
+          // Use refs to get current values
+          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
+        }
         return prevSnake
       }
 
       // Self collision
       if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
-        setGameOver(true)
-        onGameEnd(score, moves)
+        if (!gameOverRef.current) {
+          setGameOver(true)
+          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
+        }
         return prevSnake
       }
 
@@ -193,14 +210,15 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
           setSpeed(s => Math.max(60, s - 30))
           setTimeout(() => {
             setSpeedBoost(false)
-            setSpeed(INITIAL_SPEED - Math.floor(score / 100) * SPEED_INCREASE)
+            // Use refs for current values to avoid stale closures
+            setSpeed(Math.max(80, baseSpeedRef.current - Math.floor(scoreRef.current / 100) * SPEED_INCREASE))
           }, 5000)
         } else if (food.type === "slow") {
           setSlowMode(true)
           setSpeed(s => s + 50)
           setTimeout(() => {
             setSlowMode(false)
-            setSpeed(INITIAL_SPEED - Math.floor(score / 100) * SPEED_INCREASE)
+            setSpeed(Math.max(80, baseSpeedRef.current - Math.floor(scoreRef.current / 100) * SPEED_INCREASE))
           }, 5000)
         }
 
@@ -420,6 +438,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     setCombo(0)
     setSpeedBoost(false)
     setSlowMode(false)
+    // Reset refs to prevent stale state issues
+    gameOverRef.current = false
+    scoreRef.current = 0
+    movesRef.current = 0
   }
 
   const handleDirection = (dir: Direction) => {

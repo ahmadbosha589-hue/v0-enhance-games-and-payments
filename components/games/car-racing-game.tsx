@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Play, Pause, ArrowLeft, ArrowRight, Fuel, Trophy } from "lucide-react"
+import { Play, Pause, ArrowLeft, ArrowRight, Fuel, Trophy, RotateCcw } from "lucide-react"
 
 const CANVAS_WIDTH = 300
 const CANVAS_HEIGHT = 420
@@ -96,6 +96,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   const [nearMissBonus, setNearMissBonus] = useState<{ show: boolean; points: number }>({ show: false, points: 0 })
   const [milestone, setMilestone] = useState<number | null>(null)
   const lastNearMissRef = useRef<number>(0)
+  const hasEndedRef = useRef(false)
 
   const playerX = (lane * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
 
@@ -103,10 +104,11 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
 
   // Auto-win detection - when score reaches threshold, trigger win
   useEffect(() => {
-    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+    if (score >= winThreshold && !hasWon && !gameOver && isActive && !hasEndedRef.current) {
+      hasEndedRef.current = true
       setHasWon(true)
       setGameOver(true)
-      onGameEnd(score, moves)
+      setTimeout(() => onGameEnd(score, moves), 0)
     }
   }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
 
@@ -177,6 +179,30 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
       if (type === "slowmo") setSpeed(s => Math.min(15, s * 2))
       if (type === "doubleCoins") setCoinMultiplier(1)
     }, POWER_UPS[type].duration)
+  }, [])
+
+  const resetGame = useCallback(() => {
+    setScore(0)
+    setDistance(0)
+    setSpeed(5)
+    setLives(3)
+    setGameOver(false)
+    setIsPaused(false)
+    setMoves(0)
+    setLane(1)
+    setObstacles([])
+    setCoins([])
+    setIsInvincible(false)
+    setRoadOffset(0)
+    setWeather(WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)])
+    setPowerUps([])
+    setActivePowerUp(null)
+    setCoinMultiplier(1)
+    setHasMagnet(false)
+    setNearMissBonus({ show: false, points: 0 })
+    setMilestone(null)
+    setHasWon(false)
+    hasEndedRef.current = false
   }, [])
 
   const moveLeft = useCallback(() => {
@@ -372,58 +398,68 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
       const playerTop = playerY
       const playerBottom = playerY + CAR_HEIGHT
 
-      // Check obstacle collisions and near misses
+      // Check obstacle collisions and near misses - do this outside of setState to avoid race conditions
       if (!isInvincible) {
-        setObstacles(prev => {
-          for (const obs of prev) {
-            const obsLeft = obs.x
-            const obsRight = obs.x + OBSTACLE_WIDTH
-            const obsTop = obs.y
-            const obsBottom = obs.y + OBSTACLE_HEIGHT
+        let collidedObstacle: Obstacle | null = null
+        let nearMissDetected = false
 
-            if (
-              playerRight > obsLeft &&
-              playerLeft < obsRight &&
-              playerBottom > obsTop &&
-              playerTop < obsBottom
-            ) {
-              // Collision detected
-              setLives(l => {
-                const newLives = l - 1
-                if (newLives <= 0) {
-                  setGameOver(true)
-                  onGameEnd(Math.floor(distance), moves)
-                } else {
-                  // Invincibility after hit
-                  setIsInvincible(true)
-                  setTimeout(() => setIsInvincible(false), 2000)
-                }
-                return newLives
-              })
-              return prev.filter(o => o !== obs)
-            }
+        // First pass: detect collisions without modifying state
+        for (const obs of obstacles) {
+          const obsLeft = obs.x
+          const obsRight = obs.x + OBSTACLE_WIDTH
+          const obsTop = obs.y
+          const obsBottom = obs.y + OBSTACLE_HEIGHT
 
-            // Near miss detection - obstacle passed by player closely
-            const nearMissMargin = 15
-            const isNearMiss =
-              obsTop > playerBottom &&
-              obsTop < playerBottom + 20 &&
-              Math.abs((obsLeft + OBSTACLE_WIDTH / 2) - (playerLeft + CAR_WIDTH / 2)) < LANE_WIDTH * 0.8
-
-            if (isNearMiss && Date.now() - lastNearMissRef.current > 500) {
-              lastNearMissRef.current = Date.now()
-              const bonus = 25
-              setScore(s => {
-                const newScore = s + bonus
-                onScoreUpdate(newScore)
-                return newScore
-              })
-              setNearMissBonus({ show: true, points: bonus })
-              setTimeout(() => setNearMissBonus({ show: false, points: 0 }), 1000)
-            }
+          if (
+            playerRight > obsLeft &&
+            playerLeft < obsRight &&
+            playerBottom > obsTop &&
+            playerTop < obsBottom
+          ) {
+            collidedObstacle = obs
+            break
           }
-          return prev
-        })
+
+          // Near miss detection - obstacle passed by player closely
+          const isNearMiss =
+            obsTop > playerBottom &&
+            obsTop < playerBottom + 20 &&
+            Math.abs((obsLeft + OBSTACLE_WIDTH / 2) - (playerLeft + CAR_WIDTH / 2)) < LANE_WIDTH * 0.8
+
+          if (isNearMiss && Date.now() - lastNearMissRef.current > 500) {
+            nearMissDetected = true
+          }
+        }
+
+        // Handle collision separately from detection
+        if (collidedObstacle) {
+          setObstacles(prev => prev.filter(o => o !== collidedObstacle))
+          setLives(l => {
+            const newLives = l - 1
+            if (newLives <= 0 && !hasEndedRef.current) {
+              hasEndedRef.current = true
+              setGameOver(true)
+              setTimeout(() => onGameEnd(Math.floor(distance), moves), 0)
+            } else if (newLives > 0) {
+              setIsInvincible(true)
+              setTimeout(() => setIsInvincible(false), 2000)
+            }
+            return newLives
+          })
+        }
+
+        // Handle near miss separately
+        if (nearMissDetected) {
+          lastNearMissRef.current = Date.now()
+          const bonus = 25
+          setScore(s => {
+            const newScore = s + bonus
+            onScoreUpdate(newScore)
+            return newScore
+          })
+          setNearMissBonus({ show: true, points: bonus })
+          setTimeout(() => setNearMissBonus({ show: false, points: 0 }), 1000)
+        }
       }
 
       // Distance milestones
@@ -761,9 +797,13 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
               <Trophy className="h-12 w-12 mx-auto mb-2 text-yellow-500" />
-              <p className="text-2xl font-bold text-red-500 mb-2">GAME OVER</p>
+              <p className="text-2xl font-bold mb-2">{hasWon ? <span className="text-green-500">YOU WIN!</span> : <span className="text-red-500">GAME OVER</span>}</p>
               <p className="text-white">Distance: {Math.floor(distance)}m</p>
-              <p className="text-white">Score: {score.toLocaleString()}</p>
+              <p className="text-white mb-4">Score: {score.toLocaleString()}</p>
+              <Button onClick={resetGame} variant="outline" size="sm">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Play Again
+              </Button>
             </div>
           </div>
         )}

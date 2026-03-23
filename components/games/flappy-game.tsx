@@ -70,6 +70,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const powerUpRef = useRef(powerUp)
   const gameOverRef = useRef(gameOver)
   const gameStartedRef = useRef(gameStarted)
+  const hasEndedRef = useRef(false) // Prevent multiple onGameEnd calls
   const comboRef = useRef(combo)
   const difficultyRef = useRef(difficulty)
   const powerUpTimerRef = useRef(powerUpTimer)
@@ -125,6 +126,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     setPowerUp(null)
     setPowerUpTimer(0)
     frameCountRef.current = 0
+    hasEndedRef.current = false
   }, [externalDifficulty?.level])
 
   // Draw initial state
@@ -188,10 +190,11 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
       // Check ground/ceiling collision
       if (newBirdY >= CANVAS_HEIGHT - BIRD_SIZE - 20 || newBirdY <= 0) {
-        if (powerUpRef.current !== "shield") {
+        if (powerUpRef.current !== "shield" && !hasEndedRef.current) {
+          hasEndedRef.current = true
           setGameOver(true)
           if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
-          onGameEnd(scoreRef.current, movesRef.current)
+          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
           return
         }
       }
@@ -213,15 +216,22 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         }])
       }
 
-      // Update pipes
-      setPipes(prev => {
-        const birdLeft = 50
-        const birdRight = 50 + BIRD_SIZE
-        const birdTop = newBirdY
-        const birdBottom = newBirdY + BIRD_SIZE
+      // Update pipes - separate collision detection from state updates to avoid race conditions
+      const birdLeft = 50
+      const birdRight = 50 + BIRD_SIZE
+      const birdTop = newBirdY
+      const birdBottom = newBirdY + BIRD_SIZE
 
-        let newPipes = prev.map(pipe => {
+      setPipes(prev => {
+        let gameEnded = false
+        let coinsToAdd = 0
+        let scoreBonusFromCoins = 0
+        let scoreBonusFromPassing = 0
+        let newComboValue = comboRef.current
+
+        const newPipes = prev.map(pipe => {
           const newX = pipe.x - currentPipeSpeed
+          const updatedPipe = { ...pipe, x: newX }
 
           // Check collision
           const pipeLeft = newX
@@ -230,18 +240,14 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           if (birdRight > pipeLeft && birdLeft < pipeRight) {
             // Check top pipe collision
             if (birdTop < pipe.topHeight) {
-              if (powerUpRef.current !== "shield") {
-                setGameOver(true)
-                if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
-                onGameEnd(scoreRef.current, movesRef.current)
+              if (powerUpRef.current !== "shield" && !gameEnded) {
+                gameEnded = true
               }
             }
             // Check bottom pipe collision
             if (birdBottom > pipe.topHeight + currentPipeGap) {
-              if (powerUpRef.current !== "shield") {
-                setGameOver(true)
-                if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
-                onGameEnd(scoreRef.current, movesRef.current)
+              if (powerUpRef.current !== "shield" && !gameEnded) {
+                gameEnded = true
               }
             }
 
@@ -251,36 +257,53 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               const coinX = newX + PIPE_WIDTH / 2
               const dist = Math.sqrt(Math.pow(birdLeft + BIRD_SIZE / 2 - coinX, 2) + Math.pow(birdTop + BIRD_SIZE / 2 - coinY, 2))
               if (dist < BIRD_SIZE) {
-                pipe.coinCollected = true
-                setCoins(c => c + 1)
-                const newScore = scoreRef.current + 50
-                setScore(newScore)
-                onScoreUpdate(newScore)
+                updatedPipe.coinCollected = true
+                coinsToAdd++
+                scoreBonusFromCoins += 50
               }
             }
           }
 
           // Check if passed
           if (!pipe.passed && newX + PIPE_WIDTH < 50) {
-            pipe.passed = true
-            const newCombo = comboRef.current + 1
-            setCombo(newCombo)
+            updatedPipe.passed = true
+            newComboValue++
+            const comboBonus = Math.min(newComboValue * 5, 50)
+            scoreBonusFromPassing += 10 + comboBonus
+          }
+
+          return updatedPipe
+        })
+
+        // Apply state updates after the map
+        if (gameEnded && !gameOverRef.current && !hasEndedRef.current) {
+          hasEndedRef.current = true
+          setGameOver(true)
+          if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
+          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
+        }
+
+        if (coinsToAdd > 0) {
+          setCoins(c => c + coinsToAdd)
+        }
+
+        if (scoreBonusFromCoins > 0 || scoreBonusFromPassing > 0) {
+          const totalBonus = scoreBonusFromCoins + scoreBonusFromPassing
+          const newScore = scoreRef.current + totalBonus
+          setScore(newScore)
+          onScoreUpdate(newScore)
+
+          if (scoreBonusFromPassing > 0) {
+            setCombo(newComboValue)
             setShowCombo(true)
             setTimeout(() => setShowCombo(false), 500)
-
-            const comboBonus = Math.min(newCombo * 5, 50)
-            const newScore = scoreRef.current + 10 + comboBonus
-            setScore(newScore)
-            onScoreUpdate(newScore)
 
             // Increase difficulty
             if (newScore > 0 && newScore % 100 === 0) {
               setDifficulty(d => Math.min(d + 1, 5))
             }
           }
-
-          return { ...pipe, x: newX }
-        })
+        }
 
         return newPipes.filter(pipe => pipe.x > -PIPE_WIDTH)
       })
