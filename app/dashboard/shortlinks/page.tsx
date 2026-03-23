@@ -280,7 +280,7 @@ export default function ShortlinksPage() {
                 onClick={loadData}
                 className="border-gray-700"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
+                <RefreshCw className={`h-4 w-4 mr-2 transition-transform ${isLoading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
             </div>
