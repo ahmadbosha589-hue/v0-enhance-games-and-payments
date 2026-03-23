@@ -21,6 +21,7 @@ import { Suspense } from "react"
 import { AdminRefreshButton } from "@/components/admin/refresh-button"
 import { AdminFaucetHealthCard } from "@/components/admin/faucet-health-card"
 
+
 export const dynamic = "force-dynamic"
 
 async function safeQuery<T>(
