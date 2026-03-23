@@ -88,23 +88,13 @@ export default function ShortlinksPage() {
         return
       }
 
-      // Load shortlinks with timeout
-      const { data: linksData, error: linksError } = await supabase
-        .from("shortlinks")
-        .select("*")
-        .eq("is_active", true)
-        .order("reward_satoshis", { ascending: false })
-
-      console.log("[v0] Shortlinks query result:", { linksData, linksError, count: linksData?.length })
-
-      if (linksError) {
-        console.error("Error loading shortlinks:", linksError)
-      }
-
-      if (linksData) {
-        setShortlinks(linksData)
+      // Load shortlinks via API route (uses admin client server-side, bypasses RLS)
+      const linksRes = await fetch("/api/shortlinks")
+      if (linksRes.ok) {
+        const linksJson = await linksRes.json()
+        setShortlinks(linksJson.shortlinks ?? [])
       } else {
-        // If no data returned, set empty array to show proper empty state
+        console.error("Error loading shortlinks:", linksRes.status)
         setShortlinks([])
       }
 
