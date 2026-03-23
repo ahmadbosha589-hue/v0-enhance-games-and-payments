@@ -96,7 +96,7 @@ function ProfileErrorState({ onRetry }: { onRetry: () => void }) {
         <AlertDescription>
           <p className="mb-3">We couldn&apos;t load your profile data. Please try again.</p>
           <Button size="sm" onClick={onRetry}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className={`h-4 w-4 mr-2 transition-transform ${isLoading ? "animate-spin" : ""}`} />
             Retry
           </Button>
         </AlertDescription>
