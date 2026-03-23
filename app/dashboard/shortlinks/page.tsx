@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -57,7 +57,7 @@ export default function ShortlinksPage() {
     max_links: 20
   })
   const [recentVisits, setRecentVisits] = useState<ShortlinkVisit[]>([])
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   const loadData = useCallback(async () => {
     try {
