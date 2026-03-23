@@ -920,9 +920,13 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
   /** Whether an adblocker is currently detected */
   const [isDetected, setIsDetected] = useState(false)
+  const isDetectedRef = useRef(false)
+  const _setIsDetected = (v: boolean) => { isDetectedRef.current = v; setIsDetected(v) }
 
   /** Whether detection is in progress */
   const [isChecking, setIsChecking] = useState(false)
+  const isCheckingRef = useRef(false)
+  const _setIsChecking = (v: boolean) => { isCheckingRef.current = v; setIsChecking(v) }
 
   /** Detection confidence percentage (0-100) */
   const [confidence, setConfidence] = useState(0)
