@@ -131,15 +131,43 @@ export async function clearOrphanedAuthLock(): Promise<void> {
 
 /**
  * Get the current auth user safely.
- * Clears any orphaned Web Lock first so auth calls never hang.
+ *
+ * The previous implementation called clearOrphanedAuthLock() BEFORE invoking
+ * getUser(). At that point the Web Locks pending queue for this tab is still
+ * empty (pendingCount = 0), so the orphan check never triggers even when a
+ * stale lock is held. getUser() then queues itself (pendingCount becomes 1)
+ * and hangs forever because no subsequent check ever runs.
+ *
+ * FIX: after kicking off getUser() (so our request is now in the pending
+ * queue), we schedule a second clearOrphanedAuthLock() call 500 ms later.
+ * By then pendingCount >= 1, the orphan IS detected, the lock is stolen,
+ * and the queued getUser() unblocks. The timer is cancelled immediately if
+ * getUser() resolves normally (healthy case has zero overhead).
  */
 export async function getAuthUser() {
   const supabase = getClient()
   if (!supabase) return null
 
-  // Clear any stale Web Lock before touching auth (fixes the hang-forever bug).
+  // Pre-check: steal any orphan that is already detectable (pendingCount >= 1
+  // from a previous caller still in flight).
   await clearOrphanedAuthLock()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  return user ?? null
+  // Start the request — our lock acquisition is now in the pending queue.
+  const getUserPromise = supabase.auth.getUser()
+
+  // Schedule a post-queue check. After 500 ms our request will be visible as
+  // a pending entry (pendingCount = 1), so clearOrphanedAuthLock will now
+  // detect an orphaned held lock and steal it, unblocking our request.
+  const retryTimer = setTimeout(clearOrphanedAuthLock, 500)
+
+  try {
+    const { data: { user } } = await getUserPromise
+    clearTimeout(retryTimer)
+    return user ?? null
+  } catch {
+    // If getUser() throws (e.g. after the lock steal aborts the request),
+    // swallow the error and return null — the caller will handle it.
+    clearTimeout(retryTimer)
+    return null
+  }
 }

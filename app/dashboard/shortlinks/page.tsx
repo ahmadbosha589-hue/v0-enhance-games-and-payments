@@ -63,6 +63,9 @@ export default function ShortlinksPage() {
 
   const loadData = useCallback(async () => {
     try {
+      // Guard: supabase client may be null when env vars are not configured
+      if (!supabase) return
+
       const user = await getAuthUser()
       if (!user) return
 
