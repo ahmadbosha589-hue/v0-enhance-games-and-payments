@@ -982,6 +982,12 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
   /** Interval timer reference */
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
+  /** Stable ref to latest runDetection — lets the interval always call the current version */
+  const runDetectionRef = useRef<() => Promise<void>>(async () => { })
+
+  /** Stable ref to latest calibrateBaseline */
+  const calibrateBaselineRef = useRef<() => Promise<void>>(async () => { })
+
   // =========================================================================
   // BASELINE CALIBRATION
   // =========================================================================
@@ -992,7 +998,8 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
    */
   const calibrateBaseline = useCallback(async () => {
     const samples: number[] = []
-    const testUrls = ["/api/health", "/api/ping", "/favicon.ico"]
+    // Use only lightweight, no-DB endpoints to avoid starving the connection pool
+    const testUrls = ["/api/ping", "/favicon.ico", "/api/ping"]
 
     for (let i = 0; i < CONFIG.BASELINE_SAMPLES_NEEDED; i++) {
       const url = testUrls[i % testUrls.length]
