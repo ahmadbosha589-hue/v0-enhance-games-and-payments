@@ -110,21 +110,17 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }
   }, [isActive, initializeGame])
 
-  // Timer - fixed: no timeLeft in deps to prevent interval stacking
-  // Use a ref to access latest score/moves without re-creating the interval
-  const scoreRef = useRef(score)
-  const movesRef = useRef(moves)
-  useEffect(() => { scoreRef.current = score }, [score])
-  useEffect(() => { movesRef.current = moves }, [moves])
-
+  // Timer - with proper cleanup and state handling
   useEffect(() => {
-    if (!isActive || gameOver || hasWon) return
+    if (!isActive || gameOver || hasWon || timeLeft <= 0) return
 
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
+          // Time ran out - game over (loss)
           setGameOver(true)
-          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
+          // Use setTimeout to avoid state update during render
+          setTimeout(() => onGameEnd(score, moves), 0)
           return 0
         }
         return prev - 1
@@ -137,7 +133,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         timerRef.current = null
       }
     }
-  }, [isActive, gameOver, hasWon, onGameEnd])
+  }, [isActive, gameOver, hasWon, score, moves, onGameEnd, timeLeft])
 
   // Check for matches - FIXED: Only win when ALL pairs are matched, not based on score
   useEffect(() => {
@@ -337,11 +333,10 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               {matchedPairs === config.pairs ? (
                 <>
                   <Trophy className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
-                  <p className="text-2xl font-bold text-green-500 mb-2">🎉 YOU WIN!</p>
+                  <p className="text-2xl font-bold text-green-500 mb-2">YOU WIN!</p>
                   {perfectGame && (
                     <p className="text-yellow-400 text-sm mb-2">Perfect Game! +500 Bonus</p>
                   )}
-                  <p className="text-yellow-400 text-sm mb-1">+3 satoshis earned!</p>
                 </>
               ) : (
                 <>
@@ -370,14 +365,8 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs mb-1">Progress to win</p>
-              <div className="w-full bg-gray-800 rounded-full h-2 mb-1">
-                <div
-                  className="h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-cyan-500 to-blue-400"
-                  style={{ width: `${Math.min(100, (score / winThreshold) * 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-green-400 font-bold">{score.toLocaleString()} / {winThreshold.toLocaleString()}</p>
+              <p className="text-gray-400 text-xs">Target</p>
+              <p className="font-bold text-lg text-green-400">{winThreshold.toLocaleString()}</p>
             </div>
             <div className="flex gap-4">
               <div>

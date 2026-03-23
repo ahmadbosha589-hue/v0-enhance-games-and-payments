@@ -19,7 +19,7 @@ export const BASE_WIN_THRESHOLDS: Record<string, number> = {
 // legitimately end in 8 s; Tetris needs at least 15 s to reach threshold.
 export const MIN_GAME_DURATIONS_MS: Record<string, number> = {
   tetris: 15000,
-  block_blast: 3000,  // cascade mechanic can win fast; session starts before board renders so real elapsed time is session_create + board_load + player_time
+  block_blast: 12000,
   car_racing: 10000,
   snake: 10000,
   flappy: 8000,
@@ -395,8 +395,64 @@ export function updateStreak(lastPlayedAt: string | null): { currentStreak: numb
   return { currentStreak: 1, isNewDay: true } // Streak broken, start fresh
 }
 
-// Tournaments are now fetched from the database via /api/games/tournaments
-// See app/api/games/tournaments/route.ts
+// Tournament mock data generator - simulates real tournaments
+// In production, these would come from a tournaments database table
+export function generateMockTournaments(): TournamentInfo[] {
+  const now = new Date()
+
+  // Generate realistic-looking tournaments based on current time
+  const hour = now.getHours()
+  const dayOfWeek = now.getDay()
+
+  // Active tournament during peak hours (12-22)
+  const isActiveTournament = hour >= 12 && hour <= 22
+
+  // Generate semi-random but consistent participant counts based on time
+  const baseParticipants = Math.floor((hour + dayOfWeek * 3) % 50) + 20
+
+  return [
+    {
+      id: `t-${Date.now()}-1`,
+      name: "Tetris Championship",
+      gameType: "tetris",
+      startTime: isActiveTournament
+        ? new Date(now.getTime() - 1800000).toISOString()
+        : new Date(now.getTime() + 3600000).toISOString(),
+      endTime: isActiveTournament
+        ? new Date(now.getTime() + 5400000).toISOString()
+        : new Date(now.getTime() + 7200000).toISOString(),
+      prizePool: 5000,
+      entryFee: 50,
+      participants: Math.min(baseParticipants + 25, 100),
+      maxParticipants: 100,
+      status: isActiveTournament ? "active" : "upcoming"
+    },
+    {
+      id: `t-${Date.now()}-2`,
+      name: "Snake Sprint",
+      gameType: "snake",
+      startTime: new Date(now.getTime() + 7200000).toISOString(),
+      endTime: new Date(now.getTime() + 14400000).toISOString(),
+      prizePool: 3000,
+      entryFee: 30,
+      participants: Math.min(baseParticipants + 10, 50),
+      maxParticipants: 50,
+      status: "upcoming"
+    },
+    {
+      id: `t-${Date.now()}-3`,
+      name: "Memory Masters",
+      gameType: "memory",
+      startTime: new Date(now.getTime() + 86400000).toISOString(),
+      endTime: new Date(now.getTime() + 90000000).toISOString(),
+      prizePool: 2500,
+      entryFee: 25,
+      participants: Math.min(baseParticipants, 50),
+      maxParticipants: 50,
+      status: "upcoming"
+    }
+  ]
+}
 
 // Difficulty system - games get progressively harder based on TODAY's play count
 // RESETS TO EASY (LEVEL 1) EVERY 24 HOURS
@@ -471,5 +527,85 @@ export interface LeaderboardEntry {
   isCurrent?: boolean
 }
 
-// Leaderboard data is now fetched from the database via /api/games/leaderboard
-// See app/api/games/leaderboard/route.ts
+// Generate leaderboard data - uses realistic scores based on game type
+// In production, this would fetch from a game_leaderboards database table
+export function generateMockLeaderboard(gameType: string, userScore?: number): LeaderboardEntry[] {
+  // Use game-appropriate usernames
+  const names = [
+    "CryptoMaster", "BlockChamp", "SatoshiPro", "BitcoinKing", "HashMaster",
+    "ChainPlayer", "NodeRunner", "CoinHunter", "TokenPro", "WalletKing",
+    "CryptoNinja", "KeyHolder", "LedgerPro", "P2PGamer", "DeFiMaster"
+  ]
+
+  // Realistic score ranges for each game based on actual gameplay
+  const scoreRanges: Record<string, { top: number; dropoff: number }> = {
+    tetris: { top: 8000, dropoff: 0.08 },      // Top score ~8000, steady dropoff
+    snake: { top: 1500, dropoff: 0.1 },        // Top score ~1500
+    memory: { top: 3000, dropoff: 0.07 },      // Top score ~3000
+    flappy: { top: 150, dropoff: 0.12 },       // Top score ~150 (pipes passed)
+    car_racing: { top: 4000, dropoff: 0.09 },  // Top score ~4000
+    block_blast: { top: 3500, dropoff: 0.08 }  // Top score ~3500
+  }
+
+  const range = scoreRanges[gameType] || { top: 5000, dropoff: 0.1 }
+
+  // Generate consistent but varying scores
+  const entries: LeaderboardEntry[] = Array.from({ length: 15 }, (_, i) => {
+    // Exponential dropoff for more realistic distribution
+    const scoreMultiplier = Math.pow(1 - range.dropoff, i)
+    const variance = range.top * 0.05 * (Math.sin(i * 1.5) + 0.5) // Small consistent variance
+    const score = Math.floor(range.top * scoreMultiplier + variance)
+
+    return {
+      rank: i + 1,
+      username: names[i],
+      score: Math.max(10, score),
+      isCurrent: false
+    }
+  })
+
+  // Sort by score descending (should already be sorted, but ensure it)
+  entries.sort((a, b) => b.score - a.score)
+
+  // Update ranks
+  entries.forEach((entry, i) => {
+    entry.rank = i + 1
+  })
+
+  // Insert user if score provided
+  if (userScore && userScore > 0) {
+    const userEntry: LeaderboardEntry = {
+      rank: 0,
+      username: "You",
+      score: userScore,
+      isCurrent: true
+    }
+
+    // Find position based on score
+    let inserted = false
+    for (let i = 0; i < entries.length; i++) {
+      if (userScore > entries[i].score) {
+        entries.splice(i, 0, userEntry)
+        inserted = true
+        break
+      }
+    }
+    if (!inserted) {
+      entries.push(userEntry)
+    }
+
+    // Update ranks
+    entries.forEach((entry, i) => {
+      entry.rank = i + 1
+    })
+
+    // Keep only top 15 + user if user is beyond that
+    const userIndex = entries.findIndex(e => e.isCurrent)
+    if (userIndex > 14) {
+      return [...entries.slice(0, 14), entries[userIndex]]
+    }
+    return entries.slice(0, 15)
+  }
+
+  return entries
+}

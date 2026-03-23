@@ -13,21 +13,8 @@ const FAUCETPAY_SUPPORTED_CURRENCIES = [
 ]
 
 // Get FaucetPay API key - uses a single API key for all currencies
-// Resolves FaucetPay API key: DB (admin-configured) takes priority over env var
-async function getFaucetPayApiKey(db?: ReturnType<typeof createAdminClient>): Promise<string | null> {
-  // Try DB first so admins can rotate keys without redeploying
-  if (db) {
-    try {
-      const { data } = await db
-        .from("system_settings")
-        .select("value")
-        .eq("key", "faucetpay_api_key")
-        .single()
-      const dbKey = (data?.value as string | null)?.trim()
-      if (dbKey) return dbKey
-    } catch { /* fall through to env */ }
-  }
-  return process.env.FAUCETPAY_API_KEY?.trim() || null
+function getFaucetPayApiKey(): string | null {
+  return process.env.FAUCETPAY_API_KEY || null
 }
 
 // Send FaucetPay payment directly with proper error handling
@@ -162,7 +149,7 @@ async function getUserFaucetPayEmail(
     return { email: null, verified: false, error: "Failed to fetch profile" }
   }
 }
-const COOLDOWN_SECONDS = 60 // 60 seconds (1 minute) between claims per crypto
+const COOLDOWN_SECONDS = 45 // 45 seconds between claims per crypto
 const SHORTLINK_REQUIRED_AFTER = 100 // After 100 claims, require a shortlink
 
 // Fallback prices - ALWAYS current realistic market prices
@@ -523,8 +510,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get FaucetPay API key — DB-configured key takes priority over env var
-    const apiKey = await getFaucetPayApiKey(adminSupabase)
+    // Get FaucetPay API key
+    const apiKey = getFaucetPayApiKey()
     if (!apiKey) {
       log.error("FAUCETPAY_API_KEY not configured")
       return NextResponse.json(

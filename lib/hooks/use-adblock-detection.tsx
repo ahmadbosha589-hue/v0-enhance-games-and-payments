@@ -303,7 +303,7 @@ const CONFIG = {
   /** Minimum weighted confidence threshold (%) */
   MIN_CONFIDENCE_THRESHOLD: 65, // Up from 55 (v8.0 - higher bar)
   /** Minimum consecutive detection cycles (more cycles = fewer FP) */
-  MIN_CONSECUTIVE_DETECTIONS: 6, // Raised to 6 — eliminates transient extension FP
+  MIN_CONSECUTIVE_DETECTIONS: 4, // Up from 2 (v8.0 - critical for FP reduction)
   /** Minimum number of high-weight methods required */
   MIN_HIGH_WEIGHT_METHODS: 2, // Requires 2 high-weight signals
   /** Minimum Bayesian probability required */
@@ -667,14 +667,14 @@ const DETECTION_METHODS = [
 
   // Browser category - Browser-specific protections
   { name: "canvas-farbling", category: "browser", weight: 70 },
-  { name: "webrtc-blocking", category: "browser", weight: 30 }, // Reduced — firewalls/VPNs/corporate proxies trigger this without adblock
+  { name: "webrtc-blocking", category: "browser", weight: 68 },
   { name: "brave-shields", category: "browser", weight: 78 },
   { name: "webgl-fingerprint-blocked", category: "browser", weight: 72 },
   { name: "audio-fingerprint-blocked", category: "browser", weight: 70 },
 
   // Fingerprint category - Anti-fingerprinting features
   { name: "extension-detection", category: "fingerprint", weight: 65 },
-  { name: "font-enumeration-blocked", category: "fingerprint", weight: 40 }, // Reduced — many OSes have few fonts
+  { name: "font-enumeration-blocked", category: "fingerprint", weight: 68 },
   { name: "storage-quota-anomaly", category: "storage", weight: 72 },
 
   // Hardware category
@@ -1963,9 +1963,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       span.remove()
 
       // If very few fonts detected (< 5), likely being blocked
-      // Require fewer than 3 fonts before flagging — Linux systems often have 5-8 fonts
-      // and flagging at < 5 causes false positives for normal Linux/ChromeOS users.
-      if (detectedFonts.length < 3) {
+      if (detectedFonts.length < 5) {
         return {
           method: "font-enumeration-blocked",
           category: "fingerprint",
@@ -2940,17 +2938,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       }
 
       // Check if detection thresholds are met
-      // Require network-level blocking evidence — extension-only users who only
-      // do cosmetic filtering (element hiding) never block same-origin fetch requests.
-      // bait-fetch-blocked fires only when the extension intercepts network requests.
-      // dns-blocking fires only when DNS/network level blocking is active.
-      // This single gate eliminates virtually all extension-based false positives.
-      const hasNetworkBlockingEvidence = allSignals.some(s =>
-        s.method === "bait-fetch-blocked" || s.method === "dns-blocking"
-      )
-
       const meetsMinRequirements =
-        hasNetworkBlockingEvidence && // MUST have network-level blocking, not just cosmetic
         allSignals.length >= CONFIG.MIN_METHODS_REQUIRED &&
         uniqueCategories.length >= CONFIG.MIN_CATEGORIES_REQUIRED &&
         weightedConfidence >= CONFIG.MIN_CONFIDENCE_THRESHOLD &&
@@ -2968,9 +2956,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
           // Final determination - require server verification AND high confidence
           // OR extremely high confidence with many consecutive detections
-          // Always require server verification — no client-only fallback.
-          // This is the definitive false-positive prevention for extension users.
-          if (result.serverVerified) {
+          if (result.serverVerified || (newConsecutive >= 7 && bayesianProbability >= 0.85 && weightedConfidence >= 75)) {
             result.isBlocking = true
 
             // Flag user in session

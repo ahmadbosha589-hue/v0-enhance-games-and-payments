@@ -55,37 +55,24 @@ export default async function AuditLogsPage() {
     .order("created_at", { ascending: false })
     .limit(100)
 
-  // Batch-fetch all target profiles in ONE query to avoid N+1 hanging
   const logsWithTargets: AuditLog[] = []
   if (logs) {
-    // Collect all unique target user IDs from metadata
-    const targetIds = [
-      ...new Set(
-        logs
-          .map((l) => l.metadata?.target_user_id || l.metadata?.withdrawal_user_id)
-          .filter((id): id is string => typeof id === "string")
-      ),
-    ]
-
-    // Single batch query for all target profiles
-    const targetProfileMap = new Map<string, { username: string | null; display_name: string | null; faucetpay_email: string | null }>()
-    if (targetIds.length > 0) {
-      const { data: targetProfiles } = await supabase
-        .from("profiles")
-        .select("id, username, display_name, faucetpay_email")
-        .in("id", targetIds)
-      if (targetProfiles) {
-        for (const p of targetProfiles) {
-          targetProfileMap.set(p.id, { username: p.username, display_name: p.display_name, faucetpay_email: p.faucetpay_email })
-        }
-      }
-    }
-
     for (const log of logs) {
       const targetUserId = log.metadata?.target_user_id || log.metadata?.withdrawal_user_id
+      let targetProfile = null
+
+      if (targetUserId && typeof targetUserId === "string") {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("username, display_name, faucetpay_email")
+          .eq("id", targetUserId)
+          .single()
+        targetProfile = profile
+      }
+
       logsWithTargets.push({
         ...log,
-        target_profile: (typeof targetUserId === "string" ? targetProfileMap.get(targetUserId) ?? null : null),
+        target_profile: targetProfile,
       })
     }
   }

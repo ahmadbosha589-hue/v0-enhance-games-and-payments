@@ -20,8 +20,8 @@ export const revalidate = 30
 
 export async function GET() {
   // Log control probe for fortress verification
-  await logHoneypotProbeRequest("ctrl_faucet").catch(() => {})
-  
+  await logHoneypotProbeRequest("ctrl_faucet").catch(() => { })
+
   try {
     const supabase = createAdminClient()
 

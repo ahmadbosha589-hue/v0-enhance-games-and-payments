@@ -54,15 +54,40 @@ export default function NotificationsPage() {
   async function fetchNotifications() {
     setIsLoading(true)
     try {
-      const res = await fetch("/api/admin/notifications", { credentials: "include" })
-      if (!res.ok) {
-        if (res.status === 503) setSupabaseError(true)
+      const supabase = createClient()
+      if (!supabase) {
+        setSupabaseError(true)
         setIsLoading(false)
         return
       }
-      const json = await res.json()
-      setNotifications(json.notifications || [])
-      setStats(json.stats || { total: 0, unread: 0, today: 0 })
+
+      // Get notifications
+      const { data, count } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .limit(50)
+
+      // Get unread count
+      const { count: unreadCount } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("read", false)
+
+      // Get today's count
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const { count: todayCount } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .gte("created_at", todayStart.toISOString())
+
+      setNotifications(data || [])
+      setStats({
+        total: count || 0,
+        unread: unreadCount || 0,
+        today: todayCount || 0,
+      })
     } catch (error) {
       toast.error("Failed to fetch notifications")
     } finally {
@@ -76,18 +101,34 @@ export default function NotificationsPage() {
       return
     }
 
+    const supabase = createClient()
+    if (!supabase) {
+      toast.error("Database connection not available")
+      return
+    }
+
     setIsSending(true)
     try {
       if (targetAudience === "all") {
-        const res = await fetch("/api/admin/notifications", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ targetAudience: "all", type: notifType, title: notifTitle, message: notifMessage }),
-        })
-        if (!res.ok) throw new Error("Failed to send")
-        const json = await res.json()
-        toast.success(`Notification sent to ${json.sent} users!`)
+        // Get all user IDs
+        const { data: users } = await supabase.from("profiles").select("id").eq("status", "active")
+
+        if (users && users.length > 0) {
+          // Insert notifications for all users
+          const notificationsToInsert = users.map((user) => ({
+            user_id: user.id,
+            type: notifType,
+            title: notifTitle,
+            message: notifMessage,
+            read: false,
+          }))
+
+          const { error } = await supabase.from("notifications").insert(notificationsToInsert)
+
+          if (error) throw error
+
+          toast.success(`Notification sent to ${users.length} users!`)
+        }
       } else {
         // Send to specific user (could be extended)
         toast.info("Single user notifications coming soon")

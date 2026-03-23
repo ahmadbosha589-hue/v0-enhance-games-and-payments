@@ -69,7 +69,6 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const movesRef = useRef(moves)
   const powerUpRef = useRef(powerUp)
   const gameOverRef = useRef(gameOver)
-  const gameEndCalledRef = useRef(false) // prevent duplicate onGameEnd calls
   const gameStartedRef = useRef(gameStarted)
   const comboRef = useRef(combo)
   const difficultyRef = useRef(difficulty)
@@ -93,8 +92,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
   // Auto-win detection
   useEffect(() => {
-    if (score >= winThreshold && !hasWon && !gameOver && gameStarted && !gameEndCalledRef.current) {
-      gameEndCalledRef.current = true
+    if (score >= winThreshold && !hasWon && !gameOver && gameStarted) {
       setHasWon(true)
       setGameOver(true)
       onGameEnd(score, moves)
@@ -114,7 +112,6 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
   const resetGame = useCallback(() => {
     setHasWon(false)
-    gameEndCalledRef.current = false
     setBirdY(CANVAS_HEIGHT / 2)
     setBirdVelocity(0)
     setPipes([])
@@ -192,7 +189,9 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       // Check ground/ceiling collision
       if (newBirdY >= CANVAS_HEIGHT - BIRD_SIZE - 20 || newBirdY <= 0) {
         if (powerUpRef.current !== "shield") {
-          if (!gameEndCalledRef.current) { gameEndCalledRef.current = true; setGameOver(true); if (scoreRef.current > bestScore) setBestScore(scoreRef.current); onGameEnd(scoreRef.current, movesRef.current) }
+          setGameOver(true)
+          if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
+          onGameEnd(scoreRef.current, movesRef.current)
           return
         }
       }
@@ -231,8 +230,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           if (birdRight > pipeLeft && birdLeft < pipeRight) {
             // Check top pipe collision
             if (birdTop < pipe.topHeight) {
-              if (powerUpRef.current !== "shield" && !gameEndCalledRef.current) {
-                gameEndCalledRef.current = true
+              if (powerUpRef.current !== "shield") {
                 setGameOver(true)
                 if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
                 onGameEnd(scoreRef.current, movesRef.current)
@@ -241,12 +239,9 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
             // Check bottom pipe collision
             if (birdBottom > pipe.topHeight + currentPipeGap) {
               if (powerUpRef.current !== "shield") {
-                if (!gameEndCalledRef.current) {
-                  gameEndCalledRef.current = true
-                  setGameOver(true)
-                  if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
-                  onGameEnd(scoreRef.current, movesRef.current)
-                }
+                setGameOver(true)
+                if (scoreRef.current > bestScore) setBestScore(scoreRef.current)
+                onGameEnd(scoreRef.current, movesRef.current)
               }
             }
 
@@ -503,10 +498,10 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-red-500"}`}>{hasWon ? "🎉 YOU WIN!" : "GAME OVER"}</p>
-              {hasWon && <p className="text-yellow-400 text-sm mb-1">+3 satoshis earned!</p>}
+              <p className="text-2xl font-bold text-red-500 mb-2">{hasWon ? "YOU WIN!" : "GAME OVER"}</p>
               <p className="text-white mb-1">Score: {score}</p>
-              <p className="text-gray-400 text-sm mb-1">Coins: {coins} | Best: {bestScore}</p>
+              <p className="text-gray-400 text-sm mb-1">Coins: {coins}</p>
+              <p className="text-yellow-400 text-sm mb-4">Best: {bestScore}</p>
               <Button onClick={resetGame} variant="outline" size="sm">
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Try Again
@@ -526,14 +521,8 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               <p className="text-2xl font-bold text-white">{score}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs mb-1">Progress to win</p>
-              <div className="w-full bg-gray-800 rounded-full h-2 mb-1">
-                <div
-                  className="h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-yellow-500 to-green-400"
-                  style={{ width: `${Math.min(100, (score / winThreshold) * 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-green-400 font-bold">{score} / {winThreshold}</p>
+              <p className="text-gray-400 text-xs">Target</p>
+              <p className="text-lg font-bold text-green-400">{winThreshold}</p>
             </div>
             <div className="flex gap-4">
               <div>

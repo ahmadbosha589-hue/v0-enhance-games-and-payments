@@ -74,7 +74,6 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   const bonusChance = difficulty?.bonusChance || 0.15
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [hasWon, setHasWon] = useState(false)
-  const gameEndCalledRef = useRef(false)
   const gameLoopRef = useRef<number | null>(null)
   const [score, setScore] = useState(0)
   const [distance, setDistance] = useState(0)
@@ -393,7 +392,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
                 const newLives = l - 1
                 if (newLives <= 0) {
                   setGameOver(true)
-                  if (!gameEndCalledRef.current) { gameEndCalledRef.current = true; onGameEnd(Math.floor(distance), moves) }
+                  onGameEnd(Math.floor(distance), moves)
                 } else {
                   // Invincibility after hit
                   setIsInvincible(true)
@@ -762,11 +761,9 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
               <Trophy className="h-12 w-12 mx-auto mb-2 text-yellow-500" />
-              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-red-500"}`}>{hasWon ? "🎉 YOU WIN!" : "GAME OVER"}</p>
-              {hasWon && <p className="text-yellow-400 text-sm mb-1">+3 satoshis earned!</p>}
+              <p className="text-2xl font-bold text-red-500 mb-2">GAME OVER</p>
               <p className="text-white">Distance: {Math.floor(distance)}m</p>
               <p className="text-white">Score: {score.toLocaleString()}</p>
-              <p className="text-gray-400 text-sm mt-1">Target: {winThreshold.toLocaleString()}</p>
             </div>
           </div>
         )}
@@ -782,14 +779,8 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
               <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-xs mb-1">Progress to win</p>
-              <div className="w-full bg-gray-800 rounded-full h-2 mb-1">
-                <div
-                  className="h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-blue-500 to-green-400"
-                  style={{ width: `${Math.min(100, (score / winThreshold) * 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-green-400 font-bold">{score.toLocaleString()} / {winThreshold.toLocaleString()}</p>
+              <p className="text-gray-400 text-xs">Target</p>
+              <p className="font-bold text-lg text-green-400">{winThreshold.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-gray-400 text-xs">Distance</p>

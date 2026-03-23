@@ -211,9 +211,8 @@ export default async function ReferralsPage() {
             {REFERRAL_CONFIG.tiers.map((tier, index) => (
               <div
                 key={tier.tier}
-                className={`rounded-lg border p-3 sm:p-4 text-center transition-all hover:border-primary/50 ${
-                  index === 0 ? "bg-primary/5 border-primary/20" : ""
-                }`}
+                className={`rounded-lg border p-3 sm:p-4 text-center transition-all hover:border-primary/50 ${index === 0 ? "bg-primary/5 border-primary/20" : ""
+                  }`}
               >
                 <div className="text-2xl sm:text-3xl font-bold text-primary">{tier.percentage}%</div>
                 <div className="text-xs sm:text-sm font-medium mt-1">

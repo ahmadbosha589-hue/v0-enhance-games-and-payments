@@ -167,9 +167,8 @@ export default async function WithdrawalsPage({ searchParams }: WithdrawalsPageP
               <div>
                 <p className="text-xs sm:text-sm text-muted-foreground">Avg Fraud Score</p>
                 <p
-                  className={`text-lg sm:text-2xl font-bold ${
-                    avgFraudScore >= 70 ? "text-red-500" : avgFraudScore >= 40 ? "text-amber-500" : "text-emerald-500"
-                  }`}
+                  className={`text-lg sm:text-2xl font-bold ${avgFraudScore >= 70 ? "text-red-500" : avgFraudScore >= 40 ? "text-amber-500" : "text-emerald-500"
+                    }`}
                 >
                   {avgFraudScore}
                 </p>

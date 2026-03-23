@@ -79,33 +79,21 @@ export async function POST(request: Request) {
 
     const requiresManualReview = profile.fraud_score >= FRAUD_CONFIG.manualReviewScore
 
-    // Robust FaucetPay email lookup — same triple-fallback as direct faucet
-    let faucetPayEmail: string | null = (profile.faucetpay_email || "").trim() || null
-
-    // Fallback 1: fresh DB re-fetch (handles stale profile cache)
-    if (!faucetPayEmail) {
-      try {
-        const { data: fp } = await adminSupabase
-          .from("profiles")
-          .select("faucetpay_email")
-          .eq("id", user.id)
-          .single()
-        faucetPayEmail = (fp?.faucetpay_email || "").trim() || null
-        if (faucetPayEmail) log.info("FaucetPay email found on withdrawal re-fetch", { userId: user.id })
-      } catch { /* continue */ }
-    }
+    // Check FaucetPay email with detailed error - be more lenient
+    const faucetPayEmail = profile.faucetpay_email?.trim()
 
     if (!faucetPayEmail) {
       log.warn("Withdrawal attempted without FaucetPay email", {
         userId: user.id,
+        hasEmail: !!profile.faucetpay_email,
         rawValue: profile.faucetpay_email,
         verified: profile.faucetpay_verified
       })
       return NextResponse.json({
-        error: "FaucetPay email not configured. Go to Settings → Payment Settings and save your FaucetPay email.",
+        error: "FaucetPay email not configured. Please go to Settings and add your FaucetPay email first.",
         code: "FAUCETPAY_NOT_CONFIGURED",
         action: "settings",
-        detail: "If you already saved it, try removing and re-entering your email in Account Settings."
+        detail: "Go to Dashboard > Settings > Payment Settings to configure your FaucetPay email"
       }, { status: 400 })
     }
 

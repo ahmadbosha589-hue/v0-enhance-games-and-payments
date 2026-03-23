@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FraudFlagsTable } from "@/components/admin/fraud-flags-table"
 import { FraudScoreBreakdown } from "@/components/admin/fraud-score-breakdown"
@@ -9,16 +9,7 @@ import { AlertTriangle, AlertCircle, Info, Shield, Users, Activity } from "lucid
 export const dynamic = "force-dynamic"
 
 export default async function FraudPage() {
-  const supabase = createAdminClient()
-
-  if (!supabase) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">Fraud Detection Center</h1>
-        <p className="text-muted-foreground">Database not configured</p>
-      </div>
-    )
-  }
+  const supabase = await createClient()
 
   // Fetch fraud flags with user profiles
   const { data: flags } = await supabase
@@ -57,16 +48,13 @@ export default async function FraudPage() {
     .limit(50)
 
   // Fetch high-risk users
-  let highRiskUsers: any[] = []
-  try {
-    const { data: hru } = await supabase
-      .from("profiles")
-      .select("id, username, display_name, fraud_score, status, total_claims, created_at")
-      .gte("fraud_score", 70)
-      .order("fraud_score", { ascending: false })
-      .limit(20)
-    highRiskUsers = hru || []
-  } catch { /* non-critical */ }
+  const { data: highRiskUsers } = await supabase
+    .from("profiles")
+    .select("*")
+    .gte("fraud_score", 70)
+    .eq("status", "active")
+    .order("fraud_score", { ascending: false })
+    .limit(20)
 
   // Calculate severity counts
   const criticalCount = flags?.filter((f) => f.severity >= 80).length || 0

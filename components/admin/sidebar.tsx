@@ -21,7 +21,6 @@ import {
   Bell,
   ChevronLeft,
   Megaphone,
-  Link2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

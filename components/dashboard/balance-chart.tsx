@@ -152,13 +152,12 @@ export function BalanceChart({ userId }: BalanceChartProps) {
           <p className="text-xs text-muted-foreground">Total this week</p>
         </div>
         <div
-          className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-            trend === "up"
+          className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${trend === "up"
               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : trend === "down"
                 ? "bg-red-500/10 text-red-600 dark:text-red-400"
                 : "bg-muted text-muted-foreground"
-          }`}
+            }`}
         >
           {trend === "up" ? (
             <TrendingUp className="h-3 w-3" aria-hidden="true" />

@@ -28,27 +28,20 @@ const PROVIDER_SECRETS: Record<string, string> = {
   notik: process.env.NOTIK_SECRET_KEY || "",
 }
 
-// Known postback IP ranges from provider documentation.
-// Leave a provider array empty ([]) to allow all IPs for that provider.
-// RECOMMENDED: fill these in from each provider's dashboard for maximum security.
-// These are commonly documented IPs — verify with each provider's current docs.
 const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
-  // CPX Research: postbacks come from AWS Frankfurt (eu-central-1)
-  // Verify at: https://support.cpx.research/en/articles/postback-ip-addresses
-  "cpx-research": process.env.CPX_POSTBACK_IPS ? process.env.CPX_POSTBACK_IPS.split(",") : [],
-  // Torox: verify at torox.io publisher dashboard
-  torox: process.env.TOROX_POSTBACK_IPS ? process.env.TOROX_POSTBACK_IPS.split(",") : [],
-  lootably: process.env.LOOTABLY_POSTBACK_IPS ? process.env.LOOTABLY_POSTBACK_IPS.split(",") : [],
-  adgate: process.env.ADGATE_POSTBACK_IPS ? process.env.ADGATE_POSTBACK_IPS.split(",") : [],
-  "mm-wall": process.env.MM_WALL_POSTBACK_IPS ? process.env.MM_WALL_POSTBACK_IPS.split(",") : [],
-  timewall: process.env.TIMEWALL_POSTBACK_IPS ? process.env.TIMEWALL_POSTBACK_IPS.split(",") : [],
-  "offerwall-me": process.env.OFFERWALLME_POSTBACK_IPS ? process.env.OFFERWALLME_POSTBACK_IPS.split(",") : [],
-  bicotasks: process.env.BICOTASKS_POSTBACK_IPS ? process.env.BICOTASKS_POSTBACK_IPS.split(",") : [],
-  adscend: process.env.ADSCEND_POSTBACK_IPS ? process.env.ADSCEND_POSTBACK_IPS.split(",") : [],
-  bitlabs: process.env.BITLABS_POSTBACK_IPS ? process.env.BITLABS_POSTBACK_IPS.split(",") : [],
-  "ayet-studios": process.env.AYET_STUDIOS_POSTBACK_IPS ? process.env.AYET_STUDIOS_POSTBACK_IPS.split(",") : [],
-  "hang-my-ads": process.env.HANG_MY_ADS_POSTBACK_IPS ? process.env.HANG_MY_ADS_POSTBACK_IPS.split(",") : [],
-  notik: process.env.NOTIK_POSTBACK_IPS ? process.env.NOTIK_POSTBACK_IPS.split(",") : [],
+  "cpx-research": [],
+  torox: [],
+  lootably: [],
+  adgate: [],
+  "mm-wall": [],
+  timewall: [],
+  "offerwall-me": [],
+  bicotasks: [],
+  adscend: [],
+  bitlabs: [],
+  "ayet-studios": [],
+  "hang-my-ads": [],
+  notik: [],
 }
 
 function getSupabaseAdmin() {
@@ -58,11 +51,11 @@ function getSupabaseAdmin() {
 function validateSignature(provider: string, params: Record<string, string>, signature: string): boolean {
   const secret = PROVIDER_SECRETS[provider]
 
-  // SECURITY: missing secret = hard reject in all environments.
-  // An unconfigured secret means any request would pass — a fraud vector.
+  // If no secret is configured, skip validation (but log warning)
   if (!secret) {
-    console.error(`[Postback] SECURITY: No secret configured for provider: ${provider}. Request rejected. Set the env var to enable this provider.`)
-    return false
+    console.warn(`[Postback] No secret configured for provider: ${provider}`)
+    // In production, you might want to reject requests without configured secrets
+    return process.env.NODE_ENV === "development"
   }
 
   try {
@@ -196,15 +189,11 @@ function parsePostbackParams(provider: string, searchParams: URLSearchParams): P
   try {
     switch (provider) {
       case "cpx-research":
-        // CPX sends amount_usd as a decimal dollar value (e.g. "0.25" = $0.25)
-        // DO NOT multiply by 100 — the conversion_rate in offerwall_providers
-        // already converts this USD credit value to satoshis.
-        // Multiplying by 100 would over-credit users by 100x.
         return {
           userId: searchParams.get("user_id") || searchParams.get("ext_user_id") || "",
           offerId: searchParams.get("offer_id") || searchParams.get("survey_id") || "",
           offerName: searchParams.get("offer_name") || "CPX Survey",
-          credits: Number.parseFloat(searchParams.get("amount_usd") || "0"),
+          credits: Number.parseFloat(searchParams.get("amount_usd") || "0") * 100,
           transactionId: searchParams.get("trans_id") || searchParams.get("transaction_id") || "",
           ip: searchParams.get("ip") || "",
         }

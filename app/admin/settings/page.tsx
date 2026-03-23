@@ -1,8 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { SystemSettingsForm } from "@/components/admin/system-settings-form"
-import { AdminFaucetPayForm } from "@/components/admin/faucetpay-settings-form"
-import { Coins, CreditCard, Shield, Key } from "lucide-react"
+import { Coins, CreditCard, Shield } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -65,20 +64,6 @@ export default async function AdminSettingsPage() {
           </CardHeader>
           <CardContent>
             <SystemSettingsForm category="security" settings={settingsMap} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              FaucetPay API Configuration
-            </CardTitle>
-            <CardDescription>
-              Configure the FaucetPay API key used for all payouts — direct faucet claims, withdrawals, and manual faucet rewards
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AdminFaucetPayForm />
           </CardContent>
         </Card>
       </div>

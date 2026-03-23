@@ -37,6 +37,7 @@ import {
   Calendar,
   Award,
   Sparkles,
+  Lock,
   Play,
   ChevronRight,
   XCircle,
@@ -53,6 +54,7 @@ import { cn } from "@/lib/utils"
 import useSWR from "swr"
 import Image from "next/image"
 import {
+  GAME_ACHIEVEMENTS,
   type TournamentInfo,
   type LeaderboardEntry
 } from "@/lib/games/game-engine"
@@ -160,7 +162,7 @@ export default function GamesPage() {
   const [activeTab, setActiveTab] = useState("games")
   const [selectedLeaderboardGame, setSelectedLeaderboardGame] = useState<GameType>("tetris")
   const [showAchievementModal, setShowAchievementModal] = useState(false)
-  const [newAchievement, setNewAchievement] = useState<{ id: string; name: string; description: string; reward: number; icon: string } | null>(null)
+  const [newAchievement, setNewAchievement] = useState<typeof GAME_ACHIEVEMENTS[0] | null>(null)
   const [showResultModal, setShowResultModal] = useState(false)
   const [gameResult, setGameResult] = useState<{
     isWin: boolean
@@ -511,6 +513,8 @@ export default function GamesPage() {
     }
   ]
 
+  const unlockedAchievements = GAME_ACHIEVEMENTS.filter((_, i) => i < 5) // Simulated unlocked
+  const lockedAchievements = GAME_ACHIEVEMENTS.filter((_, i) => i >= 5)
 
   if (!gameStatus) {
     return (
@@ -714,17 +718,23 @@ export default function GamesPage() {
       {/* Main Content Tabs */}
       {!isPlaying ? (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 h-auto">
+          <TabsList className="grid w-full grid-cols-4 h-auto">
             <TabsTrigger value="games" className="gap-2 py-2">
               <Gamepad2 className="h-4 w-4" />
               <span className="hidden sm:inline">Games</span>
             </TabsTrigger>
-
+            <TabsTrigger value="tournaments" className="gap-2 py-2">
+              <Crown className="h-4 w-4" />
+              <span className="hidden sm:inline">Tournaments</span>
+            </TabsTrigger>
             <TabsTrigger value="leaderboard" className="gap-2 py-2">
               <Medal className="h-4 w-4" />
               <span className="hidden sm:inline">Leaderboard</span>
             </TabsTrigger>
-
+            <TabsTrigger value="achievements" className="gap-2 py-2">
+              <Award className="h-4 w-4" />
+              <span className="hidden sm:inline">Achievements</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Games Tab */}
@@ -899,6 +909,114 @@ export default function GamesPage() {
           </TabsContent>
 
           {/* Tournaments Tab */}
+          <TabsContent value="tournaments" className="mt-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Active Tournaments</h2>
+                <p className="text-sm text-muted-foreground">Compete for prize pools and glory</p>
+              </div>
+              <Badge variant="outline" className="gap-1">
+                <Users className="h-3 w-3" />
+                {tournaments.reduce((acc, t) => acc + t.participants, 0)} Players Active
+              </Badge>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {tournaments.map((tournament) => (
+                <Card
+                  key={tournament.id}
+                  className={cn(
+                    "border-2 transition-all hover:shadow-lg",
+                    tournament.status === "active" ? "border-green-500/30 bg-green-500/5" :
+                      tournament.status === "upcoming" ? "border-blue-500/30 bg-blue-500/5" :
+                        "border-muted/30 bg-muted/5 opacity-75"
+                  )}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Crown className={cn(
+                          "h-5 w-5",
+                          tournament.status === "active" ? "text-green-500" :
+                            tournament.status === "upcoming" ? "text-blue-500" : "text-muted-foreground"
+                        )} />
+                        {tournament.name}
+                      </CardTitle>
+                      <Badge
+                        variant={tournament.status === "active" ? "default" :
+                          tournament.status === "upcoming" ? "secondary" : "outline"}
+                      >
+                        {tournament.status === "active" && <Sparkles className="h-3 w-3 mr-1" />}
+                        {tournament.status.charAt(0).toUpperCase() + tournament.status.slice(1)}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Prize Pool</p>
+                        <p className="text-lg font-bold text-yellow-500">
+                          {tournament.prizePool.toLocaleString()} sats
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Entry Fee</p>
+                        <p className="text-lg font-bold">{tournament.entryFee} sats</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Players</p>
+                        <p className="text-lg font-bold">{tournament.participants}/{tournament.maxParticipants}</p>
+                      </div>
+                    </div>
+
+                    <Progress
+                      value={(tournament.participants / tournament.maxParticipants) * 100}
+                      className="h-1"
+                    />
+
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        {tournament.status === "ended" ? "Ended" :
+                          tournament.status === "active" ? "Ends in 2h" : "Starts in 1h"}
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={tournament.status === "ended"}
+                        className={cn(
+                          tournament.status === "active" ? "bg-green-600 hover:bg-green-700" : ""
+                        )}
+                      >
+                        {tournament.status === "ended" ? "View Results" :
+                          tournament.status === "active" ? "Join Now" : "Register"}
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Tournament Rules */}
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-primary" />
+                  Tournament Rules
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>Entry fee is deducted from your balance when you register</li>
+                  <li>Your best score during the tournament period counts</li>
+                  <li>Top 10 players split the prize pool (50%, 25%, 10%, 5%...)</li>
+                  <li>Cheating results in immediate disqualification and ban</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Leaderboard Tab */}
           <TabsContent value="leaderboard" className="mt-6 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -975,6 +1093,76 @@ export default function GamesPage() {
           </TabsContent>
 
           {/* Achievements Tab */}
+          <TabsContent value="achievements" className="mt-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold">Achievements</h2>
+                <p className="text-sm text-muted-foreground">
+                  Unlock achievements to earn bonus satoshis
+                </p>
+              </div>
+              <Badge variant="outline" className="gap-1">
+                <Star className="h-3 w-3 text-yellow-500" />
+                {unlockedAchievements.length}/{GAME_ACHIEVEMENTS.length} Unlocked
+              </Badge>
+            </div>
+
+            <div className="space-y-4">
+              {/* Unlocked Achievements */}
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  Unlocked ({unlockedAchievements.length})
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {unlockedAchievements.map((achievement) => (
+                    <Card key={achievement.id} className="border-green-500/30 bg-green-500/5">
+                      <CardContent className="p-4 flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-green-500/20">
+                          <Trophy className="h-5 w-5 text-green-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{achievement.name}</p>
+                          <p className="text-xs text-muted-foreground">{achievement.description}</p>
+                          <Badge variant="secondary" className="mt-2 text-xs">
+                            <Coins className="h-3 w-3 mr-1" />
+                            +{achievement.reward} sats earned
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Locked Achievements */}
+              <div>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  Locked ({lockedAchievements.length})
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {lockedAchievements.map((achievement) => (
+                    <Card key={achievement.id} className="border-muted/30 bg-muted/5 opacity-75">
+                      <CardContent className="p-4 flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-muted/50">
+                          <Lock className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{achievement.name}</p>
+                          <p className="text-xs text-muted-foreground">{achievement.description}</p>
+                          <Badge variant="outline" className="mt-2 text-xs">
+                            <Gift className="h-3 w-3 mr-1" />
+                            +{achievement.reward} sats reward
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
       ) : (
         // Active Game
@@ -1014,7 +1202,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["tetris"] ?? 500}
+                winThreshold={gameStatus?.winThresholds?.["tetris"]}
               />
             )}
             {selectedGame === "block_blast" && (
@@ -1023,7 +1211,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["block_blast"] ?? 300}
+                winThreshold={gameStatus?.winThresholds?.["block_blast"]}
               />
             )}
             {selectedGame === "car_racing" && (
@@ -1032,7 +1220,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["car_racing"] ?? 450}
+                winThreshold={gameStatus?.winThresholds?.["car_racing"]}
               />
             )}
             {selectedGame === "snake" && (
@@ -1041,7 +1229,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["snake"] ?? 50}
+                winThreshold={gameStatus?.winThresholds?.["snake"]}
               />
             )}
             {selectedGame === "memory" && (
@@ -1050,7 +1238,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["memory"] ?? 120}
+                winThreshold={gameStatus?.winThresholds?.["memory"]}
               />
             )}
             {selectedGame === "flappy" && (
@@ -1059,7 +1247,7 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["flappy"] ?? 20}
+                winThreshold={gameStatus?.winThresholds?.["flappy"]}
               />
             )}
           </CardContent>
