@@ -16,7 +16,7 @@ import {
   Zap,
   RefreshCw
 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, getAuthUser } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Shortlink {
