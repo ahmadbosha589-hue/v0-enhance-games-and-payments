@@ -12,14 +12,14 @@ export async function POST(req: NextRequest) {
     }
 
     const headersList = await headers()
-    const ip = headersList.get("x-forwarded-for")?.split(",")[0] || 
-               headersList.get("x-real-ip") || 
-               "unknown"
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0] ||
+      headersList.get("x-real-ip") ||
+      "unknown"
     const userAgent = headersList.get("user-agent") || "unknown"
 
     // Bot detection
-    if (userAgent.toLowerCase().includes("bot") || 
-        userAgent.toLowerCase().includes("crawler")) {
+    if (userAgent.toLowerCase().includes("bot") ||
+      userAgent.toLowerCase().includes("crawler")) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
@@ -35,6 +35,12 @@ export async function POST(req: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+
+    if (!adminSupabase) {
+      console.error("[coupons/redeem] Admin client not available")
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
     const normalizedCode = code.trim().toUpperCase()
 
     // Check daily redemption limit
@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
       .gte("redeemed_at", today.toISOString())
 
     if (todayCount && todayCount >= MAX_REDEMPTIONS_PER_DAY) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: "Daily redemption limit reached",
         maxRedemptions: MAX_REDEMPTIONS_PER_DAY
       }, { status: 429 })

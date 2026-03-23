@@ -6,19 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Ticket, Gift, Clock, CheckCircle, XCircle, Sparkles, Coins, AlertCircle } from "lucide-react"
-import { createClient, getAuthUser } from "@/lib/supabase/client"
-import { useLanguage } from "@/lib/i18n/language-context"
 
-interface Coupon {
-  id: string
-  code: string
-  reward_satoshis: number
-  description: string | null
-  expires_at: string | null
-  max_uses: number | null
-  current_uses: number
-  is_active: boolean
-}
+import { useLanguage } from "@/lib/i18n/language-context"
 
 interface CouponRedemption {
   id: string
@@ -38,7 +27,6 @@ export default function CouponsPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [recentRedemptions, setRecentRedemptions] = useState<CouponRedemption[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
 
   // Featured promo codes (hints)
   const promoHints = [
@@ -53,48 +41,13 @@ export default function CouponsPage() {
 
   async function loadRedemptions() {
     try {
-      if (!supabase) {
-        setIsLoading(false)
-        return
-      }
+      const res = await fetch("/api/coupons/redemptions")
 
-      // Add a timeout to prevent infinite hanging
-      const timeoutPromise = new Promise<null>((_, reject) =>
-        setTimeout(() => reject(new Error("Auth timeout")), 8000)
-      )
-
-      let user
-      try {
-        user = await Promise.race([getAuthUser(), timeoutPromise])
-      } catch {
-        console.error("Auth check timed out or failed")
-        setIsLoading(false)
-        return
-      }
-
-      if (!user) {
-        setIsLoading(false)
-        return
-      }
-
-      const { data, error } = await supabase
-        .from("coupon_redemptions")
-        .select(`
-          id,
-          coupon_id,
-          redeemed_at,
-          reward_satoshis,
-          coupons (
-            code,
-            description
-          )
-        `)
-        .eq("user_id", user.id)
-        .order("redeemed_at", { ascending: false })
-        .limit(10)
-
-      if (!error && data) {
-        setRecentRedemptions(data as unknown as CouponRedemption[])
+      if (res.ok) {
+        const json = await res.json()
+        setRecentRedemptions(json.redemptions ?? [])
+      } else {
+        console.error("Error loading redemptions:", res.status)
       }
     } catch (error) {
       console.error("Error loading redemptions:", error)
@@ -113,82 +66,30 @@ export default function CouponsPage() {
     setMessage(null)
 
     try {
-      const user = await getAuthUser()
-      if (!user) {
-        setMessage({ type: "error", text: "Please log in to redeem coupons" })
-        return
-      }
+      // Generate a simple fingerprint for anti-fraud
+      const fingerprint = `${navigator.userAgent}-${screen.width}x${screen.height}-${new Date().getTimezoneOffset()}`
 
-      // Find the coupon
-      const { data: coupon, error: couponError } = await supabase
-        .from("coupons")
-        .select("*")
-        .eq("code", couponCode.toUpperCase().trim())
-        .eq("is_active", true)
-        .single()
-
-      if (couponError || !coupon) {
-        setMessage({ type: "error", text: "Invalid or expired coupon code" })
-        return
-      }
-
-      // Check if expired
-      if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
-        setMessage({ type: "error", text: "This coupon has expired" })
-        return
-      }
-
-      // Check if max uses reached
-      if (coupon.max_uses && coupon.current_uses >= coupon.max_uses) {
-        setMessage({ type: "error", text: "This coupon has reached its maximum redemptions" })
-        return
-      }
-
-      // Check if user already redeemed
-      const { data: existing } = await supabase
-        .from("coupon_redemptions")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("coupon_id", coupon.id)
-        .single()
-
-      if (existing) {
-        setMessage({ type: "error", text: "You have already redeemed this coupon" })
-        return
-      }
-
-      // Redeem the coupon
-      const { error: redemptionError } = await supabase
-        .from("coupon_redemptions")
-        .insert({
-          user_id: user.id,
-          coupon_id: coupon.id,
-          reward_satoshis: coupon.reward_satoshis
+      const res = await fetch("/api/coupons/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: couponCode.trim(),
+          fingerprint
         })
+      })
 
-      if (redemptionError) {
-        setMessage({ type: "error", text: "Failed to redeem coupon. Please try again." })
-        return
+      const data = await res.json()
+
+      if (res.ok && data.success) {
+        setMessage({
+          type: "success",
+          text: `Congratulations! You received ${data.reward} satoshis!`
+        })
+        setCouponCode("")
+        loadRedemptions()
+      } else {
+        setMessage({ type: "error", text: data.error || "Failed to redeem coupon" })
       }
-
-      // Update coupon uses
-      await supabase
-        .from("coupons")
-        .update({ current_uses: coupon.current_uses + 1 })
-        .eq("id", coupon.id)
-
-      // Update user balance
-      await supabase.rpc("add_game_reward", {
-        p_user_id: user.id,
-        p_amount: coupon.reward_satoshis
-      })
-
-      setMessage({
-        type: "success",
-        text: `Congratulations! You received ${coupon.reward_satoshis} satoshis!`
-      })
-      setCouponCode("")
-      loadRedemptions()
     } catch (error) {
       console.error("Error redeeming coupon:", error)
       setMessage({ type: "error", text: "An error occurred. Please try again." })
