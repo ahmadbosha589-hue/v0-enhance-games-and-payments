@@ -16,24 +16,63 @@ async function ChartSection({ userId }: { userId: string }) {
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
-  const transactions = await safeQuery(
-    (supabase) =>
-      supabase
-        .from("transactions")
-        .select("amount_satoshis, created_at")
-        .eq("user_id", userId)
-        .gte("created_at", sevenDaysAgo.toISOString())
-        .in("type", [
-          "claim", "referral_bonus", "bonus",
-          "daily_bonus", "streak_bonus", "signup_bonus",
-          "achievement", "game", "game_reward", "manual_faucet",
-          "offerwall", "ptc", "shortlink", "coupon",
-        ])
-        .gt("amount_satoshis", 0)
-        .order("created_at", { ascending: true })
-        .limit(500),
-    [],
-  )
+  // Try transactions table first, fall back to claims table
+  let transactions: { amount_satoshis: number; created_at: string }[] = []
+
+  // Fetch ALL earning sources in parallel and merge
+  const [txData, claimsData, gameData] = await Promise.all([
+    // All transactions except withdrawals (covers referrals, bonuses, games, offerwalls, PTCs, shortlinks)
+    safeQuery(
+      (supabase) =>
+        supabase
+          .from("transactions")
+          .select("amount_satoshis, created_at")
+          .eq("user_id", userId)
+          .gte("created_at", sevenDaysAgo.toISOString())
+          .neq("type", "withdrawal")
+          .gt("amount_satoshis", 0)
+          .order("created_at", { ascending: true })
+          .limit(1000),
+      [],
+    ),
+    // Claims table directly (guaranteed to have faucet claims)
+    safeQuery(
+      (supabase) =>
+        supabase
+          .from("claims")
+          .select("amount_satoshis, created_at")
+          .eq("user_id", userId)
+          .gte("created_at", sevenDaysAgo.toISOString())
+          .order("created_at", { ascending: true })
+          .limit(500),
+      [],
+    ),
+    // Manual faucet claims
+    safeQuery(
+      (supabase) =>
+        supabase
+          .from("manual_faucet_claims")
+          .select("amount_satoshis:amount, created_at")
+          .eq("user_id", userId)
+          .gte("created_at", sevenDaysAgo.toISOString())
+          .order("created_at", { ascending: true })
+          .limit(200),
+      [],
+    ),
+  ])
+
+  // Merge all sources, deduplicate by summing into daily buckets
+  // If txData has rows, it already covers claims/games/etc via foreign inserts
+  // so we use it as primary. Otherwise fall back to individual tables.
+  if (txData.length > 0) {
+    transactions = txData
+  } else {
+    // transactions table empty — merge individual tables
+    transactions = [
+      ...(claimsData as any[]),
+      ...(gameData as any[]),
+    ]
+  }
 
   // Build daily buckets
   const dailyEarnings: Record<string, { earnings: number; fullDate: string }> = {}
