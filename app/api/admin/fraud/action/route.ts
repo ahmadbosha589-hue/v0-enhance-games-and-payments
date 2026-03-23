@@ -62,14 +62,14 @@ export async function POST(request: Request) {
 
     const oldData = currentFlag
       ? {
-          status: currentFlag.status,
-          action_taken: currentFlag.action_taken,
-          resolution_notes: currentFlag.resolution_notes,
-        }
+        status: currentFlag.status,
+        action_taken: currentFlag.action_taken,
+        resolution_notes: currentFlag.resolution_notes,
+      }
       : null
 
     const newData = {
-      status: action === "dismiss" ? "dismissed" : "resolved",
+      status: action === "dismiss" ? "false_positive" : "confirmed_fraud",
       action_taken: action === "dismiss" ? "dismissed" : "banned",
       resolution_notes: notes || (action === "dismiss" ? "Dismissed by admin" : "User banned due to fraud"),
     }
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
     const { error: flagError } = await supabase
       .from("fraud_flags")
       .update({
-        status: action === "dismiss" ? "dismissed" : "resolved",
+        status: action === "dismiss" ? "false_positive" : "confirmed_fraud",
         resolved_by: user.id,
         resolved_at: new Date().toISOString(),
         action_taken: action === "dismiss" ? "dismissed" : "banned",
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       // Create notification
       await supabase.from("notifications").insert({
         user_id: userId,
-        type: "account_banned",
+        type: "account_warning",
         title: "Account Suspended",
         message: "Your account has been suspended due to a violation of our terms of service.",
         data: { reason: notes || "Fraud detected" },

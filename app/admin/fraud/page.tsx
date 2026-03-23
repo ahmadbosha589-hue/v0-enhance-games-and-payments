@@ -29,7 +29,7 @@ export default async function FraudPage() {
         created_at
       )
     `)
-    .eq("status", "pending")
+    .eq("status", "pending_review")
     .order("severity", { ascending: false })
     .order("created_at", { ascending: false })
 
@@ -43,7 +43,7 @@ export default async function FraudPage() {
         display_name
       )
     `)
-    .in("status", ["resolved", "dismissed"])
+    .in("status", ["confirmed_fraud", "false_positive"])
     .order("resolved_at", { ascending: false })
     .limit(50)
 

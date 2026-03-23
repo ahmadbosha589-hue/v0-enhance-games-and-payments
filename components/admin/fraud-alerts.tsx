@@ -36,7 +36,7 @@ export function FraudAlerts() {
       const { data, error } = await supabase
         .from("fraud_flags")
         .select("id, user_id, fraud_type, severity, created_at, status")
-        .eq("status", "pending")
+        .eq("status", "pending_review")
         .order("severity", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(5)
@@ -65,7 +65,7 @@ export function FraudAlerts() {
     setActionLoading(flagId)
     try {
       const supabase = createClient()
-      const { error } = await supabase.from("fraud_flags").update({ status: "dismissed" }).eq("id", flagId)
+      const { error } = await supabase.from("fraud_flags").update({ status: "false_positive" }).eq("id", flagId)
 
       if (error) throw error
 
@@ -84,7 +84,7 @@ export function FraudAlerts() {
       const supabase = createClient()
 
       await supabase.from("profiles").update({ status: "banned" }).eq("id", userId)
-      await supabase.from("fraud_flags").update({ status: "actioned" }).eq("id", flagId)
+      await supabase.from("fraud_flags").update({ status: "confirmed_fraud" }).eq("id", flagId)
 
       toast.success("User banned successfully")
       fetchAlerts()
@@ -174,13 +174,12 @@ export function FraudAlerts() {
                   <div className="text-right mr-2">
                     <p className="text-xs text-muted-foreground">Severity</p>
                     <p
-                      className={`font-bold text-sm ${
-                        alert.severity >= 70
+                      className={`font-bold text-sm ${alert.severity >= 70
                           ? "text-red-500"
                           : alert.severity >= 40
                             ? "text-amber-500"
                             : "text-emerald-500"
-                      }`}
+                        }`}
                     >
                       {alert.severity}
                     </p>

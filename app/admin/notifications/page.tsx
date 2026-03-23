@@ -192,10 +192,9 @@ export default function NotificationsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="info">Info</SelectItem>
-                    <SelectItem value="success">Success</SelectItem>
-                    <SelectItem value="warning">Warning</SelectItem>
-                    <SelectItem value="error">Error</SelectItem>
+                    <SelectItem value="system_announcement">Announcement</SelectItem>
+                    <SelectItem value="account_warning">Account Warning</SelectItem>
+                    <SelectItem value="security_alert">Security Alert</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
