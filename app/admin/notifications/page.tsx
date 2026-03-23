@@ -29,7 +29,7 @@ interface Notification {
   type: string
   title: string
   message: string
-  read: boolean
+  is_read: boolean
   created_at: string
 }
 
@@ -72,7 +72,7 @@ export default function NotificationsPage() {
       const { count: unreadCount } = await supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
-        .eq("read", false)
+        .eq("is_read", false)
 
       // Get today's count
       const todayStart = new Date()
@@ -120,7 +120,7 @@ export default function NotificationsPage() {
             type: notifType,
             title: notifTitle,
             message: notifMessage,
-            read: false,
+            is_read: false,
           }))
 
           const { error } = await supabase.from("notifications").insert(notificationsToInsert)
@@ -333,7 +333,7 @@ export default function NotificationsPage() {
                         {notification.message}
                       </TableCell>
                       <TableCell>
-                        {notification.read ? (
+                        {notification.is_read ? (
                           <Badge variant="outline" className="bg-green-500/10 text-green-500">
                             Read
                           </Badge>

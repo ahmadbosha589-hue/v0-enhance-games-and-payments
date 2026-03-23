@@ -34,7 +34,7 @@ export async function GET() {
       supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
-        .eq("read", false),
+        .eq("is_read", false),
       supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       }
 
       const { error } = await supabase.from("notifications").insert(
-        users.map((u) => ({ user_id: u.id, type, title, message, read: false })),
+        users.map((u) => ({ user_id: u.id, type, title, message, is_read: false })),
       )
       if (error) throw error
 
