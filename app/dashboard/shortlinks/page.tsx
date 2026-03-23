@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +16,7 @@ import {
   Zap,
   RefreshCw
 } from "lucide-react"
-import { createClient, getAuthUser } from "@/lib/supabase/client"
+import { getAuthUser } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Shortlink {
@@ -41,7 +41,6 @@ interface ShortlinkVisit {
 interface DailyProgress {
   total_earned: number
   links_completed: number
-  max_links: number
 }
 
 export default function ShortlinksPage() {
@@ -53,22 +52,14 @@ export default function ShortlinksPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [dailyProgress, setDailyProgress] = useState<DailyProgress>({
     total_earned: 0,
-    links_completed: 0,
-    max_links: 20
+    links_completed: 0
   })
   const [recentVisits, setRecentVisits] = useState<ShortlinkVisit[]>([])
-  const supabase = useMemo(() => createClient(), [])
   // Track when the user opened the link so the server can validate view duration
   const viewStartTimeRef = useRef<number | null>(null)
 
   const loadData = useCallback(async () => {
     try {
-      // Guard: supabase client may be null when env vars are not configured
-      if (!supabase) {
-        setIsLoading(false)
-        return
-      }
-
       // Add a timeout to prevent infinite hanging
       const timeoutPromise = new Promise<null>((_, reject) =>
         setTimeout(() => reject(new Error("Auth timeout")), 8000)
@@ -88,8 +79,12 @@ export default function ShortlinksPage() {
         return
       }
 
-      // Load shortlinks via API route (uses admin client server-side, bypasses RLS)
-      const linksRes = await fetch("/api/shortlinks")
+      // Load shortlinks and visits via API routes (uses admin client server-side, bypasses RLS)
+      const [linksRes, visitsRes] = await Promise.all([
+        fetch("/api/shortlinks"),
+        fetch("/api/shortlinks/visits")
+      ])
+
       if (linksRes.ok) {
         const linksJson = await linksRes.json()
         setShortlinks(linksJson.shortlinks ?? [])
@@ -98,57 +93,27 @@ export default function ShortlinksPage() {
         setShortlinks([])
       }
 
-      // Load today's visits
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      if (visitsRes.ok) {
+        const visitsJson = await visitsRes.json()
+        const todayVisits = visitsJson.todayVisits ?? []
+        const recentVisits = visitsJson.recentVisits ?? []
 
-      const { data: visitsData, error: visitsError } = await supabase
-        .from("shortlink_views")
-        .select("shortlink_id, reward_satoshis")
-        .eq("user_id", user.id)
-        .gte("viewed_at", today.toISOString())
-
-      if (visitsError) {
-        console.error("Error loading visits:", visitsError)
-      }
-
-      if (visitsData) {
-        const visited = new Set(visitsData.map(v => v.shortlink_id))
+        const visited = new Set(todayVisits.map((v: { shortlink_id: string }) => v.shortlink_id))
         setVisitedToday(visited)
         setDailyProgress({
-          total_earned: visitsData.reduce((sum, v) => sum + v.reward_satoshis, 0),
-          links_completed: visitsData.length,
-          max_links: 20
+          total_earned: todayVisits.reduce((sum: number, v: { reward_satoshis: number }) => sum + v.reward_satoshis, 0),
+          links_completed: todayVisits.length
         })
-      }
-
-      // Load recent visits
-      const { data: recentData, error: recentError } = await supabase
-        .from("shortlink_views")
-        .select(`
-          id,
-          shortlink_id,
-          viewed_at,
-          reward_satoshis,
-          shortlinks (title)
-        `)
-        .eq("user_id", user.id)
-        .order("viewed_at", { ascending: false })
-        .limit(5)
-
-      if (recentError) {
-        console.error("Error loading recent visits:", recentError)
-      }
-
-      if (recentData) {
-        setRecentVisits(recentData as unknown as ShortlinkVisit[])
+        setRecentVisits(recentVisits as ShortlinkVisit[])
+      } else {
+        console.error("Error loading visits:", visitsRes.status)
       }
     } catch (error) {
       console.error("Error loading data:", error)
     } finally {
       setIsLoading(false)
     }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -259,13 +224,12 @@ export default function ShortlinksPage() {
               </div>
               <div className="w-full md:w-64">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-400">Links completed</span>
-                  <span className="text-cyan-400">{dailyProgress.links_completed}/{dailyProgress.max_links}</span>
+                  <span className="text-gray-400">Links completed today</span>
+                  <span className="text-cyan-400">{dailyProgress.links_completed}</span>
                 </div>
-                <Progress
-                  value={(dailyProgress.links_completed / dailyProgress.max_links) * 100}
-                  className="h-2 bg-gray-800"
-                />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">No daily limit</span>
+                </div>
               </div>
             </div>
           </CardContent>

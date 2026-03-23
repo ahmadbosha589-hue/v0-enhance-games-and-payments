@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 
-const MAX_SHORTLINKS_PER_DAY = 50
-
 export async function POST(req: NextRequest) {
   try {
     const user = await getUser()
@@ -32,22 +30,13 @@ export async function POST(req: NextRequest) {
 
     const adminSupabase = createAdminClient()
 
-    // Check daily limit
+    if (!adminSupabase) {
+      console.error("[shortlinks/complete] Admin client not available")
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-
-    const { count: todayCount } = await adminSupabase
-      .from("shortlink_views")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .gte("viewed_at", today.toISOString())
-
-    if (todayCount && todayCount >= MAX_SHORTLINKS_PER_DAY) {
-      return NextResponse.json({
-        error: "Daily shortlink limit reached",
-        maxViews: MAX_SHORTLINKS_PER_DAY
-      }, { status: 429 })
-    }
 
     // Find the shortlink
     const { data: shortlink, error: shortlinkError } = await adminSupabase
@@ -124,8 +113,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       reward: shortlink.reward_satoshis,
-      viewsToday: newTodayCount || 1,
-      viewsRemaining: MAX_SHORTLINKS_PER_DAY - (newTodayCount || 1)
+      viewsToday: newTodayCount || 1
     })
 
   } catch (error) {

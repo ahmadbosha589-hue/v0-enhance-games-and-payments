@@ -14,6 +14,11 @@ export async function GET() {
     // (all authenticated users should see active shortlinks)
     const db = createAdminClient()
 
+    if (!db) {
+      console.error("[shortlinks] Admin client not available - check SUPABASE_SERVICE_ROLE_KEY")
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
+
     const { data, error } = await db
       .from("shortlinks")
       .select("id, title, destination_url, reward_satoshis, view_time_seconds, is_active")
