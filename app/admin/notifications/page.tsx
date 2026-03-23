@@ -20,7 +20,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Bell, Send, Clock, CheckCircle, AlertTriangle, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
-import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 interface Notification {
@@ -41,8 +40,8 @@ export default function NotificationsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [supabaseError, setSupabaseError] = useState(false)
 
-  // Form state
-  const [notifType, setNotifType] = useState("info")
+  // Form state — default must be a valid notification_type enum value
+  const [notifType, setNotifType] = useState("system_announcement")
   const [notifTitle, setNotifTitle] = useState("")
   const [notifMessage, setNotifMessage] = useState("")
   const [targetAudience, setTargetAudience] = useState("all")
@@ -54,40 +53,15 @@ export default function NotificationsPage() {
   async function fetchNotifications() {
     setIsLoading(true)
     try {
-      const supabase = createClient()
-      if (!supabase) {
+      const res = await fetch("/api/admin/notifications")
+      if (res.status === 503) {
         setSupabaseError(true)
-        setIsLoading(false)
         return
       }
-
-      // Get notifications
-      const { data, count } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact" })
-        .order("created_at", { ascending: false })
-        .limit(50)
-
-      // Get unread count
-      const { count: unreadCount } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .eq("is_read", false)
-
-      // Get today's count
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      const { count: todayCount } = await supabase
-        .from("notifications")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", todayStart.toISOString())
-
-      setNotifications(data || [])
-      setStats({
-        total: count || 0,
-        unread: unreadCount || 0,
-        today: todayCount || 0,
-      })
+      if (!res.ok) throw new Error("Failed to fetch")
+      const json = await res.json()
+      setNotifications(json.notifications || [])
+      setStats(json.stats || { total: 0, unread: 0, today: 0 })
     } catch (error) {
       toast.error("Failed to fetch notifications")
     } finally {
@@ -101,56 +75,48 @@ export default function NotificationsPage() {
       return
     }
 
-    const supabase = createClient()
-    if (!supabase) {
-      toast.error("Database connection not available")
-      return
-    }
-
     setIsSending(true)
     try {
-      if (targetAudience === "all") {
-        // Get all user IDs
-        const { data: users } = await supabase.from("profiles").select("id").eq("status", "active")
+      const res = await fetch("/api/admin/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetAudience,
+          type: notifType,
+          title: notifTitle,
+          message: notifMessage,
+        }),
+      })
 
-        if (users && users.length > 0) {
-          // Insert notifications for all users
-          const notificationsToInsert = users.map((user) => ({
-            user_id: user.id,
-            type: notifType,
-            title: notifTitle,
-            message: notifMessage,
-            is_read: false,
-          }))
+      const json = await res.json()
 
-          const { error } = await supabase.from("notifications").insert(notificationsToInsert)
-
-          if (error) throw error
-
-          toast.success(`Notification sent to ${users.length} users!`)
-        }
-      } else {
-        // Send to specific user (could be extended)
-        toast.info("Single user notifications coming soon")
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to send notification")
       }
 
+      toast.success(`Notification sent to ${json.sent} user(s)!`)
       setDialogOpen(false)
       setNotifTitle("")
       setNotifMessage("")
-      setNotifType("info")
+      setNotifType("system_announcement")
       fetchNotifications()
-    } catch (error) {
-      toast.error("Failed to send notification")
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send notification")
     } finally {
       setIsSending(false)
     }
   }
 
+  // Colors keyed by actual notification_type enum values
   const typeColors: Record<string, string> = {
-    info: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-    success: "bg-green-500/10 text-green-500 border-green-500/20",
-    warning: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-    error: "bg-red-500/10 text-red-500 border-red-500/20",
+    system_announcement: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+    account_warning: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+    security_alert: "bg-red-500/10 text-red-500 border-red-500/20",
+    withdrawal_completed: "bg-green-500/10 text-green-500 border-green-500/20",
+    withdrawal_failed: "bg-red-500/10 text-red-500 border-red-500/20",
+    claim_success: "bg-green-500/10 text-green-500 border-green-500/20",
+    referral_signup: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+    referral_bonus: "bg-purple-500/10 text-purple-500 border-purple-500/20",
   }
 
   const readRate = stats.total > 0 ? Math.round(((stats.total - stats.unread) / stats.total) * 100) : 0
@@ -323,8 +289,11 @@ export default function NotificationsPage() {
                   {notifications.map((notification) => (
                     <TableRow key={notification.id}>
                       <TableCell>
-                        <Badge className={typeColors[notification.type] || typeColors.info} variant="outline">
-                          {notification.type}
+                        <Badge
+                          className={typeColors[notification.type] || "bg-blue-500/10 text-blue-500 border-blue-500/20"}
+                          variant="outline"
+                        >
+                          {notification.type.replace(/_/g, " ")}
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium max-w-[150px] truncate">{notification.title}</TableCell>
