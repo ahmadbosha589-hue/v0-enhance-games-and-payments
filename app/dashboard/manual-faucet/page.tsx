@@ -28,6 +28,7 @@ import { createClient, isSupabaseConfigured, clearOrphanedAuthLock } from "@/lib
 import { toast } from "sonner"
 import Link from "next/link"
 import useSWR from "swr"
+import { useAdblock } from "@/components/adblock/adblock-provider"
 import { CryptoIcon } from "@/components/crypto-icon"
 import confetti from "canvas-confetti"
 import { AntiBotVerification } from "@/components/captcha/anti-bot-verification"
@@ -51,9 +52,8 @@ const FAUCETPAY_CRYPTOS = [
 ]
 
 const CLAIM_VALUE_USD = 0.0009
-const COOLDOWN_SECONDS = 45
+const COOLDOWN_SECONDS = 60
 const SHORTLINK_REQUIRED_AFTER = 100
-const PAGE_LOAD_WAIT_SECONDS = 45 // Cooldown wait shown after first claim
 
 // Cache keys for session storage (session data) and localStorage (persistent flags)
 const CACHE_KEYS = {
@@ -199,12 +199,12 @@ async function robustFetch<T>(
       if (!response.ok) {
         // Extract error message from response body if available
         const serverError = data?.error || data?.message
-        if (serverError) {
-          throw new Error(serverError)
-        }
-        // Fall back to HTTP status message
-        const httpMessage = HTTP_ERROR_MESSAGES[response.status] || `Request failed (Error ${response.status})`
-        throw new Error(httpMessage)
+        const errorCode = data?.code || ""
+        const msg = serverError || HTTP_ERROR_MESSAGES[response.status] || `Request failed (Error ${response.status})`
+        // Attach code so catch block can use it without string matching
+        const err = new Error(msg) as Error & { code?: string }
+        err.code = errorCode
+        throw err
       }
 
       return data as T
@@ -222,8 +222,12 @@ async function robustFetch<T>(
         lastError = new Error(String(error))
       }
 
-      if (attempt < maxRetries - 1) {
+      // Don't retry if this was a deliberate server rejection (has error code)
+      const hasCode = lastError && (lastError as any).code
+      if (!hasCode && attempt < maxRetries - 1) {
         await new Promise((r) => setTimeout(r, 200 * (attempt + 1)))
+      } else if (hasCode) {
+        break
       }
     }
   }
@@ -425,7 +429,7 @@ function ErrorState({
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              Failed to Load Manual Faucet
+              Failed to Load Direct Faucet
             </CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
@@ -497,7 +501,10 @@ function DirectFaucetContent() {
 
   // Security states
   const [vpnDetected, setVpnDetected] = useState(false)
-  const [adblockDetected, setAdblockDetected] = useState(false)
+  // Use the enterprise-grade adblock detection system already running in AdblockProvider
+  // (wired into the dashboard layout). This replaces the custom per-page detection
+  // which had false positives from self-triggered CSS checks.
+  const { isFlagged: adblockDetected } = useAdblock()
 
   // Claim states
   const [isClaiming, setIsClaiming] = useState(false)
@@ -1029,61 +1036,7 @@ function DirectFaucetContent() {
       })()
     )
 
-    // Adblock check — multi-signal to avoid false positives from extension-based blockers
-    // Extension blockers block network requests but DON'T hide DOM elements the same way
-    // We require 3+ independent signals before flagging to eliminate false positives
-    tasks.push(
-      (async () => {
-        try {
-          if (typeof document === "undefined") return { type: "adblock", detected: false }
-          let signals = 0
-
-          // Signal 1: bait div hidden by CSS injection (network/DNS blockers)
-          try {
-            const bait = document.createElement("div")
-            bait.id = "Dv3GxMPe9W" // random ID — avoids element-hide rules
-            bait.className = "pub_300x250 pub_300x250m pub_728x90 adsbox"
-            bait.style.cssText = "position:absolute;left:-99999px;width:1px;height:1px;opacity:0;"
-            document.body.appendChild(bait)
-            await new Promise(r => setTimeout(r, 100))
-            const s = getComputedStyle(bait)
-            if (bait.offsetHeight === 0 || s.display === "none" || s.visibility === "hidden" || s.opacity === "0") {
-              signals++
-            }
-            document.body.removeChild(bait)
-          } catch { /* ignore */ }
-
-          // Signal 2: second bait with different classes
-          try {
-            const bait2 = document.createElement("ins")
-            bait2.className = "adsbygoogle"
-            bait2.style.cssText = "position:absolute;left:-99999px;width:1px;height:1px;"
-            document.body.appendChild(bait2)
-            await new Promise(r => setTimeout(r, 80))
-            if (bait2.offsetHeight === 0 || getComputedStyle(bait2).display === "none") signals++
-            document.body.removeChild(bait2)
-          } catch { /* ignore */ }
-
-          // Signal 3: blocked ad script URL probe (network blockers only)
-          try {
-            const testImg = new Image()
-            let blocked = false
-            await new Promise<void>(resolve => {
-              testImg.onload = () => resolve()
-              testImg.onerror = () => { blocked = true; resolve() }
-              setTimeout(() => { blocked = true; resolve() }, 800)
-              testImg.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?cx=" + Date.now()
-            })
-            if (blocked) signals++
-          } catch { /* ignore */ }
-
-          // Require 2+ signals to flag — eliminates extension false positives
-          return { type: "adblock", detected: signals >= 2 }
-        } catch {
-          return { type: "adblock", detected: false }
-        }
-      })()
-    )
+    // Adblock detection is handled by the enterprise AdblockProvider in the dashboard layout.
 
     // Wait for all tasks with a global timeout
     const { value: results, timedOut: globalTimeout } = await withStrictTimeout(
@@ -1105,7 +1058,7 @@ function DirectFaucetContent() {
     let claimsData = cachedClaimsData ?? []
     let shortlinkData: any[] = []
     let vpnAllowed = true
-    let adblockIsDetected = false
+
 
     for (const result of results) {
       if (result.status === "fulfilled") {
@@ -1140,9 +1093,7 @@ function DirectFaucetContent() {
           case "shortlink":
             shortlinkData = value.data ?? []
             break
-          case "adblock":
-            adblockIsDetected = value.detected ?? false
-            break
+
         }
       }
     }
@@ -1156,7 +1107,7 @@ function DirectFaucetContent() {
       setPtcAdsCompleted(ptcCount)
       setIsLocked(ptcCount < 2)
       setVpnDetected(!vpnAllowed)
-      setAdblockDetected(adblockIsDetected)
+
 
       // Process claims
       const counts: Record<string, number> = {}
@@ -1221,6 +1172,27 @@ function DirectFaucetContent() {
       mountedRef.current = false
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for PTC completion broadcast from the PTC page.
+  // When the user completes a PTC ad in another tab/same tab, this fires
+  // and immediately re-checks PTC status so the faucet unlocks automatically.
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return
+    let bc: BroadcastChannel
+    try {
+      bc = new BroadcastChannel("ptc_completed")
+      bc.onmessage = () => {
+        // Clear PTC cache so next check re-fetches
+        try {
+          sessionStorage.removeItem("mf_ptc_count_v1")
+          sessionStorage.removeItem("mf_cache_time_v1")
+        } catch { }
+        // Re-fetch PTC status immediately
+        handleRefreshPtcStatus()
+      }
+    } catch { /* ignore */ }
+    return () => { try { bc?.close() } catch { } }
+  }, [handleRefreshPtcStatus])
 
   // Cooldown timer
   useEffect(() => {
@@ -1307,7 +1279,7 @@ function DirectFaucetContent() {
       setSelectedCrypto(symbol)
 
       try {
-        const response = await robustFetch<{ amount: string; error?: string }>(
+        const response = await robustFetch<{ amount: string; error?: string; code?: string }>(
           "/api/manual-faucet/claim",
           {
             method: "POST",
@@ -1322,7 +1294,11 @@ function DirectFaucetContent() {
           12000
         )
 
-        if (response.error) throw new Error(response.error)
+        if (response.error) {
+          const err = new Error(response.error) as Error & { code?: string }
+          if (response.code) err.code = response.code
+          throw err
+        }
 
         try {
           confetti({
@@ -1368,7 +1344,9 @@ function DirectFaucetContent() {
         let description = errorMessage
         let actionHint = ""
 
-        if (errorMessage.toLowerCase().includes("link your faucetpay") ||
+        const errorCode = (error as any)?.code || ""
+        if (errorCode === "FAUCETPAY_NOT_CONFIGURED" ||
+          errorMessage.toLowerCase().includes("link your faucetpay") ||
           errorMessage.toLowerCase().includes("faucetpay email") ||
           errorMessage.toLowerCase().includes("account settings") ||
           errorMessage.toLowerCase().includes("not configured") ||
@@ -1380,10 +1358,10 @@ function DirectFaucetContent() {
           title = "FaucetPay Account Not Found"
           description = "Your email is not registered on FaucetPay."
           actionHint = "Create a free FaucetPay account with the same email first."
-        } else if (errorMessage.includes("funds") || errorMessage.includes("Insufficient") || errorMessage.includes("402")) {
-          title = "Faucet Low on Funds"
-          description = "The faucet is temporarily out of funds."
-          actionHint = "Please try again in a few hours."
+        } else if (errorMessage.includes("funds") || errorMessage.includes("Insufficient") || errorMessage.includes("402") || errorMessage.includes("out of funds")) {
+          title = "Faucet Has Insufficient Funds"
+          description = "This faucet doesn\'t have sufficient funds to complete your transaction right now."
+          actionHint = "Please try again later — the faucet is refilled periodically."
         } else if (errorMessage.includes("limit") || errorMessage.includes("458")) {
           title = "Daily Limit Reached"
           description = "You've reached your daily claim limit."
@@ -1440,76 +1418,40 @@ function DirectFaucetContent() {
   }
 
   // Render loading or wait timer
-  if (!pageReady && !fatalError) {
-    // Show wait timer on subsequent loads (silent background checks)
-    if (isWaiting && !showLoadingSteps) {
-      return (
-        <div className="min-h-screen p-4 md:p-6 lg:p-8">
-          <div className="max-w-xl mx-auto space-y-4">
-            {/* Timer Card */}
-            <Card className="border-primary/20">
-              <CardHeader className="text-center pb-3">
-                <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-3">
-                  <Clock className="h-8 w-8 text-amber-500" />
-                </div>
-                <CardTitle className="text-lg">Please Wait</CardTitle>
-                <CardDescription className="text-sm">
-                  Preparing the faucet for you...
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-0">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-primary mb-1">{waitTimer}</div>
-                  <p className="text-xs text-muted-foreground">seconds remaining</p>
-                </div>
-                <Progress value={((PAGE_LOAD_WAIT_SECONDS - waitTimer) / PAGE_LOAD_WAIT_SECONDS) * 100} className="h-2" />
-              </CardContent>
-            </Card>
-
-            {/* Show verification status below timer */}
-            <Card className="border-border/50">
-              <CardHeader className="py-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-primary" />
-                  Background Security Checks
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="py-3 pt-0">
-                <div className="grid grid-cols-2 gap-2">
-                  {loadingSteps.map((step) => (
-                    <div
-                      key={step.id}
-                      className="flex items-center gap-2 p-2 rounded-md bg-muted/30 text-xs"
-                    >
-                      {step.status === "pending" && (
-                        <div className="w-3 h-3 rounded-full border border-muted-foreground/30" />
-                      )}
-                      {step.status === "loading" && (
-                        <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                      )}
-                      {(step.status === "success" || step.status === "cached") && (
-                        <CheckCircle className="w-3 h-3 text-green-500" />
-                      )}
-                      {step.status === "error" && (
-                        <AlertTriangle className="w-3 h-3 text-destructive" />
-                      )}
-                      <span className={`truncate ${step.status === "success" || step.status === "cached"
-                        ? "text-green-600"
-                        : step.status === "error"
-                          ? "text-destructive"
-                          : "text-muted-foreground"
-                        }`}>
-                        {step.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+  // Show cooldown timer after a successful claim while page is ready
+  // This must be AFTER pageReady check so it doesn't block the loading screen
+  if (pageReady && isWaiting) {
+    return (
+      <div className="min-h-screen p-4 md:p-6 lg:p-8">
+        <div className="max-w-xl mx-auto space-y-4">
+          <Card className="border-primary/20">
+            <CardHeader className="text-center pb-3">
+              <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-3">
+                <Clock className="h-8 w-8 text-amber-500" />
+              </div>
+              <CardTitle className="text-lg">Cooldown Active</CardTitle>
+              <CardDescription className="text-sm">
+                Your last claim was processed. Wait for the timer to claim again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-0">
+              <div className="text-center">
+                <div className="text-5xl font-bold text-primary mb-1 tabular-nums">{waitTimer}</div>
+                <p className="text-xs text-muted-foreground">seconds remaining</p>
+              </div>
+              <Progress value={((COOLDOWN_SECONDS - waitTimer) / COOLDOWN_SECONDS) * 100} className="h-2" />
+              <p className="text-center text-xs text-muted-foreground">
+                You can claim again in {waitTimer}s. You may also browse other earning methods.
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      )
-    }
+      </div>
+    )
+  }
+
+  if (!pageReady && !fatalError) {
+    // Loading screen shown below
 
     // Show detailed loading steps on first load
     return (
@@ -1538,7 +1480,7 @@ function DirectFaucetContent() {
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold">Direct Crypto Faucet</h1>
             <p className="text-muted-foreground">
-              Claim small amounts of crypto every 7 seconds - sent directly to FaucetPay
+              Claim small amounts of crypto every 60 seconds - sent directly to FaucetPay
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1827,7 +1769,7 @@ function DirectFaucetContent() {
                             </span>
                           </div>
                           <div className="text-[10px] text-muted-foreground mt-0.5">
-                            = ${CLAIM_VALUE_USD} USD
+                            = $0.0009 USD
                           </div>
                         </div>
 
@@ -1895,9 +1837,9 @@ function DirectFaucetContent() {
           <CardContent className="p-4">
             <h3 className="font-semibold mb-2">How it works:</h3>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-4">
-              <li>Complete 2 PTC ads daily to unlock the manual faucet</li>
+              <li>Complete 2 PTC ads daily to unlock the direct faucet</li>
               <li>Complete verification to prove you are human</li>
-              <li>Claim from any cryptocurrency every {COOLDOWN_SECONDS} seconds</li>
+              <li>Claim from any cryptocurrency every 60 seconds (1 minute per coin)</li>
               <li>
                 After {SHORTLINK_REQUIRED_AFTER} claims, complete 1 shortlink to continue
               </li>
@@ -1918,7 +1860,7 @@ export default function DirectFaucetPage() {
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p className="text-muted-foreground">Loading Manual Faucet...</p>
+            <p className="text-muted-foreground">Loading Direct Faucet...</p>
           </div>
         </div>
       }
