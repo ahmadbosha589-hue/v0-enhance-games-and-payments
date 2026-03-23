@@ -68,9 +68,11 @@ export function resetSupabaseClient(): void {
  * fires — but the lock is never released. Every subsequent getUser() / getSession()
  * call queues behind the orphaned lock and hangs forever.
  *
- * IMPORTANT: We only steal the lock when there are PENDING requests waiting.
- * A held lock with no pending requests is NORMAL during active auth operations.
- * Only when requests are queued up and waiting does it indicate an orphan.
+ * IMPORTANT: We steal the lock when there is AT LEAST ONE pending request waiting
+ * behind a held lock. A held lock with ZERO pending requests is normal (active
+ * auth operation in flight). A held lock with >= 1 pending is already a blockage —
+ * the previous threshold of >= 2 was too conservative and left single-caller
+ * scenarios (the common real-world case) hanging forever.
  */
 function getAuthLockName(): string | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -105,10 +107,10 @@ export async function clearOrphanedAuthLock(): Promise<void> {
 
     // Only consider it orphaned if:
     // 1. The lock IS held
-    // 2. There are 2+ pending requests waiting (indicates real blockage, not just normal operation)
+    // 2. At least 1 request is pending (any waiter behind a held lock = blockage)
     // 3. We haven't stolen recently (cooldown to prevent rapid stealing)
     const now = Date.now()
-    const isOrphaned = isHeld && pendingCount >= 2 && (now - lastLockStealTime) > LOCK_STEAL_COOLDOWN
+    const isOrphaned = isHeld && pendingCount >= 1 && (now - lastLockStealTime) > LOCK_STEAL_COOLDOWN
 
     if (!isOrphaned) return
 

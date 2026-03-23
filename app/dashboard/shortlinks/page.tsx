@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +16,7 @@ import {
   Zap,
   RefreshCw
 } from "lucide-react"
-import { createClient, getAuthUser } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Shortlink {
@@ -58,6 +58,8 @@ export default function ShortlinksPage() {
   })
   const [recentVisits, setRecentVisits] = useState<ShortlinkVisit[]>([])
   const supabase = useMemo(() => createClient(), [])
+  // Track when the user opened the link so the server can validate view duration
+  const viewStartTimeRef = useRef<number | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -123,7 +125,54 @@ export default function ShortlinksPage() {
     loadData()
   }, [loadData])
 
-  // Countdown timer
+  // completeVisit must be declared BEFORE the countdown effect that references it
+  // (const/useCallback are in TDZ until their declaration line is reached)
+  const completeVisit = useCallback(async (shortlinkId: string) => {
+    try {
+      // Build a lightweight fingerprint from browser properties for bot detection
+      const fingerprint = btoa(
+        [navigator.userAgent, navigator.language, screen.width, screen.height].join("|")
+      ).slice(0, 32)
+
+      const response = await fetch("/api/shortlinks/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shortlinkId,
+          viewStartTime: viewStartTimeRef.current ?? Date.now(),
+          fingerprint,
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        console.error("Error completing shortlink visit:", err)
+        return
+      }
+
+      // Update local state optimistically so the UI reflects the change instantly
+      setVisitedToday(prev => new Set([...prev, shortlinkId]))
+      const shortlink = shortlinks.find(s => s.id === shortlinkId)
+      if (shortlink) {
+        setDailyProgress(prev => ({
+          ...prev,
+          total_earned: prev.total_earned + shortlink.reward_satoshis,
+          links_completed: prev.links_completed + 1,
+        }))
+      }
+
+      // Sync fresh data from server in background
+      loadData()
+    } catch (error) {
+      console.error("Error completing visit:", error)
+    } finally {
+      setActiveLink(null)
+      setCountdown(0)
+      viewStartTimeRef.current = null
+    }
+  }, [shortlinks, loadData])
+
+  // Countdown timer — completeVisit must be in deps (stable ref via useCallback)
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
@@ -131,10 +180,13 @@ export default function ShortlinksPage() {
     } else if (countdown === 0 && activeLink) {
       completeVisit(activeLink)
     }
-  }, [countdown, activeLink])
+  }, [countdown, activeLink, completeVisit])
 
   async function startVisit(shortlink: Shortlink) {
     if (visitedToday.has(shortlink.id) || activeLink) return
+
+    // Record exactly when the user opened the link so the server can validate duration
+    viewStartTimeRef.current = Date.now()
 
     // Open link in new tab
     window.open(shortlink.destination_url, "_blank")
@@ -142,51 +194,6 @@ export default function ShortlinksPage() {
     // Start countdown
     setActiveLink(shortlink.id)
     setCountdown(shortlink.view_time_seconds)
-  }
-
-  async function completeVisit(shortlinkId: string) {
-    try {
-      const user = await getAuthUser()
-      if (!user) return
-
-      const shortlink = shortlinks.find(s => s.id === shortlinkId)
-      if (!shortlink) return
-
-      // Record visit
-      const { error: visitError } = await supabase
-        .from("shortlink_views")
-        .insert({
-          user_id: user.id,
-          shortlink_id: shortlinkId,
-          reward_satoshis: shortlink.reward_satoshis
-        })
-
-      if (visitError) {
-        console.error("Error recording visit:", visitError)
-        return
-      }
-
-      // Update user balance
-      await supabase.rpc("add_game_reward", {
-        p_user_id: user.id,
-        p_amount: shortlink.reward_satoshis
-      })
-
-      // Update local state
-      setVisitedToday(prev => new Set([...prev, shortlinkId]))
-      setDailyProgress(prev => ({
-        ...prev,
-        total_earned: prev.total_earned + shortlink.reward_satoshis,
-        links_completed: prev.links_completed + 1
-      }))
-
-      loadData()
-    } catch (error) {
-      console.error("Error completing visit:", error)
-    } finally {
-      setActiveLink(null)
-      setCountdown(0)
-    }
   }
 
   const availableLinks = shortlinks.filter(s => !visitedToday.has(s.id))

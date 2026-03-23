@@ -12,14 +12,14 @@ export async function POST(req: NextRequest) {
     }
 
     const headersList = await headers()
-    const ip = headersList.get("x-forwarded-for")?.split(",")[0] || 
-               headersList.get("x-real-ip") || 
-               "unknown"
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0] ||
+      headersList.get("x-real-ip") ||
+      "unknown"
     const userAgent = headersList.get("user-agent") || "unknown"
 
     // Bot detection
-    if (userAgent.toLowerCase().includes("bot") || 
-        userAgent.toLowerCase().includes("crawler")) {
+    if (userAgent.toLowerCase().includes("bot") ||
+      userAgent.toLowerCase().includes("crawler")) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       .gte("viewed_at", today.toISOString())
 
     if (todayCount && todayCount >= MAX_SHORTLINKS_PER_DAY) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: "Daily shortlink limit reached",
         maxViews: MAX_SHORTLINKS_PER_DAY
       }, { status: 429 })
@@ -77,26 +77,24 @@ export async function POST(req: NextRequest) {
     // Validate view duration
     const viewDuration = Date.now() - viewStartTime
     const requiredDuration = shortlink.view_time_seconds * 1000
-    
+
     // Allow 2 second grace period
     if (viewDuration < requiredDuration - 2000) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: "Please view the link for the required time",
         required: shortlink.view_time_seconds,
         actual: Math.floor(viewDuration / 1000)
       }, { status: 400 })
     }
 
-    // Record the view
+    // Record the view — only columns that exist in shortlink_views schema
     const { error: viewError } = await adminSupabase
       .from("shortlink_views")
       .insert({
         user_id: user.id,
         shortlink_id: shortlinkId,
         reward_satoshis: shortlink.reward_satoshis,
-        ip_address: ip,
-        user_agent: userAgent,
-        view_duration_ms: viewDuration
+        ip_address: ip
       })
 
     if (viewError) {
@@ -104,10 +102,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to record view" }, { status: 500 })
     }
 
-    // Update shortlink views count
+    // Update shortlink total_views count (matches schema column name)
     await adminSupabase
       .from("shortlinks")
-      .update({ views_count: (shortlink.views_count || 0) + 1 })
+      .update({ total_views: (shortlink.total_views || 0) + 1 })
       .eq("id", shortlinkId)
 
     // Award satoshis to user
