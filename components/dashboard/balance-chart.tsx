@@ -1,13 +1,8 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useMemo } from "react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
-import { Skeleton } from "@/components/ui/skeleton"
-import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react"
-
-interface BalanceChartProps {
-  userId: string
-}
+import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 
 interface ChartData {
   date: string
@@ -15,57 +10,12 @@ interface ChartData {
   earnings: number
 }
 
-export function BalanceChart({ userId }: BalanceChartProps) {
-  const [data, setData] = useState<ChartData[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(false)
+interface BalanceChartProps {
+  initialData: ChartData[]
+}
 
-  useEffect(() => {
-    // Don't fetch until we have a real userId
-    if (!userId) {
-      setIsLoading(false)
-      return
-    }
-
-    let mounted = true
-    setIsLoading(true)
-    setError(false)
-
-    async function fetchData() {
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 10000)
-
-        const res = await fetch("/api/user/earnings-chart", {
-          credentials: "include",
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
-
-        if (!res.ok) {
-          if (mounted) { setError(true); setIsLoading(false) }
-          return
-        }
-
-        const json = await res.json()
-
-        if (mounted) {
-          setData(json.data || [])
-          setIsLoading(false)
-        }
-      } catch (err) {
-        if (mounted) {
-          // AbortError = timeout, just show empty — don't show error UI
-          setData([])
-          setIsLoading(false)
-        }
-      }
-    }
-
-    fetchData()
-
-    return () => { mounted = false }
-  }, [userId])
+export function BalanceChart({ initialData }: BalanceChartProps) {
+  const data = initialData || []
 
   const { totalEarnings, trend, trendPercentage } = useMemo(() => {
     const total = data.reduce((sum, d) => sum + d.earnings, 0)
@@ -86,33 +36,6 @@ export function BalanceChart({ userId }: BalanceChartProps) {
     return { totalEarnings: total, trend: trendDir, trendPercentage: pct }
   }, [data])
 
-  if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-6 w-16 rounded-full" />
-        </div>
-        <Skeleton className="h-[180px] w-full" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-[220px] flex-col items-center justify-center text-center gap-2">
-        <RefreshCw className="h-8 w-8 text-muted-foreground/30" />
-        <p className="text-sm text-muted-foreground">Unable to load chart</p>
-        <button
-          onClick={() => { setError(false); setIsLoading(true); setData([]) }}
-          className="text-xs text-primary underline underline-offset-2"
-        >
-          Retry
-        </button>
-      </div>
-    )
-  }
-
   if (data.every((d) => d.earnings === 0)) {
     return (
       <div className="flex h-[220px] flex-col items-center justify-center text-center" role="status">
@@ -125,7 +48,6 @@ export function BalanceChart({ userId }: BalanceChartProps) {
 
   return (
     <div className="space-y-3">
-      {/* Summary stats */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-2xl font-bold tabular-nums">{totalEarnings.toLocaleString()} sats</p>

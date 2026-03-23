@@ -12,6 +12,50 @@ import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { BalanceChart } from "@/components/dashboard/balance-chart"
 import { ResponsiveAd } from "@/components/ads/responsive-ad"
 
+async function ChartSection({ userId }: { userId: string }) {
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+  const transactions = await safeQuery(
+    (supabase) =>
+      supabase
+        .from("transactions")
+        .select("amount_satoshis, created_at")
+        .eq("user_id", userId)
+        .gte("created_at", sevenDaysAgo.toISOString())
+        .in("type", [
+          "claim", "referral_bonus", "bonus",
+          "daily_bonus", "streak_bonus", "signup_bonus",
+          "achievement", "game", "game_reward", "manual_faucet",
+          "offerwall", "ptc", "shortlink", "coupon",
+        ])
+        .gt("amount_satoshis", 0)
+        .order("created_at", { ascending: true })
+        .limit(500),
+    [],
+  )
+
+  // Build daily buckets
+  const dailyEarnings: Record<string, { earnings: number; fullDate: string }> = {}
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date()
+    date.setDate(date.getDate() - i)
+    const key = date.toLocaleDateString("en-US", { weekday: "short" })
+    const fullDate = date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+    dailyEarnings[key] = { earnings: 0, fullDate }
+  }
+  ; (transactions || []).forEach((tx: any) => {
+    const key = new Date(tx.created_at).toLocaleDateString("en-US", { weekday: "short" })
+    if (key in dailyEarnings) dailyEarnings[key].earnings += Number(tx.amount_satoshis) || 0
+  })
+
+  const chartData = Object.entries(dailyEarnings).map(([date, { earnings, fullDate }]) => ({
+    date, fullDate, earnings,
+  }))
+
+  return <BalanceChart initialData={chartData} />
+}
+
 async function TransactionsSection({ userId }: { userId: string }) {
   const transactions = await safeQuery(
     (supabase) =>
@@ -42,6 +86,8 @@ function TransactionsSkeleton() {
     </div>
   )
 }
+
+export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
   const user = await getUser()
@@ -223,7 +269,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="pt-0 px-4 sm:px-6">
             <Suspense fallback={<Skeleton className="h-[200px] sm:h-[220px] w-full" />}>
-              <BalanceChart userId={user.id} />
+              <ChartSection userId={user.id} />
             </Suspense>
           </CardContent>
         </Card>
