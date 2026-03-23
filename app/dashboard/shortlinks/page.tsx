@@ -95,12 +95,17 @@ export default function ShortlinksPage() {
         .eq("is_active", true)
         .order("reward_satoshis", { ascending: false })
 
+      console.log("[v0] Shortlinks query result:", { linksData, linksError, count: linksData?.length })
+
       if (linksError) {
         console.error("Error loading shortlinks:", linksError)
       }
 
       if (linksData) {
         setShortlinks(linksData)
+      } else {
+        // If no data returned, set empty array to show proper empty state
+        setShortlinks([])
       }
 
       // Load today's visits
@@ -331,11 +336,17 @@ export default function ShortlinksPage() {
               <div className="flex justify-center py-8">
                 <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
               </div>
+            ) : shortlinks.length === 0 ? (
+              <div className="text-center py-8">
+                <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+                <p className="text-white font-medium">No links available right now</p>
+                <p className="text-sm text-gray-400">Check back later for new shortlinks to earn satoshis</p>
+              </div>
             ) : availableLinks.length === 0 ? (
               <div className="text-center py-8">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                <p className="text-white font-medium">All done for today!</p>
-                <p className="text-sm text-gray-400">Come back tomorrow for more links</p>
+                <p className="text-white font-medium">Great job! You completed all links today!</p>
+                <p className="text-sm text-gray-400">New links will be available tomorrow at midnight UTC</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -410,14 +421,26 @@ export default function ShortlinksPage() {
         <Card className="bg-gray-900/50 border-gray-800">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <Zap className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-gray-400">
-                <p className="font-medium text-blue-400 mb-1">Tips for earning more:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Visit all available links daily for maximum earnings</li>
-                  <li>Keep the link tab open for the full duration</li>
-                  <li>Links reset every 24 hours at midnight UTC</li>
-                  <li>Higher reward links have longer wait times</li>
+                <p className="font-medium text-amber-400 mb-2">How to maximize your earnings:</p>
+                <ul className="space-y-1.5">
+                  <li className="flex items-start gap-2">
+                    <span className="text-cyan-400 font-bold">1.</span>
+                    <span>Click &quot;Visit&quot; and keep the new tab open until the countdown finishes</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-cyan-400 font-bold">2.</span>
+                    <span>Complete all available links daily - they reset at midnight UTC</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-cyan-400 font-bold">3.</span>
+                    <span>Satoshis are credited instantly after the wait time completes</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-cyan-400 font-bold">4.</span>
+                    <span>While waiting, you can browse other tabs - just don&apos;t close the link tab</span>
+                  </li>
                 </ul>
               </div>
             </div>
