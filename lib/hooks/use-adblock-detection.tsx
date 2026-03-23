@@ -1150,8 +1150,6 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
             img.onload = () => {
               clearTimeout(timeoutId)
-              // Check for placeholder/1x1 pixel response
-              if (img.width <= 1 || img.height <= 1) blocked++
               resolve()
             }
 
@@ -1209,7 +1207,8 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
     const container = document.createElement("div")
     container.id = `__adblock_test_${Date.now()}`
-    container.style.cssText = "position:fixed;left:-10000px;top:-10000px;opacity:0.01;pointer-events:none;"
+    container.style.cssText = "position:absolute;top:-1px;left:-1px;width:1px;height:1px;overflow:hidden;pointer-events:none;"
+
 
     const elements: HTMLElement[] = []
 
@@ -2373,7 +2372,8 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
   const detectIframeBlocking = useCallback(async (): Promise<DetectionSignal | null> => {
     return new Promise((resolve) => {
       const container = document.createElement("div")
-      container.style.cssText = "position:fixed;left:-10000px;top:-10000px;width:1px;height:1px;overflow:hidden;"
+      container.style.cssText = "position:absolute;top:-1px;left:-1px;width:1px;height:1px;overflow:hidden;pointer-events:none;"
+
 
       const iframeConfigs = [
         { id: "aswift_0", className: "ad-iframe" },
