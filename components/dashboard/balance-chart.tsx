@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
-import { createClient } from "@/lib/supabase/client"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react"
 
 interface BalanceChartProps {
   userId: string
@@ -22,64 +21,42 @@ export function BalanceChart({ userId }: BalanceChartProps) {
   const [error, setError] = useState(false)
 
   useEffect(() => {
+    // Don't fetch until we have a real userId
+    if (!userId) {
+      setIsLoading(false)
+      return
+    }
+
     let mounted = true
+    setIsLoading(true)
+    setError(false)
 
     async function fetchData() {
       try {
-        const supabase = createClient()
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 10000)
 
-        const sevenDaysAgo = new Date()
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("Timeout")), 5000)
+        const res = await fetch("/api/user/earnings-chart", {
+          credentials: "include",
+          signal: controller.signal,
         })
+        clearTimeout(timeout)
 
-        const fetchPromise = supabase
-          .from("transactions")
-          .select("amount_satoshis, created_at")
-          .eq("user_id", userId)
-          .gte("created_at", sevenDaysAgo.toISOString())
-          .in("type", ["claim", "referral_bonus", "bonus"])
-
-        const { data: transactions } = (await Promise.race([fetchPromise, timeoutPromise])) as any
-
-        const dailyEarnings: Record<string, { earnings: number; fullDate: string }> = {}
-
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date()
-          date.setDate(date.getDate() - i)
-          const key = date.toLocaleDateString("en-US", { weekday: "short" })
-          const fullDate = date.toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "short",
-            day: "numeric",
-          })
-          dailyEarnings[key] = { earnings: 0, fullDate }
+        if (!res.ok) {
+          if (mounted) { setError(true); setIsLoading(false) }
+          return
         }
 
-        transactions?.forEach((tx: any) => {
-          const date = new Date(tx.created_at)
-          const key = date.toLocaleDateString("en-US", { weekday: "short" })
-          if (key in dailyEarnings) {
-            dailyEarnings[key].earnings += tx.amount_satoshis
-          }
-        })
-
-        const chartData = Object.entries(dailyEarnings).map(([date, { earnings, fullDate }]) => ({
-          date,
-          fullDate,
-          earnings,
-        }))
+        const json = await res.json()
 
         if (mounted) {
-          setData(chartData)
+          setData(json.data || [])
           setIsLoading(false)
         }
       } catch (err) {
-        console.error("[v0] Failed to fetch chart data:", err)
         if (mounted) {
-          setError(true)
+          // AbortError = timeout, just show empty — don't show error UI
+          setData([])
           setIsLoading(false)
         }
       }
@@ -87,9 +64,7 @@ export function BalanceChart({ userId }: BalanceChartProps) {
 
     fetchData()
 
-    return () => {
-      mounted = false
-    }
+    return () => { mounted = false }
   }, [userId])
 
   const { totalEarnings, trend, trendPercentage } = useMemo(() => {
@@ -125,10 +100,15 @@ export function BalanceChart({ userId }: BalanceChartProps) {
 
   if (error) {
     return (
-      <div className="flex h-[220px] flex-col items-center justify-center text-center">
-        <BarChart3 className="mb-3 h-10 w-10 text-muted-foreground/30" />
-        <p className="text-sm font-medium text-muted-foreground">Unable to load chart</p>
-        <p className="text-xs text-muted-foreground/70">Please try again later</p>
+      <div className="flex h-[220px] flex-col items-center justify-center text-center gap-2">
+        <RefreshCw className="h-8 w-8 text-muted-foreground/30" />
+        <p className="text-sm text-muted-foreground">Unable to load chart</p>
+        <button
+          onClick={() => { setError(false); setIsLoading(true); setData([]) }}
+          className="text-xs text-primary underline underline-offset-2"
+        >
+          Retry
+        </button>
       </div>
     )
   }
