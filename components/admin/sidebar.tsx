@@ -46,7 +46,7 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
         const { count } = await supabase
           .from("fraud_flags")
           .select("*", { count: "exact", head: true })
-          .eq("status", "pending")
+          .eq("status", "pending_review")
         setFraudCount(count || 0)
       } catch {
         setFraudCount(0)

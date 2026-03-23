@@ -295,12 +295,13 @@ export async function logFraudFlag(
   severity: "low" | "medium" | "high" | "critical",
   details: Record<string, unknown>,
 ): Promise<void> {
+  const severityScore = severity === "critical" ? 9 : severity === "high" ? 7 : severity === "medium" ? 5 : 3
   await supabase.from("fraud_flags").insert({
     user_id: userId,
-    flag_type: flagType,
-    severity,
-    details,
-    status: "pending",
+    fraud_type: flagType,
+    severity: severityScore,
+    evidence: details,
+    status: "pending_review",
   })
 }
 

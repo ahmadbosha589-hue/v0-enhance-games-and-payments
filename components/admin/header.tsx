@@ -52,7 +52,7 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
         const { data: fraudFlags, count: fraudCount } = await supabase
           .from("fraud_flags")
           .select("id, fraud_type, severity, created_at", { count: "exact" })
-          .eq("status", "pending")
+          .eq("status", "pending_review")
           .order("created_at", { ascending: false })
           .limit(5)
 
