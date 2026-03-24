@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,7 @@ interface CouponRedemption {
 
 export default function CouponsPage() {
   const { t } = useLanguage()
+  const router = useRouter()
   const [couponCode, setCouponCode] = useState("")
   const [isRedeeming, setIsRedeeming] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
@@ -86,6 +88,8 @@ export default function CouponsPage() {
           text: `Congratulations! You received ${data.reward} satoshis!`
         })
         setCouponCode("")
+        // Hard refresh the page to update balance and redemption history
+        router.refresh()
         loadRedemptions()
       } else {
         setMessage({ type: "error", text: data.error || "Failed to redeem coupon" })
