@@ -31,7 +31,6 @@ interface MemoryGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
-  initialScore?: number
 }
 
 const GRID_SIZES = {
@@ -40,7 +39,7 @@ const GRID_SIZES = {
   hard: { cols: 6, rows: 4, pairs: 12, timeBonus: 600 }
 }
 
-export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, initialScore = 0 }: MemoryGameProps) {
+export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty }: MemoryGameProps) {
   // Choose grid difficulty based on level
   const gridDifficulty = externalDifficulty && externalDifficulty.level >= 5
     ? "hard"
@@ -73,7 +72,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   // The game itself must be completed (all pairs found) before ending
   // REMOVED auto-win based on score - this was causing premature wins
 
-  // Initialize game
+  // Initialize game - only depends on config.pairs, NOT initialScore
   const initializeGame = useCallback(() => {
     // Reset all game state to fresh values
     hasEndedRef.current = false
@@ -82,7 +81,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     setFlippedCards([])
     setMatchedPairs(0)
     setMoves(0)
-    setScore(initialScore)
+    setScore(0) // Always start at 0 - memory game doesn't carry over score
     setTimeLeft(120)
     setCombo(0)
     setStreak(0)
@@ -107,12 +106,17 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       isFlipped: false,
       isMatched: false
     })))
-  }, [config.pairs, initialScore])
+  }, [config.pairs]) // Removed initialScore from dependencies
+
+  // Track previous isActive state to only initialize when it changes to true
+  const wasActiveRef = useRef(false)
 
   useEffect(() => {
-    if (isActive) {
+    // Only initialize when isActive changes from false to true
+    if (isActive && !wasActiveRef.current) {
       initializeGame()
     }
+    wasActiveRef.current = isActive
   }, [isActive, initializeGame])
 
   // Track if game has ended to prevent multiple onGameEnd calls
