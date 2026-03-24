@@ -6,9 +6,9 @@ import { Card } from "@/components/ui/card"
 import { Sparkles, RotateCcw } from "lucide-react"
 
 const BOARD_SIZE = 10 // Larger board for better gameplay
-const CELL_SIZE = 32 // Cell size optimized for the board
-const GAP_SIZE = 2 // Gap between cells (gap-0.5 = 0.125rem = 2px)
-const PADDING = 12 // Container padding (p-3 = 0.75rem = 12px)
+const CELL_SIZE = 30 // Cell size optimized for the board
+const GAP_SIZE = 2 // Gap between cells (2px)
+const PADDING = 8 // Container padding (p-2 = 0.5rem = 8px)
 
 // Multiple color palettes - 8 colors ensures variety and prevents single-color dominance
 const COLOR_PALETTES = [
@@ -29,11 +29,11 @@ function adjustColor(color: string, amount: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-// Special block types
+// Special block types - reduced spawn rates for harder gameplay
 const SPECIAL_BLOCKS = {
-  bomb: { chance: 0.02, icon: "B", color: "#374151" },
-  rainbow: { chance: 0.015, icon: "R", color: "rainbow" },
-  multiplier: { chance: 0.02, icon: "2x", color: "#fbbf24" },
+  bomb: { chance: 0.008, icon: "B", color: "#374151" },
+  rainbow: { chance: 0.005, icon: "R", color: "rainbow" },
+  multiplier: { chance: 0.008, icon: "2x", color: "#fbbf24" },
 }
 
 // Achievement messages for big blasts
@@ -85,7 +85,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   const [shakeBoard, setShakeBoard] = useState(false)
   const [gameStartTime, setGameStartTime] = useState<number>(0)
   const [tooQuickWarning, setTooQuickWarning] = useState(false)
-  const MIN_GAME_DURATION = 20 // Minimum seconds to play legitimately
+  const MIN_GAME_DURATION = 10 // Minimum seconds to play legitimately
 
   const boardRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef(score)
@@ -111,11 +111,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
   // Get number of colors based on difficulty - MORE colors = harder to find matches, prevents single color dominance
   const getColorsForDifficulty = useCallback((palette: string[]): string[] => {
-    // Level 1-2: 6 colors, Level 3-4: 7 colors, Level 5+: 8 colors
-    // More colors ensures no single color dominates the board
-    const numColors = difficultyLevel <= 2 ? 6 : difficultyLevel <= 4 ? 7 : 8
-    return palette.slice(0, numColors)
-  }, [difficultyLevel])
+    // All levels now use 8 colors for maximum difficulty - harder to find matches
+    return palette.slice(0, 8)
+  }, [])
 
   // Initialize game with guaranteed groups of 3+
   const initializeGame = useCallback(() => {
@@ -134,14 +132,14 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       }))
     )
 
-    // Reduce clustering significantly to prevent single-color dominance - lower chance = more variety
-    const clusterChance = difficultyLevel <= 2 ? 0.08 : difficultyLevel <= 4 ? 0.05 : 0.03
+    // Minimal clustering for harder gameplay - blocks are mostly random
+    const clusterChance = 0.02 // Very low clustering = harder to find groups
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
-        // Only cluster very occasionally and randomly pick which direction
-        if (Math.random() < clusterChance && x > 0 && Math.random() < 0.3) {
+        // Only cluster very rarely
+        if (Math.random() < clusterChance && x > 0 && Math.random() < 0.2) {
           newBoard[y][x].color = newBoard[y][x - 1].color
-        } else if (Math.random() < clusterChance && y > 0 && Math.random() < 0.3) {
+        } else if (Math.random() < clusterChance && y > 0 && Math.random() < 0.2) {
           newBoard[y][x].color = newBoard[y - 1][x].color
         }
       }
@@ -436,8 +434,8 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           setTimeout(() => setBlastMessage(null), 1000)
         }
 
-        // Calculate score
-        const basePoints = powerupResult.expandedGroup.size * 3
+        // Calculate score - reduced for harder gameplay
+        const basePoints = powerupResult.expandedGroup.size * 2
         const totalPoints = Math.floor((basePoints + powerupResult.bonusPoints) * activeMultiplier * scoreMultiplierFromDifficulty)
 
         const newScore = scoreRef.current + totalPoints
@@ -550,7 +548,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       }
 
       if (cellInGroup.glowing) {
-        bonusPoints += 5 // Glowing blocks give extra points
+        bonusPoints += 2 // Glowing blocks give reduced extra points
       }
     })
 
@@ -561,9 +559,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       setTimeout(() => setBlastMessage(null), 1000)
     }
 
-    // Calculate score - balanced scoring: 3 points per block with combo bonuses
-    const basePoints = expandedGroup.size * 3 // 3 points per block
-    const sizeBonus = expandedGroup.size > 6 ? (expandedGroup.size - 6) * 2 : 0 // Bonus for larger groups
+    // Calculate score - harder scoring: 2 points per block with reduced combo bonuses
+    const basePoints = expandedGroup.size * 2 // 2 points per block (reduced from 3)
+    const sizeBonus = expandedGroup.size > 8 ? (expandedGroup.size - 8) * 1 : 0 // Bonus only for very large groups (8+)
     const difficultyBonus = 0 // No difficulty bonus
     const totalPoints = Math.floor((basePoints + sizeBonus + bonusPoints + difficultyBonus) * activeMultiplier * scoreMultiplierFromDifficulty)
 
@@ -640,21 +638,20 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       {/* Game Board */}
       <div
         ref={boardRef}
-        className={`relative bg-gray-900 rounded-lg p-3 border-2 border-gray-700 transition-transform flex-shrink-0 touch-none select-none ${shakeBoard ? "animate-pulse" : ""}`}
+        className={`relative bg-gray-900 rounded-lg p-2 border-2 border-gray-700 transition-transform flex-shrink-0 touch-none select-none ${shakeBoard ? "animate-pulse" : ""}`}
         style={{
           width: boardWidth,
           height: boardHeight,
-          maxWidth: "100%",
           transform: shakeBoard ? `translateX(${Math.random() > 0.5 ? 2 : -2}px)` : "none",
-          overflow: "hidden"
         }}
         onMouseLeave={handleMouseLeave}
       >
         <div
-          className="grid gap-0.5"
+          className="grid"
           style={{
             gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
             gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
+            gap: `${GAP_SIZE}px`,
             width: (BOARD_SIZE * CELL_SIZE) + ((BOARD_SIZE - 1) * GAP_SIZE),
             height: (BOARD_SIZE * CELL_SIZE) + ((BOARD_SIZE - 1) * GAP_SIZE)
           }}
