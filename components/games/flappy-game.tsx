@@ -251,7 +251,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               }
             }
 
-            // Check coin collision
+            // Check coin collision - 2 points per coin
             if (pipe.hasCoin && !pipe.coinCollected) {
               const coinY = pipe.topHeight + currentPipeGap / 2
               const coinX = newX + PIPE_WIDTH / 2
@@ -259,17 +259,16 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               if (dist < BIRD_SIZE) {
                 updatedPipe.coinCollected = true
                 coinsToAdd++
-                scoreBonusFromCoins += 50
+                scoreBonusFromCoins += 2
               }
             }
           }
 
-          // Check if passed
+          // Check if passed - 1 point for passing a pipe
           if (!pipe.passed && newX + PIPE_WIDTH < 50) {
             updatedPipe.passed = true
             newComboValue++
-            const comboBonus = Math.min(newComboValue * 5, 50)
-            scoreBonusFromPassing += 10 + comboBonus
+            scoreBonusFromPassing += 1
           }
 
           return updatedPipe
@@ -295,11 +294,13 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
           if (scoreBonusFromPassing > 0) {
             setCombo(newComboValue)
-            setShowCombo(true)
-            setTimeout(() => setShowCombo(false), 500)
+            if (newComboValue > 1) {
+              setShowCombo(true)
+              setTimeout(() => setShowCombo(false), 500)
+            }
 
-            // Increase difficulty
-            if (newScore > 0 && newScore % 100 === 0) {
+            // Increase difficulty every 10 pipes
+            if (newComboValue > 0 && newComboValue % 10 === 0) {
               setDifficulty(d => Math.min(d + 1, 5))
             }
           }

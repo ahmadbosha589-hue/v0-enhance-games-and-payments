@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils"
 
 const BOARD_WIDTH = 10
 const BOARD_HEIGHT = 20
-const CELL_SIZE = 18
+const CELL_SIZE = 20
 
 const COLOR_SCHEMES = [
   { I: "#00f5ff", O: "#ffd700", T: "#a855f7", S: "#22c55e", Z: "#ef4444", J: "#3b82f6", L: "#f97316" },
@@ -640,8 +640,8 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
     hasEndedRef.current = false
   }
 
-  const boardWidth = BOARD_WIDTH * CELL_SIZE + 16
-  const boardHeight = BOARD_HEIGHT * CELL_SIZE + 16
+  const boardWidth = BOARD_WIDTH * CELL_SIZE + BOARD_WIDTH + 20
+  const boardHeight = BOARD_HEIGHT * CELL_SIZE + BOARD_HEIGHT + 20
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
@@ -662,13 +662,13 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
       >
         {/* Grid */}
         <div
-          className="grid gap-[1px] relative"
+          className="grid relative"
           style={{
             gridTemplateColumns: `repeat(${BOARD_WIDTH}, ${CELL_SIZE}px)`,
             gridTemplateRows: `repeat(${BOARD_HEIGHT}, ${CELL_SIZE}px)`,
-            width: BOARD_WIDTH * CELL_SIZE,
-            height: BOARD_HEIGHT * CELL_SIZE,
-            overflow: "hidden"
+            width: BOARD_WIDTH * CELL_SIZE + BOARD_WIDTH,
+            height: BOARD_HEIGHT * CELL_SIZE + BOARD_HEIGHT,
+            gap: "1px"
           }}
         >
           {renderBoard().flat().map((cell, i) => (

@@ -178,11 +178,11 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       setLastMatchTime(now)
       setMatchAnimation([first, second])
 
-      const basePoints = 100
-      const comboBonus = newCombo > 1 ? (newCombo - 1) * 25 : 0
-      const timeBonus = Math.floor(timeLeft * 0.5)
-      const streakBonus = newStreak > 3 ? newStreak * 10 : 0
-      const points = basePoints + comboBonus + timeBonus + streakBonus
+      // Lower scoring - base 10 points per match
+      const basePoints = 10
+      const comboBonus = newCombo > 1 ? (newCombo - 1) * 2 : 0
+      const streakBonus = newStreak > 3 ? newStreak : 0
+      const points = basePoints + comboBonus + streakBonus
 
       setTimeout(() => {
         // Update matched cards
@@ -206,7 +206,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         if (newMatchedPairs >= config.pairs && !hasEndedRef.current) {
           hasEndedRef.current = true
           // All pairs found - game complete!
-          const finalBonus = perfectGame ? 500 : 0
+          const finalBonus = perfectGame ? 20 : 0
           const finalScore = newScore + finalBonus
 
           // Update final score with bonus
@@ -243,17 +243,23 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   }, [flippedCards, cards, score, combo, streak, timeLeft, lastMatchTime, config.pairs, moves, perfectGame, onGameEnd, onScoreUpdate, matchedPairs, gameOver])
 
   const handleCardClick = useCallback((cardId: number) => {
+    // Prevent clicking while checking or when game is not active
     if (!isActive || gameOver || isChecking) return
+    // Only allow 2 cards flipped at a time
     if (flippedCards.length >= 2) return
-    if (cards[cardId]?.isFlipped || cards[cardId]?.isMatched) return
+    // Prevent clicking same card or already matched/flipped cards
+    const card = cards[cardId]
+    if (!card || card.isFlipped || card.isMatched) return
     if (flippedCards.includes(cardId)) return
 
-    setCards(prev => prev.map(card =>
-      card.id === cardId ? { ...card, isFlipped: true } : card
+    // Immediately mark this card as flipped to prevent double-clicking
+    const newFlippedCards = [...flippedCards, cardId]
+    setFlippedCards(newFlippedCards)
+    setCards(prev => prev.map(c =>
+      c.id === cardId ? { ...c, isFlipped: true } : c
     ))
-    setFlippedCards(prev => [...prev, cardId])
 
-    if (flippedCards.length === 1) {
+    if (newFlippedCards.length === 2) {
       setMoves(m => m + 1)
     }
   }, [isActive, gameOver, isChecking, flippedCards, cards])
@@ -275,7 +281,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     setPerfectGame(false)
 
     // Deduct points for hint
-    setScore(s => Math.max(0, s - 50))
+    setScore(s => Math.max(0, s - 5))
 
     setTimeout(() => {
       setCards(prev => prev.map(card =>
@@ -352,7 +358,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
                   <Trophy className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
                   <p className="text-2xl font-bold text-green-500 mb-2">YOU WIN!</p>
                   {perfectGame && (
-                    <p className="text-yellow-400 text-sm mb-2">Perfect Game! +500 Bonus</p>
+                    <p className="text-yellow-400 text-sm mb-2">Perfect Game! +20 Bonus</p>
                   )}
                 </>
               ) : (
@@ -379,11 +385,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           <div className="space-y-3">
             <div>
               <p className="text-gray-400 text-xs">Score</p>
-              <p className="text-2xl font-bold text-white">{score.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-xs">Target</p>
-              <p className="font-bold text-lg text-green-400">{winThreshold.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-white">{score}</p>
             </div>
             <div className="flex gap-4">
               <div>
