@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -50,9 +50,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid request", details: validatedData.error.issues }, { status: 400 })
     }
 
-    const { 
-      name, network, budget, dailyBudget, targetUrl, 
-      title, description, imageUrl, targetCountries, startDate, endDate 
+    const {
+      name, network, budget, dailyBudget, targetUrl,
+      title, description, imageUrl, targetCountries, startDate, endDate
     } = validatedData.data
 
     // Get user profile to check advertising balance
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     // Check if user has enough advertising balance
     if (Number(profile.ad_balance_usd || 0) < budget) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: "Insufficient advertising balance",
         required: budget,
         available: profile.ad_balance_usd || 0
@@ -78,8 +78,8 @@ export async function POST(request: Request) {
     // Check network minimum budget
     const networkConfig = AD_NETWORKS[network as keyof typeof AD_NETWORKS]
     if (budget < networkConfig.minBudget) {
-      return NextResponse.json({ 
-        error: `Minimum budget for ${networkConfig.name} is $${networkConfig.minBudget}` 
+      return NextResponse.json({
+        error: `Minimum budget for ${networkConfig.name} is $${networkConfig.minBudget}`
       }, { status: 400 })
     }
 
@@ -188,6 +188,67 @@ export async function GET(request: Request) {
       return NextResponse.json({ balance: profile?.ad_balance_usd || 0 })
     }
 
+    // Get analytics with historical comparison
+    if (searchParams.get("analytics") === "true") {
+      const now = new Date()
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+
+      // Get current week data
+      const { data: currentWeekCampaigns } = await supabase
+        .from("ad_campaigns")
+        .select("spent, impressions, clicks, conversions, created_at")
+        .eq("user_id", user.id)
+        .gte("created_at", oneWeekAgo.toISOString())
+
+      // Get last week data
+      const { data: lastWeekCampaigns } = await supabase
+        .from("ad_campaigns")
+        .select("spent, impressions, clicks, conversions, created_at")
+        .eq("user_id", user.id)
+        .gte("created_at", twoWeeksAgo.toISOString())
+        .lt("created_at", oneWeekAgo.toISOString())
+
+      // Calculate current week totals
+      const currentSpent = currentWeekCampaigns?.reduce((sum, c) => sum + (c.spent || 0), 0) || 0
+      const currentImpressions = currentWeekCampaigns?.reduce((sum, c) => sum + (c.impressions || 0), 0) || 0
+      const currentClicks = currentWeekCampaigns?.reduce((sum, c) => sum + (c.clicks || 0), 0) || 0
+      const currentConversions = currentWeekCampaigns?.reduce((sum, c) => sum + (c.conversions || 0), 0) || 0
+
+      // Calculate last week totals
+      const lastSpent = lastWeekCampaigns?.reduce((sum, c) => sum + (c.spent || 0), 0) || 0
+      const lastImpressions = lastWeekCampaigns?.reduce((sum, c) => sum + (c.impressions || 0), 0) || 0
+      const lastClicks = lastWeekCampaigns?.reduce((sum, c) => sum + (c.clicks || 0), 0) || 0
+      const lastConversions = lastWeekCampaigns?.reduce((sum, c) => sum + (c.conversions || 0), 0) || 0
+
+      // Calculate percentage changes (avoid division by zero)
+      const calcChange = (current: number, last: number) => {
+        if (last === 0) return current > 0 ? 100 : 0
+        return Math.round(((current - last) / last) * 100)
+      }
+
+      return NextResponse.json({
+        analytics: {
+          spentChange: calcChange(currentSpent, lastSpent),
+          impressionsChange: calcChange(currentImpressions, lastImpressions),
+          clicksChange: calcChange(currentClicks, lastClicks),
+          conversionsChange: calcChange(currentConversions, lastConversions),
+          currentWeek: {
+            spent: currentSpent,
+            impressions: currentImpressions,
+            clicks: currentClicks,
+            conversions: currentConversions
+          },
+          lastWeek: {
+            spent: lastSpent,
+            impressions: lastImpressions,
+            clicks: lastClicks,
+            conversions: lastConversions
+          }
+        }
+      })
+    }
+
     // Get user's campaigns
     const status = searchParams.get("status")
     const limit = Math.min(Number(searchParams.get("limit")) || 20, 100)
@@ -220,7 +281,7 @@ export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
-    
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -264,7 +325,7 @@ export async function PATCH(request: Request) {
       case "stop":
         if (["active", "paused", "pending"].includes(campaign.status)) {
           newStatus = "stopped"
-          
+
           // Refund remaining budget
           const remaining = campaign.budget - campaign.spent
           if (remaining > 0) {

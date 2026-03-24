@@ -293,9 +293,21 @@ export default function AdvertisePage() {
     { refreshInterval: 30000 }
   )
 
+  const { data: analyticsData } = useSWR(
+    "/api/advertise?analytics=true",
+    fetcher,
+    { refreshInterval: 60000 }
+  )
+
   const campaigns: Campaign[] = campaignsData?.campaigns || []
   const balance = balanceData?.balance || 0
   const deposits: DepositRecord[] = depositsData?.deposits || []
+  const analytics = analyticsData?.analytics || {
+    spentChange: 0,
+    impressionsChange: 0,
+    clicksChange: 0,
+    conversionsChange: 0
+  }
 
   // Filtered campaigns
   const filteredCampaigns = useMemo(() => {
