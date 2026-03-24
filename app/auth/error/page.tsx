@@ -58,6 +58,16 @@ export default async function AuthErrorPage({
       description: "This device has been associated with banned accounts and cannot be used to create new accounts.",
       icon: "ban",
     },
+    vpn_blocked: {
+      title: "VPN/Proxy Detected",
+      description: "VPN, proxy, or Tor usage is not allowed for security reasons. Please disable your VPN/proxy and try again.",
+      icon: "shield",
+    },
+    multi_account_blocked: {
+      title: "Multi-Account Not Allowed",
+      description: "Only one account per device is allowed. This device is already associated with another account.",
+      icon: "device",
+    },
     auth_failed: {
       title: "Authentication Failed",
       description: "Failed to authenticate with Google. Please try again.",
@@ -176,17 +186,19 @@ export default async function AuthErrorPage({
             errorCode === "multiple_accounts" ||
             errorCode === "google_already_linked" ||
             errorCode === "duplicate_google_account" ||
-            errorCode === "banned_device") && (
-            <div className="rounded-lg border border-chart-3/20 bg-chart-3/5 p-2.5 sm:p-3 text-center">
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                If you believe this is an error, please{" "}
-                <Link href="/contact" className="text-primary hover:underline">
-                  contact support
-                </Link>{" "}
-                for assistance.
-              </p>
-            </div>
-          )}
+            errorCode === "banned_device" ||
+            errorCode === "vpn_blocked" ||
+            errorCode === "multi_account_blocked") && (
+              <div className="rounded-lg border border-chart-3/20 bg-chart-3/5 p-2.5 sm:p-3 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  If you believe this is an error, please{" "}
+                  <Link href="/contact" className="text-primary hover:underline">
+                    contact support
+                  </Link>{" "}
+                  for assistance.
+                </p>
+              </div>
+            )}
 
           <div className="flex flex-col gap-2">
             <Button asChild className="h-10 sm:h-11 text-sm sm:text-base">

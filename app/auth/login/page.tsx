@@ -227,13 +227,15 @@ export default function LoginPage() {
         callbackUrl.searchParams.set("fingerprint", deviceFingerprint)
       }
 
+      // Block multi-account: Use "consent" instead of "select_account" to prevent account chooser
+      // This forces re-authorization without showing other Google accounts
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: callbackUrl.toString(),
           queryParams: {
             access_type: "offline",
-            prompt: "select_account",
+            prompt: "consent",
           },
         },
       })
