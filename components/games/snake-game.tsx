@@ -14,8 +14,8 @@ import {
   Sparkles
 } from "lucide-react"
 
-const BOARD_SIZE = 15  // Smaller grid for better mobile fit
-const CELL_SIZE = 20   // Larger cells for better visibility
+const BOARD_SIZE = 20  // Larger grid for better gameplay
+const CELL_SIZE = 18   // Balanced cell size
 const INITIAL_SPEED = 140
 const SPEED_INCREASE = 4
 
@@ -54,15 +54,15 @@ const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: numb
   slow: { color: "#a855f7", points: 15, chance: 0.05 },
 }
 
-export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200, initialScore = 0 }: SnakeGameProps) {
+export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 500, initialScore = 0 }: SnakeGameProps) {
   // Apply difficulty - faster snake at higher levels
   const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
   const baseSpeedRef = useRef(baseSpeed)
   baseSpeedRef.current = baseSpeed
-  const [snake, setSnake] = useState<Position[]>([{ x: 7, y: 7 }])
+  const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }])
   const [hasWon, setHasWon] = useState(false)
   const [direction, setDirection] = useState<Direction>("RIGHT")
-  const [food, setFood] = useState<Food>({ x: 10, y: 7, type: "normal", points: 10 })
+  const [food, setFood] = useState<Food>({ x: 14, y: 10, type: "normal", points: 10 })
   const [bonusFood, setBonusFood] = useState<Food | null>(null)
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
@@ -113,9 +113,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const generateFood = useCallback((): Food => {
     let newPos: Position
     do {
+      // Generate food 1 cell away from edges to prevent clipping
       newPos = {
-        x: Math.floor(Math.random() * BOARD_SIZE),
-        y: Math.floor(Math.random() * BOARD_SIZE)
+        x: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2)),
+        y: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2))
       }
     } while (snake.some(segment => segment.x === newPos.x && segment.y === newPos.y))
 
@@ -127,9 +128,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     if (Math.random() < 0.12 && !bonusFood) {
       let newPos: Position
       do {
+        // Generate bonus food 1 cell away from edges to prevent clipping
         newPos = {
-          x: Math.floor(Math.random() * BOARD_SIZE),
-          y: Math.floor(Math.random() * BOARD_SIZE)
+          x: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2)),
+          y: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2))
         }
       } while (
         snake.some(segment => segment.x === newPos.x && segment.y === newPos.y) ||
@@ -169,9 +171,8 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
       // Wall collision - snake dies when hitting any edge
       const hitWall = head.x < 0 || head.x >= BOARD_SIZE || head.y < 0 || head.y >= BOARD_SIZE
       if (hitWall) {
-        console.log("[v0] Wall collision detected:", { head, BOARD_SIZE, gameOverRef: gameOverRef.current })
         if (!gameOverRef.current) {
-          gameOverRef.current = true  // Set ref immediately to prevent double triggers
+          gameOverRef.current = true
           setGameOver(true)
           setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
         }
@@ -181,9 +182,8 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
       // Self collision - snake dies when hitting itself
       const hitSelf = prevSnake.some(segment => segment.x === head.x && segment.y === head.y)
       if (hitSelf) {
-        console.log("[v0] Self collision detected:", { head })
         if (!gameOverRef.current) {
-          gameOverRef.current = true  // Set ref immediately to prevent double triggers
+          gameOverRef.current = true
           setGameOver(true)
           setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
         }
@@ -430,7 +430,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
 
   const resetGame = () => {
     setHasWon(false)
-    setSnake([{ x: 7, y: 7 }])
+    setSnake([{ x: 10, y: 10 }])
     setDirection("RIGHT")
     directionRef.current = "RIGHT"
     directionQueueRef.current = []

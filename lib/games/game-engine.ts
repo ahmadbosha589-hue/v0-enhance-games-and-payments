@@ -10,7 +10,7 @@ export const BASE_WIN_THRESHOLDS: Record<string, number> = {
   tetris: 500,   // ~1-2 min of solid play
   block_blast: 300,
   car_racing: 450,
-  snake: 50,
+  snake: 500,    // Increased - requires more skill and time (~1-2 min)
   flappy: 20,
   memory: 120,
 }
@@ -21,7 +21,7 @@ export const MIN_GAME_DURATIONS_MS: Record<string, number> = {
   tetris: 15000,
   block_blast: 12000,
   car_racing: 10000,
-  snake: 10000,
+  snake: 30000,   // 30 seconds minimum to reach 500 points legitimately
   flappy: 8000,
   memory: 8000,
 }
