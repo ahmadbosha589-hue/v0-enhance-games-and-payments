@@ -1267,33 +1267,61 @@ export default function AdvertisePage() {
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">Total Spent</p>
                   <p className="text-3xl font-bold">${totalSpent.toFixed(2)}</p>
-                  <div className="flex items-center gap-1 text-sm text-green-500">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>+12% vs last week</span>
+                  <div className={cn(
+                    "flex items-center gap-1 text-sm",
+                    analytics.spentChange >= 0 ? "text-green-500" : "text-red-500"
+                  )}>
+                    {analytics.spentChange >= 0 ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    <span>{analytics.spentChange >= 0 ? "+" : ""}{analytics.spentChange}% vs last week</span>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">Total Impressions</p>
                   <p className="text-3xl font-bold">{totalImpressions.toLocaleString()}</p>
-                  <div className="flex items-center gap-1 text-sm text-green-500">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>+8% vs last week</span>
+                  <div className={cn(
+                    "flex items-center gap-1 text-sm",
+                    analytics.impressionsChange >= 0 ? "text-green-500" : "text-red-500"
+                  )}>
+                    {analytics.impressionsChange >= 0 ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    <span>{analytics.impressionsChange >= 0 ? "+" : ""}{analytics.impressionsChange}% vs last week</span>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">Total Clicks</p>
                   <p className="text-3xl font-bold">{totalClicks.toLocaleString()}</p>
-                  <div className="flex items-center gap-1 text-sm text-green-500">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>+15% vs last week</span>
+                  <div className={cn(
+                    "flex items-center gap-1 text-sm",
+                    analytics.clicksChange >= 0 ? "text-green-500" : "text-red-500"
+                  )}>
+                    {analytics.clicksChange >= 0 ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    <span>{analytics.clicksChange >= 0 ? "+" : ""}{analytics.clicksChange}% vs last week</span>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm text-muted-foreground">Total Conversions</p>
                   <p className="text-3xl font-bold">{totalConversions.toLocaleString()}</p>
-                  <div className="flex items-center gap-1 text-sm text-green-500">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>+22% vs last week</span>
+                  <div className={cn(
+                    "flex items-center gap-1 text-sm",
+                    analytics.conversionsChange >= 0 ? "text-green-500" : "text-red-500"
+                  )}>
+                    {analytics.conversionsChange >= 0 ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    <span>{analytics.conversionsChange >= 0 ? "+" : ""}{analytics.conversionsChange}% vs last week</span>
                   </div>
                 </div>
               </div>
