@@ -648,7 +648,7 @@ export default function AdvertisePage() {
                 Create Campaign
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
+            <DialogContent className="w-[95vw] max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Rocket className="h-5 w-5 text-primary" />
@@ -661,22 +661,23 @@ export default function AdvertisePage() {
               <div className="space-y-6 pt-4">
                 {/* Network Selection */}
                 <div className="space-y-3">
-                  <Label>Select Ad Network *</Label>
-                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  <Label className="text-sm font-medium">Select Ad Network *</Label>
+                  <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
                     {Object.entries(AD_NETWORKS).map(([key, net]) => (
                       <button
                         key={key}
                         type="button"
                         onClick={() => setCampaignForm(f => ({ ...f, network: key }))}
                         className={cn(
-                          "relative flex flex-col p-4 rounded-lg border text-left transition-all",
+                          "relative flex flex-col p-3 sm:p-4 rounded-xl border text-left transition-all min-w-0",
                           campaignForm.network === key
-                            ? "border-primary bg-primary/5 ring-1 ring-primary"
-                            : "hover:bg-muted/50"
+                            ? "border-primary bg-primary/5 ring-2 ring-primary/50"
+                            : "hover:bg-muted/50 hover:border-muted-foreground/30"
                         )}
                       >
-                        <div className="flex items-start gap-3 mb-2">
-                          <div className="relative h-10 w-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                        {/* Header with logo, name, and badge */}
+                        <div className="flex items-center gap-3 w-full">
+                          <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-xl overflow-hidden bg-muted flex items-center justify-center shrink-0">
                             {net.logo ? (
                               <img
                                 src={net.logo}
@@ -684,35 +685,48 @@ export default function AdvertisePage() {
                                 className="h-full w-full object-cover"
                               />
                             ) : (
-                              <div className={cn("p-2 rounded-lg bg-gradient-to-br w-full h-full flex items-center justify-center", net.color)}>
-                                <net.icon className="h-5 w-5 text-white" />
+                              <div className={cn("p-2 rounded-xl bg-gradient-to-br w-full h-full flex items-center justify-center", net.color)}>
+                                <net.icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                               </div>
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold truncate">{net.name}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm sm:text-base">{net.name}</span>
                               {net.recommended && (
-                                <Badge className="text-[10px] shrink-0 px-1.5 py-0" variant="secondary">
-                                  <Star className="h-2.5 w-2.5 mr-0.5" />
+                                <Badge className="text-[9px] sm:text-[10px] shrink-0 px-1.5 py-0.5 bg-amber-500/10 text-amber-500 border-amber-500/20" variant="outline">
+                                  <Star className="h-2.5 w-2.5 mr-0.5 fill-amber-500" />
                                   Top
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground line-clamp-1">{net.description}</p>
+                            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">{net.description}</p>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-1 mt-2">
+
+                        {/* Features */}
+                        <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-3">
                           {net.features.slice(0, 3).map((f, i) => (
-                            <Badge key={i} variant="outline" className="text-[10px]">
+                            <Badge key={i} variant="outline" className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 bg-muted/50">
                               {f}
                             </Badge>
                           ))}
                         </div>
-                        <div className="flex justify-between mt-3 text-xs text-muted-foreground">
-                          <span>Min: ${net.minBudget}</span>
-                          <span>CPM: ${net.cpm}</span>
-                          <span>Avg CTR: {net.avgCtr}</span>
+
+                        {/* Stats */}
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50 text-[10px] sm:text-xs text-muted-foreground">
+                          <span className="flex flex-col sm:flex-row sm:gap-1">
+                            <span className="font-medium text-foreground/70">Min:</span>
+                            <span>${net.minBudget}</span>
+                          </span>
+                          <span className="flex flex-col sm:flex-row sm:gap-1">
+                            <span className="font-medium text-foreground/70">CPM:</span>
+                            <span>${net.cpm}</span>
+                          </span>
+                          <span className="flex flex-col sm:flex-row sm:gap-1">
+                            <span className="font-medium text-foreground/70">CTR:</span>
+                            <span>{net.avgCtr}</span>
+                          </span>
                         </div>
                       </button>
                     ))}
