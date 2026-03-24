@@ -1142,11 +1142,15 @@ export default function GamesPage() {
                 <p className="text-2xl font-bold">
                   Score: {gameResult.score.toLocaleString()}
                 </p>
-                {gameResult.winThreshold > 0 && (
+                {gameResult.winThreshold > 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Win threshold: {gameResult.winThreshold} points
                   </p>
-                )}
+                ) : selectedGame === "memory" ? (
+                  <p className="text-sm text-muted-foreground">
+                    Match all pairs to win!
+                  </p>
+                ) : null}
               </div>
               {gameResult.isWin ? (
                 <Badge className="text-lg px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white">
