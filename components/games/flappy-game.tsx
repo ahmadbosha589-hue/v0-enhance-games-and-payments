@@ -10,9 +10,10 @@ const CANVAS_HEIGHT = 400
 const BIRD_SIZE = 24
 const PIPE_WIDTH = 45
 const PIPE_GAP = 130
-const GRAVITY = 0.35 // Slightly reduced gravity for smoother feel
-const JUMP_STRENGTH = -6.5 // Adjusted jump for better control
-const PIPE_SPEED = 2.2 // Slightly slower pipes for better playability
+const GRAVITY = 0.28 // Lower gravity for floatier, smoother feel
+const JUMP_STRENGTH = -5.8 // Gentler jump for better control
+const PIPE_SPEED = 2.0 // Slower pipes for better playability
+const MAX_VELOCITY = 8 // Cap falling velocity for smoother feel
 
 // Coin types with different point values
 const COIN_TYPES = {
@@ -118,7 +119,9 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       setGameStarted(true)
     }
 
+    // Smoother jump - reset velocity to jump strength for consistent feel
     setBirdVelocity(JUMP_STRENGTH)
+    velocityRef.current = JUMP_STRENGTH // Update ref immediately for smooth rendering
     setMoves(m => m + 1)
   }, [])
 
@@ -192,12 +195,14 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       frameCountRef.current++
       const frameCount = frameCountRef.current
 
-      // Update physics
+      // Update physics with velocity capping for smoother feel
       const currentGravity = powerUpRef.current === "slow" ? GRAVITY * 0.6 : GRAVITY
-      const newVelocity = velocityRef.current + currentGravity
+      const rawVelocity = velocityRef.current + currentGravity
+      const newVelocity = Math.min(rawVelocity, MAX_VELOCITY) // Cap falling speed for smoother feel
       const newBirdY = Math.min(Math.max(birdYRef.current + newVelocity, 0), CANVAS_HEIGHT - BIRD_SIZE - 20)
 
       setBirdVelocity(newVelocity)
+      velocityRef.current = newVelocity // Update ref immediately
       setBirdY(newBirdY)
 
       // Check ground/ceiling collision

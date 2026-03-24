@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Sparkles, RotateCcw } from "lucide-react"
 
-const BOARD_SIZE = 10 // Larger board for better gameplay
-const CELL_SIZE = 32 // Adjusted cell size for larger board
+const BOARD_SIZE = 8 // Smaller board for better balance
+const CELL_SIZE = 36 // Slightly larger cells for smaller board
 
-// Multiple color palettes for variety - more colors = more variety = less single-color dominance
+// Multiple color palettes - 8 colors ensures variety and prevents single-color dominance
 const COLOR_PALETTES = [
-  ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7", "#f97316", "#06b6d4"],
-  ["#f472b6", "#84cc16", "#06b6d4", "#fbbf24", "#8b5cf6", "#ef4444", "#22c55e"],
-  ["#fb923c", "#a3e635", "#e879f9", "#38bdf8", "#facc15", "#dc2626", "#a855f7"],
-  ["#dc2626", "#16a34a", "#2563eb", "#d97706", "#7c3aed", "#f472b6", "#06b6d4"],
+  ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7", "#f97316", "#06b6d4", "#ec4899"],
+  ["#f472b6", "#84cc16", "#06b6d4", "#fbbf24", "#8b5cf6", "#ef4444", "#22c55e", "#f97316"],
+  ["#fb923c", "#a3e635", "#e879f9", "#38bdf8", "#facc15", "#dc2626", "#a855f7", "#22c55e"],
+  ["#dc2626", "#16a34a", "#2563eb", "#d97706", "#7c3aed", "#f472b6", "#06b6d4", "#fbbf24"],
 ]
 
 const getRandomPalette = () => COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)]
@@ -83,7 +83,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   const [shakeBoard, setShakeBoard] = useState(false)
   const [gameStartTime, setGameStartTime] = useState<number>(0)
   const [tooQuickWarning, setTooQuickWarning] = useState(false)
-  const MIN_GAME_DURATION = 15 // Minimum seconds to play legitimately
+  const MIN_GAME_DURATION = 30 // Minimum seconds to play legitimately
 
   const boardRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef(score)
@@ -109,9 +109,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
   // Get number of colors based on difficulty - MORE colors = harder to find matches, prevents single color dominance
   const getColorsForDifficulty = useCallback((palette: string[]): string[] => {
-    // Level 1-2: 5 colors, Level 3-4: 6 colors, Level 5+: 7 colors
+    // Level 1-2: 6 colors, Level 3-4: 7 colors, Level 5+: 8 colors
     // More colors ensures no single color dominates the board
-    const numColors = difficultyLevel <= 2 ? 5 : difficultyLevel <= 4 ? 6 : 7
+    const numColors = difficultyLevel <= 2 ? 6 : difficultyLevel <= 4 ? 7 : 8
     return palette.slice(0, numColors)
   }, [difficultyLevel])
 
@@ -132,14 +132,14 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       }))
     )
 
-    // Reduce clustering to prevent single-color dominance - lower chance = more variety
-    const clusterChance = difficultyLevel <= 2 ? 0.20 : difficultyLevel <= 4 ? 0.15 : 0.10
+    // Reduce clustering significantly to prevent single-color dominance - lower chance = more variety
+    const clusterChance = difficultyLevel <= 2 ? 0.08 : difficultyLevel <= 4 ? 0.05 : 0.03
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
-        // Only cluster occasionally and randomly pick which direction
-        if (Math.random() < clusterChance && x > 0 && Math.random() < 0.5) {
+        // Only cluster very occasionally and randomly pick which direction
+        if (Math.random() < clusterChance && x > 0 && Math.random() < 0.3) {
           newBoard[y][x].color = newBoard[y][x - 1].color
-        } else if (Math.random() < clusterChance && y > 0 && Math.random() < 0.5) {
+        } else if (Math.random() < clusterChance && y > 0 && Math.random() < 0.3) {
           newBoard[y][x].color = newBoard[y - 1][x].color
         }
       }
@@ -311,10 +311,10 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       setTimeout(() => setBlastMessage(null), 1000)
     }
 
-    // Calculate score - stricter scoring: 3 points per block, smaller bonuses
-    const basePoints = expandedGroup.size * 3 // Reduced from 5 to 3 per block
-    const sizeBonus = expandedGroup.size > 6 ? (expandedGroup.size - 6) * 2 : 0 // Smaller bonus, higher threshold
-    const difficultyBonus = (difficultyLevel - 1) * 1 // Reduced difficulty bonus
+    // Calculate score - stricter scoring: 2 points per block, minimal bonuses
+    const basePoints = expandedGroup.size * 2 // Reduced from 3 to 2 per block
+    const sizeBonus = expandedGroup.size > 8 ? (expandedGroup.size - 8) * 1 : 0 // Very small bonus, higher threshold
+    const difficultyBonus = 0 // No difficulty bonus
     const totalPoints = Math.floor((basePoints + sizeBonus + bonusPoints + difficultyBonus) * activeMultiplier * scoreMultiplierFromDifficulty)
 
     const newScore = scoreRef.current + totalPoints

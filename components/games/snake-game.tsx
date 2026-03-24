@@ -53,7 +53,7 @@ const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: numb
   slow: { color: "#a855f7", points: 15, chance: 0.05 },
 }
 
-export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 100 }: SnakeGameProps) {
+export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200 }: SnakeGameProps) {
   // Apply difficulty - faster snake at higher levels
   const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
   const baseSpeedRef = useRef(baseSpeed)

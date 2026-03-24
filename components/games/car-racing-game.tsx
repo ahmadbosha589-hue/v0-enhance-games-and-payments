@@ -83,6 +83,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   const [isPaused, setIsPaused] = useState(false)
   const [moves, setMoves] = useState(0)
   const [lane, setLane] = useState(1) // 0, 1, or 2
+  const [visualLane, setVisualLane] = useState(1) // Smooth visual position
   const [playerY, setPlayerY] = useState(CANVAS_HEIGHT - CAR_HEIGHT - 20)
   const [obstacles, setObstacles] = useState<Obstacle[]>([])
   const [coins, setCoins] = useState<Coin[]>([])
@@ -100,6 +101,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
 
   // Use refs for values that need to be current in animation loop
   const laneRef = useRef(lane)
+  const visualLaneRef = useRef(visualLane)
   const speedRef = useRef(speed)
   const roadOffsetRef = useRef(roadOffset)
   const obstaclesRef = useRef(obstacles)
@@ -109,14 +111,31 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   // Keep refs in sync
   useEffect(() => {
     laneRef.current = lane
+    visualLaneRef.current = visualLane
     speedRef.current = speed
     roadOffsetRef.current = roadOffset
     obstaclesRef.current = obstacles
     coinsRef.current = coins
     powerUpsRef.current = powerUps
-  }, [lane, speed, roadOffset, obstacles, coins, powerUps])
+  }, [lane, visualLane, speed, roadOffset, obstacles, coins, powerUps])
 
-  const playerX = (lane * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
+  // Smooth lane transition animation
+  useEffect(() => {
+    const animate = () => {
+      setVisualLane(prev => {
+        const diff = lane - prev
+        if (Math.abs(diff) < 0.05) return lane
+        return prev + diff * 0.25 // Smooth interpolation
+      })
+    }
+    const intervalId = setInterval(animate, 16) // ~60fps
+    return () => clearInterval(intervalId)
+  }, [lane])
+
+  // Use visualLane for smooth car position
+  const playerX = (visualLane * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
+  // Collision detection uses actual lane for accuracy
+  const collisionPlayerX = (lane * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
 
   const obstacleColors = ["#dc2626", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"]
 
@@ -208,6 +227,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
     setIsPaused(false)
     setMoves(0)
     setLane(1)
+    setVisualLane(1)
     setObstacles([])
     setCoins([])
     setIsInvincible(false)
@@ -423,9 +443,10 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
           .filter(pu => pu.y < CANVAS_HEIGHT + 50 && !pu.collected)
       })
 
-      // Check collisions
-      const playerLeft = playerX
-      const playerRight = playerX + CAR_WIDTH
+      // Check collisions - use actual lane position for accurate collision detection
+      const currentCollisionX = (laneRef.current * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
+      const playerLeft = currentCollisionX
+      const playerRight = currentCollisionX + CAR_WIDTH
       const playerTop = playerY
       const playerBottom = playerY + CAR_HEIGHT
 
@@ -561,8 +582,8 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         setSpeed(s => Math.min(s + 0.5, 15))
       }
 
-      // Draw everything with current values
-      drawGame(ctx, localRoadOffset, laneRef.current)
+      // Draw everything with current values - use visualLaneRef for smooth rendering
+      drawGame(ctx, localRoadOffset, visualLaneRef.current)
 
       gameLoopRef.current = requestAnimationFrame(gameLoop)
     }

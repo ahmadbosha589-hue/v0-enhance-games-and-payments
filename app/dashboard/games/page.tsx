@@ -154,14 +154,44 @@ export default function GamesPage() {
     winThreshold: number
     newBalance: number
   } | null>(null)
+  const [showContinueOverlay, setShowContinueOverlay] = useState(false)
+  const [interruptedSession, setInterruptedSession] = useState<{
+    gameType: GameType
+    session: GameSession
+    score: number
+  } | null>(null)
   const { data: gameStatus, mutate: refreshStatus } = useSWR<GameStatus>(
     "/api/games/status",
     fetcher,
     { refreshInterval: 5000 }
   )
 
-  // Reset game state on page refresh/mount - prevents stuck game state
+  // Check for interrupted game session on page load
   useEffect(() => {
+    // Check if there's an interrupted game session in sessionStorage
+    try {
+      const savedSession = sessionStorage.getItem("game_session")
+      if (savedSession) {
+        const parsed = JSON.parse(savedSession)
+        // Only show continue if session was created within the last 5 minutes
+        const sessionAge = Date.now() - (parsed.timestamp || 0)
+        if (sessionAge < 5 * 60 * 1000 && parsed.session && parsed.gameType) {
+          setInterruptedSession({
+            gameType: parsed.gameType,
+            session: parsed.session,
+            score: parsed.score || 0
+          })
+          setShowContinueOverlay(true)
+          return // Don't reset state if we have an interrupted session
+        } else {
+          // Session expired, clear it
+          sessionStorage.removeItem("game_session")
+        }
+      }
+    } catch {
+      sessionStorage.removeItem("game_session")
+    }
+
     // Reset all game-related state to ensure fresh start
     setIsPlaying(false)
     setGameSession(null)
@@ -174,6 +204,57 @@ export default function GamesPage() {
     setShowResultModal(false)
     setGameResult(null)
   }, []) // Empty dependency array - only runs on mount
+
+  // Save game session to sessionStorage when playing
+  useEffect(() => {
+    if (gameSession && isPlaying && selectedGame) {
+      sessionStorage.setItem("game_session", JSON.stringify({
+        gameType: selectedGame,
+        session: gameSession,
+        score: currentScore,
+        timestamp: Date.now()
+      }))
+    }
+  }, [gameSession, isPlaying, selectedGame, currentScore])
+
+  // Clear session storage when game ends
+  const clearGameSession = useCallback(() => {
+    sessionStorage.removeItem("game_session")
+    setShowContinueOverlay(false)
+    setInterruptedSession(null)
+  }, [])
+
+  // Continue playing an interrupted game
+  const continueInterruptedGame = useCallback(() => {
+    if (!interruptedSession) return
+
+    setGameSession(interruptedSession.session)
+    setSelectedGame(interruptedSession.gameType)
+    setCurrentScore(interruptedSession.score)
+    setIsPlaying(true)
+    setGameReady(true) // Skip tap to start since they're continuing
+    setShowContinueOverlay(false)
+
+    // Scroll to game container
+    setTimeout(() => {
+      if (gameContainerRef.current) {
+        gameContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 100)
+  }, [interruptedSession])
+
+  // Dismiss interrupted game and start fresh
+  const dismissInterruptedGame = useCallback(() => {
+    clearGameSession()
+    setIsPlaying(false)
+    setGameSession(null)
+    setSelectedGame(null)
+    setGameReady(false)
+    setCurrentScore(0)
+    setMoves(0)
+    setError(null)
+    setSuccess(null)
+  }, [clearGameSession])
 
   // Calculate user high scores from recent games (fetched from database via gameStatus)
   const userHighScores = useMemo(() => {
@@ -410,8 +491,9 @@ export default function GamesPage() {
       setIsPlaying(false)
       setGameSession(null)
       setGameReady(false)
+      clearGameSession() // Clear saved session from storage
     }
-  }, [gameSession, refreshStatus])
+  }, [gameSession, refreshStatus, clearGameSession])
 
   const handleScoreUpdate = useCallback((score: number) => {
     setCurrentScore(score)
@@ -508,6 +590,63 @@ export default function GamesPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      {/* Continue Playing Overlay - shows after accidental page refresh */}
+      <Dialog open={showContinueOverlay} onOpenChange={setShowContinueOverlay}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Play className="h-5 w-5 text-primary" />
+              Continue Your Game?
+            </DialogTitle>
+            <DialogDescription>
+              You have an active game session that was interrupted. Would you like to continue playing?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            {interruptedSession && (
+              <div className="p-4 bg-muted rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-primary to-primary/80">
+                    {games.find(g => g.type === interruptedSession.gameType)?.icon && (
+                      <>
+                        {(() => {
+                          const IconComponent = games.find(g => g.type === interruptedSession.gameType)?.icon
+                          return IconComponent ? <IconComponent className="h-6 w-6 text-white" /> : null
+                        })()}
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-semibold">
+                      {games.find(g => g.type === interruptedSession.gameType)?.name || interruptedSession.gameType}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Current Score: {interruptedSession.score.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={dismissInterruptedGame}
+              >
+                Start Fresh
+              </Button>
+              <Button
+                className="flex-1 bg-gradient-to-r from-primary to-primary/80"
+                onClick={continueInterruptedGame}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Continue Playing
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
