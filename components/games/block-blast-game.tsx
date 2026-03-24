@@ -260,12 +260,247 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     setHighlightedCells(new Set())
   }, [])
 
+  // Handle direct powerup click (when clicking a special block that's not part of a group)
+  const handlePowerupClick = useCallback(async (x: number, y: number): Promise<boolean> => {
+    const cell = board[y]?.[x]
+    if (!cell?.special) return false
+
+    const expandedGroup = new Set<string>()
+    let bonusPoints = 0
+
+    if (cell.special === "bomb") {
+      // Bomb clears 3x3 area around it
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx
+          const ny = y + dy
+          if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny]?.[nx]?.color) {
+            expandedGroup.add(`${nx},${ny}`)
+          }
+        }
+      }
+      bonusPoints = 30
+      setShakeBoard(true)
+      setTimeout(() => setShakeBoard(false), 300)
+    } else if (cell.special === "rainbow") {
+      // Rainbow clears all blocks of the most common adjacent color
+      const adjacentColors: Record<string, number> = {}
+      const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]]
+
+      for (const [dx, dy] of directions) {
+        const nx = x + dx
+        const ny = y + dy
+        if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+          const adjCell = board[ny]?.[nx]
+          if (adjCell?.color && !adjCell.special) {
+            adjacentColors[adjCell.color] = (adjacentColors[adjCell.color] || 0) + 1
+          }
+        }
+      }
+
+      // Find the most common adjacent color, or pick one randomly if none
+      let targetColor = Object.entries(adjacentColors).sort((a, b) => b[1] - a[1])[0]?.[0]
+      if (!targetColor) {
+        // Pick a random color from the board
+        const allColors = board.flat().filter(c => c.color && !c.special).map(c => c.color)
+        targetColor = allColors[Math.floor(Math.random() * allColors.length)]
+      }
+
+      if (targetColor) {
+        // Clear all blocks of that color
+        for (let row = 0; row < BOARD_SIZE; row++) {
+          for (let col = 0; col < BOARD_SIZE; col++) {
+            if (board[row]?.[col]?.color === targetColor) {
+              expandedGroup.add(`${col},${row}`)
+            }
+          }
+        }
+      }
+      expandedGroup.add(`${x},${y}`) // Include the rainbow block itself
+      bonusPoints = 50
+    } else if (cell.special === "multiplier") {
+      // Multiplier activates 2x for 15 seconds and clears itself + adjacent
+      expandedGroup.add(`${x},${y}`)
+      const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]]
+      for (const [dx, dy] of directions) {
+        const nx = x + dx
+        const ny = y + dy
+        if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny]?.[nx]?.color) {
+          expandedGroup.add(`${nx},${ny}`)
+        }
+      }
+      setActiveMultiplier(2)
+      setTimeout(() => setActiveMultiplier(1), 15000)
+      bonusPoints = 25
+    }
+
+    if (expandedGroup.size === 0) return false
+
+    return { expandedGroup, bonusPoints } as unknown as boolean
+  }, [board])
+
   // Handle blast (tap on group of 3+)
   const handleBlast = useCallback(async (x: number, y: number) => {
     if (!isActive || isAnimatingRef.current || gameOver) return
 
-    const group = findConnectedGroup(board, x, y)
-    if (group.size < 3) return // Need at least 3 to blast
+    const cell = board[y]?.[x]
+    let group = findConnectedGroup(board, x, y)
+
+    // If group is too small, check if it's a powerup that can be clicked directly
+    if (group.size < 3) {
+      if (cell?.special) {
+        // Handle direct powerup click
+        const powerupResult = await (async () => {
+          const expandedGroup = new Set<string>()
+          let bonusPoints = 0
+
+          if (cell.special === "bomb") {
+            // Bomb clears 3x3 area around it
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const nx = x + dx
+                const ny = y + dy
+                if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny]?.[nx]?.color) {
+                  expandedGroup.add(`${nx},${ny}`)
+                }
+              }
+            }
+            bonusPoints = 30
+            setShakeBoard(true)
+            setTimeout(() => setShakeBoard(false), 300)
+          } else if (cell.special === "rainbow") {
+            // Rainbow clears all blocks of the most common adjacent color
+            const adjacentColors: Record<string, number> = {}
+            const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]]
+
+            for (const [dx, dy] of directions) {
+              const nx = x + dx
+              const ny = y + dy
+              if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+                const adjCell = board[ny]?.[nx]
+                if (adjCell?.color && !adjCell.special) {
+                  adjacentColors[adjCell.color] = (adjacentColors[adjCell.color] || 0) + 1
+                }
+              }
+            }
+
+            // Find the most common adjacent color, or pick one randomly if none
+            let targetColor = Object.entries(adjacentColors).sort((a, b) => b[1] - a[1])[0]?.[0]
+            if (!targetColor) {
+              // Pick a random color from the board
+              const allColors = board.flat().filter(c => c.color && !c.special).map(c => c.color)
+              targetColor = allColors[Math.floor(Math.random() * allColors.length)]
+            }
+
+            if (targetColor) {
+              // Clear all blocks of that color
+              for (let row = 0; row < BOARD_SIZE; row++) {
+                for (let col = 0; col < BOARD_SIZE; col++) {
+                  if (board[row]?.[col]?.color === targetColor) {
+                    expandedGroup.add(`${col},${row}`)
+                  }
+                }
+              }
+            }
+            expandedGroup.add(`${x},${y}`) // Include the rainbow block itself
+            bonusPoints = 50
+          } else if (cell.special === "multiplier") {
+            // Multiplier activates 2x for 15 seconds and clears itself + adjacent
+            expandedGroup.add(`${x},${y}`)
+            const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]]
+            for (const [dx, dy] of directions) {
+              const nx = x + dx
+              const ny = y + dy
+              if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny]?.[nx]?.color) {
+                expandedGroup.add(`${nx},${ny}`)
+              }
+            }
+            setActiveMultiplier(2)
+            setTimeout(() => setActiveMultiplier(1), 15000)
+            bonusPoints = 25
+          }
+
+          return { expandedGroup, bonusPoints }
+        })()
+
+        if (powerupResult.expandedGroup.size === 0) return
+
+        setIsAnimating(true)
+        setMoves(m => m + 1)
+        setBlastingCells(powerupResult.expandedGroup)
+
+        // Show blast message
+        const blastMsg = BLAST_MESSAGES.filter(m => powerupResult.expandedGroup.size >= m.min).pop()
+        if (blastMsg) {
+          setBlastMessage(blastMsg)
+          setTimeout(() => setBlastMessage(null), 1000)
+        }
+
+        // Calculate score
+        const basePoints = powerupResult.expandedGroup.size * 3
+        const totalPoints = Math.floor((basePoints + powerupResult.bonusPoints) * activeMultiplier * scoreMultiplierFromDifficulty)
+
+        const newScore = scoreRef.current + totalPoints
+        setScore(newScore)
+        onScoreUpdate(newScore)
+
+        // Wait for blast animation
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+        // Remove blasted cells and drop
+        let idCounter = cellIdCounter
+        const newBoard = board.map(row => row.map(c => ({ ...c })))
+
+        powerupResult.expandedGroup.forEach(key => {
+          const [xStr, yStr] = key.split(",")
+          const cellX = parseInt(xStr)
+          const cellY = parseInt(yStr)
+          if (newBoard[cellY]?.[cellX]) {
+            newBoard[cellY][cellX] = { color: "", id: -1, special: null }
+          }
+        })
+
+        // Drop cells down
+        for (let colX = 0; colX < BOARD_SIZE; colX++) {
+          let writePos = BOARD_SIZE - 1
+          for (let rowY = BOARD_SIZE - 1; rowY >= 0; rowY--) {
+            if (newBoard[rowY]?.[colX]?.color) {
+              if (writePos !== rowY) {
+                newBoard[writePos][colX] = newBoard[rowY][colX]
+                newBoard[rowY][colX] = { color: "", id: -1, special: null }
+              }
+              writePos--
+            }
+          }
+          // Fill empty cells at top
+          for (let rowY = writePos; rowY >= 0; rowY--) {
+            newBoard[rowY][colX] = {
+              color: colors[Math.floor(Math.random() * colors.length)],
+              id: idCounter++,
+              special: getSpecialType(),
+              glowing: Math.random() < 0.05
+            }
+          }
+        }
+
+        setCellIdCounter(idCounter)
+        setBoard(newBoard)
+        setBlastingCells(new Set())
+        setHighlightedCells(new Set())
+
+        await new Promise(resolve => setTimeout(resolve, 200))
+
+        if (!hasValidMoves(newBoard) && !hasEndedRef.current) {
+          hasEndedRef.current = true
+          setGameOver(true)
+          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
+        }
+
+        setIsAnimating(false)
+        return
+      }
+      return // Not a powerup and group too small
+    }
 
     setIsAnimating(true)
     setMoves(m => m + 1)
@@ -279,10 +514,10 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       const [xStr, yStr] = key.split(",")
       const cellX = parseInt(xStr)
       const cellY = parseInt(yStr)
-      const cell = board[cellY]?.[cellX]
-      if (!cell) return
+      const cellInGroup = board[cellY]?.[cellX]
+      if (!cellInGroup) return
 
-      if (cell.special === "bomb") {
+      if (cellInGroup.special === "bomb") {
         // Bomb clears 3x3 area
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
@@ -296,12 +531,25 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         bonusPoints += 20
         setShakeBoard(true)
         setTimeout(() => setShakeBoard(false), 300)
-      } else if (cell.special === "multiplier") {
+      } else if (cellInGroup.special === "multiplier") {
         setActiveMultiplier(2)
-        setTimeout(() => setActiveMultiplier(1), 10000)
+        setTimeout(() => setActiveMultiplier(1), 15000)
+      } else if (cellInGroup.special === "rainbow") {
+        // Rainbow in a group clears all of the group's color
+        const groupColor = board[y]?.[x]?.color
+        if (groupColor) {
+          for (let row = 0; row < BOARD_SIZE; row++) {
+            for (let col = 0; col < BOARD_SIZE; col++) {
+              if (board[row]?.[col]?.color === groupColor) {
+                expandedGroup.add(`${col},${row}`)
+              }
+            }
+          }
+        }
+        bonusPoints += 30
       }
 
-      if (cell.glowing) {
+      if (cellInGroup.glowing) {
         bonusPoints += 5 // Glowing blocks give extra points
       }
     })
@@ -434,6 +682,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                   ${isBlasting ? "scale-0 opacity-0" : "scale-100 opacity-100"}
                   ${!isAnimating && !gameOver && cell.color ? "hover:brightness-110 active:scale-95 cursor-pointer" : ""}
                   ${cell.glowing ? "animate-pulse" : ""}
+                  ${cell.special === "rainbow" ? "animate-rainbow-glow" : ""}
+                  ${cell.special === "bomb" ? "animate-pulse" : ""}
+                  ${cell.special === "multiplier" ? "animate-bounce-subtle" : ""}
                   disabled:cursor-not-allowed
                 `}
                 style={{
@@ -445,18 +696,32 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                         ? "#fbbf24"
                         : cell.color || "#1a1a2e",
                   background: cell.special === "rainbow"
-                    ? "linear-gradient(45deg, #ef4444, #eab308, #22c55e, #3b82f6, #a855f7)"
+                    ? "linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088, #ff0000)"
                     : cell.color && !cell.special
                       ? `linear-gradient(135deg, ${cell.color} 0%, ${adjustColor(cell.color, -30)} 100%)`
                       : undefined,
-                  boxShadow: cell.color
-                    ? `inset 0 -3px 6px rgba(0,0,0,0.4), inset 0 3px 6px rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.3)${cell.glowing ? `, 0 0 12px ${cell.color}, 0 0 20px ${cell.color}40` : ""}`
-                    : "none",
+                  backgroundSize: cell.special === "rainbow" ? "400% 400%" : undefined,
+                  animation: cell.special === "rainbow" ? "rainbowShift 2s ease infinite" : undefined,
+                  boxShadow: cell.special === "rainbow"
+                    ? "0 0 10px rgba(255,0,0,0.6), 0 0 20px rgba(255,136,0,0.4), 0 0 30px rgba(0,255,0,0.3), 0 0 40px rgba(0,136,255,0.3), inset 0 0 10px rgba(255,255,255,0.5)"
+                    : cell.special === "bomb"
+                      ? "0 0 8px rgba(100,100,100,0.8), inset 0 -3px 6px rgba(0,0,0,0.6)"
+                      : cell.special === "multiplier"
+                        ? "0 0 12px rgba(251,191,36,0.8), 0 0 20px rgba(251,191,36,0.4), inset 0 -3px 6px rgba(0,0,0,0.4)"
+                        : cell.color
+                          ? `inset 0 -3px 6px rgba(0,0,0,0.4), inset 0 3px 6px rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.3)${cell.glowing ? `, 0 0 12px ${cell.color}, 0 0 20px ${cell.color}40` : ""}`
+                          : "none",
                   width: CELL_SIZE,
                   height: CELL_SIZE,
                   touchAction: "none",
                   WebkitTapHighlightColor: "transparent",
-                  border: cell.color ? `1px solid ${adjustColor(cell.color, 20)}` : "none"
+                  border: cell.special === "rainbow"
+                    ? "2px solid rgba(255,255,255,0.6)"
+                    : cell.special === "bomb"
+                      ? "2px solid #1f2937"
+                      : cell.special === "multiplier"
+                        ? "2px solid #f59e0b"
+                        : cell.color ? `1px solid ${adjustColor(cell.color, 20)}` : "none"
                 }}
               >
                 {cell.special && (

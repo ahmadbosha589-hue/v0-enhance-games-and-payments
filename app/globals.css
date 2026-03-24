@@ -194,17 +194,20 @@
   0% {
     background-position: -100% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
 }
 
 @keyframes glow-pulse {
+
   0%,
   100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.8;
     transform: scale(1.05);
@@ -212,10 +215,12 @@
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0px);
   }
+
   50% {
     transform: translateY(-10px);
   }
@@ -226,6 +231,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -236,6 +242,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -317,6 +324,7 @@
   .card-interactive:active {
     transform: translateY(0);
   }
+
   /* Extra small device utilities */
   .text-responsive {
     font-size: clamp(0.875rem, 2.5vw, 1rem);
@@ -390,6 +398,7 @@
     width: 300px;
     height: 300px;
   }
+
   /* Mobile-optimized card */
   .card-mobile {
     @apply rounded-lg border bg-card text-card-foreground shadow-sm;
@@ -479,7 +488,8 @@
   .dialog-mobile {
     /* Using direct CSS instead of @apply for calc-based width */
     width: calc(100% - 2rem);
-    max-width: 32rem; /* lg = 32rem */
+    max-width: 32rem;
+    /* lg = 32rem */
     @apply rounded-xl;
   }
 
@@ -508,13 +518,13 @@
     }
   }
 
-  .dashboard-action-buttons > * {
+  .dashboard-action-buttons>* {
     flex: 1;
     min-width: 0;
   }
 
   @media (min-width: 640px) {
-    .dashboard-action-buttons > * {
+    .dashboard-action-buttons>* {
       flex: none;
       min-width: 140px;
     }
@@ -544,26 +554,31 @@
 
 /* Stagger animation for lists */
 @layer utilities {
-  .stagger-in > * {
+  .stagger-in>* {
     animation: slide-up 0.5s ease-out backwards;
   }
 
-  .stagger-in > *:nth-child(1) {
+  .stagger-in>*:nth-child(1) {
     animation-delay: 0.1s;
   }
-  .stagger-in > *:nth-child(2) {
+
+  .stagger-in>*:nth-child(2) {
     animation-delay: 0.2s;
   }
-  .stagger-in > *:nth-child(3) {
+
+  .stagger-in>*:nth-child(3) {
     animation-delay: 0.3s;
   }
-  .stagger-in > *:nth-child(4) {
+
+  .stagger-in>*:nth-child(4) {
     animation-delay: 0.4s;
   }
-  .stagger-in > *:nth-child(5) {
+
+  .stagger-in>*:nth-child(5) {
     animation-delay: 0.5s;
   }
-  .stagger-in > *:nth-child(6) {
+
+  .stagger-in>*:nth-child(6) {
     animation-delay: 0.6s;
   }
 }
@@ -594,6 +609,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -615,6 +631,7 @@
   /* Only apply smooth scrolling to specific scroll containers that need it */
 
   @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -630,6 +647,7 @@
       font-size: 14px;
     }
   }
+
   *:focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;
   }
@@ -770,6 +788,7 @@
 
 /* Mobile touch improvements */
 @media (hover: none) and (pointer: coarse) {
+
   button,
   a,
   [role="button"] {
@@ -796,6 +815,7 @@
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -807,6 +827,7 @@
     opacity: 0;
     transform: translateX(-20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -818,6 +839,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -829,15 +851,72 @@
     opacity: 0;
     transform: scale(0.3);
   }
+
   50% {
     transform: scale(1.05);
   }
+
   70% {
     transform: scale(0.9);
   }
+
   100% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* Rainbow glow animation for Block Blast game powerup */
+@keyframes rainbowShift {
+  0% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.6), 0 0 20px rgba(255, 136, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+
+  25% {
+    background-position: 50% 50%;
+    box-shadow: 0 0 10px rgba(255, 255, 0, 0.6), 0 0 20px rgba(0, 255, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+
+  50% {
+    background-position: 100% 50%;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 136, 255, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+
+  75% {
+    background-position: 50% 50%;
+    box-shadow: 0 0 10px rgba(136, 0, 255, 0.6), 0 0 20px rgba(255, 0, 136, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+
+  100% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 10px rgba(255, 0, 0, 0.6), 0 0 20px rgba(255, 136, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+}
+
+@keyframes bombPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px rgba(100, 100, 100, 0.8), inset 0 -3px 6px rgba(0, 0, 0, 0.6);
+  }
+
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(255, 100, 50, 0.8), 0 0 25px rgba(255, 50, 0, 0.4), inset 0 -3px 6px rgba(0, 0, 0, 0.6);
+  }
+}
+
+@keyframes multiplierGlow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.8), 0 0 20px rgba(251, 191, 36, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 1), 0 0 35px rgba(251, 191, 36, 0.6), 0 0 50px rgba(251, 191, 36, 0.3);
   }
 }
 
@@ -856,6 +935,25 @@
 
   .animate-bounce-in {
     animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  /* Block Blast game powerup animations */
+  .animate-rainbow-glow {
+    animation: rainbowShift 2s ease infinite;
+    background-size: 400% 400% !important;
+  }
+
+  .animate-bomb-pulse {
+    animation: bombPulse 1.5s ease-in-out infinite;
+  }
+
+  .animate-multiplier-glow {
+    animation: multiplierGlow 1.2s ease-in-out infinite;
+  }
+
+  .animate-bounce-subtle {
+    animation: bounce 1s ease-in-out infinite;
+    animation-timing-function: ease-in-out;
   }
 }
 
@@ -886,11 +984,13 @@ html {
   }
 
   @keyframes loading-dot {
+
     0%,
     80%,
     100% {
       transform: scale(0);
     }
+
     40% {
       transform: scale(1);
     }
@@ -913,34 +1013,42 @@ html {
   0% {
     background-position: -250% 0;
   }
+
   100% {
     background-position: 250% 0;
   }
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 20px -5px var(--primary), 0 0 40px -10px var(--primary);
   }
+
   50% {
     box-shadow: 0 0 30px -5px var(--primary), 0 0 60px -10px var(--primary);
   }
 }
 
 @keyframes gradient-shift {
-  0%, 100% {
+
+  0%,
+  100% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
 }
 
 @layer utilities {
+
   /* Premium text effects */
   .text-shadow-glow {
     text-shadow: 0 0 20px oklch(from var(--primary) l c h / 0.5),
-                 0 0 40px oklch(from var(--primary) l c h / 0.3);
+      0 0 40px oklch(from var(--primary) l c h / 0.3);
   }
 
   .text-shadow-sm {
@@ -952,7 +1060,7 @@ html {
     position: relative;
     background: linear-gradient(180deg, var(--card) 0%, oklch(from var(--card) l c h / 0.95) 100%);
     border: 1px solid oklch(from var(--border) l c h / 0.5);
-    box-shadow: 
+    box-shadow:
       0 1px 2px rgba(0, 0, 0, 0.04),
       0 4px 8px -2px rgba(0, 0, 0, 0.06),
       0 12px 24px -4px rgba(0, 0, 0, 0.04);
@@ -962,7 +1070,7 @@ html {
   .card-premium:hover {
     transform: translateY(-4px) scale(1.01);
     border-color: oklch(from var(--primary) l c h / 0.3);
-    box-shadow: 
+    box-shadow:
       0 4px 8px rgba(0, 0, 0, 0.04),
       0 12px 24px -4px rgba(0, 0, 0, 0.08),
       0 24px 48px -8px rgba(0, 0, 0, 0.06),
@@ -1000,7 +1108,7 @@ html {
   }
 
   .input-premium:focus {
-    box-shadow: 
+    box-shadow:
       0 0 0 3px oklch(from var(--primary) l c h / 0.15),
       0 4px 16px -4px oklch(from var(--primary) l c h / 0.2);
   }
@@ -1055,13 +1163,12 @@ html {
   .skeleton-premium {
     position: relative;
     overflow: hidden;
-    background: linear-gradient(90deg, 
-      var(--muted) 0%, 
-      oklch(from var(--muted) calc(l + 0.05) c h) 20%, 
-      oklch(from var(--muted) calc(l + 0.1) c h) 40%, 
-      oklch(from var(--muted) calc(l + 0.05) c h) 60%, 
-      var(--muted) 80%
-    );
+    background: linear-gradient(90deg,
+        var(--muted) 0%,
+        oklch(from var(--muted) calc(l + 0.05) c h) 20%,
+        oklch(from var(--muted) calc(l + 0.1) c h) 40%,
+        oklch(from var(--muted) calc(l + 0.05) c h) 60%,
+        var(--muted) 80%);
     background-size: 200% 100%;
     animation: shimmer 2s ease-in-out infinite;
   }
@@ -1069,7 +1176,7 @@ html {
   /* Focus ring improvements */
   .focus-ring-premium:focus-visible {
     outline: none;
-    box-shadow: 
+    box-shadow:
       0 0 0 2px var(--background),
       0 0 0 4px var(--primary),
       0 0 20px -4px oklch(from var(--primary) l c h / 0.4);
@@ -1077,8 +1184,8 @@ html {
 
   /* Smooth icon transitions */
   .icon-transition {
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
-                color 0.2s ease;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+      color 0.2s ease;
   }
 
   .icon-transition:hover {
@@ -1104,6 +1211,7 @@ html {
       opacity: 0;
       transform: translateY(10px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
@@ -1156,9 +1264,12 @@ html {
   }
 
   @keyframes btn-glow-sweep {
-    0%, 100% {
+
+    0%,
+    100% {
       transform: translateX(-100%);
     }
+
     50% {
       transform: translateX(100%);
     }
