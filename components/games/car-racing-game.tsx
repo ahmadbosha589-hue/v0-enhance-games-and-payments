@@ -825,33 +825,36 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         }
       }
 
-      // Spawn obstacles
-      const baseSpawnInterval = Math.max(350, 1100 - gs.distance * 1.8 - difficultyLevel * 70)
+      // Spawn obstacles - balanced for playability
+      // Min interval increased to 800ms, slower scaling with distance
+      const baseSpawnInterval = Math.max(800, 1600 - gs.distance * 1.2 - difficultyLevel * 50)
       if (now - gs.lastObstacleSpawn > baseSpawnInterval) {
         spawnObstacle(gs)
         gs.lastObstacleSpawn = now
 
-        // Additional obstacles at higher distances
-        if (gs.distance > 50 && Math.random() < 0.35) {
+        // Additional obstacles only at high distances and less frequently (15% chance)
+        if (gs.distance > 100 && Math.random() < 0.15) {
           const lastLane = gs.obstacles[gs.obstacles.length - 1]?.lane ?? 1
           const availableLanes = [0, 1, 2].filter(l => l !== lastLane)
           const extraLane = availableLanes[Math.floor(Math.random() * availableLanes.length)]
           setTimeout(() => {
             if (!gs.gameOver && !gs.isPaused) spawnObstacle(gs, extraLane)
-          }, baseSpawnInterval * 0.3)
+          }, baseSpawnInterval * 0.5)
         }
       }
 
-      // Spawn coins
-      const coinInterval = gs.hasFrenzy ? 300 : 550
+      // Spawn coins - balanced rate for fun collection
+      // Normal interval 900ms, frenzy interval 500ms
+      const coinInterval = gs.hasFrenzy ? 500 : 900
       if (now - gs.lastCoinSpawn > coinInterval) {
         spawnCoin(gs)
         gs.lastCoinSpawn = now
 
-        if (gs.hasFrenzy && Math.random() < 0.5) {
+        // Frenzy bonus coins - 30% chance instead of 50%
+        if (gs.hasFrenzy && Math.random() < 0.3) {
           setTimeout(() => {
             if (!gs.gameOver && !gs.isPaused && gs.hasFrenzy) spawnCoin(gs)
-          }, 120)
+          }, 200)
         }
       }
 
@@ -866,8 +869,8 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         gs.weather = WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)]
       }
 
-      // Move obstacles
-      const obstacleSpeedBonus = Math.min(gs.distance / 120, 2.5)
+      // Move obstacles - slower speed scaling for better playability
+      const obstacleSpeedBonus = Math.min(gs.distance / 200, 1.8)
       for (let i = gs.obstacles.length - 1; i >= 0; i--) {
         const obs = gs.obstacles[i]
         obs.y += (gs.currentSpeed + 2 + obstacleSpeedBonus) * obs.speed * deltaTime
@@ -1013,9 +1016,9 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         spawnParticles(gs, playerX + CAR_WIDTH / 2 + safeRandom(-10, 10), playerY + CAR_HEIGHT, "trail", 1, "#ef4444")
       }
 
-      // Speed progression
-      if (frame % 180 === 0 && gs.baseSpeed < 16) {
-        gs.baseSpeed = Math.min(gs.baseSpeed + 0.25, 16)
+      // Speed progression - more gradual for better playability
+      if (frame % 300 === 0 && gs.baseSpeed < 12) {
+        gs.baseSpeed = Math.min(gs.baseSpeed + 0.15, 12)
       }
 
       // Distance milestones
