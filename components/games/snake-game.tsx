@@ -14,8 +14,8 @@ import {
   Sparkles
 } from "lucide-react"
 
-const BOARD_SIZE = 20
-const CELL_SIZE = 14
+const BOARD_SIZE = 15  // Smaller grid for better mobile fit
+const CELL_SIZE = 20   // Larger cells for better visibility
 const INITIAL_SPEED = 140
 const SPEED_INCREASE = 4
 
@@ -59,10 +59,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
   const baseSpeedRef = useRef(baseSpeed)
   baseSpeedRef.current = baseSpeed
-  const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }])
+  const [snake, setSnake] = useState<Position[]>([{ x: 7, y: 7 }])
   const [hasWon, setHasWon] = useState(false)
   const [direction, setDirection] = useState<Direction>("RIGHT")
-  const [food, setFood] = useState<Food>({ x: 15, y: 10, type: "normal", points: 10 })
+  const [food, setFood] = useState<Food>({ x: 10, y: 7, type: "normal", points: 10 })
   const [bonusFood, setBonusFood] = useState<Food | null>(null)
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
@@ -166,19 +166,24 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
         case "RIGHT": head.x += 1; break
       }
 
-      // Wall collision
-      if (head.x < 0 || head.x >= BOARD_SIZE || head.y < 0 || head.y >= BOARD_SIZE) {
+      // Wall collision - snake dies when hitting any edge
+      const hitWall = head.x < 0 || head.x >= BOARD_SIZE || head.y < 0 || head.y >= BOARD_SIZE
+      if (hitWall) {
+        console.log("[v0] Wall collision detected:", { head, BOARD_SIZE, gameOverRef: gameOverRef.current })
         if (!gameOverRef.current) {
+          gameOverRef.current = true  // Set ref immediately to prevent double triggers
           setGameOver(true)
-          // Use refs to get current values
           setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
         }
         return prevSnake
       }
 
-      // Self collision
-      if (prevSnake.some(segment => segment.x === head.x && segment.y === head.y)) {
+      // Self collision - snake dies when hitting itself
+      const hitSelf = prevSnake.some(segment => segment.x === head.x && segment.y === head.y)
+      if (hitSelf) {
+        console.log("[v0] Self collision detected:", { head })
         if (!gameOverRef.current) {
+          gameOverRef.current = true  // Set ref immediately to prevent double triggers
           setGameOver(true)
           setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
         }
@@ -425,7 +430,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
 
   const resetGame = () => {
     setHasWon(false)
-    setSnake([{ x: 10, y: 10 }])
+    setSnake([{ x: 7, y: 7 }])
     setDirection("RIGHT")
     directionRef.current = "RIGHT"
     directionQueueRef.current = []
@@ -511,33 +516,35 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
             })}
           </g>
 
-          {/* Food */}
-          <circle
-            cx={food.x * CELL_SIZE + CELL_SIZE / 2}
-            cy={food.y * CELL_SIZE + CELL_SIZE / 2}
-            r={CELL_SIZE / 2 - 2}
-            fill={FOOD_TYPES[food.type].color}
-            style={{
-              filter: `drop-shadow(0 0 6px ${FOOD_TYPES[food.type].color})`
-            }}
-          >
-            <animate attributeName="r" values={`${CELL_SIZE / 2 - 3};${CELL_SIZE / 2 - 1};${CELL_SIZE / 2 - 3}`} dur="0.8s" repeatCount="indefinite" />
-          </circle>
-
-          {/* Bonus food */}
-          {bonusFood && (
+          {/* Food - clipped to board */}
+          <g clipPath="url(#boardClip)">
             <circle
-              cx={bonusFood.x * CELL_SIZE + CELL_SIZE / 2}
-              cy={bonusFood.y * CELL_SIZE + CELL_SIZE / 2}
-              r={CELL_SIZE / 2 - 1}
-              fill="#ffd700"
+              cx={Math.min(Math.max(food.x, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
+              cy={Math.min(Math.max(food.y, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
+              r={CELL_SIZE / 2 - 2}
+              fill={FOOD_TYPES[food.type].color}
               style={{
-                filter: "drop-shadow(0 0 8px #ffd700)"
+                filter: `drop-shadow(0 0 6px ${FOOD_TYPES[food.type].color})`
               }}
             >
-              <animate attributeName="opacity" values="1;0.6;1" dur="0.5s" repeatCount="indefinite" />
+              <animate attributeName="r" values={`${CELL_SIZE / 2 - 3};${CELL_SIZE / 2 - 1};${CELL_SIZE / 2 - 3}`} dur="0.8s" repeatCount="indefinite" />
             </circle>
-          )}
+
+            {/* Bonus food */}
+            {bonusFood && (
+              <circle
+                cx={Math.min(Math.max(bonusFood.x, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
+                cy={Math.min(Math.max(bonusFood.y, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
+                r={CELL_SIZE / 2 - 1}
+                fill="#ffd700"
+                style={{
+                  filter: "drop-shadow(0 0 8px #ffd700)"
+                }}
+              >
+                <animate attributeName="opacity" values="1;0.6;1" dur="0.5s" repeatCount="indefinite" />
+              </circle>
+            )}
+          </g>
         </svg>
 
         {/* Pause Overlay */}
