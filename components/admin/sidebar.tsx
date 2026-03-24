@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   Megaphone,
   Link2,
+  Crown,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -67,6 +68,7 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
     },
     { nameKey: "admin.nav.withdrawals", href: "/admin/withdrawals", icon: CreditCard },
     { nameKey: "admin.nav.transactions", href: "/admin/transactions", icon: FileText },
+    { nameKey: "admin.nav.tournaments", href: "/admin/tournaments", icon: Crown },
     { nameKey: "admin.nav.analytics", href: "/admin/analytics", icon: BarChart3 },
     { nameKey: "admin.nav.auditLogs", href: "/admin/audit", icon: Activity },
     { nameKey: "admin.nav.notifications", href: "/admin/notifications", icon: Bell },
