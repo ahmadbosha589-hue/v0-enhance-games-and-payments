@@ -1,7 +1,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
-import { detectVPN } from "@/lib/security/vpn-detection"
+import { detectVPNFortress } from "@/lib/security/vpn-fortress"
 import { log } from "@/lib/logger"
 
 export async function GET(request: Request) {
@@ -98,84 +98,159 @@ export async function GET(request: Request) {
         .eq("id", userId)
     }
 
-    // ── VPN CHECK ON AUTH ──
-    // Run VPN detection in background (non-blocking but logged)
+    // ══════════════════════════════════════════════════════════════════════════
+    // VPN FORTRESS CHECK (BLOCKING FOR BOTH SIGNUP AND LOGIN)
+    // Uses VPN Fortress v6.0 - Maximum power detection with zero false positives
+    // ══════════════════════════════════════════════════════════════════════════
     if (clientIP !== "unknown") {
-      detectVPN(clientIP, { userAgent })
-        .then(async (vpnResult) => {
-          if (vpnResult.isVPN || vpnResult.isProxy || vpnResult.isTor) {
-            log.warn("VPN/Proxy detected during auth", {
-              userId,
+      try {
+        const vpnResult = await detectVPNFortress(clientIP, { userAgent })
+
+        const isVPNThreat = vpnResult.isVPN || vpnResult.isProxy || vpnResult.isTor || vpnResult.isResidentialProxy
+
+        if (isVPNThreat || vpnResult.shouldBlock) {
+          log.warn("VPN Fortress: Threat detected during auth", {
+            userId,
+            ip: clientIP,
+            isVPN: vpnResult.isVPN,
+            isProxy: vpnResult.isProxy,
+            isTor: vpnResult.isTor,
+            isResidentialProxy: vpnResult.isResidentialProxy,
+            isDatacenter: vpnResult.isDatacenter,
+            confidence: vpnResult.confidence,
+            riskLevel: vpnResult.riskLevel,
+            shouldBlock: vpnResult.shouldBlock,
+            methods: vpnResult.methods,
+            consensus: vpnResult.consensus,
+            isNewUser,
+          })
+
+          const adminSupabase = createAdminClient()
+
+          // Record VPN usage in fraud_flags with detailed info
+          await adminSupabase.from("fraud_flags").upsert({
+            user_id: userId,
+            flag_type: "vpn_on_auth",
+            severity: vpnResult.isTor ? "critical" :
+              vpnResult.isResidentialProxy ? "critical" :
+                vpnResult.riskLevel === "critical" ? "critical" :
+                  vpnResult.riskLevel === "high" ? "high" : "medium",
+            details: {
               ip: clientIP,
-              isVPN: vpnResult.isVPN,
-              isProxy: vpnResult.isProxy,
-              isTor: vpnResult.isTor,
+              vpn: vpnResult.isVPN,
+              proxy: vpnResult.isProxy,
+              tor: vpnResult.isTor,
+              residentialProxy: vpnResult.isResidentialProxy,
+              datacenter: vpnResult.isDatacenter,
+              hosting: vpnResult.isHosting,
               confidence: vpnResult.confidence,
+              riskLevel: vpnResult.riskLevel,
+              riskScore: vpnResult.riskScore,
+              shouldBlock: vpnResult.shouldBlock,
+              methods: vpnResult.methods,
+              factors: vpnResult.factors,
+              consensus: vpnResult.consensus,
+              provider: vpnResult.details.provider,
+              isp: vpnResult.details.isp,
+              country: vpnResult.details.country,
+              city: vpnResult.details.city,
+              asn: vpnResult.details.asn,
               isNewUser,
-            })
+            },
+            status: "pending",
+          }, {
+            onConflict: "user_id,flag_type",
+            ignoreDuplicates: false,
+          })
 
-            const adminSupabase = createAdminClient()
-            
-            // Record VPN usage in fraud_flags
-            await adminSupabase.from("fraud_flags").upsert({
-              user_id: userId,
-              flag_type: "vpn_on_auth",
-              severity: vpnResult.isTor ? "high" : vpnResult.confidence >= 85 ? "high" : "medium",
-              details: {
-                ip: clientIP,
-                vpn: vpnResult.isVPN,
-                proxy: vpnResult.isProxy,
-                tor: vpnResult.isTor,
-                confidence: vpnResult.confidence,
-                methods: vpnResult.method,
-                provider: vpnResult.details.provider,
-                country: vpnResult.details.country,
-                isNewUser,
-              },
-              status: "pending",
-            }, {
-              onConflict: "user_id,flag_type",
-              ignoreDuplicates: false,
-            })
+          // HARDENED BLOCKING: Block based on VPN Fortress recommendations
+          // Block for NEW SIGNUPS: Tor, Residential Proxy, or shouldBlock=true, or confidence >= 40
+          if (isNewUser && (vpnResult.isTor || vpnResult.isResidentialProxy || vpnResult.shouldBlock || vpnResult.confidence >= 40)) {
+            await adminSupabase
+              .from("profiles")
+              .update({
+                fraud_score: 100,
+                is_banned: true,
+                ban_reason: `VPN/Proxy detected during signup (${vpnResult.isTor ? "Tor" :
+                    vpnResult.isResidentialProxy ? "Residential Proxy" :
+                      vpnResult.isProxy ? "Proxy" : "VPN"
+                  }, confidence: ${vpnResult.confidence}%, risk: ${vpnResult.riskLevel})`,
+                status: "banned",
+              })
+              .eq("id", userId)
 
-            // For new signups with VPN, increase fraud score
-            if (isNewUser) {
-              await adminSupabase
-                .from("profiles")
-                .update({ 
-                  fraud_score: vpnResult.isTor ? 80 : vpnResult.confidence >= 85 ? 60 : 40,
-                })
-                .eq("id", userId)
-            }
+            await supabase.auth.signOut()
+            return NextResponse.redirect(`${origin}/auth/error?error=vpn_blocked`)
           }
-        })
-        .catch((err) => {
-          log.error("VPN check failed during auth", { error: err, userId })
-        })
+
+          // HARDENED BLOCKING: Block for EXISTING USERS on login with high-confidence threats
+          // Block if: Tor, Residential Proxy, shouldBlock=true, or confidence >= 60
+          if (!isNewUser && (vpnResult.isTor || vpnResult.isResidentialProxy || vpnResult.shouldBlock || vpnResult.confidence >= 60)) {
+            // Don't ban existing users, but block this login attempt
+            await adminSupabase
+              .from("profiles")
+              .update({
+                fraud_score: Math.min(100, vpnResult.riskScore + 30),
+                vpn_detected_at: new Date().toISOString(),
+                vpn_detection_confidence: vpnResult.confidence,
+                vpn_detection_methods: vpnResult.methods,
+                last_vpn_ip: clientIP,
+              })
+              .eq("id", userId)
+
+            await supabase.auth.signOut()
+            return NextResponse.redirect(`${origin}/auth/error?error=vpn_blocked`)
+          }
+
+          // For lower-confidence VPN on login, increase fraud score but allow
+          if (!isNewUser && isVPNThreat && vpnResult.confidence < 60) {
+            await adminSupabase
+              .from("profiles")
+              .update({
+                fraud_score: Math.min(80, vpnResult.riskScore),
+                vpn_detected_at: new Date().toISOString(),
+              })
+              .eq("id", userId)
+          }
+        }
+      } catch (err) {
+        log.error("VPN Fortress check failed during auth", { error: err, userId })
+        // On VPN check failure, allow but log - don't block legitimate users due to API issues
+      }
     }
 
-    // ── MULTI-ACCOUNT CHECK ──
+    // ── MULTI-ACCOUNT CHECK (BLOCKING FOR NEW SIGNUPS) ──
     // Check if this fingerprint is associated with other accounts
     if (fingerprint) {
       const adminSupabase = createAdminClient()
-      
+
       // Find other accounts with this fingerprint
       const { data: existingFingerprints } = await adminSupabase
         .from("device_fingerprints")
-        .select("user_id, times_seen, is_trusted")
+        .select("user_id, times_seen, is_trusted, is_flagged")
         .eq("fingerprint_hash", fingerprint)
         .neq("user_id", userId)
         .limit(10)
 
       if (existingFingerprints && existingFingerprints.length > 0) {
         const otherUserIds = existingFingerprints.map(f => f.user_id)
-        
+
         log.warn("Multi-account detected via fingerprint", {
           userId,
           fingerprint: fingerprint.substring(0, 16) + "...",
           otherAccountCount: otherUserIds.length,
           isNewUser,
         })
+
+        // Check if any linked account is banned (indicates fraud ring)
+        const { data: linkedProfiles } = await adminSupabase
+          .from("profiles")
+          .select("id, status, is_banned, fraud_score")
+          .in("id", otherUserIds)
+
+        const hasBannedLinkedAccount = linkedProfiles?.some(p => p.status === "banned" || p.is_banned)
+        const hasHighFraudLinkedAccount = linkedProfiles?.some(p => (p.fraud_score || 0) >= 70)
+        const isDeviceFlagged = existingFingerprints.some(f => f.is_flagged)
 
         // Record multi-account detection
         await adminSupabase.from("fraud_flags").upsert({
@@ -187,6 +262,9 @@ export async function GET(request: Request) {
             other_user_ids: otherUserIds,
             other_account_count: otherUserIds.length,
             isNewUser,
+            hasBannedLinkedAccount,
+            hasHighFraudLinkedAccount,
+            isDeviceFlagged,
             detected_at: new Date().toISOString(),
           },
           related_user_ids: otherUserIds,
@@ -196,8 +274,41 @@ export async function GET(request: Request) {
           ignoreDuplicates: false,
         })
 
-        // Increase fraud score based on number of linked accounts
-        const fraudScoreIncrease = Math.min(100, otherUserIds.length * 25)
+        // BLOCKING: For new signups, block if:
+        // 1. Already has an account on this device (1 account per device rule)
+        // 2. Linked to a banned account
+        // 3. Device is flagged
+        if (isNewUser && (otherUserIds.length >= 1 || hasBannedLinkedAccount || isDeviceFlagged)) {
+          const blockReason = hasBannedLinkedAccount
+            ? "This device is linked to a suspended account"
+            : isDeviceFlagged
+              ? "This device has been flagged for suspicious activity"
+              : "Only one account per device is allowed"
+
+          // Ban the new account
+          await adminSupabase
+            .from("profiles")
+            .update({
+              fraud_score: 100,
+              is_banned: true,
+              ban_reason: blockReason,
+              status: "banned",
+            })
+            .eq("id", userId)
+
+          // Also flag the device
+          await adminSupabase
+            .from("device_fingerprints")
+            .update({ is_flagged: true })
+            .eq("fingerprint_hash", fingerprint)
+
+          // Sign out and redirect to error
+          await supabase.auth.signOut()
+          return NextResponse.redirect(`${origin}/auth/error?error=multi_account_blocked`)
+        }
+
+        // For existing users, increase fraud score (non-blocking)
+        const fraudScoreIncrease = Math.min(100, otherUserIds.length * 25 + (hasBannedLinkedAccount ? 50 : 0))
         await adminSupabase.rpc("increment_fraud_score", {
           p_user_id: userId,
           p_amount: fraudScoreIncrease,
@@ -207,7 +318,7 @@ export async function GET(request: Request) {
             .from("profiles")
             .update({ fraud_score: fraudScoreIncrease })
             .eq("id", userId)
-            .then(() => {})
+            .then(() => { })
         })
       }
     }
@@ -240,10 +351,20 @@ export async function GET(request: Request) {
         })
     }
 
-    // Update last active (non-blocking)
+    // Update last active and store signup IP for new users (non-blocking)
+    const profileUpdate: Record<string, unknown> = {
+      last_active_at: new Date().toISOString(),
+      last_login_ip: clientIP !== "unknown" ? clientIP : null,
+    }
+
+    // Store signup IP for new users (important for fraud detection)
+    if (isNewUser && clientIP !== "unknown") {
+      profileUpdate.signup_ip = clientIP
+    }
+
     supabase
       .from("profiles")
-      .update({ last_active_at: new Date().toISOString() })
+      .update(profileUpdate)
       .eq("id", userId)
       .then(() => {
         console.log("[Auth Callback] Profile updated")

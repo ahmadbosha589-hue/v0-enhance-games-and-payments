@@ -39,10 +39,10 @@ interface CheckState {
  * 
  * Zero false positives - only blocks with high confidence
  */
-export function AuthSecurityGuard({ 
-  children, 
+export function AuthSecurityGuard({
+  children,
   isSignup = false,
-  onSecurityCheck 
+  onSecurityCheck
 }: AuthSecurityGuardProps) {
   const [checkState, setCheckState] = useState<CheckState>({ status: "checking" })
   const [fingerprint, setFingerprint] = useState<PersistentFingerprintResult | null>(null)
@@ -90,7 +90,7 @@ export function AuthSecurityGuard({
         setCheckState({
           status: "blocked",
           message: result.flagReason || "Access denied for security reasons.",
-          details: result.vpnDetected 
+          details: result.vpnDetected
             ? "VPN or proxy connection detected. Please disable to continue."
             : undefined,
         })
@@ -105,18 +105,35 @@ export function AuthSecurityGuard({
         return
       }
 
-      if (result.vpnDetected || result.requiresAdditionalVerification) {
-        // Warning - VPN detected but allowed
+      // HARDENED: VPN detection now blocks completely, not just warns
+      if (result.vpnDetected) {
+        // Block - VPN/Proxy detected
+        setCheckState({
+          status: "blocked",
+          message: "VPN or proxy connection detected.",
+          details: "Please disable your VPN, proxy, or Tor connection to continue. Only direct internet connections are allowed.",
+        })
+        onSecurityCheck?.({
+          isAllowed: false,
+          fingerprint: fpResult.fingerprint,
+          vpnDetected: true,
+          multiAccountBlocked: false,
+          flagReason: "VPN or proxy detected. Please disable to continue.",
+          requiresAdditionalVerification: false,
+        })
+        return
+      }
+
+      if (result.requiresAdditionalVerification) {
+        // Warning - requires additional verification but not VPN
         setCheckState({
           status: "warning",
-          message: result.vpnDetected 
-            ? "VPN/Proxy detected. Some features may be restricted."
-            : "Additional verification may be required.",
+          message: "Additional verification may be required.",
         })
         onSecurityCheck?.({
           isAllowed: true,
           fingerprint: fpResult.fingerprint,
-          vpnDetected: result.vpnDetected || false,
+          vpnDetected: false,
           multiAccountBlocked: false,
           requiresAdditionalVerification: true,
         })
@@ -196,10 +213,10 @@ export function AuthSecurityGuard({
               )}
             </AlertDescription>
           </Alert>
-          
+
           <div className="text-center text-xs text-muted-foreground space-y-2">
             <p>
-              If you believe this is an error, please disable any VPN, proxy, or Tor 
+              If you believe this is an error, please disable any VPN, proxy, or Tor
               connection and try again.
             </p>
             <p>

@@ -139,8 +139,12 @@ export default function LoginPage() {
     if (result.fingerprint) {
       setDeviceFingerprint(result.fingerprint)
     }
-    if (!result.isAllowed) {
+    // Block if not allowed OR if VPN detected (hardened security)
+    if (!result.isAllowed || result.vpnDetected) {
       setVpnBlocked(true)
+      if (result.vpnDetected) {
+        setError("VPN or proxy detected. Please disable to sign in.")
+      }
     }
   }, [])
 
@@ -183,6 +187,24 @@ export default function LoginPage() {
   }, [])
 
   const handleGoogleSignIn = async () => {
+    // SECURITY: Block login if VPN detected
+    if (vpnBlocked) {
+      setError("VPN or proxy detected. Please disable your VPN/proxy to sign in.")
+      return
+    }
+
+    // SECURITY: Require security check to complete
+    if (!securityCheckResult) {
+      setError("Please wait for security verification to complete.")
+      return
+    }
+
+    // SECURITY: Block if security check didn't allow
+    if (!securityCheckResult.isAllowed) {
+      setError(securityCheckResult.flagReason || "Sign in blocked for security reasons.")
+      return
+    }
+
     if (isOffline) {
       setError("You appear to be offline. Please check your internet connection.")
       return
@@ -286,6 +308,24 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // SECURITY: Block login if VPN detected
+    if (vpnBlocked) {
+      setError("VPN or proxy detected. Please disable your VPN/proxy to sign in.")
+      return
+    }
+
+    // SECURITY: Require security check to complete
+    if (!securityCheckResult) {
+      setError("Please wait for security verification to complete.")
+      return
+    }
+
+    // SECURITY: Block if security check didn't allow
+    if (!securityCheckResult.isAllowed) {
+      setError(securityCheckResult.flagReason || "Sign in blocked for security reasons.")
+      return
+    }
 
     if (isOffline) {
       setError("You appear to be offline. Please check your internet connection.")
