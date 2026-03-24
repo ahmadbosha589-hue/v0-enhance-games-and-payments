@@ -233,8 +233,8 @@ export async function POST(request: Request) {
       net_amount_satoshis: withdrawResult.net_amount || amount,
     }
     const newBalance = withdrawResult.new_balance
-    const fee = withdrawResult.fee || 0
-    const netAmount = withdrawResult.net_amount || amount
+    const actualFee = withdrawResult.fee || 0
+    const actualNetAmount = withdrawResult.net_amount || amount
 
     // Audit log
     await supabase.from("audit_logs").insert({
@@ -246,8 +246,8 @@ export async function POST(request: Request) {
       resource_id: withdrawal.id,
       metadata: {
         amount,
-        fee,
-        net_amount: netAmount,
+        fee: actualFee,
+        net_amount: actualNetAmount,
         faucetpay_email: profile.faucetpay_email,
       },
     })
