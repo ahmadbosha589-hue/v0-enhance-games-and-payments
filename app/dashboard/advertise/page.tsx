@@ -648,7 +648,7 @@ export default function AdvertisePage() {
                 Create Campaign
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Rocket className="h-5 w-5 text-primary" />
@@ -662,7 +662,7 @@ export default function AdvertisePage() {
                 {/* Network Selection */}
                 <div className="space-y-3">
                   <Label>Select Ad Network *</Label>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                     {Object.entries(AD_NETWORKS).map(([key, net]) => (
                       <button
                         key={key}
@@ -675,13 +675,7 @@ export default function AdvertisePage() {
                             : "hover:bg-muted/50"
                         )}
                       >
-                        {net.recommended && (
-                          <Badge className="absolute top-2 right-2 text-[10px]" variant="secondary">
-                            <Star className="h-3 w-3 mr-1" />
-                            Recommended
-                          </Badge>
-                        )}
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-start gap-3 mb-2">
                           <div className="relative h-10 w-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
                             {net.logo ? (
                               <img
@@ -695,9 +689,17 @@ export default function AdvertisePage() {
                               </div>
                             )}
                           </div>
-                          <div>
-                            <p className="font-semibold">{net.name}</p>
-                            <p className="text-xs text-muted-foreground">{net.description}</p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold truncate">{net.name}</p>
+                              {net.recommended && (
+                                <Badge className="text-[10px] shrink-0 px-1.5 py-0" variant="secondary">
+                                  <Star className="h-2.5 w-2.5 mr-0.5" />
+                                  Top
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{net.description}</p>
                           </div>
                         </div>
                         <div className="flex flex-wrap gap-1 mt-2">

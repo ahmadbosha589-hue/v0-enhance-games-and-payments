@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Sparkles, RotateCcw } from "lucide-react"
 
-const BOARD_SIZE = 8 // Smaller board for better balance
-const CELL_SIZE = 36 // Slightly larger cells for smaller board
+const BOARD_SIZE = 10 // Larger board for better gameplay
+const CELL_SIZE = 32 // Cell size optimized for the board
+const GAP_SIZE = 2 // Gap between cells (gap-0.5 = 0.125rem = 2px)
+const PADDING = 12 // Container padding (p-3 = 0.75rem = 12px)
 
 // Multiple color palettes - 8 colors ensures variety and prevents single-color dominance
 const COLOR_PALETTES = [
@@ -83,7 +85,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   const [shakeBoard, setShakeBoard] = useState(false)
   const [gameStartTime, setGameStartTime] = useState<number>(0)
   const [tooQuickWarning, setTooQuickWarning] = useState(false)
-  const MIN_GAME_DURATION = 30 // Minimum seconds to play legitimately
+  const MIN_GAME_DURATION = 20 // Minimum seconds to play legitimately
 
   const boardRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef(score)
@@ -311,9 +313,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       setTimeout(() => setBlastMessage(null), 1000)
     }
 
-    // Calculate score - stricter scoring: 2 points per block, minimal bonuses
-    const basePoints = expandedGroup.size * 2 // Reduced from 3 to 2 per block
-    const sizeBonus = expandedGroup.size > 8 ? (expandedGroup.size - 8) * 1 : 0 // Very small bonus, higher threshold
+    // Calculate score - balanced scoring: 3 points per block with combo bonuses
+    const basePoints = expandedGroup.size * 3 // 3 points per block
+    const sizeBonus = expandedGroup.size > 6 ? (expandedGroup.size - 6) * 2 : 0 // Bonus for larger groups
     const difficultyBonus = 0 // No difficulty bonus
     const totalPoints = Math.floor((basePoints + sizeBonus + bonusPoints + difficultyBonus) * activeMultiplier * scoreMultiplierFromDifficulty)
 
@@ -381,8 +383,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     initializeGame()
   }, [initializeGame])
 
-  const boardWidth = BOARD_SIZE * CELL_SIZE + 24
-  const boardHeight = BOARD_SIZE * CELL_SIZE + 24
+  // Calculate exact board dimensions: cells + gaps + padding
+  const boardWidth = (BOARD_SIZE * CELL_SIZE) + ((BOARD_SIZE - 1) * GAP_SIZE) + (PADDING * 2)
+  const boardHeight = (BOARD_SIZE * CELL_SIZE) + ((BOARD_SIZE - 1) * GAP_SIZE) + (PADDING * 2)
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
@@ -404,8 +407,8 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           style={{
             gridTemplateColumns: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
             gridTemplateRows: `repeat(${BOARD_SIZE}, ${CELL_SIZE}px)`,
-            width: BOARD_SIZE * CELL_SIZE,
-            height: BOARD_SIZE * CELL_SIZE
+            width: (BOARD_SIZE * CELL_SIZE) + ((BOARD_SIZE - 1) * GAP_SIZE),
+            height: (BOARD_SIZE * CELL_SIZE) + ((BOARD_SIZE - 1) * GAP_SIZE)
           }}
         >
           {board.flat().map((cell, i) => {
