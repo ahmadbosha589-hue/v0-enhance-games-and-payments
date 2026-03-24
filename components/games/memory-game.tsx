@@ -31,7 +31,6 @@ interface MemoryGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
-  winThreshold?: number // Score needed to win and get reward
   initialScore?: number
 }
 
@@ -41,7 +40,7 @@ const GRID_SIZES = {
   hard: { cols: 6, rows: 4, pairs: 12, timeBonus: 600 }
 }
 
-export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, winThreshold = 100, initialScore = 0 }: MemoryGameProps) {
+export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, initialScore = 0 }: MemoryGameProps) {
   // Choose grid difficulty based on level
   const gridDifficulty = externalDifficulty && externalDifficulty.level >= 5
     ? "hard"
@@ -76,7 +75,23 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
   // Initialize game
   const initializeGame = useCallback(() => {
+    // Reset all game state to fresh values
+    hasEndedRef.current = false
     setHasWon(false)
+    setGameOver(false)
+    setFlippedCards([])
+    setMatchedPairs(0)
+    setMoves(0)
+    setScore(initialScore)
+    setTimeLeft(120)
+    setCombo(0)
+    setStreak(0)
+    setLastMatchTime(0)
+    setHintsUsed(0)
+    setPerfectGame(true)
+    setMatchAnimation([])
+    setIsChecking(false)
+
     const selectedIcons = CARD_ICONS.slice(0, config.pairs)
     const cardPairs = [...selectedIcons, ...selectedIcons]
 
@@ -92,19 +107,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       isFlipped: false,
       isMatched: false
     })))
-    setFlippedCards([])
-    setMatchedPairs(0)
-    setMoves(0)
-    setScore(initialScore)
-    setTimeLeft(120)
-    setGameOver(false)
-    setCombo(0)
-    setStreak(0)
-    setHintsUsed(0)
-    setPerfectGame(true)
-    setMatchAnimation([])
-    hasEndedRef.current = false
-  }, [config.pairs])
+  }, [config.pairs, initialScore])
 
   useEffect(() => {
     if (isActive) {
@@ -435,16 +438,16 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
                 {formatTime(timeLeft)}
               </p>
             </div>
-            {combo >= 2 && (
+            {combo >= 2 && combo <= 20 && (
               <div className="flex items-center gap-2 text-amber-400">
                 <Sparkles className="h-4 w-4" />
-                <span className="font-bold">{combo} Quick Matches!</span>
+                <span className="font-bold">Quick Match x{combo}!</span>
               </div>
             )}
-            {streak >= 4 && (
+            {streak >= 3 && streak <= 20 && (
               <div className="flex items-center gap-2 text-purple-400">
                 <Trophy className="h-4 w-4" />
-                <span className="font-bold">{streak} in a row!</span>
+                <span className="font-bold">{streak} matches in a row!</span>
               </div>
             )}
           </div>

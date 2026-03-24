@@ -65,13 +65,14 @@ export async function POST(req: NextRequest) {
       const gameType = bodyGameType || "unknown"
       // Difficulty unknown without DB — default to level 1
       const winThreshold = getAdjustedWinThreshold(gameType, 1)
-      const isWinner = score >= winThreshold
+      // Memory game: completing all pairs counts as a win (score > 0)
+      const isWinner = gameType === "memory" ? score > 0 : score >= winThreshold
       return NextResponse.json({
         success: true,
         isWinner,
         reward: isWinner ? GAME_REWARD_SATOSHIS : 0,
         score,
-        winThreshold,
+        winThreshold: gameType === "memory" ? 0 : winThreshold,
         newBalance: 0,
         cooldownMinutes: GAME_COOLDOWN_MINUTES,
         cooldownUntil: new Date(Date.now() + GAME_COOLDOWN_MINUTES * 60 * 1000).toISOString(),
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
         totalEarnedToday: isWinner ? GAME_REWARD_SATOSHIS : 0,
         message: isWinner
           ? `Congratulations! You earned ${GAME_REWARD_SATOSHIS} satoshis!`
-          : `You need at least ${winThreshold} points to win. Try again!`
+          : gameType === "memory" ? "Match all pairs to win. Try again!" : `You need at least ${winThreshold} points to win. Try again!`
       })
     }
 
@@ -194,7 +195,9 @@ export async function POST(req: NextRequest) {
 
     const { level: difficultyLevel } = calculateDifficulty(gamesTodayForDifficulty)
     const winThreshold = getAdjustedWinThreshold(gameType, difficultyLevel)
-    const isWinner = score >= winThreshold
+    // Memory game: completing all pairs counts as a win (score > 0 means they finished)
+    // Other games: must reach win threshold
+    const isWinner = gameType === "memory" ? score > 0 : score >= winThreshold
     const rewardAmount = isWinner ? GAME_REWARD_SATOSHIS : 0
 
     const today = new Date().toISOString().split("T")[0]
@@ -320,7 +323,7 @@ export async function POST(req: NextRequest) {
       isWinner,
       reward: rewardAmount,
       score,
-      winThreshold,
+      winThreshold: gameType === "memory" ? 0 : winThreshold,
       newBalance,
       cooldownMinutes: GAME_COOLDOWN_MINUTES,
       cooldownUntil,
@@ -329,7 +332,7 @@ export async function POST(req: NextRequest) {
       totalEarnedToday,
       message: isWinner
         ? `Congratulations! You earned ${rewardAmount} satoshis!`
-        : `You need at least ${winThreshold} points to win. Try again!`
+        : gameType === "memory" ? "Match all pairs to win. Try again!" : `You need at least ${winThreshold} points to win. Try again!`
     })
 
   } catch (error) {

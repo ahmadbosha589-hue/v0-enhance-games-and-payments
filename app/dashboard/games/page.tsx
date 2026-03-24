@@ -817,7 +817,7 @@ export default function GamesPage() {
                         +{gameStatus.rewardPerGame} sats
                       </Badge>
                       <Badge className="text-[10px]" variant="outline">
-                        Win: {winThreshold}+ pts
+                        {game.type === "memory" ? "Match all pairs" : `Win: ${winThreshold}+ pts`}
                       </Badge>
                     </div>
                     {userHighScores[game.type] && (
@@ -992,7 +992,7 @@ export default function GamesPage() {
               <div className="flex items-center gap-4">
                 <Badge variant="outline" className="text-sm">
                   <Target className="h-3.5 w-3.5 mr-1.5 text-orange-500" />
-                  Win: {gameStatus?.winThresholds?.[selectedGame!] || 100}+ pts
+                  {selectedGame === "memory" ? "Match all pairs" : `Win: ${gameStatus?.winThresholds?.[selectedGame!] || 100}+ pts`}
                 </Badge>
                 <Badge variant="outline" className="text-sm">
                   <Trophy className="h-3.5 w-3.5 mr-1.5 text-yellow-500" />
@@ -1023,7 +1023,10 @@ export default function GamesPage() {
                     {games.find(g => g.type === selectedGame)?.name}
                   </h3>
                   <p className="text-gray-300 mb-4">
-                    Reach {gameStatus?.winThresholds?.[selectedGame!] || 100} points to win {gameStatus?.rewardPerGame || 3} satoshis!
+                    {selectedGame === "memory"
+                      ? `Match all pairs to win ${gameStatus?.rewardPerGame || 3} satoshis!`
+                      : `Reach ${gameStatus?.winThresholds?.[selectedGame!] || 100} points to win ${gameStatus?.rewardPerGame || 3} satoshis!`
+                    }
                   </p>
                   <div className="animate-bounce">
                     <Badge className="text-lg px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white cursor-pointer">
@@ -1081,7 +1084,6 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
-                winThreshold={gameStatus?.winThresholds?.["memory"]}
                 initialScore={currentScore}
               />
             )}
@@ -1140,9 +1142,11 @@ export default function GamesPage() {
                 <p className="text-2xl font-bold">
                   Score: {gameResult.score.toLocaleString()}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Win threshold: {gameResult.winThreshold} points
-                </p>
+                {gameResult.winThreshold > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Win threshold: {gameResult.winThreshold} points
+                  </p>
+                )}
               </div>
               {gameResult.isWin ? (
                 <Badge className="text-lg px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white">
