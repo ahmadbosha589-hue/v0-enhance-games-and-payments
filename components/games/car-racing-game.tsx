@@ -142,8 +142,8 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   const gameStateRef = useRef({
     score: initialScore,
     distance: 0,
-    baseSpeed: 5,
-    currentSpeed: 5,
+    baseSpeed: 3,
+    currentSpeed: 3,
     lives: 3,
     gameOver: false,
     isPaused: false,
@@ -825,36 +825,36 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         }
       }
 
-      // Spawn obstacles - balanced for playability
-      // Min interval increased to 800ms, slower scaling with distance
-      const baseSpawnInterval = Math.max(800, 1600 - gs.distance * 1.2 - difficultyLevel * 50)
+      // Spawn obstacles - VERY relaxed for actual playability
+      // Min interval 1500ms, starts at 2500ms, very slow scaling
+      const baseSpawnInterval = Math.max(1500, 2500 - gs.distance * 0.5 - difficultyLevel * 20)
       if (now - gs.lastObstacleSpawn > baseSpawnInterval) {
         spawnObstacle(gs)
         gs.lastObstacleSpawn = now
 
-        // Additional obstacles only at high distances and less frequently (15% chance)
-        if (gs.distance > 100 && Math.random() < 0.15) {
+        // Additional obstacles ONLY at very high distances and very rarely (8% chance)
+        if (gs.distance > 200 && Math.random() < 0.08) {
           const lastLane = gs.obstacles[gs.obstacles.length - 1]?.lane ?? 1
           const availableLanes = [0, 1, 2].filter(l => l !== lastLane)
           const extraLane = availableLanes[Math.floor(Math.random() * availableLanes.length)]
           setTimeout(() => {
             if (!gs.gameOver && !gs.isPaused) spawnObstacle(gs, extraLane)
-          }, baseSpawnInterval * 0.5)
+          }, baseSpawnInterval * 0.7)
         }
       }
 
-      // Spawn coins - balanced rate for fun collection
-      // Normal interval 900ms, frenzy interval 500ms
-      const coinInterval = gs.hasFrenzy ? 500 : 900
+      // Spawn coins - reasonable rate
+      // Normal interval 1200ms, frenzy interval 700ms
+      const coinInterval = gs.hasFrenzy ? 700 : 1200
       if (now - gs.lastCoinSpawn > coinInterval) {
         spawnCoin(gs)
         gs.lastCoinSpawn = now
 
-        // Frenzy bonus coins - 30% chance instead of 50%
-        if (gs.hasFrenzy && Math.random() < 0.3) {
+        // Frenzy bonus coins - only 20% chance
+        if (gs.hasFrenzy && Math.random() < 0.2) {
           setTimeout(() => {
             if (!gs.gameOver && !gs.isPaused && gs.hasFrenzy) spawnCoin(gs)
-          }, 200)
+          }, 300)
         }
       }
 
@@ -869,11 +869,11 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         gs.weather = WEATHER_TYPES[Math.floor(Math.random() * WEATHER_TYPES.length)]
       }
 
-      // Move obstacles - slower speed scaling for better playability
-      const obstacleSpeedBonus = Math.min(gs.distance / 200, 1.8)
+      // Move obstacles - much slower for actual playability
+      const obstacleSpeedBonus = Math.min(gs.distance / 400, 1.0)
       for (let i = gs.obstacles.length - 1; i >= 0; i--) {
         const obs = gs.obstacles[i]
-        obs.y += (gs.currentSpeed + 2 + obstacleSpeedBonus) * obs.speed * deltaTime
+        obs.y += (gs.currentSpeed + 1 + obstacleSpeedBonus) * obs.speed * deltaTime
 
         if (obs.y > CANVAS_HEIGHT + 100) {
           gs.obstacles.splice(i, 1)
@@ -1016,16 +1016,16 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         spawnParticles(gs, playerX + CAR_WIDTH / 2 + safeRandom(-10, 10), playerY + CAR_HEIGHT, "trail", 1, "#ef4444")
       }
 
-      // Speed progression - more gradual for better playability
-      if (frame % 300 === 0 && gs.baseSpeed < 12) {
-        gs.baseSpeed = Math.min(gs.baseSpeed + 0.15, 12)
+      // Speed progression - very gradual for comfortable gameplay
+      if (frame % 500 === 0 && gs.baseSpeed < 8) {
+        gs.baseSpeed = Math.min(gs.baseSpeed + 0.1, 8)
       }
 
-      // Distance milestones
-      if (gs.distance > 100 && gs.baseSpeed < 7) gs.baseSpeed = 7
-      if (gs.distance > 200 && gs.baseSpeed < 9) gs.baseSpeed = 9
-      if (gs.distance > 300 && gs.baseSpeed < 11) gs.baseSpeed = 11
-      if (gs.distance > 500 && gs.baseSpeed < 13) gs.baseSpeed = 13
+      // Distance milestones - much more gradual
+      if (gs.distance > 150 && gs.baseSpeed < 4) gs.baseSpeed = 4
+      if (gs.distance > 300 && gs.baseSpeed < 5) gs.baseSpeed = 5
+      if (gs.distance > 500 && gs.baseSpeed < 6) gs.baseSpeed = 6
+      if (gs.distance > 800 && gs.baseSpeed < 7) gs.baseSpeed = 7
 
       // Distance milestone bonuses
       const currentMilestone = Math.floor(gs.distance / 500) * 500
