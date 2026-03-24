@@ -172,27 +172,26 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       const now = Date.now()
       const timeSinceLastMatch = now - lastMatchTime
 
-      // Only count as quick match if TWO pairs matched within 2 seconds (stricter requirement)
-      const isQuickMatch = timeSinceLastMatch < 2000 && lastMatchTime > 0
+      // Quick match = matched another pair within 3 seconds
+      const isQuickMatch = timeSinceLastMatch < 3000 && lastMatchTime > 0
 
-      // Combo system - starts at 1, max 3, only increases on quick consecutive matches
-      let newCombo = 1
-      if (isQuickMatch && combo >= 1) {
-        newCombo = Math.min(combo + 1, 3) // Cap combo at x3 max
-      }
+      // Combo system - counts consecutive quick matches (0 = no combo, 1 = first quick, etc.)
+      // Only increases if this match was quick
+      let newCombo = isQuickMatch ? combo + 1 : 0
 
-      // Streak only increases if this is at least the 2nd quick match in a row
-      const newStreak = isQuickMatch && combo >= 2 ? Math.min(streak + 1, 5) : 0 // Cap streak at 5 max
+      // Streak tracks total consecutive matches without missing (resets on mismatch, not on slow match)
+      // Slow matches don't break streak, just don't add combo
+      const newStreak = streak + 1
 
       setCombo(newCombo)
       setStreak(newStreak)
       setLastMatchTime(now)
       setMatchAnimation([first, second])
 
-      // Realistic scoring - base 10 points per match, small bonuses
+      // Scoring: base 10 points, combo bonus for quick matches, streak bonus for consecutive matches
       const basePoints = 10
-      const comboBonus = newCombo >= 2 ? (newCombo - 1) * 2 : 0 // x2 combo = +2, x3 combo = +4
-      const streakBonus = newStreak >= 2 ? newStreak : 0 // Only show streak bonus when streak >= 2
+      const comboBonus = newCombo >= 1 ? newCombo * 3 : 0 // +3 per combo level
+      const streakBonus = newStreak >= 3 ? Math.floor(newStreak / 2) : 0 // Small bonus for long streaks
       const points = basePoints + comboBonus + streakBonus
 
       setTimeout(() => {
@@ -439,13 +438,13 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
             {combo >= 2 && (
               <div className="flex items-center gap-2 text-amber-400">
                 <Sparkles className="h-4 w-4" />
-                <span className="font-bold">x{combo} Combo!</span>
+                <span className="font-bold">{combo} Quick Matches!</span>
               </div>
             )}
-            {streak >= 2 && (
+            {streak >= 4 && (
               <div className="flex items-center gap-2 text-purple-400">
                 <Trophy className="h-4 w-4" />
-                <span className="font-bold">x{streak} Streak!</span>
+                <span className="font-bold">{streak} in a row!</span>
               </div>
             )}
           </div>
@@ -467,10 +466,9 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           <p className="text-gray-400 text-xs mb-2 font-medium">How to Play</p>
           <ul className="text-xs text-gray-500 space-y-1">
             <li>Click cards to flip them</li>
-            <li>Find matching pairs</li>
-            <li>Quick matches = combo bonus</li>
-            <li>Beat the clock!</li>
-            <li>Perfect game = +20 bonus</li>
+            <li>Match all {config.pairs} pairs to win</li>
+            <li>Fast matches = bonus points</li>
+            <li>No mistakes = +20 bonus</li>
           </ul>
         </Card>
 
