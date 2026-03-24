@@ -62,7 +62,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }])
   const [hasWon, setHasWon] = useState(false)
   const [direction, setDirection] = useState<Direction>("RIGHT")
-  const [food, setFood] = useState<Food>({ x: 14, y: 10, type: "normal", points: 10 })
+  const [food, setFood] = useState<Food>({ x: 15, y: 10, type: "normal", points: 10 })
   const [bonusFood, setBonusFood] = useState<Food | null>(null)
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
@@ -113,10 +113,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const generateFood = useCallback((): Food => {
     let newPos: Position
     do {
-      // Generate food 1 cell away from edges to prevent clipping
+      // Generate food 2 cells away from edges to ensure full visibility
       newPos = {
-        x: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2)),
-        y: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2))
+        x: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4)),
+        y: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4))
       }
     } while (snake.some(segment => segment.x === newPos.x && segment.y === newPos.y))
 
@@ -128,10 +128,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     if (Math.random() < 0.12 && !bonusFood) {
       let newPos: Position
       do {
-        // Generate bonus food 1 cell away from edges to prevent clipping
+        // Generate bonus food 2 cells away from edges to ensure full visibility
         newPos = {
-          x: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2)),
-          y: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2))
+          x: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4)),
+          y: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4))
         }
       } while (
         snake.some(segment => segment.x === newPos.x && segment.y === newPos.y) ||
@@ -148,7 +148,8 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   }, [snake, food, bonusFood])
 
   const moveSnake = useCallback(() => {
-    if (!isActive || isPaused || gameOver) return
+    // Use ref for gameOver to avoid stale closure issues
+    if (!isActive || isPaused || gameOverRef.current) return
 
     // Process direction queue
     if (directionQueueRef.current.length > 0) {
@@ -158,6 +159,9 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     }
 
     setSnake(prevSnake => {
+      // Double-check game over state inside setState
+      if (gameOverRef.current) return prevSnake
+
       const head = { ...prevSnake[0] }
       const currentDirection = directionRef.current
 
@@ -168,13 +172,13 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
         case "RIGHT": head.x += 1; break
       }
 
-      // Wall collision - snake dies when hitting any edge
+      // Wall collision - snake dies when hitting any edge (all 4 sides)
       const hitWall = head.x < 0 || head.x >= BOARD_SIZE || head.y < 0 || head.y >= BOARD_SIZE
       if (hitWall) {
         if (!gameOverRef.current) {
           gameOverRef.current = true
           setGameOver(true)
-          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
+          onGameEnd(scoreRef.current, movesRef.current)
         }
         return prevSnake
       }
@@ -185,7 +189,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
         if (!gameOverRef.current) {
           gameOverRef.current = true
           setGameOver(true)
-          setTimeout(() => onGameEnd(scoreRef.current, movesRef.current), 0)
+          onGameEnd(scoreRef.current, movesRef.current)
         }
         return prevSnake
       }
@@ -257,7 +261,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
 
   // Game loop using requestAnimationFrame for smooth animation
   useEffect(() => {
-    if (!isActive || isPaused || gameOver) {
+    if (!isActive || isPaused || gameOver || gameOverRef.current) {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current)
         gameLoopRef.current = null
@@ -266,6 +270,14 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     }
 
     const gameLoop = (timestamp: number) => {
+      // Check ref inside loop to immediately stop on collision
+      if (gameOverRef.current) {
+        if (gameLoopRef.current) {
+          cancelAnimationFrame(gameLoopRef.current)
+          gameLoopRef.current = null
+        }
+        return
+      }
       if (timestamp - lastUpdateRef.current >= speed) {
         moveSnake()
         lastUpdateRef.current = timestamp
@@ -463,12 +475,12 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
       {/* Game Board */}
       <div
         ref={boardRef}
-        className="relative rounded-lg p-2 border-2 border-gray-700 touch-none select-none overflow-hidden flex-shrink-0"
+        className="relative rounded-lg p-3 border-4 border-gray-600 touch-none select-none flex-shrink-0"
         style={{
           background: flashEffect ? "rgba(34, 197, 94, 0.2)" : "rgb(17, 24, 39)",
           transition: "background 100ms ease",
-          width: boardWidth + 16,
-          height: boardHeight + 16,
+          width: boardWidth + 24,
+          height: boardHeight + 24,
           maxWidth: "100%"
         }}
       >
@@ -477,32 +489,28 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
           height={boardHeight}
           viewBox={`0 0 ${boardWidth} ${boardHeight}`}
           className="block"
-          style={{ overflow: "hidden" }}
+          style={{ overflow: "visible" }}
         >
-          {/* Grid and clip path */}
+          {/* Grid pattern */}
           <defs>
             <pattern id="snakeGrid" width={CELL_SIZE} height={CELL_SIZE} patternUnits="userSpaceOnUse">
               <rect width={CELL_SIZE} height={CELL_SIZE} fill="transparent" stroke="rgba(55,65,81,0.5)" strokeWidth="0.5" />
             </pattern>
-            <clipPath id="boardClip">
-              <rect x="0" y="0" width={boardWidth} height={boardHeight} />
-            </clipPath>
           </defs>
+          {/* Board background with visible border */}
+          <rect x="0" y="0" width={boardWidth} height={boardHeight} fill="rgb(17, 24, 39)" stroke="rgba(75, 85, 99, 0.8)" strokeWidth="2" />
           <rect width="100%" height="100%" fill="url(#snakeGrid)" />
 
-          {/* Snake body - clipped to board boundaries */}
-          <g clipPath="url(#boardClip)">
+          {/* Snake body */}
+          <g>
             {snake.map((segment, i) => {
               const isHead = i === 0
               const opacity = 1 - (i / snake.length) * 0.4
-              // Clamp to board boundaries
-              const x = Math.max(0, Math.min(segment.x, BOARD_SIZE - 1))
-              const y = Math.max(0, Math.min(segment.y, BOARD_SIZE - 1))
               return (
                 <rect
                   key={i}
-                  x={x * CELL_SIZE + 1}
-                  y={y * CELL_SIZE + 1}
+                  x={segment.x * CELL_SIZE + 1}
+                  y={segment.y * CELL_SIZE + 1}
                   width={CELL_SIZE - 2}
                   height={CELL_SIZE - 2}
                   rx={isHead ? 4 : 2}
@@ -516,11 +524,11 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
             })}
           </g>
 
-          {/* Food - clipped to board */}
-          <g clipPath="url(#boardClip)">
+          {/* Food */}
+          <g>
             <circle
-              cx={Math.min(Math.max(food.x, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
-              cy={Math.min(Math.max(food.y, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
+              cx={food.x * CELL_SIZE + CELL_SIZE / 2}
+              cy={food.y * CELL_SIZE + CELL_SIZE / 2}
               r={CELL_SIZE / 2 - 2}
               fill={FOOD_TYPES[food.type].color}
               style={{
@@ -533,8 +541,8 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
             {/* Bonus food */}
             {bonusFood && (
               <circle
-                cx={Math.min(Math.max(bonusFood.x, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
-                cy={Math.min(Math.max(bonusFood.y, 0), BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE / 2}
+                cx={bonusFood.x * CELL_SIZE + CELL_SIZE / 2}
+                cy={bonusFood.y * CELL_SIZE + CELL_SIZE / 2}
                 r={CELL_SIZE / 2 - 1}
                 fill="#ffd700"
                 style={{
