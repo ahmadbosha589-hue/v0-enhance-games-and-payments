@@ -14,8 +14,7 @@ import {
   Sparkles
 } from "lucide-react"
 
-const BOARD_SIZE = 20  // Larger grid for better gameplay
-const CELL_SIZE = 18   // Balanced cell size
+const GRID_SIZE = 16   // Grid cells (16x16 for balanced gameplay)
 const INITIAL_SPEED = 140
 const SPEED_INCREASE = 4
 
@@ -59,10 +58,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
   const baseSpeedRef = useRef(baseSpeed)
   baseSpeedRef.current = baseSpeed
-  const [snake, setSnake] = useState<Position[]>([{ x: 10, y: 10 }])
+  const [snake, setSnake] = useState<Position[]>([{ x: 8, y: 8 }])
   const [hasWon, setHasWon] = useState(false)
   const [direction, setDirection] = useState<Direction>("RIGHT")
-  const [food, setFood] = useState<Food>({ x: 15, y: 10, type: "normal", points: 10 })
+  const [food, setFood] = useState<Food>({ x: 12, y: 8, type: "normal", points: 10 })
   const [bonusFood, setBonusFood] = useState<Food | null>(null)
   const [score, setScore] = useState(0)
   const [moves, setMoves] = useState(0)
@@ -79,10 +78,31 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const lastUpdateRef = useRef<number>(0)
   const directionRef = useRef(direction)
   const directionQueueRef = useRef<Direction[]>([])
-  const boardRef = useRef<HTMLDivElement>(null)
+  const boardContainerRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef(score)
   const movesRef = useRef(moves)
   const gameOverRef = useRef(gameOver)
+
+  // Responsive board sizing
+  const [boardSize, setBoardSize] = useState(288) // Default 288px (fits most mobile)
+
+  // Calculate board size based on container
+  useEffect(() => {
+    const updateBoardSize = () => {
+      const container = boardContainerRef.current?.parentElement
+      if (container) {
+        const availableWidth = container.clientWidth - 32 // padding
+        const availableHeight = window.innerHeight - 300 // leave room for controls
+        const maxSize = Math.min(availableWidth, availableHeight, 400) // cap at 400px
+        const size = Math.max(256, Math.floor(maxSize / GRID_SIZE) * GRID_SIZE) // snap to grid
+        setBoardSize(size)
+      }
+    }
+
+    updateBoardSize()
+    window.addEventListener('resize', updateBoardSize)
+    return () => window.removeEventListener('resize', updateBoardSize)
+  }, [])
 
   // Keep refs in sync
   useEffect(() => {
@@ -113,10 +133,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const generateFood = useCallback((): Food => {
     let newPos: Position
     do {
-      // Generate food 2 cells away from edges to ensure full visibility
+      // Generate food within safe zone (1 cell from edges)
       newPos = {
-        x: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4)),
-        y: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4))
+        x: 1 + Math.floor(Math.random() * (GRID_SIZE - 2)),
+        y: 1 + Math.floor(Math.random() * (GRID_SIZE - 2))
       }
     } while (snake.some(segment => segment.x === newPos.x && segment.y === newPos.y))
 
@@ -128,10 +148,10 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     if (Math.random() < 0.12 && !bonusFood) {
       let newPos: Position
       do {
-        // Generate bonus food 2 cells away from edges to ensure full visibility
+        // Generate bonus food within safe zone (1 cell from edges)
         newPos = {
-          x: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4)),
-          y: 2 + Math.floor(Math.random() * (BOARD_SIZE - 4))
+          x: 1 + Math.floor(Math.random() * (GRID_SIZE - 2)),
+          y: 1 + Math.floor(Math.random() * (GRID_SIZE - 2))
         }
       } while (
         snake.some(segment => segment.x === newPos.x && segment.y === newPos.y) ||
@@ -173,7 +193,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
       }
 
       // Wall collision - snake dies when hitting any edge (all 4 sides)
-      const hitWall = head.x < 0 || head.x >= BOARD_SIZE || head.y < 0 || head.y >= BOARD_SIZE
+      const hitWall = head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE
       if (hitWall) {
         if (!gameOverRef.current) {
           gameOverRef.current = true
@@ -356,7 +376,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   const lastSwipeRef = useRef<number>(0)
 
   useEffect(() => {
-    const board = boardRef.current
+    const board = boardContainerRef.current
     if (!board) return
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -442,7 +462,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
 
   const resetGame = () => {
     setHasWon(false)
-    setSnake([{ x: 10, y: 10 }])
+    setSnake([{ x: 8, y: 8 }])
     setDirection("RIGHT")
     directionRef.current = "RIGHT"
     directionQueueRef.current = []
@@ -467,39 +487,35 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     queueDirection(dir)
   }
 
-  const boardWidth = BOARD_SIZE * CELL_SIZE
-  const boardHeight = BOARD_SIZE * CELL_SIZE
-
   return (
     <div className="flex flex-col lg:flex-row gap-4 items-center lg:items-start w-full">
-      {/* Game Board */}
+      {/* Game Board Container */}
       <div
-        ref={boardRef}
-        className="relative rounded-lg p-3 border-4 border-gray-600 touch-none select-none flex-shrink-0"
+        ref={boardContainerRef}
+        className="relative rounded-lg border-4 border-gray-600 touch-none select-none flex-shrink-0"
         style={{
           background: flashEffect ? "rgba(34, 197, 94, 0.2)" : "rgb(17, 24, 39)",
           transition: "background 100ms ease",
-          width: boardWidth + 24,
-          height: boardHeight + 24,
-          maxWidth: "100%"
+          width: boardSize,
+          height: boardSize,
         }}
       >
         <svg
-          width={boardWidth}
-          height={boardHeight}
-          viewBox={`0 0 ${boardWidth} ${boardHeight}`}
+          width={boardSize}
+          height={boardSize}
+          viewBox={`0 0 ${GRID_SIZE} ${GRID_SIZE}`}
           className="block"
-          style={{ overflow: "visible" }}
+          preserveAspectRatio="xMidYMid meet"
         >
           {/* Grid pattern */}
           <defs>
-            <pattern id="snakeGrid" width={CELL_SIZE} height={CELL_SIZE} patternUnits="userSpaceOnUse">
-              <rect width={CELL_SIZE} height={CELL_SIZE} fill="transparent" stroke="rgba(55,65,81,0.5)" strokeWidth="0.5" />
+            <pattern id="snakeGrid" width={1} height={1} patternUnits="userSpaceOnUse">
+              <rect width={1} height={1} fill="transparent" stroke="rgba(55,65,81,0.5)" strokeWidth="0.03" />
             </pattern>
           </defs>
-          {/* Board background with visible border */}
-          <rect x="0" y="0" width={boardWidth} height={boardHeight} fill="rgb(17, 24, 39)" stroke="rgba(75, 85, 99, 0.8)" strokeWidth="2" />
-          <rect width="100%" height="100%" fill="url(#snakeGrid)" />
+          {/* Board background */}
+          <rect x="0" y="0" width={GRID_SIZE} height={GRID_SIZE} fill="rgb(17, 24, 39)" />
+          <rect width={GRID_SIZE} height={GRID_SIZE} fill="url(#snakeGrid)" />
 
           {/* Snake body */}
           <g>
@@ -509,15 +525,15 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
               return (
                 <rect
                   key={i}
-                  x={segment.x * CELL_SIZE + 1}
-                  y={segment.y * CELL_SIZE + 1}
-                  width={CELL_SIZE - 2}
-                  height={CELL_SIZE - 2}
-                  rx={isHead ? 4 : 2}
+                  x={segment.x + 0.05}
+                  y={segment.y + 0.05}
+                  width={0.9}
+                  height={0.9}
+                  rx={isHead ? 0.2 : 0.1}
                   fill={isHead ? "#34d399" : "#10b981"}
                   opacity={opacity}
                   style={{
-                    filter: isHead ? "drop-shadow(0 0 4px rgba(52, 211, 153, 0.6))" : undefined
+                    filter: isHead ? "drop-shadow(0 0 0.2px rgba(52, 211, 153, 0.6))" : undefined
                   }}
                 />
               )
@@ -527,26 +543,26 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
           {/* Food */}
           <g>
             <circle
-              cx={food.x * CELL_SIZE + CELL_SIZE / 2}
-              cy={food.y * CELL_SIZE + CELL_SIZE / 2}
-              r={CELL_SIZE / 2 - 2}
+              cx={food.x + 0.5}
+              cy={food.y + 0.5}
+              r={0.35}
               fill={FOOD_TYPES[food.type].color}
               style={{
-                filter: `drop-shadow(0 0 6px ${FOOD_TYPES[food.type].color})`
+                filter: `drop-shadow(0 0 0.3px ${FOOD_TYPES[food.type].color})`
               }}
             >
-              <animate attributeName="r" values={`${CELL_SIZE / 2 - 3};${CELL_SIZE / 2 - 1};${CELL_SIZE / 2 - 3}`} dur="0.8s" repeatCount="indefinite" />
+              <animate attributeName="r" values="0.3;0.4;0.3" dur="0.8s" repeatCount="indefinite" />
             </circle>
 
             {/* Bonus food */}
             {bonusFood && (
               <circle
-                cx={bonusFood.x * CELL_SIZE + CELL_SIZE / 2}
-                cy={bonusFood.y * CELL_SIZE + CELL_SIZE / 2}
-                r={CELL_SIZE / 2 - 1}
+                cx={bonusFood.x + 0.5}
+                cy={bonusFood.y + 0.5}
+                r={0.4}
                 fill="#ffd700"
                 style={{
-                  filter: "drop-shadow(0 0 8px #ffd700)"
+                  filter: "drop-shadow(0 0 0.4px #ffd700)"
                 }}
               >
                 <animate attributeName="opacity" values="1;0.6;1" dur="0.5s" repeatCount="indefinite" />
