@@ -98,6 +98,24 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   const lastNearMissRef = useRef<number>(0)
   const hasEndedRef = useRef(false)
 
+  // Use refs for values that need to be current in animation loop
+  const laneRef = useRef(lane)
+  const speedRef = useRef(speed)
+  const roadOffsetRef = useRef(roadOffset)
+  const obstaclesRef = useRef(obstacles)
+  const coinsRef = useRef(coins)
+  const powerUpsRef = useRef(powerUps)
+
+  // Keep refs in sync
+  useEffect(() => {
+    laneRef.current = lane
+    speedRef.current = speed
+    roadOffsetRef.current = roadOffset
+    obstaclesRef.current = obstacles
+    coinsRef.current = coins
+    powerUpsRef.current = powerUps
+  }, [lane, speed, roadOffset, obstacles, coins, powerUps])
+
   const playerX = (lane * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
 
   const obstacleColors = ["#dc2626", "#2563eb", "#16a34a", "#ca8a04", "#9333ea"]
@@ -319,13 +337,15 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
     if (!ctx) return
 
     let frameCount = 0
-    const currentSpeed = speed
+    let localRoadOffset = roadOffsetRef.current
 
     const gameLoop = () => {
       frameCount++
+      const currentSpeed = speedRef.current
 
-      // Update road offset for scrolling effect
-      setRoadOffset(prev => (prev + currentSpeed) % 40)
+      // Update road offset for scrolling effect - use local variable for smooth animation
+      localRoadOffset = (localRoadOffset + currentSpeed) % 50
+      setRoadOffset(localRoadOffset)
 
       // Update distance and score with difficulty multiplier
       setDistance(d => {
@@ -541,13 +561,13 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         setSpeed(s => Math.min(s + 0.5, 15))
       }
 
-      // Draw everything
-      drawGame(ctx)
+      // Draw everything with current values
+      drawGame(ctx, localRoadOffset, laneRef.current)
 
       gameLoopRef.current = requestAnimationFrame(gameLoop)
     }
 
-    const drawGame = (ctx: CanvasRenderingContext2D) => {
+    const drawGame = (ctx: CanvasRenderingContext2D, currentRoadOffset: number, currentLane: number) => {
       // Weather-based background colors
       const bgColors: Record<WeatherType, string> = {
         clear: "#374151",
@@ -564,18 +584,24 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
       ctx.fillStyle = weather === "night" ? "#1e293b" : "#374151"
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
-      // Draw road lines (scrolling)
+      // Draw road lines (scrolling) - draw multiple dashed segments for smooth scrolling
       ctx.strokeStyle = "#fbbf24"
       ctx.lineWidth = 4
-      ctx.setLineDash([30, 20])
+
+      const dashLength = 30
+      const gapLength = 20
+      const totalLength = dashLength + gapLength
 
       for (let i = 1; i < LANE_COUNT; i++) {
-        ctx.beginPath()
-        ctx.moveTo(i * LANE_WIDTH, -40 + roadOffset)
-        ctx.lineTo(i * LANE_WIDTH, CANVAS_HEIGHT)
-        ctx.stroke()
+        const x = i * LANE_WIDTH
+        // Draw dashed lines by drawing individual segments
+        for (let y = -totalLength + (currentRoadOffset % totalLength); y < CANVAS_HEIGHT; y += totalLength) {
+          ctx.beginPath()
+          ctx.moveTo(x, y)
+          ctx.lineTo(x, Math.min(y + dashLength, CANVAS_HEIGHT))
+          ctx.stroke()
+        }
       }
-      ctx.setLineDash([])
 
       // Draw side lines
       ctx.strokeStyle = "#ef4444"
@@ -664,39 +690,40 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         }
       })
 
-      // Draw player car
+      // Draw player car - use currentLane parameter for real-time position
+      const currentPlayerX = (currentLane * LANE_WIDTH) + (LANE_WIDTH - CAR_WIDTH) / 2
       const blinkOn = !isInvincible || Math.floor(Date.now() / 100) % 2 === 0
       if (blinkOn) {
         // Car body
         ctx.fillStyle = "#3b82f6"
-        ctx.fillRect(playerX + 5, playerY, CAR_WIDTH - 10, CAR_HEIGHT)
+        ctx.fillRect(currentPlayerX + 5, playerY, CAR_WIDTH - 10, CAR_HEIGHT)
 
         // Car front
         ctx.fillStyle = "#60a5fa"
-        ctx.fillRect(playerX + 8, playerY + CAR_HEIGHT - 15, CAR_WIDTH - 16, 10)
+        ctx.fillRect(currentPlayerX + 8, playerY + CAR_HEIGHT - 15, CAR_WIDTH - 16, 10)
 
         // Windows
         ctx.fillStyle = "#1e3a5f"
-        ctx.fillRect(playerX + 10, playerY + 8, CAR_WIDTH - 20, 18)
+        ctx.fillRect(currentPlayerX + 10, playerY + 8, CAR_WIDTH - 20, 18)
 
         // Wheels
         ctx.fillStyle = "#1f2937"
-        ctx.fillRect(playerX, playerY + 5, 8, 15)
-        ctx.fillRect(playerX + CAR_WIDTH - 8, playerY + 5, 8, 15)
-        ctx.fillRect(playerX, playerY + CAR_HEIGHT - 20, 8, 15)
-        ctx.fillRect(playerX + CAR_WIDTH - 8, playerY + CAR_HEIGHT - 20, 8, 15)
+        ctx.fillRect(currentPlayerX, playerY + 5, 8, 15)
+        ctx.fillRect(currentPlayerX + CAR_WIDTH - 8, playerY + 5, 8, 15)
+        ctx.fillRect(currentPlayerX, playerY + CAR_HEIGHT - 20, 8, 15)
+        ctx.fillRect(currentPlayerX + CAR_WIDTH - 8, playerY + CAR_HEIGHT - 20, 8, 15)
 
         // Headlights
         ctx.fillStyle = "#fef08a"
-        ctx.fillRect(playerX + 10, playerY + CAR_HEIGHT - 5, 8, 5)
-        ctx.fillRect(playerX + CAR_WIDTH - 18, playerY + CAR_HEIGHT - 5, 8, 5)
+        ctx.fillRect(currentPlayerX + 10, playerY + CAR_HEIGHT - 5, 8, 5)
+        ctx.fillRect(currentPlayerX + CAR_WIDTH - 18, playerY + CAR_HEIGHT - 5, 8, 5)
 
         // Shield effect when invincible
         if (isInvincible) {
           ctx.strokeStyle = "#3b82f6"
           ctx.lineWidth = 3
           ctx.beginPath()
-          ctx.arc(playerX + CAR_WIDTH / 2, playerY + CAR_HEIGHT / 2, CAR_WIDTH * 0.8, 0, Math.PI * 2)
+          ctx.arc(currentPlayerX + CAR_WIDTH / 2, playerY + CAR_HEIGHT / 2, CAR_WIDTH * 0.8, 0, Math.PI * 2)
           ctx.stroke()
         }
       }

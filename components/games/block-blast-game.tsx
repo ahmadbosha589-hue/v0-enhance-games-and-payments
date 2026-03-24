@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Sparkles, RotateCcw } from "lucide-react"
 
-const BOARD_SIZE = 8 // Reduced for better fit
-const CELL_SIZE = 36 // Increased cell size for better visibility
+const BOARD_SIZE = 10 // Larger board for better gameplay
+const CELL_SIZE = 32 // Adjusted cell size for larger board
 
-// Multiple color palettes for variety
+// Multiple color palettes for variety - more colors = more variety = less single-color dominance
 const COLOR_PALETTES = [
-  ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7"],
-  ["#f472b6", "#84cc16", "#06b6d4", "#fbbf24", "#8b5cf6"],
-  ["#fb923c", "#a3e635", "#e879f9", "#38bdf8", "#facc15"],
-  ["#dc2626", "#16a34a", "#2563eb", "#d97706", "#7c3aed"],
+  ["#ef4444", "#22c55e", "#3b82f6", "#eab308", "#a855f7", "#f97316", "#06b6d4"],
+  ["#f472b6", "#84cc16", "#06b6d4", "#fbbf24", "#8b5cf6", "#ef4444", "#22c55e"],
+  ["#fb923c", "#a3e635", "#e879f9", "#38bdf8", "#facc15", "#dc2626", "#a855f7"],
+  ["#dc2626", "#16a34a", "#2563eb", "#d97706", "#7c3aed", "#f472b6", "#06b6d4"],
 ]
 
 const getRandomPalette = () => COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)]
@@ -81,6 +81,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   const [colors, setColors] = useState<string[]>([])
   const [blastMessage, setBlastMessage] = useState<{ message: string; color: string } | null>(null)
   const [shakeBoard, setShakeBoard] = useState(false)
+  const [gameStartTime, setGameStartTime] = useState<number>(0)
+  const [tooQuickWarning, setTooQuickWarning] = useState(false)
+  const MIN_GAME_DURATION = 15 // Minimum seconds to play legitimately
 
   const boardRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef(score)
@@ -104,10 +107,11 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     return null
   }
 
-  // Get number of colors based on difficulty (fewer colors = easier to find matches)
+  // Get number of colors based on difficulty - MORE colors = harder to find matches, prevents single color dominance
   const getColorsForDifficulty = useCallback((palette: string[]): string[] => {
-    // Level 1-2: 3 colors, Level 3-4: 4 colors, Level 5+: 5 colors
-    const numColors = difficultyLevel <= 2 ? 3 : difficultyLevel <= 4 ? 4 : 5
+    // Level 1-2: 5 colors, Level 3-4: 6 colors, Level 5+: 7 colors
+    // More colors ensures no single color dominates the board
+    const numColors = difficultyLevel <= 2 ? 5 : difficultyLevel <= 4 ? 6 : 7
     return palette.slice(0, numColors)
   }, [difficultyLevel])
 
@@ -128,14 +132,14 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       }))
     )
 
-    // Force more clusters at lower difficulty for easier matching
-    const clusterChance = difficultyLevel <= 2 ? 0.45 : difficultyLevel <= 4 ? 0.35 : 0.25
+    // Reduce clustering to prevent single-color dominance - lower chance = more variety
+    const clusterChance = difficultyLevel <= 2 ? 0.20 : difficultyLevel <= 4 ? 0.15 : 0.10
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
-        if (Math.random() < clusterChance && x > 0) {
+        // Only cluster occasionally and randomly pick which direction
+        if (Math.random() < clusterChance && x > 0 && Math.random() < 0.5) {
           newBoard[y][x].color = newBoard[y][x - 1].color
-        }
-        if (Math.random() < clusterChance && y > 0) {
+        } else if (Math.random() < clusterChance && y > 0 && Math.random() < 0.5) {
           newBoard[y][x].color = newBoard[y - 1][x].color
         }
       }
@@ -152,6 +156,8 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     setIsAnimating(false)
     setHighlightedCells(new Set())
     setBlastingCells(new Set())
+    setGameStartTime(Date.now())
+    setTooQuickWarning(false)
     hasEndedRef.current = false
   }, [getColorsForDifficulty, difficultyLevel])
 
@@ -162,15 +168,24 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     }
   }, [isActive, gameStarted, initializeGame])
 
-  // Auto-win detection
+  // Auto-win detection with anti-cheat timing check
   useEffect(() => {
     if (score >= winThreshold && !hasWon && !gameOver && isActive && gameStarted && !hasEndedRef.current) {
+      const gameDuration = (Date.now() - gameStartTime) / 1000
+
+      // Check if game was completed too quickly (anti-cheat)
+      if (gameDuration < MIN_GAME_DURATION) {
+        setTooQuickWarning(true)
+        // Don't award win - force them to play longer
+        return
+      }
+
       hasEndedRef.current = true
       setHasWon(true)
       setGameOver(true)
       setTimeout(() => onGameEnd(score, moves), 0)
     }
-  }, [score, winThreshold, hasWon, gameOver, isActive, gameStarted, moves, onGameEnd])
+  }, [score, winThreshold, hasWon, gameOver, isActive, gameStarted, moves, onGameEnd, gameStartTime])
 
   // Find connected cells of the same color using flood fill
   const findConnectedGroup = useCallback((boardState: Board, startX: number, startY: number): Set<string> => {
@@ -296,10 +311,10 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       setTimeout(() => setBlastMessage(null), 1000)
     }
 
-    // Calculate score
-    const basePoints = expandedGroup.size * 5
-    const sizeBonus = expandedGroup.size > 5 ? (expandedGroup.size - 5) * 3 : 0
-    const difficultyBonus = (difficultyLevel - 1) * 2
+    // Calculate score - stricter scoring: 3 points per block, smaller bonuses
+    const basePoints = expandedGroup.size * 3 // Reduced from 5 to 3 per block
+    const sizeBonus = expandedGroup.size > 6 ? (expandedGroup.size - 6) * 2 : 0 // Smaller bonus, higher threshold
+    const difficultyBonus = (difficultyLevel - 1) * 1 // Reduced difficulty bonus
     const totalPoints = Math.floor((basePoints + sizeBonus + bonusPoints + difficultyBonus) * activeMultiplier * scoreMultiplierFromDifficulty)
 
     const newScore = scoreRef.current + totalPoints
@@ -473,6 +488,24 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
             <div className="text-center">
               <p className="text-white font-bold text-xl mb-2">Block Blast</p>
               <p className="text-gray-300 text-sm">Loading...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Too Quick Warning Overlay */}
+        {tooQuickWarning && !gameOver && (
+          <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg z-30">
+            <div className="text-center p-4">
+              <p className="text-xl font-bold mb-2 text-yellow-500">Too Quick!</p>
+              <p className="text-white text-sm mb-2">
+                Game completed in {Math.floor((Date.now() - gameStartTime) / 1000)}s
+              </p>
+              <p className="text-gray-300 text-sm mb-4">
+                Please play legitimately. Min time: {MIN_GAME_DURATION}s
+              </p>
+              <Button onClick={() => setTooQuickWarning(false)} variant="outline" size="sm">
+                Continue Playing
+              </Button>
             </div>
           </div>
         )}

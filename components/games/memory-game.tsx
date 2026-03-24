@@ -169,22 +169,29 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     if (cards[first].icon === cards[second].icon) {
       // Match found
       const now = Date.now()
-      const isQuickMatch = now - lastMatchTime < 3000
-      const newCombo = isQuickMatch ? combo + 1 : 1
-      const newStreak = streak + 1
+      const timeSinceLastMatch = now - lastMatchTime
 
-      // Cap combo and streak to prevent excessive values
-      const cappedCombo = Math.min(newCombo, 10)
-      const cappedStreak = Math.min(newStreak, 15)
-      setCombo(cappedCombo)
-      setStreak(cappedStreak)
+      // Only count as quick match if TWO pairs matched within 2 seconds (stricter requirement)
+      const isQuickMatch = timeSinceLastMatch < 2000 && lastMatchTime > 0
+
+      // Combo system - starts at 1, max 3, only increases on quick consecutive matches
+      let newCombo = 1
+      if (isQuickMatch && combo >= 1) {
+        newCombo = Math.min(combo + 1, 3) // Cap combo at x3 max
+      }
+
+      // Streak only increases if this is at least the 2nd quick match in a row
+      const newStreak = isQuickMatch && combo >= 2 ? Math.min(streak + 1, 5) : 0 // Cap streak at 5 max
+
+      setCombo(newCombo)
+      setStreak(newStreak)
       setLastMatchTime(now)
       setMatchAnimation([first, second])
 
-      // Realistic scoring - base 10 points per match, capped bonuses
+      // Realistic scoring - base 10 points per match, small bonuses
       const basePoints = 10
-      const comboBonus = cappedCombo > 1 ? Math.min((cappedCombo - 1) * 2, 10) : 0 // Cap combo bonus at 10
-      const streakBonus = cappedStreak > 3 ? Math.min(cappedStreak - 3, 5) : 0 // Cap streak bonus at 5
+      const comboBonus = newCombo >= 2 ? (newCombo - 1) * 2 : 0 // x2 combo = +2, x3 combo = +4
+      const streakBonus = newStreak >= 2 ? newStreak : 0 // Only show streak bonus when streak >= 2
       const points = basePoints + comboBonus + streakBonus
 
       setTimeout(() => {
@@ -428,16 +435,16 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
                 {formatTime(timeLeft)}
               </p>
             </div>
-            {combo > 1 && (
+            {combo >= 2 && (
               <div className="flex items-center gap-2 text-amber-400">
                 <Sparkles className="h-4 w-4" />
-                <span className="font-bold">{combo}x Combo!</span>
+                <span className="font-bold">x{combo} Combo!</span>
               </div>
             )}
-            {streak > 2 && (
+            {streak >= 2 && (
               <div className="flex items-center gap-2 text-purple-400">
                 <Trophy className="h-4 w-4" />
-                <span className="font-bold">{streak} Streak!</span>
+                <span className="font-bold">x{streak} Streak!</span>
               </div>
             )}
           </div>

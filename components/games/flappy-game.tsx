@@ -10,9 +10,16 @@ const CANVAS_HEIGHT = 400
 const BIRD_SIZE = 24
 const PIPE_WIDTH = 45
 const PIPE_GAP = 130
-const GRAVITY = 0.4
-const JUMP_STRENGTH = -7
-const PIPE_SPEED = 2.5
+const GRAVITY = 0.35 // Slightly reduced gravity for smoother feel
+const JUMP_STRENGTH = -6.5 // Adjusted jump for better control
+const PIPE_SPEED = 2.2 // Slightly slower pipes for better playability
+
+// Coin types with different point values
+const COIN_TYPES = {
+  bronze: { color: "#cd7f32", innerColor: "#a0522d", points: 2 },
+  silver: { color: "#c0c0c0", innerColor: "#a8a8a8", points: 3 },
+  gold: { color: "#ffd700", innerColor: "#daa520", points: 4 }
+}
 
 interface Pipe {
   x: number
@@ -20,6 +27,7 @@ interface Pipe {
   passed: boolean
   hasCoin: boolean
   coinCollected: boolean
+  coinType: keyof typeof COIN_TYPES
 }
 
 interface DifficultySettings {
@@ -50,6 +58,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const [pipes, setPipes] = useState<Pipe[]>([])
   const [score, setScore] = useState(0)
   const [coins, setCoins] = useState(0)
+  const [coinsByType, setCoinsByType] = useState({ bronze: 0, silver: 0, gold: 0 })
   const [moves, setMoves] = useState(0)
   const [gameOver, setGameOver] = useState(false)
   const [gameStarted, setGameStarted] = useState(false)
@@ -66,6 +75,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const pipesRef = useRef(pipes)
   const scoreRef = useRef(score)
   const coinsRef = useRef(coins)
+  const coinsByTypeRef = useRef(coinsByType)
   const movesRef = useRef(moves)
   const powerUpRef = useRef(powerUp)
   const gameOverRef = useRef(gameOver)
@@ -82,6 +92,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     pipesRef.current = pipes
     scoreRef.current = score
     coinsRef.current = coins
+    coinsByTypeRef.current = coinsByType
     movesRef.current = moves
     powerUpRef.current = powerUp
     gameOverRef.current = gameOver
@@ -118,6 +129,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     setPipes([])
     setScore(0)
     setCoins(0)
+    setCoinsByType({ bronze: 0, silver: 0, gold: 0 })
     setMoves(0)
     setGameOver(false)
     setGameStarted(false)
@@ -207,12 +219,17 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         const topHeight = Math.floor(Math.random() * (maxHeight - minHeight)) + minHeight
         const hasCoin = Math.random() < 0.4
 
+        // Random coin type with weighted distribution: 50% bronze, 30% silver, 20% gold
+        const coinRoll = Math.random()
+        const coinType: keyof typeof COIN_TYPES = coinRoll < 0.5 ? "bronze" : coinRoll < 0.8 ? "silver" : "gold"
+
         setPipes(prev => [...prev, {
           x: CANVAS_WIDTH,
           topHeight,
           passed: false,
           hasCoin,
-          coinCollected: false
+          coinCollected: false,
+          coinType
         }])
       }
 
@@ -251,7 +268,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               }
             }
 
-            // Check coin collision - 2 points per coin
+            // Check coin collision - points based on coin type (bronze=2, silver=3, gold=4)
             if (pipe.hasCoin && !pipe.coinCollected) {
               const coinY = pipe.topHeight + currentPipeGap / 2
               const coinX = newX + PIPE_WIDTH / 2
@@ -259,7 +276,13 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               if (dist < BIRD_SIZE) {
                 updatedPipe.coinCollected = true
                 coinsToAdd++
-                scoreBonusFromCoins += 2
+                const coinPoints = COIN_TYPES[pipe.coinType || "bronze"].points
+                scoreBonusFromCoins += coinPoints
+                // Track coins by type
+                setCoinsByType(prev => ({
+                  ...prev,
+                  [pipe.coinType || "bronze"]: prev[pipe.coinType || "bronze"] + 1
+                }))
               }
             }
           }
@@ -371,19 +394,27 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         ctx.fillRect(pipe.x, bottomY, PIPE_WIDTH, CANVAS_HEIGHT - bottomY - 20)
         ctx.fillRect(pipe.x - 4, bottomY, PIPE_WIDTH + 8, 18)
 
-        // Draw coin
+        // Draw coin with type-based colors
         if (pipe.hasCoin && !pipe.coinCollected) {
           const coinY = pipe.topHeight + pipeGap / 2
           const coinX = pipe.x + PIPE_WIDTH / 2
+          const coinConfig = COIN_TYPES[pipe.coinType || "bronze"]
 
-          ctx.fillStyle = "#fbbf24"
+          ctx.fillStyle = coinConfig.color
           ctx.beginPath()
           ctx.arc(coinX, coinY, 10, 0, Math.PI * 2)
           ctx.fill()
-          ctx.fillStyle = "#f59e0b"
+          ctx.fillStyle = coinConfig.innerColor
           ctx.beginPath()
           ctx.arc(coinX, coinY, 6, 0, Math.PI * 2)
           ctx.fill()
+
+          // Show point value on coin
+          ctx.fillStyle = "#fff"
+          ctx.font = "bold 8px sans-serif"
+          ctx.textAlign = "center"
+          ctx.textBaseline = "middle"
+          ctx.fillText(coinConfig.points.toString(), coinX, coinY)
         }
       })
 
@@ -581,6 +612,34 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           </ul>
         </Card>
 
+        {/* Coin Types */}
+        <Card className="p-3 bg-gray-900 border-gray-700">
+          <p className="text-gray-400 text-xs mb-2 font-medium">Coin Points</p>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#cd7f32" }} />
+                <span className="text-gray-300">Bronze</span>
+              </div>
+              <span className="text-gray-400">2 pts ({coinsByType.bronze})</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#c0c0c0" }} />
+                <span className="text-gray-300">Silver</span>
+              </div>
+              <span className="text-gray-400">3 pts ({coinsByType.silver})</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#ffd700" }} />
+                <span className="text-gray-300">Gold</span>
+              </div>
+              <span className="text-gray-400">4 pts ({coinsByType.gold})</span>
+            </div>
+          </div>
+        </Card>
+
         {/* Power-ups Legend */}
         <Card className="p-3 bg-gray-900 border-gray-700">
           <p className="text-gray-400 text-xs mb-2 font-medium">Power-ups</p>
@@ -592,10 +651,6 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-purple-500" />
               <span className="text-gray-300">Slow - Less gravity</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-yellow-500" />
-              <span className="text-gray-300">Coin - +50 points</span>
             </div>
           </div>
         </Card>
