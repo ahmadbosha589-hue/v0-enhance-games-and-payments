@@ -173,15 +173,18 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       const newCombo = isQuickMatch ? combo + 1 : 1
       const newStreak = streak + 1
 
-      setCombo(newCombo)
-      setStreak(newStreak)
+      // Cap combo and streak to prevent excessive values
+      const cappedCombo = Math.min(newCombo, 10)
+      const cappedStreak = Math.min(newStreak, 15)
+      setCombo(cappedCombo)
+      setStreak(cappedStreak)
       setLastMatchTime(now)
       setMatchAnimation([first, second])
 
-      // Realistic scoring - base 10 points per match, small bonuses
+      // Realistic scoring - base 10 points per match, capped bonuses
       const basePoints = 10
-      const comboBonus = newCombo > 1 ? Math.min((newCombo - 1) * 2, 10) : 0 // Cap combo bonus at 10
-      const streakBonus = newStreak > 3 ? Math.min(newStreak - 3, 5) : 0 // Cap streak bonus at 5
+      const comboBonus = cappedCombo > 1 ? Math.min((cappedCombo - 1) * 2, 10) : 0 // Cap combo bonus at 10
+      const streakBonus = cappedStreak > 3 ? Math.min(cappedStreak - 3, 5) : 0 // Cap streak bonus at 5
       const points = basePoints + comboBonus + streakBonus
 
       setTimeout(() => {
@@ -226,16 +229,23 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         setMatchAnimation([])
       }, 500)
     } else {
-      // No match
+      // No match - flip cards back after delay
       setPerfectGame(false)
       setCombo(0)
+      setStreak(0) // Reset streak on mismatch
+
+      // Store the indices before the timeout to prevent stale closure
+      const cardToReset1 = first
+      const cardToReset2 = second
 
       setTimeout(() => {
-        setCards(prev => prev.map(card =>
-          card.id === first || card.id === second
-            ? { ...card, isFlipped: false }
-            : card
-        ))
+        // Reset only these specific cards - use functional update to get latest state
+        setCards(prev => prev.map(card => {
+          if ((card.id === cardToReset1 || card.id === cardToReset2) && !card.isMatched) {
+            return { ...card, isFlipped: false }
+          }
+          return card
+        }))
         setFlippedCards([])
         setIsChecking(false)
       }, 1000)

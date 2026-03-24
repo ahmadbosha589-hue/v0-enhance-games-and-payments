@@ -590,77 +590,6 @@ export default function GamesPage() {
         </Card>
       </div>
 
-      {/* Difficulty Indicator */}
-      {gameStatus.difficulty && (
-        <Card className="border-border/50 bg-gradient-to-r from-background to-muted/20">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  "p-2 rounded-lg",
-                  gameStatus.difficulty.level <= 2 ? "bg-green-500/20" :
-                    gameStatus.difficulty.level <= 4 ? "bg-yellow-500/20" :
-                      gameStatus.difficulty.level <= 6 ? "bg-orange-500/20" :
-                        gameStatus.difficulty.level <= 8 ? "bg-red-500/20" : "bg-purple-500/20"
-                )}>
-                  <Flame className={cn(
-                    "h-5 w-5",
-                    gameStatus.difficulty.level <= 2 ? "text-green-500" :
-                      gameStatus.difficulty.level <= 4 ? "text-yellow-500" :
-                        gameStatus.difficulty.level <= 6 ? "text-orange-500" :
-                          gameStatus.difficulty.level <= 8 ? "text-red-500" : "text-purple-500"
-                  )} />
-                </div>
-                <div>
-                  <p className="font-medium text-sm">
-                    Difficulty: <span className={cn(
-                      "font-bold",
-                      gameStatus.difficulty.level <= 2 ? "text-green-500" :
-                        gameStatus.difficulty.level <= 4 ? "text-yellow-500" :
-                          gameStatus.difficulty.level <= 6 ? "text-orange-500" :
-                            gameStatus.difficulty.level <= 8 ? "text-red-500" : "text-purple-500"
-                    )}>{gameStatus.difficulty.description}</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Level {gameStatus.difficulty.level}/10 - Resets to Easy in {gameStatus.difficulty.resetsIn || "24h"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex-1 max-w-xs">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">Difficulty Level</span>
-                  <span className={cn(
-                    "font-medium",
-                    gameStatus.difficulty.level <= 2 ? "text-green-500" :
-                      gameStatus.difficulty.level <= 4 ? "text-yellow-500" :
-                        gameStatus.difficulty.level <= 6 ? "text-orange-500" :
-                          gameStatus.difficulty.level <= 8 ? "text-red-500" : "text-purple-500"
-                  )}>{gameStatus.difficulty.level}/10</span>
-                </div>
-                <div className="h-3 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all duration-500",
-                      gameStatus.difficulty.level <= 2 ? "bg-gradient-to-r from-green-400 to-green-500" :
-                        gameStatus.difficulty.level <= 4 ? "bg-gradient-to-r from-yellow-400 to-yellow-500" :
-                          gameStatus.difficulty.level <= 6 ? "bg-gradient-to-r from-orange-400 to-orange-500" :
-                            gameStatus.difficulty.level <= 8 ? "bg-gradient-to-r from-red-400 to-red-500" :
-                              "bg-gradient-to-r from-purple-400 to-purple-500"
-                    )}
-                    style={{ width: `${(gameStatus.difficulty.level / 10) * 100}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px] mt-1 text-muted-foreground">
-                  <span>Speed: {gameStatus.difficulty.speedMultiplier.toFixed(1)}x</span>
-                  <span>Obstacles: {gameStatus.difficulty.obstacleFrequency.toFixed(1)}x</span>
-                  <span>Bonus: +{Math.round((gameStatus.difficulty.scoreMultiplier - 1) * 100)}%</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Alerts */}
       {error && (
         <Card className="border-red-500/30 bg-red-500/10">
@@ -770,7 +699,7 @@ export default function GamesPage() {
                     </CardTitle>
                     <CardDescription className="text-sm line-clamp-2">{game.description}</CardDescription>
                   </CardHeader>
-                  <CardContent className="pt-0">
+                  <CardContent className="pt-0 space-y-3">
                     <Button
                       className={cn(
                         "w-full transition-all",
@@ -803,6 +732,46 @@ export default function GamesPage() {
                         </>
                       )}
                     </Button>
+
+                    {/* Per-game Difficulty Progress Bar */}
+                    {gameStatus.difficulty && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-muted-foreground flex items-center gap-1">
+                            <Flame className={cn(
+                              "h-3 w-3",
+                              gameStatus.difficulty.level <= 2 ? "text-green-500" :
+                                gameStatus.difficulty.level <= 4 ? "text-yellow-500" :
+                                  gameStatus.difficulty.level <= 6 ? "text-orange-500" :
+                                    gameStatus.difficulty.level <= 8 ? "text-red-500" : "text-purple-500"
+                            )} />
+                            Difficulty
+                          </span>
+                          <span className={cn(
+                            "font-semibold",
+                            gameStatus.difficulty.level <= 2 ? "text-green-500" :
+                              gameStatus.difficulty.level <= 4 ? "text-yellow-500" :
+                                gameStatus.difficulty.level <= 6 ? "text-orange-500" :
+                                  gameStatus.difficulty.level <= 8 ? "text-red-500" : "text-purple-500"
+                          )}>
+                            Lv.{gameStatus.difficulty.level}
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500 ease-out",
+                              gameStatus.difficulty.level <= 2 ? "bg-gradient-to-r from-green-400 to-green-500" :
+                                gameStatus.difficulty.level <= 4 ? "bg-gradient-to-r from-yellow-400 to-yellow-500" :
+                                  gameStatus.difficulty.level <= 6 ? "bg-gradient-to-r from-orange-400 to-orange-500" :
+                                    gameStatus.difficulty.level <= 8 ? "bg-gradient-to-r from-red-400 to-red-500" :
+                                      "bg-gradient-to-r from-purple-400 to-purple-500"
+                            )}
+                            style={{ width: `${(gameStatus.difficulty.level / 10) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )

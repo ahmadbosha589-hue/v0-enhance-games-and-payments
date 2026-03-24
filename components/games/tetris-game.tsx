@@ -59,11 +59,13 @@ interface TetrisGameProps {
 }
 
 const LINE_CLEAR_MESSAGES = [
-  { lines: 1, message: "Single!", color: "text-blue-400", points: 100 },
-  { lines: 2, message: "Double!", color: "text-green-400", points: 300 },
-  { lines: 3, message: "Triple!", color: "text-yellow-400", points: 500 },
-  { lines: 4, message: "TETRIS!", color: "text-red-500", points: 800 },
+  { lines: 1, message: "Single!", color: "text-blue-400", points: 50 },
+  { lines: 2, message: "Double!", color: "text-green-400", points: 120 },
+  { lines: 3, message: "Triple!", color: "text-yellow-400", points: 200 },
+  { lines: 4, message: "TETRIS!", color: "text-red-500", points: 400 },
 ]
+
+const PIECE_PLACED_POINTS = 10
 
 export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300 }: TetrisGameProps) {
   const difficultyLevel = difficulty?.level || 1
@@ -264,10 +266,10 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
     const mergedBoard = mergePiece(droppedPiece, board)
     const { newBoard, cleared } = clearLines(mergedBoard)
 
-    const dropScore = (newY - currentPiece.y) * 2
+    const dropBonus = (newY - currentPiece.y) // 1 point per cell dropped
     const lineScore = (cleared > 0 ? LINE_CLEAR_MESSAGES[Math.min(cleared - 1, 3)].points : 0) * level * scoreMultiplierFromDifficulty
-    const comboBonus = combo > 1 ? combo * 50 : 0
-    const newScore = scoreRef.current + dropScore + lineScore + comboBonus
+    const comboBonus = combo > 1 ? combo * 10 : 0
+    const newScore = scoreRef.current + PIECE_PLACED_POINTS + dropBonus + lineScore + comboBonus
 
     setBoard(newBoard)
     setScore(newScore)
@@ -373,9 +375,8 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
         const { newBoard, cleared } = clearLines(mergedBoard)
 
         const lineScore = (cleared > 0 ? LINE_CLEAR_MESSAGES[Math.min(cleared - 1, 3)].points : 0) * level * scoreMultiplierFromDifficulty
-        const comboBonus = combo > 1 ? combo * 50 : 0
-        const difficultyBonus = (difficultyLevel - 1) * 5
-        const newScore = scoreRef.current + lineScore + 10 + comboBonus + difficultyBonus
+        const comboBonus = combo > 1 ? combo * 10 : 0
+        const newScore = scoreRef.current + PIECE_PLACED_POINTS + lineScore + comboBonus
 
         setBoard(newBoard)
         setScore(newScore)
@@ -725,7 +726,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg z-30">
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 mb-2">{hasWon ? "YOU WIN!" : "GAME OVER"}</p>
+              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-red-500"}`}>{hasWon ? "YOU WIN!" : "GAME OVER"}</p>
               <p className="text-white mb-1">Score: {score.toLocaleString()}</p>
               <p className="text-gray-400 text-sm mb-4">Level: {level} | Lines: {lines}</p>
               <Button onClick={resetGame} variant="outline" size="sm">
@@ -870,23 +871,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
           </div>
         </Card>
 
-        {/* Difficulty Indicator */}
-        {difficultyLevel > 1 && (
-          <Card className="p-2 bg-gray-900 border-gray-700">
-            <p className="text-gray-400 text-xs mb-1 font-medium">Difficulty</p>
-            <div className="flex gap-0.5">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`w-2 h-3 rounded-sm ${i < difficultyLevel
-                    ? difficultyLevel <= 3 ? "bg-green-500" : difficultyLevel <= 6 ? "bg-yellow-500" : "bg-red-500"
-                    : "bg-gray-700"
-                    }`}
-                />
-              ))}
-            </div>
-          </Card>
-        )}
+
       </div>
     </div>
   )

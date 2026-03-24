@@ -180,64 +180,61 @@ export async function POST(request: Request) {
     // Generate idempotency key
     const idempotencyKey = uuidv4()
 
-    // Create withdrawal record
-    const { data: withdrawal, error: withdrawalError } = await supabase
-      .from("withdrawals")
-      .insert({
-        user_id: user.id,
-        amount_satoshis: amount,
-        fee_satoshis: fee,
-        net_amount_satoshis: netAmount,
-        payment_method: "faucetpay",
-        payment_address: profile.faucetpay_email,
-        payment_currency: "BTC",
-        status: requiresManualReview ? "review" : "pending",
-        fraud_score: profile.fraud_score,
-        is_flagged: profile.is_flagged,
-        idempotency_key: idempotencyKey,
-        metadata: requiresManualReview ? { review_reason: "Fraud score above threshold" } : undefined,
-      })
-      .select()
-      .single()
+    // Use atomic_withdraw RPC function to prevent race conditions
+    // This handles balance deduction, withdrawal creation, and transaction logging atomically
+    const { data: withdrawResult, error: withdrawError } = await adminSupabase.rpc("atomic_withdraw", {
+      p_user_id: user.id,
+      p_amount: amount,
+      p_payment_method: "faucetpay",
+      p_payment_address: faucetPayEmail,
+      p_payment_currency: "BTC",
+      p_idempotency_key: idempotencyKey,
+      p_ip_address: ipAddress,
+    })
 
-    if (withdrawalError) {
-      log.error("Withdrawal insert error", { error: withdrawalError, userId: user.id })
-      return NextResponse.json({ error: "Failed to create withdrawal" }, { status: 500 })
-    }
-
-    // Deduct from balance
-    const newBalance = Number(profile.balance_satoshis) - amount
-    const newTotalWithdrawn = Number(profile.total_withdrawn_satoshis) + amount
-
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        balance_satoshis: newBalance,
-        total_withdrawn_satoshis: newTotalWithdrawn,
-        last_active_at: new Date().toISOString(),
-      })
-      .eq("id", user.id)
-
-    if (updateError) {
-      // Rollback withdrawal
-      await supabase.from("withdrawals").delete().eq("id", withdrawal.id)
-      log.error("Balance update error", { error: updateError, userId: user.id })
+    if (withdrawError) {
+      log.error("Atomic withdrawal RPC error", { error: withdrawError, userId: user.id })
       return NextResponse.json({ error: "Failed to process withdrawal" }, { status: 500 })
     }
 
-    // Create transaction record
-    await supabase.from("transactions").insert({
-      user_id: user.id,
-      type: "withdrawal",
-      status: "pending",
-      amount_satoshis: -amount,
-      balance_before: profile.balance_satoshis,
-      balance_after: newBalance,
-      withdrawal_id: withdrawal.id,
-      description: `Withdrawal to FaucetPay`,
-      metadata: { fee, net_amount: netAmount, faucetpay_email: profile.faucetpay_email },
-      idempotency_key: `tx_${idempotencyKey}`,
-    })
+    // Handle atomic withdraw result
+    if (!withdrawResult?.success) {
+      const errorCode = withdrawResult?.error || "UNKNOWN_ERROR"
+      const errorMessages: Record<string, string> = {
+        INVALID_USER_ID: "Invalid user account",
+        INVALID_AMOUNT: "Invalid withdrawal amount",
+        INVALID_PAYMENT_INFO: "Invalid payment information",
+        WITHDRAWAL_IN_PROGRESS: "Another withdrawal is being processed. Please wait.",
+        DUPLICATE_WITHDRAWAL: "This withdrawal has already been submitted",
+        ACCOUNT_BANNED: "Account is suspended",
+        FRAUD_BLOCK: "Account under review. Please contact support.",
+        FAUCETPAY_NOT_CONFIGURED: "FaucetPay email not configured",
+        INSUFFICIENT_BALANCE: "Insufficient balance",
+        BELOW_MINIMUM: `Minimum withdrawal is ${WITHDRAWAL_CONFIG.minimumSatoshis} satoshis`,
+        MAX_PENDING_REACHED: "Too many pending withdrawals. Please wait.",
+        DAILY_LIMIT_EXCEEDED: "Daily withdrawal limit exceeded",
+      }
+
+      log.warn("Withdrawal rejected by atomic function", {
+        userId: user.id,
+        error: errorCode,
+        message: withdrawResult?.message
+      })
+
+      return NextResponse.json({
+        error: errorMessages[errorCode] || withdrawResult?.message || "Withdrawal failed"
+      }, { status: 400 })
+    }
+
+    const withdrawal = {
+      id: withdrawResult.withdrawal_id,
+      amount_satoshis: amount,
+      fee_satoshis: withdrawResult.fee || 0,
+      net_amount_satoshis: withdrawResult.net_amount || amount,
+    }
+    const newBalance = withdrawResult.new_balance
+    const fee = withdrawResult.fee || 0
+    const netAmount = withdrawResult.net_amount || amount
 
     // Audit log
     await supabase.from("audit_logs").insert({

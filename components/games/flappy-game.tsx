@@ -560,17 +560,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
                 <p className="font-bold text-lg text-green-400">{bestScore}</p>
               </div>
             </div>
-            <div>
-              <p className="text-gray-400 text-xs">Difficulty</p>
-              <div className="flex gap-1 mt-1">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-4 h-2 rounded ${i < difficulty ? "bg-red-500" : "bg-gray-700"}`}
-                  />
-                ))}
-              </div>
-            </div>
+
             {combo > 1 && (
               <div className="flex items-center gap-2 text-amber-400">
                 <Sparkles className="h-4 w-4" />

@@ -337,19 +337,21 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         return newDistance
       })
 
-      // Spawn obstacles with difficulty scaling (more frequent at higher difficulty)
-      // Base spawn rate decreases as distance increases, minimum 30 frames
-      const baseSpawnRate = Math.max(30, 70 - Math.floor(distance / 200))
-      const difficultyAdjustment = (difficulty?.level || 1) * 3
-      const obstacleSpawnRate = Math.max(25, baseSpawnRate - difficultyAdjustment)
+      // Spawn obstacles consistently - rate gets faster as score increases
+      // Use a fixed spawn interval that ensures obstacles always spawn
+      const baseInterval = 60 // Spawn every ~60 frames at base
+      const speedFactor = Math.max(0.4, 1 - (frameCount / 3000)) // Gets faster over time
+      const difficultyFactor = 1 - (difficulty?.level || 1) * 0.05 // Harder = more frequent
+      const spawnInterval = Math.max(25, Math.floor(baseInterval * speedFactor * difficultyFactor))
 
-      // Always spawn obstacles - use frame count modulo
-      if (frameCount % obstacleSpawnRate === 0) {
+      // Always spawn obstacles at regular intervals
+      if (frameCount % spawnInterval === 0) {
         spawnObstacle()
-        // At higher distances/difficulty, sometimes spawn 2 obstacles
-        if (distance > 500 && Math.random() < 0.3 * obstacleFrequency) {
-          setTimeout(() => spawnObstacle(), 100)
-        }
+      }
+
+      // Additional obstacles at higher frame counts (more challenge over time)
+      if (frameCount > 300 && frameCount % Math.max(40, spawnInterval - 10) === 0 && Math.random() < 0.4) {
+        setTimeout(() => spawnObstacle(), 50)
       }
       if (frameCount % 45 === 0) {
         spawnCoin()
@@ -730,7 +732,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
         cancelAnimationFrame(gameLoopRef.current)
       }
     }
-  }, [isActive, isPaused, gameOver, speed, lane, isInvincible, spawnObstacle, spawnCoin, spawnPowerUp, activatePowerUp, onScoreUpdate, onGameEnd, playerX, playerY, distance, moves, obstacles, coins, powerUps, roadOffset, weather, hasMagnet, coinMultiplier])
+  }, [isActive, isPaused, gameOver, speed, lane, isInvincible, spawnObstacle, spawnCoin, spawnPowerUp, activatePowerUp, onScoreUpdate, onGameEnd, playerX, playerY, weather, hasMagnet, coinMultiplier, difficulty?.level, difficulty?.scoreMultiplier])
 
   // Initial draw and spawn initial obstacles
   useEffect(() => {

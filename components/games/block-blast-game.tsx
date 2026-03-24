@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Sparkles, RotateCcw } from "lucide-react"
 
-const BOARD_SIZE = 10
-const CELL_SIZE = 32
+const BOARD_SIZE = 8 // Reduced for better fit
+const CELL_SIZE = 36 // Increased cell size for better visibility
 
 // Multiple color palettes for variety
 const COLOR_PALETTES = [
@@ -104,29 +104,38 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     return null
   }
 
+  // Get number of colors based on difficulty (fewer colors = easier to find matches)
+  const getColorsForDifficulty = useCallback((palette: string[]): string[] => {
+    // Level 1-2: 3 colors, Level 3-4: 4 colors, Level 5+: 5 colors
+    const numColors = difficultyLevel <= 2 ? 3 : difficultyLevel <= 4 ? 4 : 5
+    return palette.slice(0, numColors)
+  }, [difficultyLevel])
+
   // Initialize game with guaranteed groups of 3+
   const initializeGame = useCallback(() => {
     const palette = getRandomPalette()
-    setColors(palette)
+    const gameColors = getColorsForDifficulty(palette)
+    setColors(gameColors)
     let id = 0
 
-    // Create board with more clustering to ensure groups exist
+    // Create board with clustering to ensure groups exist - use difficulty-adjusted colors
     const newBoard: Board = Array(BOARD_SIZE).fill(null).map(() =>
       Array(BOARD_SIZE).fill(null).map(() => ({
-        color: palette[Math.floor(Math.random() * palette.length)],
+        color: gameColors[Math.floor(Math.random() * gameColors.length)],
         id: id++,
         special: getSpecialType(),
         glowing: Math.random() < 0.05 // 5% chance for glowing blocks (higher score)
       }))
     )
 
-    // Force some clusters by copying neighbors
+    // Force more clusters at lower difficulty for easier matching
+    const clusterChance = difficultyLevel <= 2 ? 0.45 : difficultyLevel <= 4 ? 0.35 : 0.25
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
-        if (Math.random() < 0.3 && x > 0) {
+        if (Math.random() < clusterChance && x > 0) {
           newBoard[y][x].color = newBoard[y][x - 1].color
         }
-        if (Math.random() < 0.3 && y > 0) {
+        if (Math.random() < clusterChance && y > 0) {
           newBoard[y][x].color = newBoard[y - 1][x].color
         }
       }
@@ -144,7 +153,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     setHighlightedCells(new Set())
     setBlastingCells(new Set())
     hasEndedRef.current = false
-  }, [])
+  }, [getColorsForDifficulty, difficultyLevel])
 
   // Start game when active
   useEffect(() => {
@@ -472,7 +481,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-2xl font-bold text-amber-500 mb-2">{hasWon ? "YOU WIN!" : "NO MOVES LEFT"}</p>
+              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-red-500"}`}>{hasWon ? "YOU WIN!" : "NO MOVES LEFT"}</p>
               <p className="text-white mb-4">Final Score: {score.toLocaleString()}</p>
               <Button onClick={resetGame} variant="outline" size="sm">
                 <RotateCcw className="h-4 w-4 mr-2" />
