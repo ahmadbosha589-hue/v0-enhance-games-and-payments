@@ -35,12 +35,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { 
-  Megaphone, 
-  Wallet, 
-  TrendingUp, 
-  Eye, 
-  MousePointer, 
+import {
+  Megaphone,
+  Wallet,
+  TrendingUp,
+  Eye,
+  MousePointer,
   DollarSign,
   Plus,
   Pause,
@@ -86,6 +86,7 @@ const AD_NETWORKS = {
     name: "Google Ads",
     description: "Search, Display & YouTube advertising",
     icon: Globe,
+    logo: "/images/ads/google-ads.jpg",
     color: "from-blue-500 to-blue-600",
     bgColor: "bg-blue-500/10",
     minBudget: 50,
@@ -98,6 +99,7 @@ const AD_NETWORKS = {
     name: "Meta Ads",
     description: "Facebook & Instagram advertising",
     icon: Globe,
+    logo: "/images/ads/meta-ads.jpg",
     color: "from-indigo-500 to-purple-600",
     bgColor: "bg-indigo-500/10",
     minBudget: 25,
@@ -110,6 +112,7 @@ const AD_NETWORKS = {
     name: "TikTok Ads",
     description: "Short-form video advertising",
     icon: Zap,
+    logo: "/images/ads/tiktok-ads.jpg",
     color: "from-pink-500 to-rose-600",
     bgColor: "bg-pink-500/10",
     minBudget: 20,
@@ -122,6 +125,7 @@ const AD_NETWORKS = {
     name: "X (Twitter) Ads",
     description: "Promoted tweets and trends",
     icon: Globe,
+    logo: "/images/ads/twitter-ads.jpg",
     color: "from-slate-600 to-slate-800",
     bgColor: "bg-slate-500/10",
     minBudget: 30,
@@ -134,6 +138,7 @@ const AD_NETWORKS = {
     name: "Display Network",
     description: "Banner ads on 10,000+ websites",
     icon: BarChart3,
+    logo: "/images/ads/banner-network.jpg",
     color: "from-amber-500 to-orange-600",
     bgColor: "bg-amber-500/10",
     minBudget: 10,
@@ -146,6 +151,7 @@ const AD_NETWORKS = {
     name: "Native Ads",
     description: "Content-style native advertising",
     icon: FileText,
+    logo: "/images/ads/native-ads.jpg",
     color: "from-emerald-500 to-green-600",
     bgColor: "bg-emerald-500/10",
     minBudget: 15,
@@ -158,6 +164,7 @@ const AD_NETWORKS = {
     name: "Push Notifications",
     description: "Browser push notification ads",
     icon: Bell,
+    logo: "/images/ads/push-notifications.jpg",
     color: "from-cyan-500 to-teal-600",
     bgColor: "bg-cyan-500/10",
     minBudget: 5,
@@ -170,6 +177,7 @@ const AD_NETWORKS = {
     name: "Pop Traffic",
     description: "Pop-under and interstitial ads",
     icon: Eye,
+    logo: "/images/ads/popup-ads.jpg",
     color: "from-red-500 to-rose-600",
     bgColor: "bg-red-500/10",
     minBudget: 5,
@@ -182,6 +190,7 @@ const AD_NETWORKS = {
     name: "Crypto Networks",
     description: "Crypto-focused advertising",
     icon: Award,
+    logo: "/images/ads/crypto-ads.jpg",
     color: "from-orange-500 to-amber-500",
     bgColor: "bg-orange-500/10",
     minBudget: 25,
@@ -249,7 +258,7 @@ export default function AdvertisePage() {
   const [depositAddress, setDepositAddress] = useState<string | null>(null)
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null)
   const [campaignFilter, setCampaignFilter] = useState<string>("all")
-  
+
   // Campaign form state
   const [campaignForm, setCampaignForm] = useState({
     name: "",
@@ -267,13 +276,13 @@ export default function AdvertisePage() {
   })
 
   const { data: balanceData, mutate: refreshBalance } = useSWR(
-    "/api/advertise?balance=true", 
+    "/api/advertise?balance=true",
     fetcher,
     { refreshInterval: 10000 }
   )
-  
+
   const { data: campaignsData, mutate: refreshCampaigns } = useSWR(
-    "/api/advertise", 
+    "/api/advertise",
     fetcher,
     { refreshInterval: 30000 }
   )
@@ -516,8 +525,8 @@ export default function AdvertisePage() {
                             onClick={() => setDepositCoin(coin.id)}
                             className={cn(
                               "flex flex-col items-center gap-1 p-3 rounded-lg border transition-all",
-                              depositCoin === coin.id 
-                                ? "border-primary bg-primary/5" 
+                              depositCoin === coin.id
+                                ? "border-primary bg-primary/5"
                                 : "hover:bg-muted/50"
                             )}
                           >
@@ -530,8 +539,8 @@ export default function AdvertisePage() {
                       </div>
                     </div>
 
-                    <Button 
-                      className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/80" 
+                    <Button
+                      className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/80"
                       onClick={handleDeposit}
                       disabled={isDepositing || !depositAmount}
                     >
@@ -557,17 +566,17 @@ export default function AdvertisePage() {
                         <p className="text-sm text-muted-foreground mb-2">Send exactly:</p>
                         <p className="text-2xl font-bold text-primary">${depositAmount} in {depositCoin}</p>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label>Payment Address</Label>
                         <div className="flex gap-2">
-                          <Input 
-                            value={depositAddress} 
-                            readOnly 
+                          <Input
+                            value={depositAddress}
+                            readOnly
                             className="font-mono text-xs"
                           />
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="icon"
                             onClick={() => copyToClipboard(depositAddress)}
                           >
@@ -581,8 +590,8 @@ export default function AdvertisePage() {
                         <span>Address expires in 60 minutes</span>
                       </div>
 
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="w-full"
                         onClick={() => {
                           setDepositAddress(null)
@@ -606,7 +615,7 @@ export default function AdvertisePage() {
                     <ScrollArea className="h-[120px]">
                       <div className="space-y-2">
                         {deposits.slice(0, 5).map((dep) => (
-                          <div 
+                          <div
                             key={dep.id}
                             className="flex items-center justify-between p-2 rounded bg-muted/50 text-sm"
                           >
@@ -616,9 +625,9 @@ export default function AdvertisePage() {
                                 {new Date(dep.created_at).toLocaleDateString()}
                               </span>
                             </div>
-                            <Badge 
-                              variant={dep.status === "completed" ? "default" : 
-                                      dep.status === "pending" ? "secondary" : "destructive"}
+                            <Badge
+                              variant={dep.status === "completed" ? "default" :
+                                dep.status === "pending" ? "secondary" : "destructive"}
                             >
                               {dep.status}
                             </Badge>
@@ -661,8 +670,8 @@ export default function AdvertisePage() {
                         onClick={() => setCampaignForm(f => ({ ...f, network: key }))}
                         className={cn(
                           "relative flex flex-col p-4 rounded-lg border text-left transition-all",
-                          campaignForm.network === key 
-                            ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                          campaignForm.network === key
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
                             : "hover:bg-muted/50"
                         )}
                       >
@@ -673,8 +682,18 @@ export default function AdvertisePage() {
                           </Badge>
                         )}
                         <div className="flex items-center gap-3 mb-2">
-                          <div className={cn("p-2 rounded-lg bg-gradient-to-br", net.color)}>
-                            <net.icon className="h-4 w-4 text-white" />
+                          <div className="relative h-10 w-10 rounded-lg overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                            {net.logo ? (
+                              <img
+                                src={net.logo}
+                                alt={net.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className={cn("p-2 rounded-lg bg-gradient-to-br w-full h-full flex items-center justify-center", net.color)}>
+                                <net.icon className="h-5 w-5 text-white" />
+                              </div>
+                            )}
                           </div>
                           <div>
                             <p className="font-semibold">{net.name}</p>
@@ -794,8 +813,8 @@ export default function AdvertisePage() {
                                 const devices = campaignForm.targeting.devices.includes(device)
                                   ? campaignForm.targeting.devices.filter(d => d !== device)
                                   : [...campaignForm.targeting.devices, device]
-                                setCampaignForm(f => ({ 
-                                  ...f, 
+                                setCampaignForm(f => ({
+                                  ...f,
                                   targeting: { ...f.targeting, devices }
                                 }))
                               }}
@@ -817,8 +836,8 @@ export default function AdvertisePage() {
                                 const osArr = campaignForm.targeting.os.includes(os)
                                   ? campaignForm.targeting.os.filter(o => o !== os)
                                   : [...campaignForm.targeting.os, os]
-                                setCampaignForm(f => ({ 
-                                  ...f, 
+                                setCampaignForm(f => ({
+                                  ...f,
                                   targeting: { ...f.targeting, os: osArr }
                                 }))
                               }}
@@ -862,8 +881,8 @@ export default function AdvertisePage() {
                   </div>
                 )}
 
-                <Button 
-                  className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/80" 
+                <Button
+                  className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/80"
                   onClick={handleCreateCampaign}
                   disabled={isCreating}
                 >
@@ -1083,8 +1102,8 @@ export default function AdvertisePage() {
                             <div>
                               <p className="text-xs text-muted-foreground">CTR</p>
                               <p className="text-lg font-semibold">
-                                {campaign.impressions > 0 
-                                  ? ((campaign.clicks / campaign.impressions) * 100).toFixed(2) 
+                                {campaign.impressions > 0
+                                  ? ((campaign.clicks / campaign.impressions) * 100).toFixed(2)
                                   : "0.00"}%
                               </p>
                             </div>
@@ -1117,8 +1136,8 @@ export default function AdvertisePage() {
                           <div className="text-center">
                             <p className="text-xs text-muted-foreground">CPC</p>
                             <p className="font-bold">
-                              ${campaign.clicks > 0 
-                                ? (campaign.spent / campaign.clicks).toFixed(2) 
+                              ${campaign.clicks > 0
+                                ? (campaign.spent / campaign.clicks).toFixed(2)
                                 : "0.00"}
                             </p>
                           </div>
@@ -1136,7 +1155,7 @@ export default function AdvertisePage() {
         <TabsContent value="networks" className="mt-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(AD_NETWORKS).map(([key, net]) => (
-              <Card 
+              <Card
                 key={key}
                 className={cn(
                   "transition-all hover:shadow-lg cursor-pointer",
@@ -1150,8 +1169,18 @@ export default function AdvertisePage() {
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <div className={cn("p-3 rounded-xl bg-gradient-to-br", net.color)}>
-                      <net.icon className="h-6 w-6 text-white" />
+                    <div className="relative h-14 w-14 rounded-xl overflow-hidden bg-muted flex items-center justify-center">
+                      {net.logo ? (
+                        <img
+                          src={net.logo}
+                          alt={net.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className={cn("p-3 rounded-xl bg-gradient-to-br w-full h-full flex items-center justify-center", net.color)}>
+                          <net.icon className="h-6 w-6 text-white" />
+                        </div>
+                      )}
                     </div>
                     {net.recommended && (
                       <Badge variant="secondary" className="gap-1">
@@ -1262,7 +1291,7 @@ export default function AdvertisePage() {
                     .sort((a, b) => b.clicks - a.clicks)
                     .slice(0, 5)
                     .map((campaign, index) => (
-                      <div 
+                      <div
                         key={campaign.id}
                         className="flex items-center justify-between p-4 rounded-lg bg-muted/50"
                       >
@@ -1270,9 +1299,9 @@ export default function AdvertisePage() {
                           <span className={cn(
                             "w-8 h-8 rounded-full flex items-center justify-center font-bold",
                             index === 0 ? "bg-yellow-500 text-yellow-950" :
-                            index === 1 ? "bg-gray-400 text-gray-950" :
-                            index === 2 ? "bg-amber-600 text-amber-950" :
-                            "bg-muted text-muted-foreground"
+                              index === 1 ? "bg-gray-400 text-gray-950" :
+                                index === 2 ? "bg-amber-600 text-amber-950" :
+                                  "bg-muted text-muted-foreground"
                           )}>
                             {index + 1}
                           </span>
@@ -1289,7 +1318,7 @@ export default function AdvertisePage() {
                           <div className="text-right">
                             <p className="text-muted-foreground">CTR</p>
                             <p className="font-medium text-green-500">
-                              {campaign.impressions > 0 
+                              {campaign.impressions > 0
                                 ? ((campaign.clicks / campaign.impressions) * 100).toFixed(2)
                                 : "0.00"}%
                             </p>
