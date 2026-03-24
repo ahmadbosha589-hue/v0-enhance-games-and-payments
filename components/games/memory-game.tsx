@@ -65,15 +65,22 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const [matchAnimation, setMatchAnimation] = useState<number[]>([])
 
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const checkingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const config = GRID_SIZES[difficulty]
 
-  // Win detection - game ends when ALL pairs are matched (not score threshold)
-  // The score threshold is just for determining if player "wins" the reward
-  // The game itself must be completed (all pairs found) before ending
-  // REMOVED auto-win based on score - this was causing premature wins
+  // Clear any pending checking timeout
+  const clearCheckingTimeout = useCallback(() => {
+    if (checkingTimeoutRef.current) {
+      clearTimeout(checkingTimeoutRef.current)
+      checkingTimeoutRef.current = null
+    }
+  }, [])
 
-  // Initialize game - only depends on config.pairs, NOT initialScore
+  // Initialize game - stable function that doesn't change
   const initializeGame = useCallback(() => {
+    // Clear any pending timeouts
+    clearCheckingTimeout()
+
     // Reset all game state to fresh values
     hasEndedRef.current = false
     setHasWon(false)
@@ -106,15 +113,21 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       isFlipped: false,
       isMatched: false
     })))
-  }, [config.pairs]) // Removed initialScore from dependencies
+  }, [config.pairs, clearCheckingTimeout])
 
   // Track previous isActive state to only initialize when it changes to true
   const wasActiveRef = useRef(false)
+  const hasInitializedRef = useRef(false)
 
   useEffect(() => {
-    // Only initialize when isActive changes from false to true
-    if (isActive && !wasActiveRef.current) {
+    // Only initialize when isActive changes from false to true AND we haven't initialized yet
+    if (isActive && !wasActiveRef.current && !hasInitializedRef.current) {
+      hasInitializedRef.current = true
       initializeGame()
+    }
+    // Reset initialization flag when game becomes inactive
+    if (!isActive) {
+      hasInitializedRef.current = false
     }
     wasActiveRef.current = isActive
   }, [isActive, initializeGame])
@@ -159,12 +172,23 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }
   }, [isActive, gameOver, hasWon, score, moves, onGameEnd])
 
-  // Check for matches - FIXED: Only win when ALL pairs are matched, not based on score
+  // Check for matches - use refs to track current state for timeouts
+  const scoreRef = useRef(score)
+  const matchedPairsRef = useRef(matchedPairs)
+  const movesRef = useRef(moves)
+
+  useEffect(() => { scoreRef.current = score }, [score])
+  useEffect(() => { matchedPairsRef.current = matchedPairs }, [matchedPairs])
+  useEffect(() => { movesRef.current = moves }, [moves])
+
   useEffect(() => {
     if (flippedCards.length !== 2) return
-    if (gameOver) return // Prevent processing if game already ended
+    if (gameOver || hasEndedRef.current) return // Prevent processing if game already ended
 
+    // Clear any previous checking timeout to prevent race conditions
+    clearCheckingTimeout()
     setIsChecking(true)
+
     const [first, second] = flippedCards
 
     // Validate indices
@@ -183,11 +207,9 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       const isQuickMatch = timeSinceLastMatch < 3000 && lastMatchTime > 0
 
       // Combo system - counts consecutive quick matches (0 = no combo, 1 = first quick, etc.)
-      // Only increases if this match was quick
-      let newCombo = isQuickMatch ? combo + 1 : 0
+      const newCombo = isQuickMatch ? combo + 1 : 0
 
-      // Streak tracks total consecutive matches without missing (resets on mismatch, not on slow match)
-      // Slow matches don't break streak, just don't add combo
+      // Streak tracks total consecutive matches without missing
       const newStreak = streak + 1
 
       setCombo(newCombo)
@@ -201,7 +223,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       const streakBonus = newStreak >= 3 ? Math.floor(newStreak / 2) : 0 // Small bonus for long streaks
       const points = basePoints + comboBonus + streakBonus
 
-      setTimeout(() => {
+      checkingTimeoutRef.current = setTimeout(() => {
         // Update matched cards
         setCards(prev => prev.map(card =>
           card.id === first || card.id === second
@@ -209,17 +231,16 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
             : card
         ))
 
-        // Calculate new score
-        const newScore = score + points
+        // Calculate new score using ref for accurate current value
+        const newScore = scoreRef.current + points
         setScore(newScore)
         onScoreUpdate(newScore)
 
         // Update matched pairs count and check for game completion
-        const newMatchedPairs = matchedPairs + 1
+        const newMatchedPairs = matchedPairsRef.current + 1
         setMatchedPairs(newMatchedPairs)
 
-        // CRITICAL FIX: Only end game when ALL pairs are matched
-        // The game has config.pairs total pairs - player must match ALL of them
+        // Only end game when ALL pairs are matched
         if (newMatchedPairs >= config.pairs && !hasEndedRef.current) {
           hasEndedRef.current = true
           // All pairs found - game complete!
@@ -234,7 +255,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
           // Small delay to let state update before calling onGameEnd
           setTimeout(() => {
-            onGameEnd(finalScore, moves)
+            onGameEnd(finalScore, movesRef.current)
           }, 100)
         }
 
@@ -252,7 +273,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       const cardToReset1 = first
       const cardToReset2 = second
 
-      setTimeout(() => {
+      checkingTimeoutRef.current = setTimeout(() => {
         // Reset only these specific cards - use functional update to get latest state
         setCards(prev => prev.map(card => {
           if ((card.id === cardToReset1 || card.id === cardToReset2) && !card.isMatched) {
@@ -264,21 +285,23 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         setIsChecking(false)
       }, 1000)
     }
-  }, [flippedCards, cards, score, combo, streak, timeLeft, lastMatchTime, config.pairs, moves, perfectGame, onGameEnd, onScoreUpdate, matchedPairs, gameOver])
+
+    // Cleanup function to clear timeout if component unmounts or dependencies change
+    return () => {
+      clearCheckingTimeout()
+    }
+  }, [flippedCards, cards, combo, streak, lastMatchTime, config.pairs, perfectGame, onGameEnd, onScoreUpdate, gameOver, clearCheckingTimeout])
 
   const handleCardClick = useCallback((cardId: number) => {
     // Prevent clicking when game is not active or game over
-    if (!isActive || gameOver) return
-    // If checking, reset the checking state after a delay to prevent stuck state
-    if (isChecking) {
-      // Force reset if stuck for too long
-      setTimeout(() => {
-        setIsChecking(false)
-      }, 1500)
-      return
-    }
+    if (!isActive || gameOver || hasEndedRef.current) return
+
+    // Block clicks while checking (waiting for match/mismatch result)
+    if (isChecking) return
+
     // Only allow 2 cards flipped at a time
     if (flippedCards.length >= 2) return
+
     // Prevent clicking same card or already matched/flipped cards
     const card = cards[cardId]
     if (!card || card.isFlipped || card.isMatched) return
@@ -293,10 +316,6 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
     if (newFlippedCards.length === 2) {
       setMoves(m => m + 1)
-      // Set a safety timeout to reset isChecking in case it gets stuck
-      setTimeout(() => {
-        setIsChecking(false)
-      }, 2000)
     }
   }, [isActive, gameOver, isChecking, flippedCards, cards])
 
@@ -355,9 +374,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
               onTouchStart={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                if (!isChecking && !card.isFlipped && !card.isMatched) {
-                  handleCardClick(card.id)
-                }
+                handleCardClick(card.id)
               }}
               disabled={!isActive || gameOver || isChecking || card.isFlipped || card.isMatched}
               className={cn(
