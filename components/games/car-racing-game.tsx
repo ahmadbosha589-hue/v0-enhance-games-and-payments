@@ -65,9 +65,10 @@ interface CarRacingGameProps {
   isActive: boolean
   difficulty?: DifficultySettings
   winThreshold?: number // Score needed to win and get reward
+  initialScore?: number
 }
 
-export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300 }: CarRacingGameProps) {
+export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300, initialScore = 0 }: CarRacingGameProps) {
   // Apply difficulty settings
   const speedMultiplier = difficulty?.speedMultiplier || 1
   const obstacleFrequency = difficulty?.obstacleFrequency || 1
@@ -219,7 +220,7 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
   }, [])
 
   const resetGame = useCallback(() => {
-    setScore(0)
+    setScore(initialScore)
     setDistance(0)
     setSpeed(5)
     setLives(3)

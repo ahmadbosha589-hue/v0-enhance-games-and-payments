@@ -32,6 +32,7 @@ interface MemoryGameProps {
   isActive: boolean
   difficulty?: DifficultySettings
   winThreshold?: number // Score needed to win and get reward
+  initialScore?: number
 }
 
 const GRID_SIZES = {
@@ -40,7 +41,7 @@ const GRID_SIZES = {
   hard: { cols: 6, rows: 4, pairs: 12, timeBonus: 600 }
 }
 
-export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, winThreshold = 100 }: MemoryGameProps) {
+export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, winThreshold = 100, initialScore = 0 }: MemoryGameProps) {
   // Choose grid difficulty based on level
   const gridDifficulty = externalDifficulty && externalDifficulty.level >= 5
     ? "hard"
@@ -94,7 +95,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     setFlippedCards([])
     setMatchedPairs(0)
     setMoves(0)
-    setScore(0)
+    setScore(initialScore)
     setTimeLeft(120)
     setGameOver(false)
     setCombo(0)

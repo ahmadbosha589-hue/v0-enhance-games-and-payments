@@ -45,9 +45,10 @@ interface FlappyGameProps {
   isActive: boolean
   difficulty?: DifficultySettings
   winThreshold?: number
+  initialScore?: number
 }
 
-export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, winThreshold = 15 }: FlappyGameProps) {
+export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, winThreshold = 15, initialScore = 0 }: FlappyGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const gameLoopRef = useRef<number | null>(null)
@@ -130,7 +131,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     setBirdY(CANVAS_HEIGHT / 2)
     setBirdVelocity(0)
     setPipes([])
-    setScore(0)
+    setScore(initialScore)
     setCoins(0)
     setCoinsByType({ bronze: 0, silver: 0, gold: 0 })
     setMoves(0)

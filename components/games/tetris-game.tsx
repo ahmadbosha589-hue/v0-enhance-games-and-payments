@@ -56,6 +56,7 @@ interface TetrisGameProps {
   isActive: boolean
   difficulty?: DifficultySettings
   winThreshold?: number
+  initialScore?: number
 }
 
 const LINE_CLEAR_MESSAGES = [
@@ -67,7 +68,7 @@ const LINE_CLEAR_MESSAGES = [
 
 const PIECE_PLACED_POINTS = 10
 
-export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300 }: TetrisGameProps) {
+export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 300, initialScore = 0 }: TetrisGameProps) {
   const difficultyLevel = difficulty?.level || 1
   const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
   const speedMultiplierFromDifficulty = difficulty?.speedMultiplier || 1
@@ -629,7 +630,7 @@ export function TetrisGame({ onGameEnd, onScoreUpdate, isActive, difficulty, win
     setNextPieces([])
     setHoldPiece(null)
     setCanHold(true)
-    setScore(0)
+    setScore(initialScore)
     setLevel(1)
     setLines(0)
     setGameOver(false)

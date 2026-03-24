@@ -43,6 +43,7 @@ interface SnakeGameProps {
   isActive: boolean
   difficulty?: DifficultySettings
   winThreshold?: number // Score needed to win and get reward
+  initialScore?: number
 }
 
 const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: number }> = {
@@ -53,7 +54,7 @@ const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: numb
   slow: { color: "#a855f7", points: 15, chance: 0.05 },
 }
 
-export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200 }: SnakeGameProps) {
+export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200, initialScore = 0 }: SnakeGameProps) {
   // Apply difficulty - faster snake at higher levels
   const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
   const baseSpeedRef = useRef(baseSpeed)
@@ -430,7 +431,7 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
     directionQueueRef.current = []
     setFood(generateFood())
     setBonusFood(null)
-    setScore(0)
+    setScore(initialScore)
     setMoves(0)
     setGameOver(false)
     setIsPaused(false)

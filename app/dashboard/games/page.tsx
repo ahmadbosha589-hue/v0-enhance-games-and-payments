@@ -1042,6 +1042,7 @@ export default function GamesPage() {
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["tetris"]}
+                initialScore={currentScore}
               />
             )}
             {selectedGame === "block_blast" && (
@@ -1051,6 +1052,7 @@ export default function GamesPage() {
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["block_blast"]}
+                initialScore={currentScore}
               />
             )}
             {selectedGame === "car_racing" && (
@@ -1060,6 +1062,7 @@ export default function GamesPage() {
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["car_racing"]}
+                initialScore={currentScore}
               />
             )}
             {selectedGame === "snake" && (
@@ -1069,6 +1072,7 @@ export default function GamesPage() {
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["snake"]}
+                initialScore={currentScore}
               />
             )}
             {selectedGame === "memory" && (
@@ -1078,6 +1082,7 @@ export default function GamesPage() {
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["memory"]}
+                initialScore={currentScore}
               />
             )}
             {selectedGame === "flappy" && (
@@ -1087,6 +1092,7 @@ export default function GamesPage() {
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["flappy"]}
+                initialScore={currentScore}
               />
             )}
           </CardContent>

@@ -63,9 +63,10 @@ interface BlockBlastGameProps {
   isActive: boolean
   difficulty?: DifficultySettings
   winThreshold?: number
+  initialScore?: number
 }
 
-export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200 }: BlockBlastGameProps) {
+export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 200, initialScore = 0 }: BlockBlastGameProps) {
   const difficultyLevel = difficulty?.level || 1
   const scoreMultiplierFromDifficulty = difficulty?.scoreMultiplier || 1
 
@@ -147,7 +148,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
     setBoard(newBoard)
     setCellIdCounter(id)
-    setScore(0)
+    setScore(initialScore)
     setMoves(0)
     setGameOver(false)
     setHasWon(false)
@@ -159,7 +160,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     setGameStartTime(Date.now())
     setTooQuickWarning(false)
     hasEndedRef.current = false
-  }, [getColorsForDifficulty, difficultyLevel])
+  }, [getColorsForDifficulty, difficultyLevel, initialScore])
 
   // Start game when active
   useEffect(() => {
