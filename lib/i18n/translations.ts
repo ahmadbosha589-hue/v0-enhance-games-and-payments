@@ -241,6 +241,7 @@ export type TranslationKey =
   | "dashboard.nav.offerwalls"
   | "dashboard.nav.ptcAds"
   | "dashboard.nav.achievements"
+  | "dashboard.nav.tournaments"
   | "dashboard.nav.swap"
   | "dashboard.nav.advertise"
   | "dashboard.nav.support"
@@ -279,6 +280,7 @@ export type TranslationKey =
   | "admin.nav.fraudReview"
   | "admin.nav.withdrawals"
   | "admin.nav.transactions"
+  | "admin.nav.tournaments"
   | "admin.nav.analytics"
   | "admin.nav.auditLogs"
   | "admin.nav.notifications"
@@ -670,6 +672,7 @@ const en: Record<TranslationKey, string> = {
   "dashboard.nav.directFaucet": "Direct Faucet",
   "admin.nav.shortlinks": "Shortlinks",
   "dashboard.nav.games": "Games",
+  "dashboard.nav.tournaments": "Tournaments",
   "dashboard.nav.coupons": "Coupons",
   "dashboard.nav.shortlinks": "Shortlinks",
   "dashboard.nav.offerwalls": "Offerwalls",
@@ -713,6 +716,7 @@ const en: Record<TranslationKey, string> = {
   "admin.nav.fraudReview": "Fraud Review",
   "admin.nav.withdrawals": "Withdrawals",
   "admin.nav.transactions": "Transactions",
+  "admin.nav.tournaments": "Tournaments",
   "admin.nav.analytics": "Analytics",
   "admin.nav.auditLogs": "Audit Logs",
   "admin.nav.notifications": "Notifications",
@@ -1320,7 +1324,7 @@ const ru: Record<TranslationKey, string> = {
   "footer.community": "Сообщество",
   "footer.status": "Статус системы",
   "footer.api": "API",
-  "language.title": "Язык",
+  "language.title": "Яз��к",
   "theme.title": "Тема",
   "theme.light": "Светлая",
   "theme.dark": "Темная",
@@ -1330,7 +1334,7 @@ const ru: Record<TranslationKey, string> = {
   "about.titleHighlight": "к��ипто-заработка",
   "about.titleEnd": "",
   "about.description":
-    "Наша миссия - сделать криптовалюту доступной для всех через нашу инновационную faucet платформу.",
+    "Наша миссия - сд��лать криптовалюту доступной для вс��х через нашу инновационную faucet платформу.",
   "about.stats.title": "Наши вехи",
   "about.stats.subtitle": "Цифры говорят сами за себя",
   "about.milestones.launch": "Запуск платформы",
@@ -1414,7 +1418,7 @@ const ru: Record<TranslationKey, string> = {
   "blog.title": "Наш",
   "blog.titleHighlight": "блог",
   "blog.subtitle":
-    "Будьте в курсе последних новостей о криптовалютах, руководств от экспертов и стратегий максимизации вашего заработка.",
+    "Будьте в курсе последних новостей о криптовалютах, руководств от экспертов и стратегий максимизации вашего зараб��тка.",
   "blog.description": "Будьте в курсе последних новостей, советов и инсайтов от CryptoFaucet.",
   "blog.searchPlaceholder": "Поиск статей...",
   "blog.search": "Поиск",
@@ -1666,7 +1670,7 @@ const zh: Record<TranslationKey, string> = {
   "faq.a2":
     "收入取决于您的活跃度、序列奖励（高达100%的额外奖励）和推荐人数。活跃用户随着时间的推移可以赚取可观的金额。",
   "faq.q3": "提现如何运作?",
-  "faq.a3": "我们通过FaucetPay即时处理提现。只需连接您的FaucetPay账户，即可随时提取您的收入。",
+  "faq.a3": "我们通过FaucetPay即时处理提现。只需连接您的FaucetPay账户，即可随时提取您��收入。",
   "faq.q4": "是否有最低提现金额?",
   "faq.a4": "是的，最低提现金额为10,000 Satoshi。这确保了高效的交易处理。",
   "faq.q5": "推荐系统如何运作?",
@@ -1848,7 +1852,7 @@ const zh: Record<TranslationKey, string> = {
   "dashboard.header.loading": "加载中...",
   "dashboard.header.noNotifications": "无通知",
   "dashboard.header.allCaughtUp": "您已全部看过！",
-  "dashboard.header.viewAll": "查看所有通知",
+  "dashboard.header.viewAll": "查看所��通知",
   "dashboard.balance": "余额",
   "dashboard.totalEarned": "总收入",
   "dashboard.pendingWithdrawals": "待处理提现",
@@ -2009,7 +2013,7 @@ const ja: Record<TranslationKey, string> = {
   "features.dashboard.description": "収益を追跡し、進捗状況をリアルタイムで監視します。",
   "howItWorks.title": "4つの簡単なステップで",
   "howItWorks.titleHighlight": "稼ぎ始める",
-  "howItWorks.subtitle": "始めるのは簡単です。これらのステップに従って、今日から稼ぎ始めましょう。",
+  "howItWorks.subtitle": "始めるのは簡単です。これらのステップに従って、今���から稼ぎ始めましょう。",
   "howItWorks.step": "ステップ",
   "howItWorks.step1.title": "アカウント作成",
   "howItWorks.step1.description": "メールアドレスのみで無料登録。",
@@ -2132,8 +2136,8 @@ const ja: Record<TranslationKey, string> = {
   "about.why.noFees.description": "隠れた手数料はありません。稼いだ分だけ受け取れます。",
   "about.why.instant.title": "即時処理",
   "about.why.instant.description": "出金はFaucetPayへ即座に処理されます。",
-  "about.why.secure.title": "銀行レベルのセキュリティ",
-  "about.why.secure.description": "高度なセキュリティ対策により、あなたの口座は保護されています。",
+  "about.why.secure.title": "銀行レベル��セキュリティ",
+  "about.why.secure.description": "高度な��キュリティ対策により、あなたの口座は保護されています。",
   "about.why.support.title": "24時間年中無休サポート",
   "about.why.support.description": "私たちのサポートチームはいつでもお手伝いする準備ができています。",
   "about.why.transparent.title": "完全な透明性",
@@ -2317,7 +2321,7 @@ const ja: Record<TranslationKey, string> = {
   "common.edit": "編集",
   "common.view": "表示",
   "common.close": "閉じる",
-  "common.back": "戻る",
+  "common.back": "戻��",
   "common.next": "次へ",
   "common.previous": "前へ",
   "common.search": "検索",
@@ -2419,14 +2423,14 @@ const ko: Record<TranslationKey, string> = {
   "stats.totalClaims": "총 받은 횟수",
   "faq.badge": "자주 묻는 질문",
   "faq.title": "자주",
-  "faq.titleHighlight": "묻는 질문",
+  "faq.titleHighlight": "���는 질문",
   "faq.subtitle": "저희 플랫폼에 대해 알아야 할 모든 것.",
   "faq.q1": "Faucero란 무엇인가요?",
   "faq.a1":
     "Faucero는 5분마다 버튼��� 클릭하는 등의 간단한 작업을 완료하여 무료 비트코인(사토시)을 얻을 수 있는 플랫폼입니다.",
   "faq.q2": "얼마나 벌 수 있나요?",
   "faq.a2":
-    "수익은 활동 수준, 연속 보너스(최대 100% 추가), 추천에 따라 달라집니다. 활동적인 사용자는 시간이 지남에 따라 상당한 금액을 벌 수 있습니다.",
+    "수익은 활동 수준, ���속 보너스(최대 100% 추가), 추천에 따라 달라집니다. 활��적인 사용자는 시간이 지남에 따라 상당한 금액을 벌 수 있습니다.",
   "faq.q3": "출금은 어떻게 작동하나요?",
   "faq.a3": "FaucetPay를 통해 즉시 출금을 처리합니다. FaucetPay 계정을 연결하고 언제든지 수익을 출금하세요.",
   "faq.q4": "최소 출금액이 있나요?",
@@ -2613,7 +2617,7 @@ const ko: Record<TranslationKey, string> = {
   "dashboard.header.markAllRead": "모두 읽음으로 표시",
   "dashboard.header.loading": "로딩 중...",
   "dashboard.header.noNotifications": "알림 없음",
-  "dashboard.header.allCaughtUp": "모두 확인하셨습니다!",
+  "dashboard.header.allCaughtUp": "모두 확인��셨습니다!",
   "dashboard.header.viewAll": "모든 알림 보기",
   "dashboard.balance": "잔액",
   "dashboard.totalEarned": "총 수입",
@@ -2887,7 +2891,7 @@ const pt: Record<TranslationKey, string> = {
 
 const ar: Record<TranslationKey, string> = {
   ...en,
-  "nav.features": "الميزات",
+  "nav.features": "ا��ميزات",
   "nav.howItWorks": "كيف يعمل",
   "nav.faq": "الأسئلة الشائعة",
   "nav.blog": "المدونة",

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
-import { Coins, Wallet, Users, TrendingUp, ArrowRight, Flame, Clock, Zap, Trophy } from "lucide-react"
+import { Coins, Wallet, Users, TrendingUp, ArrowRight, Flame, Clock, Zap, Trophy, Crown } from "lucide-react"
 import { formatSatoshisDisplay, formatNumber, formatRelativeTime } from "@/lib/utils/format"
 import { ClaimButton } from "@/components/dashboard/claim-button"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
@@ -188,6 +188,14 @@ export default async function DashboardPage() {
 
   const quickActions = [
     {
+      href: "/dashboard/tournaments",
+      icon: Crown,
+      iconColor: "text-yellow-500",
+      iconBg: "bg-yellow-500/10",
+      title: "Tournaments",
+      description: "Compete for prizes",
+    },
+    {
       href: "/dashboard/referrals",
       icon: Users,
       iconColor: "text-violet-500",
@@ -342,7 +350,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick Actions - Enhanced cards */}
-      <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         {quickActions.map((action) => (
           <Link key={action.href} href={action.href}>
             <Card className="group h-full cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/30 active:scale-[0.98]">
