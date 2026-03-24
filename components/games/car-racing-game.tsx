@@ -1491,13 +1491,6 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
       ctx.fill()
     }
 
-    const getComboTier = (combo: number) => {
-      for (let i = COMBO_TIERS.length - 1; i >= 0; i--) {
-        if (combo >= COMBO_TIERS[i].min) return COMBO_TIERS[i]
-      }
-      return COMBO_TIERS[0]
-    }
-
     // Initial draw
     draw(ctx, gameStateRef.current)
 
