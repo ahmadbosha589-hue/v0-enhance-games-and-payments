@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -131,6 +131,8 @@ export default function GamesPage() {
   const [selectedGame, setSelectedGame] = useState<GameType | null>(null)
   const [gameSession, setGameSession] = useState<GameSession | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [gameReady, setGameReady] = useState(false) // Tap to start state
+  const gameContainerRef = useRef<HTMLDivElement>(null)
   const [currentScore, setCurrentScore] = useState(0)
   const [moves, setMoves] = useState(0)
   const [gameCooldowns, setGameCooldowns] = useState<Record<GameType, number>>({
@@ -157,6 +159,21 @@ export default function GamesPage() {
     fetcher,
     { refreshInterval: 5000 }
   )
+
+  // Reset game state on page refresh/mount - prevents stuck game state
+  useEffect(() => {
+    // Reset all game-related state to ensure fresh start
+    setIsPlaying(false)
+    setGameSession(null)
+    setSelectedGame(null)
+    setGameReady(false)
+    setCurrentScore(0)
+    setMoves(0)
+    setError(null)
+    setSuccess(null)
+    setShowResultModal(false)
+    setGameResult(null)
+  }, []) // Empty dependency array - only runs on mount
 
   // Calculate user high scores from recent games (fetched from database via gameStatus)
   const userHighScores = useMemo(() => {
@@ -301,8 +318,16 @@ export default function GamesPage() {
       })
       setSelectedGame(gameType)
       setIsPlaying(true)
+      setGameReady(false) // Show tap to start overlay
       setCurrentScore(0)
       setMoves(0)
+
+      // Scroll to game container after a brief delay to allow render
+      setTimeout(() => {
+        if (gameContainerRef.current) {
+          gameContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
     } catch (err: any) {
       setError(err.message || "Failed to start game. Please try again.")
       // Refresh status on error to ensure cooldowns are correct
@@ -353,8 +378,8 @@ export default function GamesPage() {
       })
       setShowResultModal(true)
 
-      // Update cooldown for this specific game
-      if (data.cooldownMinutes) {
+      // Only set cooldown if player won - no cooldown for losses
+      if (data.isWinner && data.cooldownMinutes) {
         setGameCooldowns(prev => ({
           ...prev,
           [gameSession.gameType]: data.cooldownMinutes * 60
@@ -369,6 +394,14 @@ export default function GamesPage() {
         isWin: data.isWinner
       })
 
+      // Refresh status and hard reload if won to update balance
+      if (data.isWinner) {
+        // Force hard refresh after modal is closed to update balance
+        setTimeout(() => {
+          window.location.reload()
+        }, 3000)
+      }
+
       refreshStatus()
     } catch (err: any) {
       setError(err.message)
@@ -376,6 +409,7 @@ export default function GamesPage() {
       setIsLoading(false)
       setIsPlaying(false)
       setGameSession(null)
+      setGameReady(false)
     }
   }, [gameSession, refreshStatus])
 
@@ -830,7 +864,7 @@ export default function GamesPage() {
         </div>
       ) : (
         // Active Game
-        <Card className="border-primary/30">
+        <Card ref={gameContainerRef} className="border-primary/30 relative">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
@@ -850,7 +884,7 @@ export default function GamesPage() {
               <div className="flex items-center gap-4">
                 <Badge variant="outline" className="text-sm">
                   <Target className="h-3.5 w-3.5 mr-1.5 text-orange-500" />
-                  Win: {gameStatus.winThresholds?.[selectedGame!] || 100}+ pts
+                  Win: {gameStatus?.winThresholds?.[selectedGame!] || 100}+ pts
                 </Badge>
                 <Badge variant="outline" className="text-sm">
                   <Trophy className="h-3.5 w-3.5 mr-1.5 text-yellow-500" />
@@ -859,12 +893,45 @@ export default function GamesPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-4">
+          <CardContent className="pt-4 relative">
+            {/* Tap to Start Overlay */}
+            {!gameReady && (
+              <div
+                className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center rounded-lg cursor-pointer"
+                onClick={() => setGameReady(true)}
+                onTouchStart={() => setGameReady(true)}
+              >
+                <div className="text-center p-6">
+                  <div className={cn(
+                    "w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center bg-gradient-to-br",
+                    games.find(g => g.type === selectedGame)?.color
+                  )}>
+                    {(() => {
+                      const Icon = games.find(g => g.type === selectedGame)?.icon
+                      return Icon ? <Icon className="h-10 w-10 text-white" /> : null
+                    })()}
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">
+                    {games.find(g => g.type === selectedGame)?.name}
+                  </h3>
+                  <p className="text-gray-300 mb-4">
+                    Reach {gameStatus?.winThresholds?.[selectedGame!] || 100} points to win {gameStatus?.rewardPerGame || 3} satoshis!
+                  </p>
+                  <div className="animate-bounce">
+                    <Badge className="text-lg px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white cursor-pointer">
+                      <Play className="h-5 w-5 mr-2" />
+                      TAP TO START
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {selectedGame === "tetris" && (
               <TetrisGame
                 onGameEnd={handleGameEnd}
                 onScoreUpdate={handleScoreUpdate}
-                isActive={isPlaying}
+                isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["tetris"]}
               />
@@ -873,7 +940,7 @@ export default function GamesPage() {
               <BlockBlastGame
                 onGameEnd={handleGameEnd}
                 onScoreUpdate={handleScoreUpdate}
-                isActive={isPlaying}
+                isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["block_blast"]}
               />
@@ -882,7 +949,7 @@ export default function GamesPage() {
               <CarRacingGame
                 onGameEnd={handleGameEnd}
                 onScoreUpdate={handleScoreUpdate}
-                isActive={isPlaying}
+                isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["car_racing"]}
               />
@@ -891,7 +958,7 @@ export default function GamesPage() {
               <SnakeGame
                 onGameEnd={handleGameEnd}
                 onScoreUpdate={handleScoreUpdate}
-                isActive={isPlaying}
+                isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["snake"]}
               />
@@ -900,7 +967,7 @@ export default function GamesPage() {
               <MemoryGame
                 onGameEnd={handleGameEnd}
                 onScoreUpdate={handleScoreUpdate}
-                isActive={isPlaying}
+                isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["memory"]}
               />
@@ -909,7 +976,7 @@ export default function GamesPage() {
               <FlappyGame
                 onGameEnd={handleGameEnd}
                 onScoreUpdate={handleScoreUpdate}
-                isActive={isPlaying}
+                isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
                 winThreshold={gameStatus?.winThresholds?.["flappy"]}
               />

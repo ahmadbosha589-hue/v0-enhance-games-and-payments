@@ -178,10 +178,10 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       setLastMatchTime(now)
       setMatchAnimation([first, second])
 
-      // Lower scoring - base 10 points per match
+      // Realistic scoring - base 10 points per match, small bonuses
       const basePoints = 10
-      const comboBonus = newCombo > 1 ? (newCombo - 1) * 2 : 0
-      const streakBonus = newStreak > 3 ? newStreak : 0
+      const comboBonus = newCombo > 1 ? Math.min((newCombo - 1) * 2, 10) : 0 // Cap combo bonus at 10
+      const streakBonus = newStreak > 3 ? Math.min(newStreak - 3, 5) : 0 // Cap streak bonus at 5
       const points = basePoints + comboBonus + streakBonus
 
       setTimeout(() => {
@@ -243,8 +243,16 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   }, [flippedCards, cards, score, combo, streak, timeLeft, lastMatchTime, config.pairs, moves, perfectGame, onGameEnd, onScoreUpdate, matchedPairs, gameOver])
 
   const handleCardClick = useCallback((cardId: number) => {
-    // Prevent clicking while checking or when game is not active
-    if (!isActive || gameOver || isChecking) return
+    // Prevent clicking when game is not active or game over
+    if (!isActive || gameOver) return
+    // If checking, reset the checking state after a delay to prevent stuck state
+    if (isChecking) {
+      // Force reset if stuck for too long
+      setTimeout(() => {
+        setIsChecking(false)
+      }, 1500)
+      return
+    }
     // Only allow 2 cards flipped at a time
     if (flippedCards.length >= 2) return
     // Prevent clicking same card or already matched/flipped cards
@@ -261,6 +269,10 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
     if (newFlippedCards.length === 2) {
       setMoves(m => m + 1)
+      // Set a safety timeout to reset isChecking in case it gets stuck
+      setTimeout(() => {
+        setIsChecking(false)
+      }, 2000)
     }
   }, [isActive, gameOver, isChecking, flippedCards, cards])
 
@@ -440,7 +452,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
             <li>Find matching pairs</li>
             <li>Quick matches = combo bonus</li>
             <li>Beat the clock!</li>
-            <li>Perfect game = 500 bonus</li>
+            <li>Perfect game = +20 bonus</li>
           </ul>
         </Card>
 

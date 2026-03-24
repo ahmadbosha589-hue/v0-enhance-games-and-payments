@@ -554,7 +554,9 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
         {gameOver && (
           <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-2xl font-bold text-red-500 mb-2">GAME OVER</p>
+              <p className={`text-2xl font-bold mb-2 ${hasWon ? "text-green-500" : "text-red-500"}`}>
+                {hasWon ? "YOU WIN!" : "GAME OVER"}
+              </p>
               <p className="text-white mb-1">Score: {score.toLocaleString()}</p>
               <p className="text-gray-400 text-sm mb-4">Length: {snake.length}</p>
               <Button onClick={resetGame} variant="outline" size="sm">

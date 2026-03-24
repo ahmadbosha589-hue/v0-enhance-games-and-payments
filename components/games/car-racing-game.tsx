@@ -338,10 +338,18 @@ export function CarRacingGame({ onGameEnd, onScoreUpdate, isActive, difficulty, 
       })
 
       // Spawn obstacles with difficulty scaling (more frequent at higher difficulty)
-      // Keep minimum spawn rate at 40 frames to ensure obstacles always spawn
-      const obstacleSpawnRate = Math.max(40, 80 - Math.floor(distance / 300) - (difficulty?.level || 1) * 2)
+      // Base spawn rate decreases as distance increases, minimum 30 frames
+      const baseSpawnRate = Math.max(30, 70 - Math.floor(distance / 200))
+      const difficultyAdjustment = (difficulty?.level || 1) * 3
+      const obstacleSpawnRate = Math.max(25, baseSpawnRate - difficultyAdjustment)
+
+      // Always spawn obstacles - use frame count modulo
       if (frameCount % obstacleSpawnRate === 0) {
         spawnObstacle()
+        // At higher distances/difficulty, sometimes spawn 2 obstacles
+        if (distance > 500 && Math.random() < 0.3 * obstacleFrequency) {
+          setTimeout(() => spawnObstacle(), 100)
+        }
       }
       if (frameCount % 45 === 0) {
         spawnCoin()

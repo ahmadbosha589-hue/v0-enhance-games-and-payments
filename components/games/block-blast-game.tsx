@@ -18,6 +18,15 @@ const COLOR_PALETTES = [
 
 const getRandomPalette = () => COLOR_PALETTES[Math.floor(Math.random() * COLOR_PALETTES.length)]
 
+// Helper function to adjust color brightness
+function adjustColor(color: string, amount: number): string {
+  const hex = color.replace('#', '')
+  const r = Math.max(0, Math.min(255, parseInt(hex.substring(0, 2), 16) + amount))
+  const g = Math.max(0, Math.min(255, parseInt(hex.substring(2, 4), 16) + amount))
+  const b = Math.max(0, Math.min(255, parseInt(hex.substring(4, 6), 16) + amount))
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+}
+
 // Special block types
 const SPECIAL_BLOCKS = {
   bomb: { chance: 0.02, icon: "B", color: "#374151" },
@@ -405,17 +414,22 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                     ? undefined
                     : cell.special === "bomb"
                       ? "#374151"
-                      : cell.color || "#1a1a2e",
+                      : cell.special === "multiplier"
+                        ? "#fbbf24"
+                        : cell.color || "#1a1a2e",
                   background: cell.special === "rainbow"
                     ? "linear-gradient(45deg, #ef4444, #eab308, #22c55e, #3b82f6, #a855f7)"
-                    : undefined,
+                    : cell.color && !cell.special
+                      ? `linear-gradient(135deg, ${cell.color} 0%, ${adjustColor(cell.color, -30)} 100%)`
+                      : undefined,
                   boxShadow: cell.color
-                    ? `inset 0 -2px 4px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.2)${cell.glowing ? `, 0 0 8px ${cell.color}` : ""}`
+                    ? `inset 0 -3px 6px rgba(0,0,0,0.4), inset 0 3px 6px rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.3)${cell.glowing ? `, 0 0 12px ${cell.color}, 0 0 20px ${cell.color}40` : ""}`
                     : "none",
                   width: CELL_SIZE,
                   height: CELL_SIZE,
                   touchAction: "none",
-                  WebkitTapHighlightColor: "transparent"
+                  WebkitTapHighlightColor: "transparent",
+                  border: cell.color ? `1px solid ${adjustColor(cell.color, 20)}` : "none"
                 }}
               >
                 {cell.special && (
