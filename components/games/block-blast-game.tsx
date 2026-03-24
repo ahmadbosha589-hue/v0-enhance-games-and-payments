@@ -29,11 +29,17 @@ function adjustColor(color: string, amount: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-// Special block types - reduced spawn rates for harder gameplay
+// Base special block spawn rates - will be adjusted by difficulty
+const BASE_SPECIAL_RATES = {
+  bomb: 0.018,
+  rainbow: 0.012,
+  multiplier: 0.018,
+}
+
 const SPECIAL_BLOCKS = {
-  bomb: { chance: 0.008, icon: "B", color: "#374151" },
-  rainbow: { chance: 0.005, icon: "R", color: "rainbow" },
-  multiplier: { chance: 0.008, icon: "2x", color: "#fbbf24" },
+  bomb: { chance: BASE_SPECIAL_RATES.bomb, icon: "B", color: "#374151" },
+  rainbow: { chance: BASE_SPECIAL_RATES.rainbow, icon: "R", color: "rainbow" },
+  multiplier: { chance: BASE_SPECIAL_RATES.multiplier, icon: "2x", color: "#fbbf24" },
 }
 
 // Achievement messages for big blasts
@@ -100,21 +106,26 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     movesRef.current = moves
   }, [score, isAnimating, moves])
 
-  function getSpecialType(): SpecialType {
+  // Special block spawn rates scale with difficulty - more specials at low difficulty
+  const getSpecialType = useCallback((): SpecialType => {
+    // At level 1: 1.5x spawn rate, at level 10: 0.6x spawn rate
+    const difficultyMultiplier = Math.max(0.6, 1.5 - (difficultyLevel - 1) * 0.1)
     const roll = Math.random()
     let cumulative = 0
     for (const [type, config] of Object.entries(SPECIAL_BLOCKS)) {
-      cumulative += config.chance
+      cumulative += config.chance * difficultyMultiplier
       if (roll < cumulative) return type as SpecialType
     }
     return null
-  }
+  }, [difficultyLevel])
 
-  // Get number of colors based on difficulty - MORE colors = harder to find matches, prevents single color dominance
+  // Get number of colors based on difficulty - fewer colors = easier to find matches
   const getColorsForDifficulty = useCallback((palette: string[]): string[] => {
-    // All levels now use 8 colors for maximum difficulty - harder to find matches
-    return palette.slice(0, 8)
-  }, [])
+    // Scale colors with difficulty: 5 colors at level 1, up to 8 at level 10
+    const baseColors = 5
+    const extraColors = Math.min(3, Math.floor(difficultyLevel / 3)) // Add 1 color every 3 levels
+    return palette.slice(0, baseColors + extraColors)
+  }, [difficultyLevel])
 
   // Initialize game with guaranteed groups of 3+
   const initializeGame = useCallback(() => {
@@ -133,14 +144,15 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       }))
     )
 
-    // Minimal clustering for harder gameplay - blocks are mostly random
-    const clusterChance = 0.02 // Very low clustering = harder to find groups
+    // Clustering scales with difficulty - higher difficulty = less clustering = harder
+    // Level 1: 30% clustering (medium-easy), Level 10: 10% clustering (hard)
+    const clusterChance = Math.max(0.10, 0.30 - (difficultyLevel - 1) * 0.022)
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
-        // Only cluster very rarely
-        if (Math.random() < clusterChance && x > 0 && Math.random() < 0.2) {
+        // Cluster blocks near same-colored neighbors
+        if (Math.random() < clusterChance && x > 0) {
           newBoard[y][x].color = newBoard[y][x - 1].color
-        } else if (Math.random() < clusterChance && y > 0 && Math.random() < 0.2) {
+        } else if (Math.random() < clusterChance && y > 0) {
           newBoard[y][x].color = newBoard[y - 1][x].color
         }
       }
@@ -435,8 +447,8 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           setTimeout(() => setBlastMessage(null), 1000)
         }
 
-        // Calculate score - reduced for harder gameplay
-        const basePoints = powerupResult.expandedGroup.size * 2
+        // Calculate score - 4 points per block for balanced gameplay
+        const basePoints = powerupResult.expandedGroup.size * 4
         const totalPoints = Math.floor((basePoints + powerupResult.bonusPoints) * activeMultiplier * scoreMultiplierFromDifficulty)
 
         const newScore = scoreRef.current + totalPoints
@@ -549,7 +561,7 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       }
 
       if (cellInGroup.glowing) {
-        bonusPoints += 2 // Glowing blocks give reduced extra points
+        bonusPoints += 3 // Glowing blocks give extra points
       }
     })
 
@@ -560,11 +572,13 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       setTimeout(() => setBlastMessage(null), 1000)
     }
 
-    // Calculate score - harder scoring: 2 points per block with reduced combo bonuses
-    const basePoints = expandedGroup.size * 2 // 2 points per block (reduced from 3)
-    const sizeBonus = expandedGroup.size > 8 ? (expandedGroup.size - 8) * 1 : 0 // Bonus only for very large groups (8+)
-    const difficultyBonus = 0 // No difficulty bonus
-    const totalPoints = Math.floor((basePoints + sizeBonus + bonusPoints + difficultyBonus) * activeMultiplier * scoreMultiplierFromDifficulty)
+    // Calculate score - 4 points per block with bonus for larger groups
+    // Points scale slightly with difficulty for balance
+    const pointsPerBlock = 4
+    const basePoints = expandedGroup.size * pointsPerBlock
+    const sizeBonus = expandedGroup.size > 5 ? (expandedGroup.size - 5) * 2 : 0 // Bonus for groups larger than 5
+    const comboBonus = expandedGroup.size > 10 ? 10 : 0 // Extra bonus for big combos
+    const totalPoints = Math.floor((basePoints + sizeBonus + comboBonus + bonusPoints) * activeMultiplier * scoreMultiplierFromDifficulty)
 
     const newScore = scoreRef.current + totalPoints
     setScore(newScore)
