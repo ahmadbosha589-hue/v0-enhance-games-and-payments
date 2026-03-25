@@ -11,6 +11,40 @@ import { validateSecurityServerSide, banUserIfNeeded, type ClientSecurityPayload
 
 const TURNSTILE_ENABLED = !!process.env.TURNSTILE_SECRET_KEY
 
+// ── Tournament score helper ───────────────────────────────────────────────────
+// Fire-and-forget: updates all 6 tournament buckets (3 periods × 2 categories)
+// without blocking the claim response. Errors are swallowed — a tournament
+// miss is never worth failing a legitimate claim.
+function updateClaimTournamentScores(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  userId: string,
+  amountSatoshis: number,
+) {
+  const periods = ["daily", "weekly", "monthly"] as const
+  const calls = [
+    // faucet_claims — counts raw number of claims (delta always 1)
+    ...periods.map((period) =>
+      supabase.rpc("update_tournament_score", {
+        p_user_id: userId,
+        p_category: "faucet_claims",
+        p_period: period,
+        p_score_delta: 1,
+      }),
+    ),
+    // highest_earners — tracks total satoshis earned from all sources
+    ...periods.map((period) =>
+      supabase.rpc("update_tournament_score", {
+        p_user_id: userId,
+        p_category: "highest_earners",
+        p_period: period,
+        p_score_delta: amountSatoshis,
+      }),
+    ),
+  ]
+  Promise.allSettled(calls).catch(() => { })
+}
+
 function calculateClaimAmount(streak: number): {
   base: number
   streakBonus: number
@@ -420,9 +454,12 @@ export async function POST(request: Request) {
               p_commission_rate: CLAIM_CONFIG.referralBonusPercentage / 100,
             })
             .then(() => { })
-            .catch((err) => log.error("Referral commission failed", { error: err }))
+            .catch((err: unknown) => log.error("Referral commission failed", { error: err }))
         }
       }
+
+      // Update tournament scores (non-blocking)
+      updateClaimTournamentScores(adminSupabase, user.id, atomicResult.amount)
 
       return NextResponse.json({
         success: true,
@@ -549,6 +586,9 @@ export async function POST(request: Request) {
       streak: newStreak,
       duration: Date.now() - startTime,
     })
+
+    // Update tournament scores (non-blocking)
+    updateClaimTournamentScores(adminSupabase, user.id, total)
 
     return NextResponse.json({
       success: true,

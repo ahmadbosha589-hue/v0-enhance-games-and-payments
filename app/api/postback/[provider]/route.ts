@@ -323,6 +323,39 @@ function parsePostbackParams(provider: string, searchParams: URLSearchParams): P
   }
 }
 
+// ── Tournament score helper ───────────────────────────────────────────────────
+// Fire-and-forget: updates offerwall_earnings + highest_earners for all
+// three periods. Never blocks the postback response.
+function updateOfferwallTournamentScores(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  userId: string,
+  amountSatoshis: number,
+) {
+  const periods = ["daily", "weekly", "monthly"] as const
+  const calls = [
+    // offerwall_earnings — tracks satoshis earned from offerwalls
+    ...periods.map((period) =>
+      supabaseAdmin.rpc("update_tournament_score", {
+        p_user_id: userId,
+        p_category: "offerwall_earnings",
+        p_period: period,
+        p_score_delta: amountSatoshis,
+      }),
+    ),
+    // highest_earners — tracks total satoshis earned from all sources
+    ...periods.map((period) =>
+      supabaseAdmin.rpc("update_tournament_score", {
+        p_user_id: userId,
+        p_category: "highest_earners",
+        p_period: period,
+        p_score_delta: amountSatoshis,
+      }),
+    ),
+  ]
+  Promise.allSettled(calls).catch(() => { })
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const supabaseAdmin = getSupabaseAdmin()
 
@@ -537,6 +570,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         offer_name: postbackParams.offerName,
       },
     })
+
+    // Update tournament scores (non-blocking)
+    updateOfferwallTournamentScores(supabaseAdmin, postbackParams.userId, payoutSatoshis)
 
     console.log(`[Postback] Success: ${provider} - User: ${postbackParams.userId} - Amount: ${payoutSatoshis} sats`)
 
