@@ -1,4 +1,5 @@
 import crypto from "crypto"
+import { checkRateLimit, checkRateLimitSync, RATE_LIMITS } from "@/lib/api/rate-limiter"
 
 const CCPAYMENT_API_URL = "https://admin.ccpayment.com/ccpayment/v1"
 const MAX_RETRIES = 3
@@ -22,28 +23,6 @@ const ERROR_MESSAGES: Record<number, string> = {
 interface CCPaymentConfig {
   appId: string
   appSecret: string
-}
-
-// Rate limiting to prevent API abuse
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT_WINDOW_MS = 60000 // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 30 // 30 requests per minute
-
-function checkRateLimit(key: string): boolean {
-  const now = Date.now()
-  const limit = rateLimitMap.get(key)
-
-  if (!limit || now >= limit.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return true
-  }
-
-  if (limit.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return false
-  }
-
-  limit.count++
-  return true
 }
 
 interface CreateOrderParams {
@@ -133,8 +112,9 @@ class CCPaymentClient {
   }
 
   private async request<T>(endpoint: string, method: "GET" | "POST" = "POST", body?: Record<string, unknown>): Promise<T> {
-    // Check rate limit
-    if (!checkRateLimit(this.appId)) {
+    // Check rate limit (Redis-backed for distributed consistency)
+    const rateLimitResult = await checkRateLimit(`ccpayment:${this.appId}`, RATE_LIMITS.api)
+    if (!rateLimitResult.allowed) {
       throw new Error("Rate limit exceeded. Please try again in a moment.")
     }
 

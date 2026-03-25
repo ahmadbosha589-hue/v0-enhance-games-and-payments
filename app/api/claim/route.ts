@@ -95,8 +95,8 @@ export async function POST(request: Request) {
     const forwarded = headersList.get("x-forwarded-for")
     const ipAddress = forwarded ? forwarded.split(",")[0].trim() : headersList.get("x-real-ip") || "127.0.0.1"
 
-    // Rate limiting by user
-    const userRateLimit = checkRateLimit(`claim:user:${user.id}`, RATE_LIMITS.claim)
+    // Rate limiting by user (Redis-backed for distributed consistency)
+    const userRateLimit = await checkRateLimit(`claim:user:${user.id}`, RATE_LIMITS.claim)
     if (!userRateLimit.allowed) {
       log.warn("Claim rate limited by user", { userId: user.id, retryAfter: userRateLimit.retryAfter })
       return NextResponse.json(
@@ -109,8 +109,8 @@ export async function POST(request: Request) {
       log.info("User in rate limit warning zone", { userId: user.id, remaining: userRateLimit.remaining })
     }
 
-    // Rate limiting by IP
-    const ipRateLimit = checkRateLimit(`claim:ip:${ipAddress}`, {
+    // Rate limiting by IP (Redis-backed for distributed consistency)
+    const ipRateLimit = await checkRateLimit(`claim:ip:${ipAddress}`, {
       maxRequests: 30,
       windowMs: 60000,
       burstAllowance: 10,

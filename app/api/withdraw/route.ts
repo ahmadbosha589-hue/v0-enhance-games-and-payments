@@ -26,8 +26,8 @@ export async function POST(request: Request) {
     const forwarded = headersList.get("x-forwarded-for")
     const ipAddress = forwarded ? forwarded.split(",")[0].trim() : headersList.get("x-real-ip") || "127.0.0.1"
 
-    // Rate limiting
-    const rateLimitResult = checkRateLimit(`withdrawal:${user.id}`, RATE_LIMITS.withdrawal)
+    // Rate limiting (Redis-backed for distributed consistency)
+    const rateLimitResult = await checkRateLimit(`withdrawal:${user.id}`, RATE_LIMITS.withdrawal)
     if (!rateLimitResult.allowed) {
       log.warn("Withdrawal rate limited", { userId: user.id })
       return NextResponse.json(
