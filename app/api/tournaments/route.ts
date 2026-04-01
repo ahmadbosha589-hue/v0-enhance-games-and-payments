@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 export const dynamic = "force-dynamic"
 
 // Tournament types and periods
-type TournamentType = "faucet_claims" | "offerwall_earnings" | "highest_earners"
+type TournamentType = "faucet_claims" | "offerwall_earnings" | "highest_earners" | "supporter_ads_watched" | "supporter_earnings"
 type TournamentPeriod = "daily" | "weekly" | "monthly"
 
 interface TournamentConfig {
@@ -103,7 +103,7 @@ const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     period: "monthly",
     name: "Monthly Faucet Legend",
     description: "Claim the manual faucet the most times this month",
-    prize_pool: 100000,
+    prize_pool: 10000,
     prizes: [
       { rank: 1, percentage: 35 },
       { rank: 2, percentage: 20 },
@@ -120,7 +120,7 @@ const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     period: "monthly",
     name: "Monthly Offerwall Legend",
     description: "Earn the most from offerwalls this month",
-    prize_pool: 200000,
+    prize_pool: 20000,
     prizes: [
       { rank: 1, percentage: 35 },
       { rank: 2, percentage: 20 },
@@ -137,7 +137,96 @@ const TOURNAMENT_CONFIGS: TournamentConfig[] = [
     period: "monthly",
     name: "Monthly Grand Champion",
     description: "Earn the most overall this month",
-    prize_pool: 300000,
+    prize_pool: 30000,
+    prizes: [
+      { rank: 1, percentage: 35 },
+      { rank: 2, percentage: 20 },
+      { rank: 3, percentage: 15 },
+      { rank: 4, percentage: 10 },
+      { rank: 5, percentage: 8 },
+      { rank: 6, percentage: 5 },
+      { rank: 7, percentage: 4 },
+      { rank: 8, percentage: 3 },
+    ],
+  },
+  // Support tournaments - Daily
+  {
+    type: "supporter_ads_watched",
+    period: "daily",
+    name: "Daily Support Champion",
+    description: "Watch the most ads today to support the platform",
+    prize_pool: 400,
+    prizes: [
+      { rank: 1, percentage: 50 },
+      { rank: 2, percentage: 30 },
+      { rank: 3, percentage: 20 },
+    ],
+  },
+  {
+    type: "supporter_earnings",
+    period: "daily",
+    name: "Daily Top Supporter",
+    description: "Earn the most from supporting today",
+    prize_pool: 600,
+    prizes: [
+      { rank: 1, percentage: 50 },
+      { rank: 2, percentage: 30 },
+      { rank: 3, percentage: 20 },
+    ],
+  },
+  // Support tournaments - Weekly
+  {
+    type: "supporter_ads_watched",
+    period: "weekly",
+    name: "Weekly Support Champion",
+    description: "Watch the most ads this week to support the platform",
+    prize_pool: 2000,
+    prizes: [
+      { rank: 1, percentage: 40 },
+      { rank: 2, percentage: 25 },
+      { rank: 3, percentage: 15 },
+      { rank: 4, percentage: 10 },
+      { rank: 5, percentage: 10 },
+    ],
+  },
+  {
+    type: "supporter_earnings",
+    period: "weekly",
+    name: "Weekly Top Supporter",
+    description: "Earn the most from supporting this week",
+    prize_pool: 3000,
+    prizes: [
+      { rank: 1, percentage: 40 },
+      { rank: 2, percentage: 25 },
+      { rank: 3, percentage: 15 },
+      { rank: 4, percentage: 10 },
+      { rank: 5, percentage: 10 },
+    ],
+  },
+  // Support tournaments - Monthly
+  {
+    type: "supporter_ads_watched",
+    period: "monthly",
+    name: "Monthly Support Legend",
+    description: "Watch the most ads this month to support the platform",
+    prize_pool: 8000,
+    prizes: [
+      { rank: 1, percentage: 35 },
+      { rank: 2, percentage: 20 },
+      { rank: 3, percentage: 15 },
+      { rank: 4, percentage: 10 },
+      { rank: 5, percentage: 8 },
+      { rank: 6, percentage: 5 },
+      { rank: 7, percentage: 4 },
+      { rank: 8, percentage: 3 },
+    ],
+  },
+  {
+    type: "supporter_earnings",
+    period: "monthly",
+    name: "Monthly Top Supporter Legend",
+    description: "Earn the most from supporting this month",
+    prize_pool: 12000,
     prizes: [
       { rank: 1, percentage: 35 },
       { rank: 2, percentage: 20 },

@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import {
   Crown, Trophy, Users, Clock, Coins, Zap, Target,
   TrendingUp, Medal, Calendar, Gift, Droplets, ShoppingBag,
-  ChevronRight, Star, Sparkles, Timer, Award, ArrowRight
+  ChevronRight, Star, Sparkles, Timer, Award, ArrowRight, Heart, Play
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -21,7 +21,7 @@ interface TournamentsContentProps {
 }
 
 type TournamentPeriod = "daily" | "weekly" | "monthly"
-type TournamentType = "faucet_claims" | "offerwall_earnings" | "highest_earners"
+type TournamentType = "faucet_claims" | "offerwall_earnings" | "highest_earners" | "supporter_ads_watched" | "supporter_earnings"
 
 interface LeaderboardEntry {
   user_id: string
@@ -59,6 +59,22 @@ const TOURNAMENT_TYPES: { type: TournamentType; name: string; icon: typeof Dropl
     bgColor: "bg-amber-500/10",
     gradient: "from-amber-500 to-orange-400"
   },
+  { 
+    type: "supporter_ads_watched", 
+    name: "Support Champion", 
+    icon: Heart, 
+    color: "text-red-500", 
+    bgColor: "bg-red-500/10",
+    gradient: "from-red-500 to-pink-400"
+  },
+  { 
+    type: "supporter_earnings", 
+    name: "Top Supporter", 
+    icon: Play, 
+    color: "text-fuchsia-500", 
+    bgColor: "bg-fuchsia-500/10",
+    gradient: "from-fuchsia-500 to-purple-400"
+  },
 ]
 
 const PERIODS: { period: TournamentPeriod; name: string; shortName: string; icon: typeof Calendar }[] = [
@@ -88,6 +104,22 @@ const PRIZE_CONFIGS: Record<TournamentPeriod, Record<TournamentType, { prize_poo
     },
     highest_earners: { 
       prize_pool: 1500, // 1500 sats daily
+      prizes: [
+        { rank: 1, percentage: 50 }, 
+        { rank: 2, percentage: 30 }, 
+        { rank: 3, percentage: 20 }
+      ] 
+    },
+    supporter_ads_watched: { 
+      prize_pool: 400, // 400 sats daily - most ads watched
+      prizes: [
+        { rank: 1, percentage: 50 }, 
+        { rank: 2, percentage: 30 }, 
+        { rank: 3, percentage: 20 }
+      ] 
+    },
+    supporter_earnings: { 
+      prize_pool: 600, // 600 sats daily - highest support earnings
       prizes: [
         { rank: 1, percentage: 50 }, 
         { rank: 2, percentage: 30 }, 
@@ -126,6 +158,26 @@ const PRIZE_CONFIGS: Record<TournamentPeriod, Record<TournamentType, { prize_poo
         { rank: 5, percentage: 10 }
       ] 
     },
+    supporter_ads_watched: { 
+      prize_pool: 2000, // 2000 sats weekly - most ads watched
+      prizes: [
+        { rank: 1, percentage: 40 }, 
+        { rank: 2, percentage: 25 }, 
+        { rank: 3, percentage: 15 }, 
+        { rank: 4, percentage: 10 }, 
+        { rank: 5, percentage: 10 }
+      ] 
+    },
+    supporter_earnings: { 
+      prize_pool: 3000, // 3000 sats weekly - highest support earnings
+      prizes: [
+        { rank: 1, percentage: 40 }, 
+        { rank: 2, percentage: 25 }, 
+        { rank: 3, percentage: 15 }, 
+        { rank: 4, percentage: 10 }, 
+        { rank: 5, percentage: 10 }
+      ] 
+    },
   },
   monthly: {
     faucet_claims: { 
@@ -156,6 +208,32 @@ const PRIZE_CONFIGS: Record<TournamentPeriod, Record<TournamentType, { prize_poo
     },
     highest_earners: { 
       prize_pool: 30000, // 30k sats monthly
+      prizes: [
+        { rank: 1, percentage: 35 }, 
+        { rank: 2, percentage: 20 }, 
+        { rank: 3, percentage: 15 }, 
+        { rank: 4, percentage: 10 }, 
+        { rank: 5, percentage: 8 }, 
+        { rank: 6, percentage: 5 }, 
+        { rank: 7, percentage: 4 }, 
+        { rank: 8, percentage: 3 }
+      ] 
+    },
+    supporter_ads_watched: { 
+      prize_pool: 8000, // 8k sats monthly - most ads watched
+      prizes: [
+        { rank: 1, percentage: 35 }, 
+        { rank: 2, percentage: 20 }, 
+        { rank: 3, percentage: 15 }, 
+        { rank: 4, percentage: 10 }, 
+        { rank: 5, percentage: 8 }, 
+        { rank: 6, percentage: 5 }, 
+        { rank: 7, percentage: 4 }, 
+        { rank: 8, percentage: 3 }
+      ] 
+    },
+    supporter_earnings: { 
+      prize_pool: 12000, // 12k sats monthly - highest support earnings
       prizes: [
         { rank: 1, percentage: 35 }, 
         { rank: 2, percentage: 20 }, 
@@ -255,6 +333,7 @@ function TournamentCard({
 
   const getScoreLabel = () => {
     if (type === "faucet_claims") return "claims"
+    if (type === "supporter_ads_watched") return "ads"
     return "sats"
   }
 
@@ -307,6 +386,8 @@ function TournamentCard({
               <CardDescription className="text-[10px] sm:text-xs mt-0.5">
                 {type === "faucet_claims" ? "Most claims" :
                   type === "offerwall_earnings" ? "Highest offerwall earnings" :
+                  type === "supporter_ads_watched" ? "Most ads watched" :
+                  type === "supporter_earnings" ? "Highest support earnings" :
                     "Highest total earnings"}
               </CardDescription>
             </div>
@@ -459,7 +540,7 @@ function TournamentStats({ period }: { period: TournamentPeriod }) {
   const stats = [
     {
       label: "Tournament Types",
-      value: "3",
+      value: "5",
       icon: Target,
       color: "text-blue-500",
       bgColor: "bg-blue-500/10",
@@ -518,7 +599,7 @@ function HowItWorks() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Droplets className="h-4 w-4 text-blue-500 shrink-0" />
@@ -544,6 +625,24 @@ function HowItWorks() {
             </div>
             <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
               Earn from any source - faucets, offerwalls, games, referrals. Total earnings count!
+            </p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Heart className="h-4 w-4 text-red-500 shrink-0" />
+              <span className="font-medium text-xs sm:text-sm">Support Champion</span>
+            </div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
+              Watch the most ads to support the platform. Each ad watched counts toward your score.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Play className="h-4 w-4 text-fuchsia-500 shrink-0" />
+              <span className="font-medium text-xs sm:text-sm">Top Supporter</span>
+            </div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground leading-relaxed">
+              Earn the most from watching support ads. Your total support earnings determine your ranking.
             </p>
           </div>
         </div>
