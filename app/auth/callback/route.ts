@@ -2,6 +2,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { detectVPNFortress } from "@/lib/security/vpn-fortress"
+import { validateReferral } from "@/lib/security/referral-fraud-detector"
 import { log } from "@/lib/logger"
 
 export async function GET(request: Request) {
@@ -373,21 +374,133 @@ export async function GET(request: Request) {
         console.error("[Auth Callback] Failed to update profile:", err)
       })
 
-    // Handle referral for new users (non-blocking)
+    // Handle referral for new users with ROBUST fraud detection
     if (isNewUser && ref) {
-      supabase
-        .from("profiles")
-        .select("id, referral_code, is_banned")
-        .eq("referral_code", ref)
-        .single()
-        .then(({ data: referrer }) => {
-          if (referrer && referrer.id !== userId && !referrer.is_banned) {
-            supabase.from("profiles").update({ referred_by: referrer.id }).eq("id", userId)
+      try {
+        const adminSupabase = createAdminClient()
+        
+        // Find the referrer
+        const { data: referrer } = await adminSupabase
+          .from("profiles")
+          .select("id, referral_code, is_banned, status, fraud_score")
+          .eq("referral_code", ref.toUpperCase())
+          .single()
+        
+        if (referrer && referrer.id !== userId && !referrer.is_banned && referrer.status !== "banned") {
+          
+          // ═══════════════════════════════════════════════════════════════
+          // ROBUST REFERRAL FRAUD DETECTION
+          // Multi-layer protection against self-referrals and bot networks
+          // ═══════════════════════════════════════════════════════════════
+          const referralValidation = await validateReferral(
+            referrer.id,
+            userId,
+            {
+              email,
+              displayName: data.user.user_metadata?.full_name || data.user.user_metadata?.name,
+              signupIp: clientIP !== "unknown" ? clientIP : undefined,
+              fingerprint: fingerprint || undefined,
+              metadata: {
+                google_id: googleId,
+                user_agent: userAgent,
+              },
+            }
+          )
+          
+          if (referralValidation.valid) {
+            // Referral is valid - apply it
+            await adminSupabase
+              .from("profiles")
+              .update({ referred_by: referrer.id })
+              .eq("id", userId)
+            
+            // Increment referrer's count
+            await adminSupabase.rpc("increment_referral_count", {
+              p_referrer_id: referrer.id,
+            }).catch(() => {
+              // Fallback if RPC doesn't exist
+              adminSupabase
+                .from("profiles")
+                .update({
+                  referral_count: (referrer as { referral_count?: number }).referral_count 
+                    ? (referrer as { referral_count?: number }).referral_count! + 1 
+                    : 1,
+                })
+                .eq("id", referrer.id)
+            })
+            
+            log.info("Valid referral applied", {
+              newUserId: userId,
+              referrerId: referrer.id,
+              referralCode: ref,
+            })
+          } else {
+            // Referral is FRAUD - block it and log
+            log.warn("Referral fraud blocked", {
+              newUserId: userId,
+              referrerId: referrer.id,
+              referralCode: ref,
+              reason: referralValidation.reason,
+              confidence: referralValidation.fraudResult?.confidence,
+              riskLevel: referralValidation.fraudResult?.riskLevel,
+              matchedLayers: referralValidation.fraudResult?.matchedLayers,
+            })
+            
+            // Increase fraud score for the new user
+            await adminSupabase
+              .from("profiles")
+              .update({
+                fraud_score: Math.min(100, (referralValidation.fraudResult?.confidence || 50)),
+              })
+              .eq("id", userId)
+            
+            // If high confidence, also penalize the referrer (potential abuse)
+            if (referralValidation.fraudResult && referralValidation.fraudResult.confidence >= 80) {
+              await adminSupabase.rpc("increment_fraud_score", {
+                p_user_id: referrer.id,
+                p_amount: 20,
+              }).catch(() => {
+                adminSupabase
+                  .from("profiles")
+                  .update({
+                    fraud_score: Math.min(100, (referrer.fraud_score || 0) + 20),
+                  })
+                  .eq("id", referrer.id)
+              })
+            }
           }
-        })
-        .catch((err) => {
-          console.error("[Auth Callback] Referral processing failed:", err)
-        })
+        } else if (referrer && referrer.id === userId) {
+          // Attempting to self-refer with same user ID - immediate ban
+          log.warn("Direct self-referral attempt", { userId, referralCode: ref })
+          
+          await adminSupabase.from("fraud_flags").insert({
+            user_id: userId,
+            flag_type: "direct_self_referral",
+            severity: "critical",
+            details: {
+              referral_code: ref,
+              detected_at: new Date().toISOString(),
+            },
+            status: "confirmed",
+          })
+          
+          await adminSupabase
+            .from("profiles")
+            .update({
+              fraud_score: 100,
+              is_banned: true,
+              ban_reason: "Self-referral attempt",
+              status: "banned",
+            })
+            .eq("id", userId)
+          
+          await supabase.auth.signOut()
+          return NextResponse.redirect(`${origin}/auth/error?error=self_referral_blocked`)
+        }
+      } catch (err) {
+        log.error("Referral processing error", { error: err, userId, ref })
+        // On error, don't apply referral but allow signup
+      }
     }
 
     // Redirect immediately to avoid timeout
