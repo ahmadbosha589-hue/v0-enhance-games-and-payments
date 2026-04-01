@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
+import { isValidCouponCodeFormat } from "@/lib/utils/secure-coupon-generator"
 
 const MAX_REDEMPTIONS_PER_DAY = 10
+const MIN_CODE_LENGTH = 6
+const MAX_CODE_LENGTH = 20
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,6 +45,30 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedCode = code.trim().toUpperCase()
+
+    // Validate code length and format
+    if (normalizedCode.length < MIN_CODE_LENGTH || normalizedCode.length > MAX_CODE_LENGTH) {
+      return NextResponse.json({ error: "Invalid coupon code format" }, { status: 400 })
+    }
+
+    // For 12-character codes, validate secure format
+    if (normalizedCode.length === 12 && !isValidCouponCodeFormat(normalizedCode)) {
+      return NextResponse.json({ error: "Invalid coupon code format" }, { status: 400 })
+    }
+
+    // Rate limiting: Check attempts from this IP in the last hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count: recentAttempts } = await adminSupabase
+      .from("coupon_redemptions")
+      .select("*", { count: "exact", head: true })
+      .eq("ip_address", ip)
+      .gte("redeemed_at", oneHourAgo)
+
+    if (recentAttempts && recentAttempts >= 50) {
+      return NextResponse.json({
+        error: "Too many attempts. Please try again later.",
+      }, { status: 429 })
+    }
 
     // Check daily redemption limit
     const today = new Date()

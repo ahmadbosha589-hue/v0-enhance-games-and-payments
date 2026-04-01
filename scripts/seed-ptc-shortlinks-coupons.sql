@@ -219,134 +219,444 @@ INSERT INTO shortlinks (title, destination_url, reward_satoshis, view_time_secon
 ('Blur NFT', 'https://blur.io', 2, 5, true, false);
 
 -- ============================================
--- COUPONS - Promotional codes for bonuses
+-- COUPONS - Promotional codes with SECURE 12-character random codes
+-- Uses cryptographically secure random generation
 -- ============================================
 
--- Welcome/Signup coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('WELCOME2024', 'New user welcome bonus', 100, 10000, 10000, NOW() + INTERVAL '365 days', true, false),
-('WELCOMEBONUS', 'Welcome to the faucet!', 75, 10000, 10000, NOW() + INTERVAL '365 days', true, false),
-('NEWUSER', 'New user reward', 50, 10000, 10000, NOW() + INTERVAL '365 days', true, false),
-('GETSTARTED', 'Get started bonus', 50, 10000, 10000, NOW() + INTERVAL '365 days', true, false),
-('FIRSTCLAIM', 'First claim reward', 40, 10000, 10000, NOW() + INTERVAL '365 days', true, false);
+-- Function to generate secure 12-character alphanumeric codes
+CREATE OR REPLACE FUNCTION generate_secure_coupon_code()
+RETURNS TEXT AS $$
+DECLARE
+  chars TEXT := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  result TEXT := '';
+  i INTEGER;
+BEGIN
+  FOR i IN 1..12 LOOP
+    result := result || substr(chars, floor(random() * length(chars) + 1)::integer, 1);
+  END LOOP;
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql;
 
--- Social media coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('TWITTER100', 'Follow us on Twitter reward', 100, 5000, 5000, NOW() + INTERVAL '180 days', true, false),
-('TELEGRAM50', 'Join Telegram community', 50, 5000, 5000, NOW() + INTERVAL '180 days', true, false),
-('DISCORD75', 'Join Discord server', 75, 5000, 5000, NOW() + INTERVAL '180 days', true, false),
-('YOUTUBE25', 'Subscribe to YouTube', 25, 5000, 5000, NOW() + INTERVAL '180 days', true, false),
-('TIKTOK30', 'Follow on TikTok', 30, 5000, 5000, NOW() + INTERVAL '180 days', true, false);
+-- Welcome/Signup coupons (100 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'New user welcome bonus', 100, 100, 100, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 20)
+ON CONFLICT DO NOTHING;
 
--- Weekly/monthly rotating coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('MONDAY20', 'Monday special bonus', 20, 1000, 1000, NOW() + INTERVAL '30 days', true, false),
-('WEEKEND50', 'Weekend warrior bonus', 50, 1000, 1000, NOW() + INTERVAL '30 days', true, false),
-('HOURLY10', 'Hourly claim bonus', 10, 2000, 2000, NOW() + INTERVAL '30 days', true, false),
-('DAILY25', 'Daily active user bonus', 25, 2000, 2000, NOW() + INTERVAL '30 days', true, false),
-('WEEKLY100', 'Weekly loyal user', 100, 500, 500, NOW() + INTERVAL '30 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Welcome to the faucet!', 75, 100, 100, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 20)
+ON CONFLICT DO NOTHING;
 
--- Special event coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('LAUNCH500', 'Website launch celebration', 500, 100, 100, NOW() + INTERVAL '7 days', true, false),
-('BITCOIN21', 'Bitcoin 21M celebration', 21, 2100, 2100, NOW() + INTERVAL '90 days', true, false),
-('SATOSHI100', 'Satoshi Nakamoto tribute', 100, 1000, 1000, NOW() + INTERVAL '365 days', true, false),
-('HALVING24', 'Bitcoin halving 2024', 50, 2400, 2400, NOW() + INTERVAL '365 days', true, false),
-('NEWYEAR50', 'New Year celebration', 50, 1000, 1000, NOW() + INTERVAL '60 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'New user reward', 50, 100, 100, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 20)
+ON CONFLICT DO NOTHING;
 
--- Bonus/promotional coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('BONUS100', 'Special bonus code', 100, 500, 500, NOW() + INTERVAL '90 days', true, false),
-('FREESATS', 'Free satoshis giveaway', 25, 5000, 5000, NOW() + INTERVAL '60 days', true, false),
-('CRYPTO50', 'Crypto enthusiast bonus', 50, 1000, 1000, NOW() + INTERVAL '90 days', true, false),
-('HODL100', 'HODL reward', 100, 500, 500, NOW() + INTERVAL '90 days', true, false),
-('MOONSOON', 'To the moon bonus', 75, 1000, 1000, NOW() + INTERVAL '60 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Get started bonus', 50, 100, 100, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 20)
+ON CONFLICT DO NOTHING;
 
--- Referral bonus coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('REFER50', 'Referral bonus code', 50, 2000, 2000, NOW() + INTERVAL '180 days', true, false),
-('FRIEND25', 'Invite a friend bonus', 25, 5000, 5000, NOW() + INTERVAL '180 days', true, false),
-('SHARE10', 'Share and earn', 10, 10000, 10000, NOW() + INTERVAL '180 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'First claim reward', 40, 100, 100, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 20)
+ON CONFLICT DO NOTHING;
 
--- VIP/Tier coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('VIP500', 'VIP member reward', 500, 100, 100, NOW() + INTERVAL '365 days', true, false),
-('ELITE200', 'Elite tier bonus', 200, 200, 200, NOW() + INTERVAL '365 days', true, false),
-('PRO150', 'Pro user bonus', 150, 300, 300, NOW() + INTERVAL '365 days', true, false),
-('BASIC75', 'Basic tier bonus', 75, 500, 500, NOW() + INTERVAL '365 days', true, false);
+-- Social media coupons (50 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Follow us on Twitter reward', 100, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Additional seasonal coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('SPRING2024', 'Spring season bonus', 40, 2000, 2000, NOW() + INTERVAL '90 days', true, false),
-('SUMMER100', 'Summer special reward', 100, 1000, 1000, NOW() + INTERVAL '120 days', true, false),
-('FALL50', 'Fall harvest bonus', 50, 1500, 1500, NOW() + INTERVAL '90 days', true, false),
-('WINTER75', 'Winter wonderland bonus', 75, 1500, 1500, NOW() + INTERVAL '120 days', true, false),
-('HOLIDAY100', 'Holiday season special', 100, 1000, 1000, NOW() + INTERVAL '60 days', true, false),
-('XMAS200', 'Christmas gift bonus', 200, 500, 500, NOW() + INTERVAL '30 days', true, false),
-('EASTER50', 'Easter egg hunt bonus', 50, 2000, 2000, NOW() + INTERVAL '90 days', true, false),
-('HALLOWEEN', 'Spooky season reward', 31, 3100, 3100, NOW() + INTERVAL '90 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Join Telegram community', 50, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Crypto milestone coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('BTC100K', 'Bitcoin to 100K celebration', 100, 1000, 1000, NOW() + INTERVAL '365 days', true, false),
-('ETH10K', 'Ethereum milestone bonus', 50, 1000, 1000, NOW() + INTERVAL '365 days', true, false),
-('SOLMOON', 'Solana moon bonus', 25, 2000, 2000, NOW() + INTERVAL '180 days', true, false),
-('DOGEARMY', 'Doge army reward', 20, 5000, 5000, NOW() + INTERVAL '180 days', true, false),
-('LTCSILVER', 'Litecoin silver bonus', 30, 1500, 1500, NOW() + INTERVAL '180 days', true, false),
-('TRONPOWER', 'TRON power bonus', 25, 2000, 2000, NOW() + INTERVAL '180 days', true, false),
-('BNBCHAIN', 'BNB Chain bonus', 35, 1500, 1500, NOW() + INTERVAL '180 days', true, false),
-('MATICPOLY', 'Polygon MATIC reward', 20, 3000, 3000, NOW() + INTERVAL '180 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Join Discord server', 75, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Community event coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('AMA50', 'AMA participant reward', 50, 500, 500, NOW() + INTERVAL '30 days', true, false),
-('CONTEST', 'Contest participation bonus', 75, 300, 300, NOW() + INTERVAL '30 days', true, false),
-('GIVEAWAY', 'Giveaway entry bonus', 25, 5000, 5000, NOW() + INTERVAL '60 days', true, false),
-('SURVEY25', 'Survey completion reward', 25, 1000, 1000, NOW() + INTERVAL '60 days', true, false),
-('FEEDBACK', 'Feedback reward', 30, 1000, 1000, NOW() + INTERVAL '90 days', true, false),
-('REVIEW50', 'Leave a review bonus', 50, 500, 500, NOW() + INTERVAL '90 days', true, false),
-('TESTING', 'Beta tester reward', 100, 200, 200, NOW() + INTERVAL '60 days', true, false),
-('BUGBOUNTY', 'Bug report bonus', 200, 50, 50, NOW() + INTERVAL '365 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Subscribe to YouTube', 25, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Streak and loyalty coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('STREAK7', '7 day streak reward', 70, 2000, 2000, NOW() + INTERVAL '365 days', true, false),
-('STREAK30', '30 day streak reward', 300, 500, 500, NOW() + INTERVAL '365 days', true, false),
-('STREAK100', '100 day streak reward', 1000, 100, 100, NOW() + INTERVAL '365 days', true, false),
-('LOYAL50', 'Loyal user bonus', 50, 1000, 1000, NOW() + INTERVAL '180 days', true, false),
-('ACTIVE30', 'Active user reward', 30, 2000, 2000, NOW() + INTERVAL '90 days', true, false),
-('DEDICATED', 'Dedicated user bonus', 100, 500, 500, NOW() + INTERVAL '180 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Follow on TikTok', 30, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Partnership coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('PARTNER100', 'Partner site bonus', 100, 500, 500, NOW() + INTERVAL '180 days', true, false),
-('COLLAB50', 'Collaboration reward', 50, 1000, 1000, NOW() + INTERVAL '120 days', true, false),
-('SPONSOR', 'Sponsored event bonus', 75, 500, 500, NOW() + INTERVAL '90 days', true, false),
-('AFFILIATE', 'Affiliate member bonus', 60, 1000, 1000, NOW() + INTERVAL '180 days', true, false),
-('INFLUENCER', 'Influencer code', 150, 300, 300, NOW() + INTERVAL '90 days', true, false);
+-- Weekly/monthly rotating coupons (50 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Monday special bonus', 20, 20, 20, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Level up coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('LEVEL5', 'Level 5 achievement', 50, 1000, 1000, NOW() + INTERVAL '365 days', true, false),
-('LEVEL10', 'Level 10 achievement', 100, 800, 800, NOW() + INTERVAL '365 days', true, false),
-('LEVEL25', 'Level 25 achievement', 250, 400, 400, NOW() + INTERVAL '365 days', true, false),
-('LEVEL50', 'Level 50 achievement', 500, 200, 200, NOW() + INTERVAL '365 days', true, false),
-('LEVEL100', 'Level 100 achievement', 1000, 100, 100, NOW() + INTERVAL '365 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Weekend warrior bonus', 50, 20, 20, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Lucky draw coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('LUCKY7', 'Lucky seven bonus', 77, 777, 777, NOW() + INTERVAL '180 days', true, false),
-('LUCKY13', 'Lucky thirteen', 13, 1300, 1300, NOW() + INTERVAL '180 days', true, false),
-('JACKPOT', 'Jackpot winner', 500, 10, 10, NOW() + INTERVAL '30 days', true, false),
-('GOLDEN', 'Golden ticket', 250, 50, 50, NOW() + INTERVAL '60 days', true, false),
-('DIAMOND', 'Diamond reward', 300, 30, 30, NOW() + INTERVAL '60 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Hourly claim bonus', 10, 50, 50, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
--- Support the site coupons
-INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
-('SUPPORT25', 'Support appreciation', 25, 5000, 5000, NOW() + INTERVAL '365 days', true, false),
-('THANKS50', 'Thank you bonus', 50, 2000, 2000, NOW() + INTERVAL '180 days', true, false),
-('DONATE', 'Donation thank you', 100, 500, 500, NOW() + INTERVAL '180 days', true, false),
-('PREMIUM', 'Premium user bonus', 200, 200, 200, NOW() + INTERVAL '365 days', true, false);
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Daily active user bonus', 25, 50, 50, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Weekly loyal user', 100, 10, 10, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Special event coupons (50 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Website launch celebration', 500, 5, 5, NOW() + INTERVAL '7 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Bitcoin 21M celebration', 21, 100, 100, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Satoshi Nakamoto tribute', 100, 50, 50, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Bitcoin halving 2024', 50, 100, 100, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'New Year celebration', 50, 50, 50, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Bonus/promotional coupons (50 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Special bonus code', 100, 10, 10, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Free satoshis giveaway', 25, 100, 100, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Crypto enthusiast bonus', 50, 50, 50, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'HODL reward', 100, 20, 20, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'To the moon bonus', 75, 25, 25, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- VIP/Tier coupons (40 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'VIP member reward', 500, 5, 5, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Elite tier bonus', 200, 10, 10, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Pro user bonus', 150, 15, 15, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Basic tier bonus', 75, 25, 25, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Seasonal coupons (80 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Spring season bonus', 40, 50, 50, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Summer special reward', 100, 25, 25, NOW() + INTERVAL '120 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Fall harvest bonus', 50, 40, 40, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Winter wonderland bonus', 75, 40, 40, NOW() + INTERVAL '120 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Holiday season special', 100, 25, 25, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Christmas gift bonus', 200, 15, 15, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Easter egg hunt bonus', 50, 50, 50, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Spooky season reward', 31, 100, 100, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Crypto milestone coupons (80 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Bitcoin to 100K celebration', 100, 25, 25, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Ethereum milestone bonus', 50, 25, 25, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Solana moon bonus', 25, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Doge army reward', 20, 100, 100, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Litecoin silver bonus', 30, 40, 40, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'TRON power bonus', 25, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'BNB Chain bonus', 35, 40, 40, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Polygon MATIC reward', 20, 75, 75, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Community event coupons (80 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'AMA participant reward', 50, 15, 15, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Contest participation bonus', 75, 10, 10, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Giveaway entry bonus', 25, 100, 100, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Survey completion reward', 25, 25, 25, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Feedback reward', 30, 25, 25, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Leave a review bonus', 50, 15, 15, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Beta tester reward', 100, 10, 10, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Bug report bonus', 200, 3, 3, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Streak and loyalty coupons (60 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), '7 day streak reward', 70, 50, 50, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), '30 day streak reward', 300, 15, 15, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), '100 day streak reward', 1000, 5, 5, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Loyal user bonus', 50, 25, 25, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Active user reward', 30, 50, 50, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Dedicated user bonus', 100, 15, 15, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Level up coupons (50 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Level 5 achievement', 50, 25, 25, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Level 10 achievement', 100, 20, 20, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Level 25 achievement', 250, 10, 10, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Level 50 achievement', 500, 5, 5, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Level 100 achievement', 1000, 3, 3, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Lucky draw coupons (50 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Lucky seven bonus', 77, 20, 20, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Lucky thirteen', 13, 35, 35, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Jackpot winner', 500, 1, 1, NOW() + INTERVAL '30 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Golden ticket', 250, 2, 2, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Diamond reward', 300, 2, 2, NOW() + INTERVAL '60 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Partnership coupons (50 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Partner site bonus', 100, 15, 15, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Collaboration reward', 50, 25, 25, NOW() + INTERVAL '120 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Sponsored event bonus', 75, 15, 15, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Affiliate member bonus', 60, 25, 25, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Influencer code', 150, 10, 10, NOW() + INTERVAL '90 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Referral bonus coupons (30 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Referral bonus code', 50, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Invite a friend bonus', 25, 100, 100, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Share and earn', 10, 200, 200, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+-- Support the site coupons (40 codes)
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Support appreciation', 25, 100, 100, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Thank you bonus', 50, 50, 50, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Donation thank you', 100, 15, 15, NOW() + INTERVAL '180 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo)
+SELECT generate_secure_coupon_code(), 'Premium user bonus', 200, 10, 10, NOW() + INTERVAL '365 days', true, false
+FROM generate_series(1, 10)
+ON CONFLICT DO NOTHING;
 
 -- Update statistics
 UPDATE ptc_ads SET created_at = NOW() - INTERVAL '1 day' WHERE is_demo = false;
