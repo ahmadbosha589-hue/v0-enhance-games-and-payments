@@ -33,6 +33,9 @@ import { CryptoIcon } from "@/components/crypto-icon"
 import confetti from "canvas-confetti"
 import { AntiBotVerification } from "@/components/captcha/anti-bot-verification"
 import { useDeviceFingerprintContext } from "@/components/security/device-fingerprint-provider"
+import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
+import { FaucetHealthPerCrypto } from "@/components/dashboard/faucet-health-per-crypto"
 
 // FaucetPay supported cryptocurrencies (excluding BTC which is on main claim page)
 const FAUCETPAY_CRYPTOS = [
@@ -1502,6 +1505,12 @@ if (cachedPtcCount !== null) {
           </div>
         </div>
 
+        {/* Faucet Health Per Crypto */}
+        <FaucetHealthPerCrypto className="mb-2" />
+
+        {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
+        <GoogleRewardedAds position="top" className="mb-4" />
+
         {/* Security Warnings */}
         {vpnDetected && (
           <Alert variant="destructive">
@@ -1850,6 +1859,16 @@ if (cachedPtcCount !== null) {
             </ul>
           </CardContent>
         </Card>
+
+        {/* Spacer to separate Google Ads from other networks per policy */}
+        <div className="h-8" aria-hidden="true" />
+
+        {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
+        <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
+
+        {/* Bottom Google Rewarded Ads */}
+        <div className="h-8" aria-hidden="true" />
+        <GoogleRewardedAds position="bottom" />
       </div>
     </div>
   )

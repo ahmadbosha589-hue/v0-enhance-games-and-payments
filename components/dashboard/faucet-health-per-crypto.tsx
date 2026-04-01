@@ -75,7 +75,11 @@ function getStatusIcon(status: string) {
   }
 }
 
-export function FaucetHealthPerCrypto() {
+interface FaucetHealthPerCryptoProps {
+  className?: string
+}
+
+export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps) {
   const [cryptoHealth, setCryptoHealth] = useState<CryptoHealth[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -137,7 +141,7 @@ export function FaucetHealthPerCrypto() {
 
   return (
     <TooltipProvider>
-      <Card className="border-primary/20">
+      <Card className={cn("border-primary/20", className)}>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <Heart className="h-4 w-4 text-primary" />

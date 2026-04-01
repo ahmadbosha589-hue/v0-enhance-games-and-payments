@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AdSlot } from "@/components/ads/ad-slot"
 import { AdblockProvider } from "@/components/adblock/adblock-provider"
+import { PageAdsWrapper } from "@/components/ads/page-ads-wrapper"
 import { ServerTime } from "@/components/server-time"
 import { DeviceFingerprintProvider } from "@/components/security/device-fingerprint-provider"
 import { AntiBotProvider } from "@/components/security/anti-bot-provider"
@@ -66,8 +67,15 @@ export default async function DashboardLayout({
             <DashboardSidebar profile={safeProfile} />
             <SidebarInset>
               <DashboardHeader profile={safeProfile} />
-              <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 pb-20 sm:pb-16 scroll-smooth-container">
-                {children}
+              <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 pb-24 sm:pb-20 scroll-smooth-container">
+                <PageAdsWrapper 
+                  showHeaderAds={true}
+                  showFooterAds={true}
+                  showSidebarAds={false}
+                  pageName="dashboard"
+                >
+                  {children}
+                </PageAdsWrapper>
                 <div className="hidden xl:block fixed right-4 top-1/2 -translate-y-1/2 z-10">
                   <AdSlot position="sidebar" size="skyscraper" />
                 </div>

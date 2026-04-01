@@ -42,6 +42,8 @@ import { useLanguage } from "@/lib/i18n/language-context"
 import { cn } from "@/lib/utils"
 import useSWR from "swr"
 import Image from "next/image"
+import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
 
 type GameType = "tetris" | "block_blast" | "car_racing" | "snake" | "memory" | "flappy"
@@ -1206,6 +1208,15 @@ export default function GamesPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
+      <GoogleRewardedAds position="bottom" className="mt-6" />
+
+      {/* Spacer to separate Google Ads from other networks per policy */}
+      <div className="h-8" aria-hidden="true" />
+
+      {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
+      <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
     </div>
   )
 }

@@ -20,6 +20,8 @@ import {
 import { toast } from "sonner"
 import Link from "next/link"
 import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
+import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Shortlink {
@@ -314,16 +316,28 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
         
-        {/* Bottom Ad Row - 3 ads */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <AdSlotMultiNetwork position="footer" size="rectangle" className="mx-auto" />
-          <AdSlotMultiNetwork position="footer" size="rectangle" className="mx-auto" />
-          <AdSlotMultiNetwork position="footer" size="rectangle" className="mx-auto" />
-        </div>
-        
-        {/* Full width leaderboard */}
-        <AdSlotMultiNetwork position="footer" size="leaderboard" className="mx-auto" />
-      </div>
-    </div>
+{/* Bottom Ad Row - 3 ads */}
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <AdSlotMultiNetwork position="footer" size="rectangle" className="mx-auto" />
+  <AdSlotMultiNetwork position="footer" size="rectangle" className="mx-auto" />
+  <AdSlotMultiNetwork position="footer" size="rectangle" className="mx-auto" />
+  </div>
+  
+  {/* Spacer to separate Google Ads from other networks per policy */}
+  <div className="h-8" aria-hidden="true" />
+  
+  {/* Google Rewarded Ads - 3x 60s static ads (MUST be separate from other networks) */}
+  <GoogleRewardedAds position="bottom" className="mt-4" />
+  
+  {/* Another spacer */}
+  <div className="h-8" aria-hidden="true" />
+  
+  {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
+  <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
+  
+  {/* Full width leaderboard */}
+  <AdSlotMultiNetwork position="footer" size="leaderboard" className="mx-auto mt-6" />
+  </div>
+  </div>
   )
-}
+  }

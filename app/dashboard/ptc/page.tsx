@@ -10,6 +10,8 @@ import { Play, Clock, Coins, CheckCircle2, Eye, Timer, TrendingUp, AlertCircle }
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { PTCAdCard } from "@/components/dashboard/ptc-ad-card"
 import { OfferwallVPNGuard } from "@/components/dashboard/offerwall-vpn-guard"
+import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
 export const metadata = {
   title: "PTC Ads | CryptoFaucet",
@@ -283,6 +285,15 @@ export default async function PTCPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
+        <GoogleRewardedAds position="bottom" className="mt-6" />
+
+        {/* Spacer to separate Google Ads from other networks per policy */}
+        <div className="h-8" aria-hidden="true" />
+
+        {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
+        <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
       </OfferwallVPNGuard>
     </div>
   )

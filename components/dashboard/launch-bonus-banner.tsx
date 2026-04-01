@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 // Launch date - set this to your actual launch date
-const LAUNCH_DATE = new Date("2024-01-15T00:00:00Z")
+const LAUNCH_DATE = new Date("2026-04-01T00:00:00Z")
 const LAUNCH_BONUS_DURATION_DAYS = 7
 const LAUNCH_BONUS_PERCENTAGE = 10
 
