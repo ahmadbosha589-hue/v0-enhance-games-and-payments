@@ -187,7 +187,7 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
       // Broadcast PTC completion so manual faucet auto-unlocks
       try {
         if (typeof BroadcastChannel !== "undefined") {
-          const bc = new BroadcastChannel("ptc_completion")
+          const bc = new BroadcastChannel("ptc_completed")
           bc.postMessage({ type: "ptc_completed", adId: ad.id, timestamp: Date.now() })
           bc.close()
         }
