@@ -182,6 +182,15 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
         adWindowRef.current.close()
       }
       
+      // Broadcast PTC completion so manual faucet auto-unlocks
+      try {
+        if (typeof BroadcastChannel !== "undefined") {
+          const bc = new BroadcastChannel("ptc_completion")
+          bc.postMessage({ type: "ptc_completed", adId: ad.id, timestamp: Date.now() })
+          bc.close()
+        }
+      } catch {}
+      
       // Clear cache
       try {
         sessionStorage.removeItem("mf_ptc_count_v1")

@@ -275,6 +275,79 @@ INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remainin
 ('PRO150', 'Pro user bonus', 150, 300, 300, NOW() + INTERVAL '365 days', true, false),
 ('BASIC75', 'Basic tier bonus', 75, 500, 500, NOW() + INTERVAL '365 days', true, false);
 
+-- Additional seasonal coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('SPRING2024', 'Spring season bonus', 40, 2000, 2000, NOW() + INTERVAL '90 days', true, false),
+('SUMMER100', 'Summer special reward', 100, 1000, 1000, NOW() + INTERVAL '120 days', true, false),
+('FALL50', 'Fall harvest bonus', 50, 1500, 1500, NOW() + INTERVAL '90 days', true, false),
+('WINTER75', 'Winter wonderland bonus', 75, 1500, 1500, NOW() + INTERVAL '120 days', true, false),
+('HOLIDAY100', 'Holiday season special', 100, 1000, 1000, NOW() + INTERVAL '60 days', true, false),
+('XMAS200', 'Christmas gift bonus', 200, 500, 500, NOW() + INTERVAL '30 days', true, false),
+('EASTER50', 'Easter egg hunt bonus', 50, 2000, 2000, NOW() + INTERVAL '90 days', true, false),
+('HALLOWEEN', 'Spooky season reward', 31, 3100, 3100, NOW() + INTERVAL '90 days', true, false);
+
+-- Crypto milestone coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('BTC100K', 'Bitcoin to 100K celebration', 100, 1000, 1000, NOW() + INTERVAL '365 days', true, false),
+('ETH10K', 'Ethereum milestone bonus', 50, 1000, 1000, NOW() + INTERVAL '365 days', true, false),
+('SOLMOON', 'Solana moon bonus', 25, 2000, 2000, NOW() + INTERVAL '180 days', true, false),
+('DOGEARMY', 'Doge army reward', 20, 5000, 5000, NOW() + INTERVAL '180 days', true, false),
+('LTCSILVER', 'Litecoin silver bonus', 30, 1500, 1500, NOW() + INTERVAL '180 days', true, false),
+('TRONPOWER', 'TRON power bonus', 25, 2000, 2000, NOW() + INTERVAL '180 days', true, false),
+('BNBCHAIN', 'BNB Chain bonus', 35, 1500, 1500, NOW() + INTERVAL '180 days', true, false),
+('MATICPOLY', 'Polygon MATIC reward', 20, 3000, 3000, NOW() + INTERVAL '180 days', true, false);
+
+-- Community event coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('AMA50', 'AMA participant reward', 50, 500, 500, NOW() + INTERVAL '30 days', true, false),
+('CONTEST', 'Contest participation bonus', 75, 300, 300, NOW() + INTERVAL '30 days', true, false),
+('GIVEAWAY', 'Giveaway entry bonus', 25, 5000, 5000, NOW() + INTERVAL '60 days', true, false),
+('SURVEY25', 'Survey completion reward', 25, 1000, 1000, NOW() + INTERVAL '60 days', true, false),
+('FEEDBACK', 'Feedback reward', 30, 1000, 1000, NOW() + INTERVAL '90 days', true, false),
+('REVIEW50', 'Leave a review bonus', 50, 500, 500, NOW() + INTERVAL '90 days', true, false),
+('TESTING', 'Beta tester reward', 100, 200, 200, NOW() + INTERVAL '60 days', true, false),
+('BUGBOUNTY', 'Bug report bonus', 200, 50, 50, NOW() + INTERVAL '365 days', true, false);
+
+-- Streak and loyalty coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('STREAK7', '7 day streak reward', 70, 2000, 2000, NOW() + INTERVAL '365 days', true, false),
+('STREAK30', '30 day streak reward', 300, 500, 500, NOW() + INTERVAL '365 days', true, false),
+('STREAK100', '100 day streak reward', 1000, 100, 100, NOW() + INTERVAL '365 days', true, false),
+('LOYAL50', 'Loyal user bonus', 50, 1000, 1000, NOW() + INTERVAL '180 days', true, false),
+('ACTIVE30', 'Active user reward', 30, 2000, 2000, NOW() + INTERVAL '90 days', true, false),
+('DEDICATED', 'Dedicated user bonus', 100, 500, 500, NOW() + INTERVAL '180 days', true, false);
+
+-- Partnership coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('PARTNER100', 'Partner site bonus', 100, 500, 500, NOW() + INTERVAL '180 days', true, false),
+('COLLAB50', 'Collaboration reward', 50, 1000, 1000, NOW() + INTERVAL '120 days', true, false),
+('SPONSOR', 'Sponsored event bonus', 75, 500, 500, NOW() + INTERVAL '90 days', true, false),
+('AFFILIATE', 'Affiliate member bonus', 60, 1000, 1000, NOW() + INTERVAL '180 days', true, false),
+('INFLUENCER', 'Influencer code', 150, 300, 300, NOW() + INTERVAL '90 days', true, false);
+
+-- Level up coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('LEVEL5', 'Level 5 achievement', 50, 1000, 1000, NOW() + INTERVAL '365 days', true, false),
+('LEVEL10', 'Level 10 achievement', 100, 800, 800, NOW() + INTERVAL '365 days', true, false),
+('LEVEL25', 'Level 25 achievement', 250, 400, 400, NOW() + INTERVAL '365 days', true, false),
+('LEVEL50', 'Level 50 achievement', 500, 200, 200, NOW() + INTERVAL '365 days', true, false),
+('LEVEL100', 'Level 100 achievement', 1000, 100, 100, NOW() + INTERVAL '365 days', true, false);
+
+-- Lucky draw coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('LUCKY7', 'Lucky seven bonus', 77, 777, 777, NOW() + INTERVAL '180 days', true, false),
+('LUCKY13', 'Lucky thirteen', 13, 1300, 1300, NOW() + INTERVAL '180 days', true, false),
+('JACKPOT', 'Jackpot winner', 500, 10, 10, NOW() + INTERVAL '30 days', true, false),
+('GOLDEN', 'Golden ticket', 250, 50, 50, NOW() + INTERVAL '60 days', true, false),
+('DIAMOND', 'Diamond reward', 300, 30, 30, NOW() + INTERVAL '60 days', true, false);
+
+-- Support the site coupons
+INSERT INTO coupons (code, description, reward_satoshis, max_uses, uses_remaining, expires_at, is_active, is_demo) VALUES
+('SUPPORT25', 'Support appreciation', 25, 5000, 5000, NOW() + INTERVAL '365 days', true, false),
+('THANKS50', 'Thank you bonus', 50, 2000, 2000, NOW() + INTERVAL '180 days', true, false),
+('DONATE', 'Donation thank you', 100, 500, 500, NOW() + INTERVAL '180 days', true, false),
+('PREMIUM', 'Premium user bonus', 200, 200, 200, NOW() + INTERVAL '365 days', true, false);
+
 -- Update statistics
 UPDATE ptc_ads SET created_at = NOW() - INTERVAL '1 day' WHERE is_demo = false;
 UPDATE shortlinks SET created_at = NOW() - INTERVAL '1 day' WHERE is_demo = false;
