@@ -110,10 +110,24 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning dir="ltr">
       <head>
+        {/* Font preconnects */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+        
+        {/* Ad network preconnects for faster loading - non-blocking */}
+        <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://a-ads.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://coinzilla.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com" />
+        <link rel="dns-prefetch" href="https://a-ads.com" />
+        <link rel="dns-prefetch" href="https://coinzilla.com" />
+        <link rel="dns-prefetch" href="https://bitmedia.io" />
+        <link rel="dns-prefetch" href="https://cointraffic.io" />
+        <link rel="dns-prefetch" href="https://adsterra.com" />
+        <link rel="dns-prefetch" href="https://hilltopads.com" />
+        <link rel="dns-prefetch" href="https://mellowads.com" />
 
         {/* Structured data for SEO */}
         <script

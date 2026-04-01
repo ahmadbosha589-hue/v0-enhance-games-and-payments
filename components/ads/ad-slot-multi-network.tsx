@@ -1,8 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, memo } from "react"
 import { cn } from "@/lib/utils"
-import Script from "next/script"
+import dynamic from "next/dynamic"
+
+// Lazy load heavy components
+const Script = dynamic(() => import("next/script").then(mod => mod.default), {
+  ssr: false,
+})
 
 // Ad network configurations - 12 networks for maximum profit
 const AD_NETWORKS = [
@@ -27,7 +32,9 @@ interface AdSlotMultiNetworkProps {
   position: AdPosition
   size: AdSize
   className?: string
-  refreshInterval?: number // ms - for rotating non-Google ads
+  refreshInterval?: number
+  priority?: "high" | "medium" | "low"
+  lazyLoad?: boolean
 }
 
 // Size configurations
@@ -39,47 +46,130 @@ const SIZE_CONFIG: Record<AdSize, { width: number; height: number; class: string
   "large-rectangle": { width: 336, height: 280, class: "h-[280px] w-full max-w-[336px]" },
 }
 
-export function AdSlotMultiNetwork({ 
+// Skeleton placeholder for lazy loading
+const AdSkeleton = memo(function AdSkeleton({ height }: { height: number }) {
+  return (
+    <div 
+      className="bg-muted/30 animate-pulse flex items-center justify-center rounded"
+      style={{ height }}
+    >
+      <span className="text-[10px] text-muted-foreground/40">Ad</span>
+    </div>
+  )
+})
+
+// Cache for ad configs to avoid refetching
+let configCache: Record<string, unknown> | null = null
+let configFetchPromise: Promise<Record<string, unknown>> | null = null
+
+async function getAdConfigs(): Promise<Record<string, unknown>> {
+  if (configCache) return configCache
+  
+  if (configFetchPromise) return configFetchPromise
+  
+  configFetchPromise = fetch("/api/ads/config", {
+    // Use cache for performance
+    next: { revalidate: 300 }, // 5 min cache
+  })
+    .then(res => res.ok ? res.json() : { configs: {} })
+    .then(data => {
+      configCache = data.configs || {}
+      return configCache
+    })
+    .catch(() => ({}))
+  
+  return configFetchPromise
+}
+
+export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({ 
   position, 
   size, 
   className,
-  refreshInterval = 30000 // Rotate every 30s for non-Google ads
+  refreshInterval = 30000,
+  priority = "medium",
+  lazyLoad = true,
 }: AdSlotMultiNetworkProps) {
   const [currentNetworkIndex, setCurrentNetworkIndex] = useState(0)
-  const [adConfigs, setAdConfigs] = useState<Record<string, any> | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [adConfigs, setAdConfigs] = useState<Record<string, unknown> | null>(configCache)
+  const [isVisible, setIsVisible] = useState(!lazyLoad || priority === "high")
+  const [shouldRender, setShouldRender] = useState(!lazyLoad || priority === "high")
   const [adError, setAdError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const observerRef = useRef<IntersectionObserver | null>(null)
 
-  // Fetch ad network configurations from API
+  const sizeConfig = SIZE_CONFIG[size]
+
+  // Lazy load with Intersection Observer
   useEffect(() => {
-    async function fetchConfigs() {
-      try {
-        const res = await fetch("/api/ads/config")
-        if (res.ok) {
-          const data = await res.json()
-          setAdConfigs(data.configs)
+    if (!lazyLoad || priority === "high" || isVisible) return
+    
+    const element = containerRef.current
+    if (!element) return
+
+    // Check if already in viewport
+    const rect = element.getBoundingClientRect()
+    if (rect.top < window.innerHeight + 200 && rect.bottom > -200) {
+      setIsVisible(true)
+      return
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setIsVisible(true)
+          observerRef.current?.disconnect()
         }
-      } catch (e) {
-        console.warn("[v0] Failed to fetch ad configs")
-      } finally {
-        setIsLoading(false)
+      },
+      { 
+        rootMargin: "300px", // Start loading 300px before visible
+        threshold: 0.01 
+      }
+    )
+
+    observerRef.current.observe(element)
+
+    return () => {
+      observerRef.current?.disconnect()
+    }
+  }, [lazyLoad, priority, isVisible])
+
+  // Delayed render for non-high priority
+  useEffect(() => {
+    if (!isVisible || shouldRender) return
+
+    const delay = priority === "medium" ? 50 : 150
+
+    // Use requestIdleCallback for low priority
+    if (priority === "low" && "requestIdleCallback" in window) {
+      const idleId = (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number })
+        .requestIdleCallback(() => setShouldRender(true), { timeout: 2000 })
+      return () => {
+        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId)
       }
     }
-    fetchConfigs()
-  }, [])
+
+    const timer = setTimeout(() => setShouldRender(true), delay)
+    return () => clearTimeout(timer)
+  }, [isVisible, shouldRender, priority])
+
+  // Fetch ad configs asynchronously
+  useEffect(() => {
+    if (!shouldRender) return
+    
+    getAdConfigs().then(setAdConfigs)
+  }, [shouldRender])
 
   // Rotate through non-Google ads
   useEffect(() => {
-    // Don't rotate if Google is the current network (Google must be static per policy)
+    if (!shouldRender || !adConfigs) return
+    
     const currentNetwork = AD_NETWORKS[currentNetworkIndex]
     if (currentNetwork.id === "google") return
 
     refreshTimerRef.current = setInterval(() => {
       setCurrentNetworkIndex(prev => {
         const next = (prev + 1) % AD_NETWORKS.length
-        // Skip Google in rotation (always static)
         if (AD_NETWORKS[next].id === "google") {
           return (next + 1) % AD_NETWORKS.length
         }
@@ -92,51 +182,41 @@ export function AdSlotMultiNetwork({
         clearInterval(refreshTimerRef.current)
       }
     }
-  }, [currentNetworkIndex, refreshInterval])
+  }, [currentNetworkIndex, refreshInterval, shouldRender, adConfigs])
 
-  // Handle ad error - try next network
   const handleAdError = useCallback(() => {
     setAdError(true)
-    // Move to next network
     setCurrentNetworkIndex(prev => (prev + 1) % AD_NETWORKS.length)
     setTimeout(() => setAdError(false), 100)
   }, [])
 
-  const sizeConfig = SIZE_CONFIG[size]
   const currentNetwork = AD_NETWORKS[currentNetworkIndex]
-  const config = adConfigs?.[currentNetwork.id]
+  const config = adConfigs?.[currentNetwork.id] as Record<string, unknown> | undefined
 
-  // Render specific ad network
-  const renderAdContent = () => {
-    if (isLoading) {
-      return (
-        <div className="flex items-center justify-center h-full bg-muted/50 animate-pulse">
-          <span className="text-xs text-muted-foreground">Loading ad...</span>
-        </div>
-      )
+  // Render ad content
+  const renderAdContent = useCallback(() => {
+    if (!shouldRender) {
+      return <AdSkeleton height={sizeConfig.height} />
     }
 
-    if (!config?.enabled) {
-      // Try next network if current is not configured
+    if (!config || !(config as { enabled?: boolean }).enabled) {
       if (currentNetworkIndex < AD_NETWORKS.length - 1) {
-        setTimeout(() => handleAdError(), 0)
+        // Use microtask to avoid setState during render
+        queueMicrotask(handleAdError)
       }
-      return (
-        <div className="flex items-center justify-center h-full bg-muted/30">
-          <span className="text-xs text-muted-foreground">Ad</span>
-        </div>
-      )
+      return <AdSkeleton height={sizeConfig.height} />
     }
+
+    const configTyped = config as Record<string, string | undefined>
 
     switch (currentNetwork.id) {
       case "google":
-        // Google AdSense - static, no refresh per policy
         return (
           <ins
             className="adsbygoogle"
             style={{ display: "block", width: "100%", height: "100%" }}
-            data-ad-client={config.publisherId}
-            data-ad-slot={config.adSlots?.[position] || config.defaultSlot}
+            data-ad-client={configTyped.publisherId}
+            data-ad-slot={configTyped.defaultSlot}
             data-ad-format="auto"
             data-full-width-responsive="true"
           />
@@ -145,9 +225,10 @@ export function AdSlotMultiNetwork({
       case "a-ads":
         return (
           <iframe
-            data-aa={config.publisherId}
-            src={`//ad.a-ads.com/${config.publisherId}?size=${sizeConfig.width}x${sizeConfig.height}`}
+            data-aa={configTyped.publisherId}
+            src={`//ad.a-ads.com/${configTyped.publisherId}?size=${sizeConfig.width}x${sizeConfig.height}`}
             style={{ width: sizeConfig.width, height: sizeConfig.height, border: 0, padding: 0, overflow: "hidden", backgroundColor: "transparent" }}
+            loading="lazy"
             onError={handleAdError}
           />
         )
@@ -156,7 +237,7 @@ export function AdSlotMultiNetwork({
         return (
           <div 
             className="coinzilla" 
-            data-zone={config.zoneId}
+            data-zone={configTyped.zoneId}
             style={{ width: sizeConfig.width, height: sizeConfig.height }}
           />
         )
@@ -164,11 +245,12 @@ export function AdSlotMultiNetwork({
       case "bitmedia":
         return (
           <iframe
-            src={`https://bitmedia.io/embed/${config.zoneId}`}
+            src={`https://bitmedia.io/embed/${configTyped.zoneId}`}
             width={sizeConfig.width}
             height={sizeConfig.height}
             frameBorder="0"
             scrolling="no"
+            loading="lazy"
             onError={handleAdError}
           />
         )
@@ -176,7 +258,7 @@ export function AdSlotMultiNetwork({
       case "cointraffic":
         return (
           <div 
-            id={`ct_${config.zoneId}_${position}`}
+            id={`ct_${configTyped.zoneId}_${position}`}
             style={{ width: sizeConfig.width, height: sizeConfig.height }}
           />
         )
@@ -185,9 +267,9 @@ export function AdSlotMultiNetwork({
         return (
           <div id={`medianet_${position}`}>
             <div 
-              id={config.cid}
-              data-cid={config.cid}
-              data-crid={config.crid}
+              id={configTyped.cid}
+              data-cid={configTyped.cid}
+              data-crid={configTyped.crid}
               style={{ width: sizeConfig.width, height: sizeConfig.height }}
             />
           </div>
@@ -196,11 +278,12 @@ export function AdSlotMultiNetwork({
       case "hilltopads":
         return (
           <iframe
-            src={`https://hilltopads.com/show/${config.zoneId}`}
+            src={`https://hilltopads.com/show/${configTyped.zoneId}`}
             width={sizeConfig.width}
             height={sizeConfig.height}
             frameBorder="0"
             scrolling="no"
+            loading="lazy"
             onError={handleAdError}
           />
         )
@@ -208,8 +291,8 @@ export function AdSlotMultiNetwork({
       case "adsterra":
         return (
           <div
-            data-ad-client={config.publisherId}
-            data-ad-slot={config.slotId}
+            data-ad-client={configTyped.publisherId}
+            data-ad-slot={configTyped.slotId}
             style={{ width: sizeConfig.width, height: sizeConfig.height }}
           />
         )
@@ -217,7 +300,7 @@ export function AdSlotMultiNetwork({
       case "propellerads":
         return (
           <div 
-            id={`propad_${config.zoneId}`}
+            id={`propad_${configTyped.zoneId}`}
             style={{ width: sizeConfig.width, height: sizeConfig.height }}
           />
         )
@@ -225,11 +308,12 @@ export function AdSlotMultiNetwork({
       case "trafficstars":
         return (
           <iframe
-            src={`https://tsyndicate.com/embed/${config.zoneId}`}
+            src={`https://tsyndicate.com/embed/${configTyped.zoneId}`}
             width={sizeConfig.width}
             height={sizeConfig.height}
             frameBorder="0"
             scrolling="no"
+            loading="lazy"
             onError={handleAdError}
           />
         )
@@ -237,12 +321,13 @@ export function AdSlotMultiNetwork({
       case "mellowads":
         return (
           <iframe
-            data-mellow-ad={config.zoneId}
-            src={`https://mellowads.com/ad/${config.zoneId}`}
+            data-mellow-ad={configTyped.zoneId}
+            src={`https://mellowads.com/ad/${configTyped.zoneId}`}
             width={sizeConfig.width}
             height={sizeConfig.height}
             frameBorder="0"
             scrolling="no"
+            loading="lazy"
             onError={handleAdError}
           />
         )
@@ -250,64 +335,51 @@ export function AdSlotMultiNetwork({
       case "adskeeper":
         return (
           <div 
-            id={`adskeeper_${config.widgetId}`}
+            id={`adskeeper_${configTyped.widgetId}`}
             style={{ width: sizeConfig.width, height: sizeConfig.height }}
           />
         )
 
       default:
-        return (
-          <div className="flex items-center justify-center h-full bg-muted/30">
-            <span className="text-xs text-muted-foreground">Advertisement</span>
-          </div>
-        )
+        return <AdSkeleton height={sizeConfig.height} />
     }
-  }
+  }, [shouldRender, config, currentNetwork.id, currentNetworkIndex, sizeConfig, position, handleAdError])
+
+  // Render scripts only when needed and visible
+  const renderScripts = useCallback(() => {
+    if (!shouldRender || !config || !(config as { enabled?: boolean }).enabled) return null
+
+    const configTyped = config as Record<string, string | undefined>
+
+    return (
+      <>
+        {currentNetwork.id === "google" && (
+          <Script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${configTyped.publisherId}`}
+            crossOrigin="anonymous"
+            strategy="lazyOnload"
+          />
+        )}
+        {currentNetwork.id === "coinzilla" && (
+          <Script src="https://coinzillatag.com/lib/display.js" strategy="lazyOnload" />
+        )}
+        {currentNetwork.id === "cointraffic" && (
+          <Script src={`https://cointraffic.io/js/${configTyped.publisherId}.js`} strategy="lazyOnload" />
+        )}
+        {currentNetwork.id === "medianet" && (
+          <Script src={`https://contextual.media.net/dmedianet.js?cid=${configTyped.cid}`} strategy="lazyOnload" />
+        )}
+        {currentNetwork.id === "adskeeper" && (
+          <Script src={`https://jsc.adskeeper.com/site/${configTyped.siteId}.js`} strategy="lazyOnload" />
+        )}
+      </>
+    )
+  }, [shouldRender, config, currentNetwork.id])
 
   return (
     <>
-      {/* Google AdSense Script - only load once */}
-      {currentNetwork.id === "google" && config?.enabled && (
-        <Script
-          async
-          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${config.publisherId}`}
-          crossOrigin="anonymous"
-          strategy="lazyOnload"
-        />
-      )}
-
-      {/* CoinZilla Script */}
-      {currentNetwork.id === "coinzilla" && config?.enabled && (
-        <Script
-          src="https://coinzillatag.com/lib/display.js"
-          strategy="lazyOnload"
-        />
-      )}
-
-      {/* Cointraffic Script */}
-      {currentNetwork.id === "cointraffic" && config?.enabled && (
-        <Script
-          src={`https://cointraffic.io/js/${config.publisherId}.js`}
-          strategy="lazyOnload"
-        />
-      )}
-
-      {/* Media.net Script */}
-      {currentNetwork.id === "medianet" && config?.enabled && (
-        <Script
-          src={`https://contextual.media.net/dmedianet.js?cid=${config.cid}`}
-          strategy="lazyOnload"
-        />
-      )}
-
-      {/* AdsKeeper Script */}
-      {currentNetwork.id === "adskeeper" && config?.enabled && (
-        <Script
-          src={`https://jsc.adskeeper.com/site/${config.siteId}.js`}
-          strategy="lazyOnload"
-        />
-      )}
-
+      {renderScripts()}
       <div
         ref={containerRef}
         className={cn(
@@ -320,9 +392,12 @@ export function AdSlotMultiNetwork({
         data-ad-position={position}
         data-ad-size={size}
         data-ad-network={currentNetwork.id}
+        data-ad-lazy={lazyLoad}
       >
         {renderAdContent()}
       </div>
     </>
   )
-}
+})
+
+export default AdSlotMultiNetwork

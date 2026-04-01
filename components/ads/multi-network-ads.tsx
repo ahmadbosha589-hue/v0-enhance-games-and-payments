@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useState, useRef, useCallback, memo } from "react"
 import { cn } from "@/lib/utils"
 import { RefreshCw } from "lucide-react"
 
@@ -25,62 +25,12 @@ interface MultiNetworkAdsProps {
   position?: "header" | "sidebar" | "content" | "footer"
   layout?: "grid" | "stack" | "inline"
   showLabels?: boolean
+  lazyLoad?: boolean
+  priority?: "high" | "medium" | "low"
 }
 
-export function MultiNetworkAds({ 
-  className, 
-  position = "content",
-  layout = "grid",
-  showLabels = false
-}: MultiNetworkAdsProps) {
-  const [refreshCounts, setRefreshCounts] = useState<Record<string, number>>({})
-  const [isVisible, setIsVisible] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const intervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
-  const mountTimeRef = useRef(Date.now())
-
-  // Track visibility
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsVisible(entry.isIntersecting),
-      { threshold: 0.1 }
-    )
-
-    observer.observe(containerRef.current)
-    return () => observer.disconnect()
-  }, [])
-
-  // Setup auto-refresh for each network
-  useEffect(() => {
-    if (!isVisible) return
-
-    AD_NETWORKS.forEach(network => {
-      // Skip AdsKeeper - it only refreshes on page load
-      if (network.pageLoadOnly || network.refreshInterval === 0) return
-
-      // Clear existing interval if any
-      const existingInterval = intervalsRef.current.get(network.id)
-      if (existingInterval) clearInterval(existingInterval)
-
-      // Set new interval for auto-refresh
-      const interval = setInterval(() => {
-        setRefreshCounts(prev => ({
-          ...prev,
-          [network.id]: (prev[network.id] || 0) + 1
-        }))
-      }, network.refreshInterval)
-
-      intervalsRef.current.set(network.id, interval)
-    })
-
-    return () => {
-      intervalsRef.current.forEach(interval => clearInterval(interval))
-      intervalsRef.current.clear()
-    }
-  }, [isVisible])
-
+// Memoized skeleton for lazy loading
+const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
   const getLayoutClasses = () => {
     switch (layout) {
       case "grid":
@@ -95,63 +45,49 @@ export function MultiNetworkAds({
   }
 
   return (
-    <div 
-      ref={containerRef}
-      className={cn(
-        "relative rounded-lg border bg-muted/20 p-3 sm:p-4",
-        className
-      )}
-    >
-      {/* Subtle header */}
-      {showLabels && (
-        <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
-          <span>Partner Ads</span>
-          <RefreshCw className="h-3 w-3 animate-spin opacity-50" />
-        </div>
-      )}
-
-      {/* Ad Network Slots */}
+    <div className="rounded-lg border bg-muted/20 p-3 sm:p-4 animate-pulse">
       <div className={getLayoutClasses()}>
         {AD_NETWORKS.map((network) => (
-          <NetworkAdSlot
+          <div 
             key={network.id}
-            network={network}
-            refreshCount={refreshCounts[network.id] || 0}
-            position={position}
-            showLabel={showLabels}
+            className="aspect-[4/3] sm:aspect-video rounded-md bg-muted/50"
           />
         ))}
       </div>
     </div>
   )
-}
+})
 
-interface NetworkAdSlotProps {
+// Memoized network ad slot
+const NetworkAdSlot = memo(function NetworkAdSlot({ 
+  network, 
+  refreshCount, 
+  position, 
+  showLabel,
+  isVisible 
+}: {
   network: typeof AD_NETWORKS[number]
   refreshCount: number
   position: string
   showLabel?: boolean
-}
-
-function NetworkAdSlot({ network, refreshCount, position, showLabel }: NetworkAdSlotProps) {
+  isVisible: boolean
+}) {
   const [isLoading, setIsLoading] = useState(false)
   const slotRef = useRef<HTMLDivElement>(null)
 
   // Trigger refresh animation when count changes
   useEffect(() => {
-    if (refreshCount === 0) return
+    if (refreshCount === 0 || !isVisible) return
     
     setIsLoading(true)
     const timeout = setTimeout(() => setIsLoading(false), 500)
     return () => clearTimeout(timeout)
-  }, [refreshCount])
+  }, [refreshCount, isVisible])
 
-  // Simulate ad content loading
+  // Simulate ad content loading - only when visible
   useEffect(() => {
-    if (!slotRef.current) return
+    if (!slotRef.current || !isVisible) return
 
-    // In production, this would load actual ad scripts
-    // For now, we're creating placeholder slots that would be replaced by real ads
     const adConfig = {
       network: network.id,
       position,
@@ -159,9 +95,8 @@ function NetworkAdSlot({ network, refreshCount, position, showLabel }: NetworkAd
       timestamp: Date.now(),
     }
 
-    // Store config on element for ad scripts to read
     slotRef.current.dataset.adConfig = JSON.stringify(adConfig)
-  }, [network.id, position, refreshCount])
+  }, [network.id, position, refreshCount, isVisible])
 
   return (
     <div
@@ -176,14 +111,12 @@ function NetworkAdSlot({ network, refreshCount, position, showLabel }: NetworkAd
       data-refresh-count={refreshCount}
       data-page-load-only={network.pageLoadOnly || false}
     >
-      {/* Loading indicator */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
           <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
       )}
 
-      {/* Ad placeholder - would be replaced by actual ad content */}
       <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
         <div className={cn("w-2 h-2 rounded-full mb-1", network.color)} />
         {showLabel && (
@@ -193,7 +126,6 @@ function NetworkAdSlot({ network, refreshCount, position, showLabel }: NetworkAd
         )}
       </div>
 
-      {/* Actual ad container - scripts would inject here */}
       <div 
         className="absolute inset-0"
         id={`ad-${network.id}-${position}`}
@@ -201,19 +133,186 @@ function NetworkAdSlot({ network, refreshCount, position, showLabel }: NetworkAd
       />
     </div>
   )
-}
+})
+
+export const MultiNetworkAds = memo(function MultiNetworkAds({ 
+  className, 
+  position = "content",
+  layout = "grid",
+  showLabels = false,
+  lazyLoad = true,
+  priority = "medium"
+}: MultiNetworkAdsProps) {
+  const [refreshCounts, setRefreshCounts] = useState<Record<string, number>>({})
+  const [isVisible, setIsVisible] = useState(!lazyLoad || priority === "high")
+  const [shouldRender, setShouldRender] = useState(!lazyLoad || priority === "high")
+  const containerRef = useRef<HTMLDivElement>(null)
+  const intervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+
+  // Lazy load with Intersection Observer
+  useEffect(() => {
+    if (!lazyLoad || isVisible) return
+    
+    const element = containerRef.current
+    if (!element) return
+
+    // Check if already in viewport
+    const rect = element.getBoundingClientRect()
+    if (rect.top < window.innerHeight + 300 && rect.bottom > -300) {
+      setIsVisible(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { 
+        rootMargin: "300px", // Start loading 300px before visible
+        threshold: 0.01 
+      }
+    )
+
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [lazyLoad, isVisible])
+
+  // Delayed render based on priority
+  useEffect(() => {
+    if (!isVisible || shouldRender) return
+
+    const delay = priority === "high" ? 0 : priority === "medium" ? 100 : 200
+
+    // Use requestIdleCallback for low priority
+    if (priority === "low" && "requestIdleCallback" in window) {
+      const idleId = (window as Window & { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number })
+        .requestIdleCallback(() => setShouldRender(true), { timeout: 3000 })
+      return () => {
+        (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId)
+      }
+    }
+
+    const timer = setTimeout(() => setShouldRender(true), delay)
+    return () => clearTimeout(timer)
+  }, [isVisible, shouldRender, priority])
+
+  // Setup auto-refresh for each network - only when fully rendered
+  useEffect(() => {
+    if (!shouldRender) return
+
+    AD_NETWORKS.forEach(network => {
+      // Skip AdsKeeper - it only refreshes on page load
+      if (network.pageLoadOnly || network.refreshInterval === 0) return
+
+      const existingInterval = intervalsRef.current.get(network.id)
+      if (existingInterval) clearInterval(existingInterval)
+
+      const interval = setInterval(() => {
+        setRefreshCounts(prev => ({
+          ...prev,
+          [network.id]: (prev[network.id] || 0) + 1
+        }))
+      }, network.refreshInterval)
+
+      intervalsRef.current.set(network.id, interval)
+    })
+
+    return () => {
+      intervalsRef.current.forEach(interval => clearInterval(interval))
+      intervalsRef.current.clear()
+    }
+  }, [shouldRender])
+
+  const getLayoutClasses = useCallback(() => {
+    switch (layout) {
+      case "grid":
+        return "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3"
+      case "stack":
+        return "flex flex-col gap-2"
+      case "inline":
+        return "flex flex-wrap gap-2"
+      default:
+        return "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"
+    }
+  }, [layout])
+
+  // Show skeleton while lazy loading
+  if (!shouldRender) {
+    return (
+      <div ref={containerRef} className={className}>
+        <AdsSkeleton layout={layout} />
+      </div>
+    )
+  }
+
+  return (
+    <div 
+      ref={containerRef}
+      className={cn(
+        "relative rounded-lg border bg-muted/20 p-3 sm:p-4",
+        className
+      )}
+    >
+      {showLabels && (
+        <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
+          <span>Partner Ads</span>
+          <RefreshCw className="h-3 w-3 animate-spin opacity-50" />
+        </div>
+      )}
+
+      <div className={getLayoutClasses()}>
+        {AD_NETWORKS.map((network) => (
+          <NetworkAdSlot
+            key={network.id}
+            network={network}
+            refreshCount={refreshCounts[network.id] || 0}
+            position={position}
+            showLabel={showLabels}
+            isVisible={shouldRender}
+          />
+        ))}
+      </div>
+    </div>
+  )
+})
 
 // Export individual network component for specific placements
-export function SingleNetworkAd({ 
+export const SingleNetworkAd = memo(function SingleNetworkAd({ 
   networkId, 
   className,
-  size = "medium"
+  size = "medium",
+  lazyLoad = true
 }: { 
   networkId: string
   className?: string
   size?: "small" | "medium" | "large"
+  lazyLoad?: boolean
 }) {
+  const [isVisible, setIsVisible] = useState(!lazyLoad)
+  const containerRef = useRef<HTMLDivElement>(null)
+
   const network = AD_NETWORKS.find(n => n.id === networkId)
+
+  useEffect(() => {
+    if (!lazyLoad || isVisible || !containerRef.current) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: "200px", threshold: 0.01 }
+    )
+
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [lazyLoad, isVisible])
+
   if (!network) return null
 
   const sizeClasses = {
@@ -224,16 +323,24 @@ export function SingleNetworkAd({
 
   return (
     <div 
+      ref={containerRef}
       className={cn(
-        "rounded-md overflow-hidden border border-muted-foreground/10 bg-muted/30",
+        "rounded-md overflow-hidden border border-muted-foreground/10",
         sizeClasses[size],
+        isVisible ? "bg-muted/30" : "bg-muted/20 animate-pulse",
         className
       )}
       data-ad-network={networkId}
     >
-      <div className="w-full h-full flex items-center justify-center">
-        <div className={cn("w-3 h-3 rounded-full", network.color)} />
-      </div>
+      {isVisible ? (
+        <div className="w-full h-full flex items-center justify-center">
+          <div className={cn("w-3 h-3 rounded-full", network.color)} />
+        </div>
+      ) : (
+        <div className="w-full h-full" />
+      )}
     </div>
   )
-}
+})
+
+export default MultiNetworkAds
