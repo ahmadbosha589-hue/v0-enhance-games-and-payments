@@ -201,7 +201,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     const [first, second] = flippedCards
     const currentCards = cardsRef.current
 
-    console.log("[v0] Processing match check:", { first, second, currentScore: scoreRef.current, currentMatchedPairs: matchedPairsRef.current })
+
 
     // Validate indices
     if (!currentCards[first] || !currentCards[second]) {
@@ -212,7 +212,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }
 
     const isMatch = currentCards[first].icon === currentCards[second].icon
-    console.log("[v0] Match result:", isMatch, "icons:", currentCards[first].icon, currentCards[second].icon)
+
 
     if (isMatch) {
       // Match found
@@ -238,8 +238,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       const points = basePoints + comboBonus + streakBonus
 
       const timeoutId = setTimeout(() => {
-        console.log("[v0] Match timeout fired - updating state")
-        console.log("[v0] Before update - scoreRef:", scoreRef.current, "matchedPairsRef:", matchedPairsRef.current)
+
 
         // Update matched cards
         setCards(prev => prev.map(card =>
@@ -257,7 +256,7 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         const newMatchedPairs = matchedPairsRef.current + 1
         setMatchedPairs(newMatchedPairs)
 
-        console.log("[v0] After update - newScore:", newScore, "newMatchedPairs:", newMatchedPairs, "config.pairs:", config.pairs)
+
 
         // Check for game completion
         if (newMatchedPairs >= config.pairs && !hasEndedRef.current) {

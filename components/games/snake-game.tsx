@@ -55,9 +55,16 @@ const FOOD_TYPES: Record<FoodType, { color: string; points: number; chance: numb
 
 export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winThreshold = 500, initialScore = 0 }: SnakeGameProps) {
   // Apply difficulty - faster snake at higher levels
-  const baseSpeed = difficulty ? INITIAL_SPEED / difficulty.speedMultiplier : INITIAL_SPEED
+  // At higher difficulty, snake moves faster making the game harder
+  const baseSpeed = difficulty 
+    ? Math.max(60, INITIAL_SPEED / (1 + (difficulty.level - 1) * 0.15))
+    : INITIAL_SPEED
   const baseSpeedRef = useRef(baseSpeed)
   baseSpeedRef.current = baseSpeed
+  
+  // Track actual win threshold (passed from parent which is difficulty-adjusted)
+  const actualWinThreshold = winThreshold
+  
   const [snake, setSnake] = useState<Position[]>([{ x: 8, y: 8 }])
   const [hasWon, setHasWon] = useState(false)
   const [direction, setDirection] = useState<Direction>("RIGHT")
@@ -112,13 +119,14 @@ export function SnakeGame({ onGameEnd, onScoreUpdate, isActive, difficulty, winT
   }, [score, moves, gameOver])
 
   // Auto-win detection - when score reaches threshold, trigger win
+  // Uses the difficulty-adjusted threshold passed from parent
   useEffect(() => {
-    if (score >= winThreshold && !hasWon && !gameOver && isActive) {
+    if (score >= actualWinThreshold && !hasWon && !gameOver && isActive) {
       setHasWon(true)
       setGameOver(true)
       onGameEnd(score, moves)
     }
-  }, [score, winThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
+  }, [score, actualWinThreshold, hasWon, gameOver, isActive, moves, onGameEnd])
 
   const getRandomFoodType = (): FoodType => {
     const rand = Math.random()
