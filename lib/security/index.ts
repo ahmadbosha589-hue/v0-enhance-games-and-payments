@@ -53,6 +53,50 @@ export {
   createPNGHoneypotResponse,
 } from "./honeypot-logger"
 
+// Advanced rate limiting
+export {
+  checkRateLimit,
+  type RateLimitConfig,
+  type RateLimitResult,
+  type RateLimitContext,
+  DEFAULT_CONFIGS as RATE_LIMIT_CONFIGS,
+} from "./advanced-rate-limiter"
+
+// Abuse detection
+export {
+  detectAbuse,
+  type AbuseDetectionResult,
+  type AbuseType,
+  type AbuseEvidence,
+  type AbuseContext,
+  THRESHOLDS as ABUSE_THRESHOLDS,
+} from "./abuse-detection"
+
+// Balance integrity
+export {
+  validateBalance,
+  getAuthoritativeBalance,
+  modifyBalance,
+  repairBalance,
+  generateBalanceChecksum,
+  verifyBalanceChecksum,
+  type BalanceValidationResult,
+  type BalanceChangeRequest,
+  type BalanceChangeResult,
+} from "./balance-integrity"
+
+// Referral fraud detection
+export {
+  type ReferralFraudResult,
+} from "./referral-fraud-detector"
+
+// Server validation
+export {
+  validateSecurityServerSide,
+  type ServerValidationResult,
+  type ClientSecurityPayload,
+} from "./server-validation"
+
 // =============================================================================
 // QUICK USAGE GUIDE
 // =============================================================================
