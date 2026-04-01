@@ -11,6 +11,7 @@ import { ClaimButton } from "@/components/dashboard/claim-button"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { BalanceChart } from "@/components/dashboard/balance-chart"
 import { ResponsiveAd } from "@/components/ads/responsive-ad"
+import { WithdrawalTicker } from "@/components/dashboard/withdrawal-ticker"
 
 async function ChartSection({ userId }: { userId: string }) {
   const sevenDaysAgo = new Date()
@@ -223,6 +224,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+      {/* Withdrawal Ticker - Shows live withdrawals */}
+      <WithdrawalTicker className="animate-in fade-in slide-in-from-top-2 duration-500" />
+
       <ResponsiveAd position="header" className="mb-2" mobileHidden />
 
       {/* Welcome Banner - Improved responsiveness */}

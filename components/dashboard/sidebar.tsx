@@ -45,6 +45,8 @@ import {
   Megaphone,
   HandCoins,
   Crown,
+  Rocket,
+  Heart,
 } from "lucide-react"
 import { formatSatoshisDisplay } from "@/lib/utils/format"
 import { cn } from "@/lib/utils"
@@ -69,6 +71,7 @@ export function DashboardSidebar({ profile: initialProfile }: DashboardSidebarPr
   const mainNavItems = [
     { icon: LayoutDashboard, labelKey: "dashboard.nav.overview", href: "/dashboard", badge: null },
     { icon: Coins, labelKey: "dashboard.nav.claim", href: "/dashboard/claim", badge: "badge.hot" },
+    { icon: Rocket, labelKey: "dashboard.nav.boosters", href: "/dashboard/boosters", badge: "badge.new" },
     { icon: Wallet, labelKey: "dashboard.nav.withdrawals", href: "/dashboard/withdrawals", badge: null },
     { icon: ArrowDownUp, labelKey: "dashboard.nav.swap", href: "/dashboard/swap", badge: "badge.new" },
     { icon: Megaphone, labelKey: "dashboard.nav.advertise", href: "/dashboard/advertise", badge: "badge.new" },
@@ -91,6 +94,7 @@ export function DashboardSidebar({ profile: initialProfile }: DashboardSidebarPr
   ]
 
   const secondaryNavItems = [
+    { icon: Heart, labelKey: "dashboard.nav.supportUs", href: "/dashboard/support-us", badge: "badge.new" },
     { icon: Settings, labelKey: "dashboard.nav.settings", href: "/dashboard/settings" },
     { icon: HelpCircle, labelKey: "dashboard.nav.helpCenter", href: "/help", external: false },
   ]

@@ -64,7 +64,6 @@ export function Footer() {
       { labelKey: "footer.help" as const, href: "/help" },
       { labelKey: "footer.community" as const, href: PLATFORM_CONFIG.social.discord },
       { labelKey: "footer.status" as const, href: "/status" },
-      { labelKey: "footer.api" as const, href: "/docs/api" },
     ],
   }
 
