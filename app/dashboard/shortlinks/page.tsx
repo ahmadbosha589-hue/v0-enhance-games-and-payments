@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -176,18 +177,12 @@ export default function ShortlinksPage() {
     }
   }, [countdown, activeLink, completeVisit])
 
-  async function startVisit(shortlink: Shortlink) {
+  const router = useRouter()
+  
+  function startVisit(shortlink: Shortlink) {
     if (visitedToday.has(shortlink.id) || activeLink) return
-
-    // Record exactly when the user opened the link so the server can validate duration
-    viewStartTimeRef.current = Date.now()
-
-    // Open link in new tab
-    window.open(shortlink.destination_url, "_blank")
-
-    // Start countdown
-    setActiveLink(shortlink.id)
-    setCountdown(shortlink.view_time_seconds)
+    // Redirect to the go page with 12 ad slots for maximum profit
+    router.push(`/dashboard/shortlinks/go/${shortlink.id}`)
   }
 
   const availableLinks = shortlinks.filter(s => !visitedToday.has(s.id))

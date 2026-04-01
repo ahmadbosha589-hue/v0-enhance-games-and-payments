@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Play, Clock, Coins, CheckCircle2, Eye, Timer, TrendingUp, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { PTCAdViewer } from "@/components/dashboard/ptc-ad-viewer"
+import { PTCAdCard } from "@/components/dashboard/ptc-ad-card"
 import { OfferwallVPNGuard } from "@/components/dashboard/offerwall-vpn-guard"
 
 export const metadata = {
@@ -139,35 +139,7 @@ async function AvailableAds({ userId }: { userId: string }) {
   return (
     <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
       {availableAds.map((ad) => (
-        <Card
-          key={ad.id}
-          className="group hover:shadow-lg transition-all duration-300 hover:border-green-500/50 overflow-hidden"
-        >
-          <CardHeader className="pb-2">
-            <div className="flex items-start justify-between gap-2">
-              <CardTitle className="text-base sm:text-lg line-clamp-1">{ad.title}</CardTitle>
-              <Badge className="bg-green-500/10 text-green-500 border-green-500/30 flex-shrink-0">
-                +{ad.reward_satoshis} sats
-              </Badge>
-            </div>
-            <CardDescription className="text-xs sm:text-sm line-clamp-2">
-              {ad.description || "Watch this advertisement to earn satoshis"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between text-xs sm:text-sm text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <Timer className="h-3.5 w-3.5" />
-                <span>{ad.duration_seconds}s</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Eye className="h-3.5 w-3.5" />
-                <span>{ad.total_views.toLocaleString()} views</span>
-              </div>
-            </div>
-            <PTCAdViewer ad={ad} userId={userId} />
-          </CardContent>
-        </Card>
+        <PTCAdCard key={ad.id} ad={ad} />
       ))}
     </div>
   )

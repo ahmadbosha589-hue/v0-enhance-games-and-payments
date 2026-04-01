@@ -659,7 +659,10 @@ function DirectFaucetContent() {
     [getCryptoAmount]
   )
 
-  // Refresh PTC status handler - manually check if user has completed 2 PTC ads today
+  // PTC requirement constant - 3 ads required for manual faucet access
+  const PTC_REQUIRED_COUNT = 3
+
+  // Refresh PTC status handler - manually check if user has completed 3 PTC ads today
   const handleRefreshPtcStatus = useCallback(async () => {
     if (!user?.id) return
 
@@ -692,16 +695,16 @@ function DirectFaucetContent() {
       const newCount = data.completedToday || 0
 
       setPtcAdsCompleted(newCount)
-      setIsLocked(newCount < 2)
+      setIsLocked(newCount < PTC_REQUIRED_COUNT)
 
       // Update cache with new value
       safeStorage.set(CACHE_KEYS.PTC_COUNT, newCount)
       safeStorage.set(CACHE_KEYS.CACHE_TIME, Date.now())
 
-      if (newCount >= 2) {
+      if (newCount >= PTC_REQUIRED_COUNT) {
         toast.success(`Unlocked! You have completed ${newCount} PTC ads today.`)
       } else {
-        toast.info(`${newCount}/2 PTC ads completed today. Watch ${2 - newCount} more to unlock.`)
+        toast.info(`${newCount}/${PTC_REQUIRED_COUNT} PTC ads completed today. Watch ${PTC_REQUIRED_COUNT - newCount} more to unlock.`)
       }
     } catch (e) {
       clearTimeout(timeoutId)
@@ -767,10 +770,10 @@ function DirectFaucetContent() {
       // Fast path - use cached data immediately
       setUser(cachedUser)
       if (cachedProfile) setProfile(cachedProfile)
-      if (cachedPtcCount !== null) {
-        setPtcAdsCompleted(cachedPtcCount)
-        setIsLocked(cachedPtcCount < 2)
-      }
+if (cachedPtcCount !== null) {
+  setPtcAdsCompleted(cachedPtcCount)
+  setIsLocked(cachedPtcCount < PTC_REQUIRED_COUNT)
+  }
       if (cachedClaimsData) {
         const counts: Record<string, number> = {}
         let total = 0
@@ -1078,7 +1081,7 @@ function DirectFaucetContent() {
             // Immediately update UI so lock state reflects reality
             if (mountedRef.current) {
               setPtcAdsCompleted(ptcCount)
-              setIsLocked(ptcCount < 2)
+              setIsLocked(ptcCount < PTC_REQUIRED_COUNT)
             }
             updateStep("ptc", value.error ? "error" : "success")
             break
@@ -1105,7 +1108,7 @@ function DirectFaucetContent() {
     if (mountedRef.current && initId === initCountRef.current) {
       setProfile(profileData)
       setPtcAdsCompleted(ptcCount)
-      setIsLocked(ptcCount < 2)
+      setIsLocked(ptcCount < PTC_REQUIRED_COUNT)
       setVpnDetected(!vpnAllowed)
 
 
@@ -1581,14 +1584,14 @@ function DirectFaucetContent() {
                 </div>
                 <div>
                   <h2 className="text-xl font-bold">Access Locked</h2>
-                  <p className="text-muted-foreground mt-1">
-                    Complete{" "}
-                    <span className="font-bold text-amber-500">2 PTC Ads</span> to unlock
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Progress value={(ptcAdsCompleted / 2) * 100} className="w-48 h-2" />
-                  <span className="text-sm font-medium">{ptcAdsCompleted}/2</span>
+<p className="text-muted-foreground mt-1">
+  Complete{" "}
+  <span className="font-bold text-amber-500">{PTC_REQUIRED_COUNT} PTC Ads</span> to unlock
+  </p>
+  </div>
+  <div className="flex items-center gap-2">
+  <Progress value={(ptcAdsCompleted / PTC_REQUIRED_COUNT) * 100} className="w-48 h-2" />
+  <span className="text-sm font-medium">{ptcAdsCompleted}/{PTC_REQUIRED_COUNT}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button asChild className="gap-2 bg-amber-500 hover:bg-amber-600">
@@ -1837,7 +1840,7 @@ function DirectFaucetContent() {
           <CardContent className="p-4">
             <h3 className="font-semibold mb-2">How it works:</h3>
             <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-4">
-              <li>Complete 2 PTC ads daily to unlock the direct faucet</li>
+              <li>Complete 3 PTC ads daily to unlock the direct faucet</li>
               <li>Complete verification to prove you are human</li>
               <li>Claim from any cryptocurrency every 60 seconds (1 minute per coin)</li>
               <li>
