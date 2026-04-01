@@ -281,12 +281,14 @@ export type TranslationKey =
   | "admin.nav.withdrawals"
   | "admin.nav.transactions"
   | "admin.nav.tournaments"
+  | "admin.nav.boosters"
   | "admin.nav.analytics"
   | "admin.nav.auditLogs"
   | "admin.nav.notifications"
   | "admin.nav.adManagement"
   | "admin.nav.settings"
   | "admin.nav.systemSettings"
+  | "admin.nav.envVars"
   | "admin.nav.permissions"
   | "admin.nav.backToUserView"
   | "admin.header.search"
@@ -717,11 +719,13 @@ const en: Record<TranslationKey, string> = {
   "admin.nav.withdrawals": "Withdrawals",
   "admin.nav.transactions": "Transactions",
   "admin.nav.tournaments": "Tournaments",
+  "admin.nav.boosters": "Boosters",
   "admin.nav.analytics": "Analytics",
   "admin.nav.auditLogs": "Audit Logs",
   "admin.nav.notifications": "Notifications",
   "admin.nav.adManagement": "Ad Management",
   "admin.nav.settings": "Settings",
+  "admin.nav.envVars": "Environment Vars",
   "admin.nav.systemSettings": "System Settings",
   "admin.nav.permissions": "Permissions",
   "admin.nav.backToUserView": "Back to User View",
@@ -1331,7 +1335,7 @@ const ru: Record<TranslationKey, string> = {
   "theme.system": "Системная",
   "about.badge": "О нас",
   "about.title": "Строим будущее",
-  "about.titleHighlight": "к��ипто-заработка",
+  "about.titleHighlight": "к��ипто-зараб��тка",
   "about.titleEnd": "",
   "about.description":
     "Наша миссия - сд��лать криптовалюту доступной для вс��х через нашу инновационную faucet платформу.",
@@ -2539,7 +2543,7 @@ const ko: Record<TranslationKey, string> = {
   "contact.form.title": "메시지 보내기",
   "contact.form.description": "아래 양식을 작성해 주시면 최대한 빨리 답변해 드리겠습니다.",
   "contact.form.name": "이름",
-  "contact.form.namePlaceholder": "귀하의 이름",
+  "contact.form.namePlaceholder": "귀��의 이름",
   "contact.form.email": "이메일",
   "contact.form.emailPlaceholder": "your@email.com",
   "contact.form.subject": "���목",

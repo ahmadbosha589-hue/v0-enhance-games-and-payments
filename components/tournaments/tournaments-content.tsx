@@ -14,6 +14,7 @@ import {
   TrendingUp, Medal, Calendar, Gift, Droplets, ShoppingBag,
   ChevronRight, Star, Sparkles, Timer, Award, ArrowRight, Heart, Play
 } from "lucide-react"
+import { UserTierBadgeCompact, type UserTier } from "@/components/ui/user-tier-badge"
 import { cn } from "@/lib/utils"
 
 interface TournamentsContentProps {
@@ -25,11 +26,12 @@ type TournamentType = "faucet_claims" | "offerwall_earnings" | "highest_earners"
 
 interface LeaderboardEntry {
   user_id: string
-  username: string
+  username: string | null
   avatar_url: string | null
   score: number
   rank: number
   is_current_user: boolean
+  user_tier?: UserTier
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -471,6 +473,9 @@ function TournamentCard({
                       {entry.username?.slice(0, 2).toUpperCase() || "??"}
                     </AvatarFallback>
                   </Avatar>
+                  {entry.user_tier && entry.user_tier !== "none" && (
+                    <UserTierBadgeCompact tier={entry.user_tier} />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className={cn(
                       "text-xs sm:text-sm truncate",

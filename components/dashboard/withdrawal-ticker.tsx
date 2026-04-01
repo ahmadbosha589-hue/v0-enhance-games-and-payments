@@ -5,6 +5,7 @@ import useSWR from "swr"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle2, Wallet, Coins, ExternalLink } from "lucide-react"
+import { UserTierBadgeCompact, type UserTier } from "@/components/ui/user-tier-badge"
 
 interface Withdrawal {
   id: string
@@ -13,6 +14,7 @@ interface Withdrawal {
   currency: string
   method: string
   created_at: string
+  user_tier?: UserTier
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -107,6 +109,7 @@ export function WithdrawalTicker({ className }: { className?: string }) {
           )}
         >
           <div className="flex items-center gap-2 flex-wrap">
+            <UserTierBadgeCompact tier={currentWithdrawal.user_tier || "none"} />
             <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
               {maskUsername(currentWithdrawal.username)} withdrew
             </span>
@@ -188,6 +191,7 @@ export function WithdrawalTickerExpanded({ className }: { className?: string }) 
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
+                  <UserTierBadgeCompact tier={withdrawal.user_tier || "none"} />
                   <span className="text-xs font-medium truncate">
                     {maskUsername(withdrawal.username)}
                   </span>

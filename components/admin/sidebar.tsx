@@ -23,6 +23,8 @@ import {
   Megaphone,
   Link2,
   Crown,
+  Rocket,
+  Key,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -69,6 +71,7 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
     { nameKey: "admin.nav.withdrawals", href: "/admin/withdrawals", icon: CreditCard },
     { nameKey: "admin.nav.transactions", href: "/admin/transactions", icon: FileText },
     { nameKey: "admin.nav.tournaments", href: "/admin/tournaments", icon: Crown },
+    { nameKey: "admin.nav.boosters", href: "/admin/boosters", icon: Rocket },
     { nameKey: "admin.nav.analytics", href: "/admin/analytics", icon: BarChart3 },
     { nameKey: "admin.nav.auditLogs", href: "/admin/audit", icon: Activity },
     { nameKey: "admin.nav.notifications", href: "/admin/notifications", icon: Bell },
@@ -78,6 +81,7 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
 
   const settingsNav = [
     { nameKey: "admin.nav.systemSettings", href: "/admin/settings", icon: Settings },
+    { nameKey: "admin.nav.envVars", href: "/admin/env-vars", icon: Key },
     { nameKey: "admin.nav.permissions", href: "/admin/permissions", icon: Shield },
   ]
 

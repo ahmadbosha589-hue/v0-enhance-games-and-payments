@@ -2,6 +2,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { formatSatoshisDisplay, formatNumber } from "@/lib/utils/format"
 import { cn } from "@/lib/utils"
+import { UserTierBadgeCompact, type UserTier } from "@/components/ui/user-tier-badge"
 
 interface LeaderboardEntry {
   id: string
@@ -9,6 +10,7 @@ interface LeaderboardEntry {
   total_earned_satoshis: number
   total_claims: number
   max_claim_streak: number
+  tier?: UserTier
 }
 
 interface LeaderboardTableProps {
@@ -49,6 +51,9 @@ export function LeaderboardTable({ entries, currentUserId }: LeaderboardTablePro
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-primary/10 text-xs text-primary">{initials}</AvatarFallback>
                   </Avatar>
+                  {entry.tier && entry.tier !== "none" && (
+                    <UserTierBadgeCompact tier={entry.tier} />
+                  )}
                   <span className={cn("font-medium", isCurrentUser && "text-primary")}>
                     {entry.display_name || "Anonymous"}
                     {isCurrentUser && " (You)"}

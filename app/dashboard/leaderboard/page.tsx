@@ -1,8 +1,30 @@
-import { getUser, getProfile, safeQuery } from "@/lib/supabase/server"
+import { getUser, getProfile, safeQuery, createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LeaderboardTable } from "@/components/dashboard/leaderboard-table"
 import { Trophy, Medal, Award } from "lucide-react"
+import { UserTierBadge, type UserTier } from "@/components/ui/user-tier-badge"
+
+async function getUserTier(userId: string): Promise<UserTier> {
+  try {
+    const supabase = await createClient()
+    if (!supabase) return "none"
+    
+    const { data } = await supabase
+      .from("user_boosters")
+      .select("tier")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single()
+    
+    return (data?.tier as UserTier) || "none"
+  } catch {
+    return "none"
+  }
+}
 
 export default async function LeaderboardPage() {
   const user = await getUser()
@@ -10,7 +32,7 @@ export default async function LeaderboardPage() {
   if (!user) redirect("/auth/login?redirect=/dashboard/leaderboard")
 
   // Fetch leaderboard with safe query
-  const leaderboard = await safeQuery(
+  const leaderboardData = await safeQuery(
     (supabase) =>
       supabase
         .from("profiles")
@@ -19,6 +41,14 @@ export default async function LeaderboardPage() {
         .order("total_earned_satoshis", { ascending: false })
         .limit(100),
     [],
+  )
+
+  // Get user tiers for top users (only for top 10 to avoid too many queries)
+  const leaderboard = await Promise.all(
+    leaderboardData.map(async (entry: any, index: number) => ({
+      ...entry,
+      tier: index < 10 ? await getUserTier(entry.id) : "none" as UserTier
+    }))
   )
 
   // Get current user's stats
@@ -84,7 +114,12 @@ export default async function LeaderboardPage() {
                       <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${colors[index]}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="truncate font-medium text-sm sm:text-base">{entry.display_name || "Anonymous"}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-medium text-sm sm:text-base">{entry.display_name || "Anonymous"}</p>
+                        {entry.tier && entry.tier !== "none" && (
+                          <UserTierBadge tier={entry.tier} size="xs" showLabel={false} />
+                        )}
+                      </div>
                       <p className="text-xs sm:text-sm text-muted-foreground">
                         {entry.total_earned_satoshis.toLocaleString()} sats
                       </p>

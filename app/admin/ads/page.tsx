@@ -17,8 +17,12 @@ import {
   Lightbulb,
   CheckCircle2,
   Globe,
+  Megaphone,
+  Shield,
+  Zap,
 } from "lucide-react"
 import { AdSettingsForm } from "@/components/admin/ad-settings-form"
+import { AdNetworkSettings } from "@/components/admin/ad-network-settings"
 
 export const metadata: Metadata = {
   title: "Ad Management | Admin",
@@ -46,63 +50,68 @@ interface AdSetting {
 async function AdStats() {
   try {
     const adminSupabase = createAdminClient()
-    const { data: ads, error } = await adminSupabase.from("ad_settings").select("*").order("position")
+    
+    if (!adminSupabase) return <AdStatsEmpty />
+    
+    // Fetch from both old and new tables
+    const [adsResult, networkConfigsResult] = await Promise.all([
+      adminSupabase.from("ad_settings").select("*").order("position"),
+      adminSupabase.from("ad_network_configs").select("*")
+    ])
 
-    if (error) {
-      console.error("AdStats error:", error)
-      return <AdStatsEmpty />
-    }
+    const ads = adsResult.data || []
+    const networkConfigs = networkConfigsResult.data || []
 
-    const activeNetworks = ads?.filter((ad) => ad.enabled).length || 0
-    const totalNetworks = ads?.length || 0
+    const legacyActiveNetworks = ads.filter((ad) => ad.enabled).length
+    const newActiveNetworks = networkConfigs.filter((n) => n.enabled).length
+    const totalActiveNetworks = legacyActiveNetworks + newActiveNetworks
+    const totalNetworks = 12
 
     const stats = [
       {
-        label: "Active Networks",
-        value: `${activeNetworks} / ${totalNetworks}`,
+        label: "Available Networks",
+        value: `${totalNetworks}`,
         icon: Globe,
+        color: "text-blue-500",
+        bg: "bg-blue-500/10",
+      },
+      {
+        label: "Configured",
+        value: `${ads.length + networkConfigs.length}`,
+        icon: Settings2,
+        color: "text-amber-500",
+        bg: "bg-amber-500/10",
+      },
+      {
+        label: "Active",
+        value: `${totalActiveNetworks}`,
+        icon: CheckCircle2,
         color: "text-green-500",
         bg: "bg-green-500/10",
       },
       {
-        label: "Total Impressions",
-        value: "0",
-        icon: Eye,
-        color: "text-blue-500",
-        bg: "bg-blue-500/10",
-        note: "Coming soon",
-      },
-      {
-        label: "Total Clicks",
-        value: "0",
-        icon: MousePointer,
-        color: "text-yellow-500",
-        bg: "bg-yellow-500/10",
-        note: "Coming soon",
-      },
-      {
         label: "Est. Revenue",
-        value: "0 sats",
+        value: "Tracking",
         icon: DollarSign,
         color: "text-emerald-500",
         bg: "bg-emerald-500/10",
-        note: "Coming soon",
+        note: "Per impression",
       },
     ]
 
     return (
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.label} className="border-border/50">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 sm:p-3 rounded-xl ${stat.bg}`}>
+            <CardContent className="p-3 sm:p-4 lg:p-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={`p-2 sm:p-2.5 rounded-xl ${stat.bg} shrink-0`}>
                   <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{stat.label}</p>
-                  <p className="text-lg sm:text-2xl font-bold truncate">{stat.value}</p>
-                  {stat.note && <p className="text-xs text-muted-foreground">{stat.note}</p>}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{stat.label}</p>
+                  <p className="text-base sm:text-lg lg:text-2xl font-bold truncate">{stat.value}</p>
+                  {stat.note && <p className="text-[9px] sm:text-xs text-muted-foreground">{stat.note}</p>}
                 </div>
               </div>
             </CardContent>
@@ -118,48 +127,24 @@ async function AdStats() {
 
 function AdStatsEmpty() {
   const stats = [
-    {
-      label: "Active Networks",
-      value: "0",
-      icon: Globe,
-      color: "text-green-500",
-      bg: "bg-green-500/10",
-    },
-    {
-      label: "Total Impressions",
-      value: "0",
-      icon: Eye,
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-    },
-    {
-      label: "Total Clicks",
-      value: "0",
-      icon: MousePointer,
-      color: "text-yellow-500",
-      bg: "bg-yellow-500/10",
-    },
-    {
-      label: "Est. Revenue",
-      value: "0 sats",
-      icon: DollarSign,
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
-    },
+    { label: "Available Networks", value: "12", icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Configured", value: "0", icon: Settings2, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { label: "Active", value: "0", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
+    { label: "Est. Revenue", value: "$0", icon: DollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
   ]
 
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
       {stats.map((stat) => (
         <Card key={stat.label} className="border-border/50">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 sm:p-3 rounded-xl ${stat.bg}`}>
+          <CardContent className="p-3 sm:p-4 lg:p-6">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className={`p-2 sm:p-2.5 rounded-xl ${stat.bg} shrink-0`}>
                 <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
               </div>
-              <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-muted-foreground truncate">{stat.label}</p>
-                <p className="text-lg sm:text-2xl font-bold truncate">{stat.value}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{stat.label}</p>
+                <p className="text-base sm:text-lg lg:text-2xl font-bold truncate">{stat.value}</p>
               </div>
             </div>
           </CardContent>
@@ -172,17 +157,29 @@ function AdStatsEmpty() {
 async function ActiveNetworksList() {
   try {
     const adminSupabase = createAdminClient()
-    const { data: ads, error } = await adminSupabase
-      .from("ad_settings")
-      .select("*")
-      .eq("enabled", true)
-      .order("position")
+    
+    if (!adminSupabase) {
+      return (
+        <div className="text-center py-8 text-muted-foreground">
+          Unable to connect to database.
+        </div>
+      )
+    }
+    
+    const [adsResult, networkConfigsResult] = await Promise.all([
+      adminSupabase.from("ad_settings").select("*").eq("enabled", true).order("position"),
+      adminSupabase.from("ad_network_configs").select("*").eq("enabled", true)
+    ])
 
-    if (error || !ads || ads.length === 0) {
+    const ads = adsResult.data || []
+    const networkConfigs = networkConfigsResult.data || []
+
+    if (ads.length === 0 && networkConfigs.length === 0) {
       return (
         <div className="text-center py-8">
           <Globe className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
-          <p className="text-muted-foreground">No active ad networks. Go to Settings to enable one.</p>
+          <p className="text-muted-foreground">No active ad networks</p>
+          <p className="text-sm text-muted-foreground mt-1">Go to the Networks tab to configure and enable ad networks</p>
         </div>
       )
     }
@@ -191,35 +188,90 @@ async function ActiveNetworksList() {
       aads: "bg-orange-500/10 text-orange-500 border-orange-500/20",
       coinzilla: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
       bitsmedia: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+      google_ads: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      cointraffic: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+      medianet: "bg-red-500/10 text-red-500 border-red-500/20",
+      hilltopads: "bg-green-500/10 text-green-500 border-green-500/20",
+      adsterra: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+      propellerads: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+      trafficstars: "bg-pink-500/10 text-pink-500 border-pink-500/20",
+      adskeeper: "bg-teal-500/10 text-teal-500 border-teal-500/20",
+    }
+
+    const networkNames: Record<string, string> = {
+      aads: "A-ADS",
+      coinzilla: "CoinZilla",
+      bitsmedia: "Bitmedia",
+      google_ads: "Google AdSense",
+      cointraffic: "Cointraffic",
+      medianet: "Media.net",
+      hilltopads: "HilltopAds",
+      adsterra: "Adsterra",
+      propellerads: "PropellerAds",
+      trafficstars: "TrafficStars",
+      adskeeper: "AdsKeeper",
+      a_ads: "A-ADS",
+      mellowads: "MellowAds",
     }
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
+        {/* Legacy ad settings */}
         {ads.map((ad: AdSetting) => (
           <Card key={ad.id} className="border-border/50">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-muted">
-                    <Monitor className="h-5 w-5 text-muted-foreground" />
+                  <div className="p-2 rounded-lg bg-muted shrink-0">
+                    <Monitor className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{ad.provider === "aads" ? "A-ADS" : ad.provider === "coinzilla" ? "CoinZilla" : "Bitmedia"} — {ad.position}</h3>
-                      <Badge variant="outline" className={networkColors[ad.provider] || ""}>
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-sm sm:text-base truncate">
+                        {networkNames[ad.provider] || ad.provider}
+                      </h3>
+                      <Badge variant="outline" className={`${networkColors[ad.provider] || ""} text-[10px]`}>
+                        <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
                         Active
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">Position: {ad.position}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">Position: {ad.position}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="text-right">
-                    <p className="text-muted-foreground text-xs">Config Status</p>
-                    <p className="font-medium text-green-500">Configured</p>
+                <Badge variant="secondary" className="text-[10px] shrink-0">Legacy</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        
+        {/* New network configs */}
+        {networkConfigs.map((config) => (
+          <Card key={config.id} className="border-border/50">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-muted shrink-0">
+                    <Megaphone className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-sm sm:text-base truncate">
+                        {networkNames[config.network_id] || config.network_id}
+                      </h3>
+                      <Badge variant="outline" className={`${networkColors[config.network_id] || "bg-primary/10 text-primary border-primary/20"} text-[10px]`}>
+                        <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
+                        Active
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                      Configured {new Date(config.created_at).toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
+                <Badge variant="outline" className="text-[10px] shrink-0 bg-green-500/10 text-green-500 border-green-500/20">
+                  <Shield className="h-2.5 w-2.5 mr-1" />
+                  Encrypted
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -238,16 +290,40 @@ async function ActiveNetworksList() {
 
 function StatsSkeleton() {
   return (
-    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
       {[...Array(4)].map((_, i) => (
         <Card key={i}>
-          <CardContent className="p-6">
-            <Skeleton className="h-16 w-full" />
+          <CardContent className="p-4 sm:p-6">
+            <Skeleton className="h-12 sm:h-16 w-full" />
           </CardContent>
         </Card>
       ))}
     </div>
   )
+}
+
+async function getAdNetworkConfigs() {
+  try {
+    const adminSupabase = createAdminClient()
+    if (!adminSupabase) return {}
+    
+    const { data: configs } = await adminSupabase.from("ad_network_configs").select("*")
+    
+    const configMap: Record<string, { config: Record<string, string>; enabled: boolean }> = {}
+    
+    if (configs) {
+      for (const config of configs) {
+        configMap[config.network_id] = {
+          config: { _configured: "true" },
+          enabled: config.enabled
+        }
+      }
+    }
+    
+    return configMap
+  } catch {
+    return {}
+  }
 }
 
 export default async function AdminAdsPage() {
@@ -259,35 +335,54 @@ export default async function AdminAdsPage() {
     redirect("/dashboard")
   }
 
+  const networkConfigs = await getAdNetworkConfigs()
+
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Ad Network Management</h1>
-        <p className="text-sm sm:text-base text-muted-foreground mt-1">
-          Configure and manage advertising networks to monetize your faucet
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Ad Network Management</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+          Configure and manage 12 advertising networks to maximize revenue
         </p>
       </div>
 
-      {/* Getting Started Alert */}
-      <Alert className="border-primary/20 bg-primary/5">
-        <Lightbulb className="h-4 w-4" />
-        <AlertTitle>Getting Started with Ads</AlertTitle>
-        <AlertDescription className="mt-2 text-sm">
-          <strong>Recommended networks for crypto faucets:</strong>
-          <ul className="mt-2 space-y-1 ml-4 list-disc">
-            <li>
-              <strong>A-ADS</strong> - Bitcoin-focused, no KYC, instant payouts
-            </li>
-            <li>
-              <strong>CoinZilla</strong> - Premium crypto ads with high CPM rates
-            </li>
-            <li>
-              <strong>Bitmedia</strong> - Multiple ad formats, crypto payments
-            </li>
-          </ul>
-        </AlertDescription>
-      </Alert>
+      {/* Feature highlights */}
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+              <Megaphone className="h-4 w-4 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm">12 Ad Networks</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Google, Cointraffic, Adsterra & more</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-green-500/20 bg-green-500/5">
+          <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-500/10 shrink-0">
+              <Shield className="h-4 w-4 text-green-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm">AES-256 Encrypted</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Secure credential storage</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-500/20 bg-amber-500/5">
+          <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/10 shrink-0">
+              <Zap className="h-4 w-4 text-amber-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-sm">Lazy Loading</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Optimized ad delivery</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Stats */}
       <Suspense fallback={<StatsSkeleton />}>
@@ -295,28 +390,46 @@ export default async function AdminAdsPage() {
       </Suspense>
 
       {/* Tabs for Settings and Overview */}
-      <Tabs defaultValue="settings" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="settings" className="gap-2">
-            <Settings2 className="h-4 w-4" />
-            <span>Settings</span>
+      <Tabs defaultValue="networks" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full max-w-lg grid-cols-3 h-auto">
+          <TabsTrigger value="networks" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
+            <Megaphone className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Networks</span>
+            <span className="sm:hidden">Nets</span>
           </TabsTrigger>
-          <TabsTrigger value="overview" className="gap-2">
-            <BarChart3 className="h-4 w-4" />
-            <span>Overview</span>
+          <TabsTrigger value="legacy" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
+            <Settings2 className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Legacy</span>
+            <span className="sm:hidden">Old</span>
+          </TabsTrigger>
+          <TabsTrigger value="overview" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
+            <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Overview</span>
+            <span className="sm:hidden">View</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="settings" className="space-y-6">
+        <TabsContent value="networks" className="space-y-4 sm:space-y-6">
+          <AdNetworkSettings initialConfigs={networkConfigs} />
+        </TabsContent>
+
+        <TabsContent value="legacy" className="space-y-4 sm:space-y-6">
+          <Alert className="border-amber-500/20 bg-amber-500/5">
+            <Lightbulb className="h-4 w-4" />
+            <AlertTitle className="text-sm">Legacy Configuration</AlertTitle>
+            <AlertDescription className="text-xs mt-1">
+              These are the original 3 ad networks (A-ADS, CoinZilla, Bitmedia). For new networks, use the Networks tab.
+            </AlertDescription>
+          </Alert>
+          
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
-                <Settings2 className="h-5 w-5" />
-                Ad Network Configuration
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Settings2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                Legacy Ad Configuration
               </CardTitle>
-              <CardDescription>
-                Add, configure, and manage your ad networks. Click "Add Ad Network" to get started, then follow the
-                step-by-step instructions for each network.
+              <CardDescription className="text-xs sm:text-sm">
+                Configure A-ADS, CoinZilla, and Bitmedia networks
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -325,14 +438,14 @@ export default async function AdminAdsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg sm:text-xl">Active Networks</CardTitle>
-              <CardDescription>Overview of all currently active ad networks</CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg">Active Networks</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">All currently enabled ad networks</CardDescription>
             </CardHeader>
             <CardContent>
-              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <Suspense fallback={<Skeleton className="h-48 sm:h-64 w-full" />}>
                 <ActiveNetworksList />
               </Suspense>
             </CardContent>

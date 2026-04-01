@@ -10,6 +10,7 @@ import { StatsSection } from "@/components/landing/stats-section"
 import { FAQSection } from "@/components/landing/faq-section"
 import { CTASection } from "@/components/landing/cta-section"
 import { Footer } from "@/components/landing/footer"
+import { LiveWithdrawals } from "@/components/landing/live-withdrawals"
 import { SkipLink } from "@/components/ui/skip-link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageSelector } from "@/components/language-selector"
@@ -135,6 +136,7 @@ export default function HomePage() {
       {/* Main Content */}
       <main id="main-content" className="flex-1">
         <HeroSection />
+        <LiveWithdrawals />
         <StatsSection />
         <FeaturesSection />
         <HowItWorksSection />

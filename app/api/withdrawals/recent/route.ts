@@ -19,6 +19,7 @@ export async function GET(request: Request) {
       .from("withdrawals")
       .select(`
         id,
+        user_id,
         amount_satoshis,
         payment_currency,
         payment_method,
@@ -37,6 +38,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ withdrawals: [] })
     }
 
+    // Get user tiers for these users
+    const userIds = (withdrawals || []).map((w: any) => w.user_id).filter(Boolean)
+    
+    let userTiers: Record<string, string> = {}
+    if (userIds.length > 0) {
+      const { data: boosters } = await adminSupabase
+        .from("user_boosters")
+        .select("user_id, tier")
+        .in("user_id", userIds)
+        .eq("is_active", true)
+        .gt("expires_at", new Date().toISOString())
+      
+      if (boosters) {
+        userTiers = boosters.reduce((acc: Record<string, string>, b: any) => {
+          acc[b.user_id] = b.tier
+          return acc
+        }, {})
+      }
+    }
+
     // Transform data for ticker display
     const formattedWithdrawals = (withdrawals || []).map((w: any) => ({
       id: w.id,
@@ -45,6 +66,7 @@ export async function GET(request: Request) {
       currency: w.payment_currency || "sats",
       method: w.payment_method || "faucetpay",
       created_at: w.created_at,
+      user_tier: userTiers[w.user_id] || "none",
     }))
 
     return NextResponse.json({ withdrawals: formattedWithdrawals })
