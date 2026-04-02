@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { SystemSettingsForm } from "@/components/admin/system-settings-form"
-import { Coins, CreditCard, Shield } from "lucide-react"
+import { AdminFaucetPayForm } from "@/components/admin/faucetpay-settings-form"
+import { Coins, CreditCard, Shield, Wallet } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -64,6 +65,19 @@ export default async function AdminSettingsPage() {
           </CardHeader>
           <CardContent>
             <SystemSettingsForm category="security" settings={settingsMap} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5" />
+              FaucetPay Integration
+            </CardTitle>
+            <CardDescription>Configure FaucetPay API key for payouts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdminFaucetPayForm />
           </CardContent>
         </Card>
       </div>

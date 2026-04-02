@@ -1,5 +1,3 @@
-"use server"
-
 import crypto from "crypto"
 
 // Character set excluding ambiguous characters (0, O, I, 1, L)

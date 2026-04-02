@@ -235,6 +235,7 @@ export type TranslationKey =
   | "dashboard.nav.manualFaucet"
   | "dashboard.nav.directFaucet"
   | "admin.nav.shortlinks"
+  | "admin.nav.coupons"
   | "dashboard.nav.games"
   | "dashboard.nav.coupons"
   | "dashboard.nav.shortlinks"
@@ -673,6 +674,7 @@ const en: Record<TranslationKey, string> = {
   "dashboard.nav.manualFaucet": "Manual Faucet",
   "dashboard.nav.directFaucet": "Direct Faucet",
   "admin.nav.shortlinks": "Shortlinks",
+  "admin.nav.coupons": "Coupons",
   "dashboard.nav.games": "Games",
   "dashboard.nav.tournaments": "Tournaments",
   "dashboard.nav.coupons": "Coupons",
@@ -2137,7 +2139,7 @@ const ja: Record<TranslationKey, string> = {
   "about.why.titleHighlight": "私たちを選ぶのか",
   "about.why.subtitle": "他のプラットフォームとの違い",
   "about.why.noFees.title": "手数料ゼロ",
-  "about.why.noFees.description": "隠れた手数料はありません。稼いだ分だけ受け取れます。",
+  "about.why.noFees.description": "隠れた���数料はありません。稼いだ分だけ受け取れます。",
   "about.why.instant.title": "即時処理",
   "about.why.instant.description": "出金はFaucetPayへ即座に処理されます。",
   "about.why.secure.title": "銀行レベル��セキュリティ",
@@ -2957,7 +2959,7 @@ const tr: Record<TranslationKey, string> = {
   "footer.company": "Şirket",
   "footer.legal": "Yasal",
   "footer.support": "Destek",
-  "footer.rights": "Tüm hakları saklıdır.",
+  "footer.rights": "T��m hakları saklıdır.",
   "footer.about": "Hakkımızda",
   "footer.blog": "Blog",
   "footer.contact": "İletişim",
