@@ -40,7 +40,7 @@ function maskUsername(username: string): string {
 
 function formatTimeAgo(date: string): string {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
-  
+
   if (seconds < 60) return "just now"
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
@@ -50,19 +50,29 @@ function formatTimeAgo(date: string): string {
 export function WithdrawalTicker({ className }: { className?: string }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [totalWithdrawn, setTotalWithdrawn] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const { data, isLoading, error } = useSWR<{ withdrawals: Withdrawal[] }>(
     "/api/withdrawals/recent",
     fetcher,
     {
-      refreshInterval: 30000,
-      revalidateOnFocus: false,
+      refreshInterval: 15000, // Faster refresh for more live feeling
+      revalidateOnFocus: true,
+      dedupingInterval: 10000,
       fallbackData: { withdrawals: [] }
     }
   )
 
   const withdrawals = data?.withdrawals || []
+
+  // Calculate total withdrawn
+  useEffect(() => {
+    if (withdrawals.length > 0) {
+      const total = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0)
+      setTotalWithdrawn(total)
+    }
+  }, [withdrawals])
 
   useEffect(() => {
     if (withdrawals.length <= 1) return
@@ -73,7 +83,7 @@ export function WithdrawalTicker({ className }: { className?: string }) {
         setCurrentIndex((prev) => (prev + 1) % withdrawals.length)
         setIsAnimating(false)
       }, 300)
-    }, 4000)
+    }, 3500) // Slightly faster rotation
 
     return () => clearInterval(interval)
   }, [withdrawals.length])
@@ -85,13 +95,16 @@ export function WithdrawalTicker({ className }: { className?: string }) {
   const currentWithdrawal = withdrawals[currentIndex]
   const methodColor = METHOD_COLORS[currentWithdrawal.method?.toLowerCase()] || METHOD_COLORS.faucetpay
   const methodLabel = METHOD_LABELS[currentWithdrawal.method?.toLowerCase()] || currentWithdrawal.method
+  const isNewest = currentIndex === 0 && withdrawals.length > 0
 
   return (
     <div
       ref={containerRef}
       className={cn(
-        "relative overflow-hidden rounded-xl border bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5",
+        "relative overflow-hidden rounded-xl border",
+        "bg-gradient-to-r from-green-500/5 via-emerald-500/5 to-green-500/5",
         "border-green-500/20 p-3 sm:p-4",
+        isNewest && "ring-1 ring-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]",
         className
       )}
     >
@@ -126,20 +139,28 @@ export function WithdrawalTicker({ className }: { className?: string }) {
           </div>
         </div>
 
-        {/* Indicator dots */}
-        {withdrawals.length > 1 && (
-          <div className="hidden sm:flex items-center gap-1">
-            {withdrawals.slice(0, 5).map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full transition-all duration-300",
-                  i === currentIndex ? "bg-green-500 w-3" : "bg-muted-foreground/30"
-                )}
-              />
-            ))}
-          </div>
-        )}
+        {/* Stats & Indicator dots */}
+        <div className="hidden sm:flex flex-col items-end gap-1">
+          {totalWithdrawn > 0 && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Coins className="h-3 w-3" />
+              <span>{totalWithdrawn.toLocaleString()} total</span>
+            </div>
+          )}
+          {withdrawals.length > 1 && (
+            <div className="flex items-center gap-1">
+              {withdrawals.slice(0, 5).map((_, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full transition-all duration-300",
+                    i === currentIndex ? "bg-green-500 w-3" : "bg-muted-foreground/30"
+                  )}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -170,7 +191,7 @@ export function WithdrawalTickerExpanded({ className }: { className?: string }) 
         <span className="text-sm font-medium">Recent Withdrawals</span>
         <Badge variant="secondary" className="text-[10px]">Live</Badge>
       </div>
-      
+
       <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
         {withdrawals.map((withdrawal, i) => {
           const methodColor = METHOD_COLORS[withdrawal.method?.toLowerCase()] || METHOD_COLORS.faucetpay

@@ -6,11 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target, Gamepad2, Ticket, Link2, HandCoins } from "lucide-react"
+import { Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target, Gamepad2, Ticket, Link2, HandCoins, Crown, Heart } from "lucide-react"
 
 export const metadata = {
   title: "All Earning Options | CryptoFaucet",
-  description: "8+ ways to earn free Bitcoin and crypto - Faucet claims, Direct Crypto Faucet to FaucetPay, Games, Shortlinks, Offerwalls, PTC Ads, Coupons, and Achievements",
+  description: "10+ ways to earn free Bitcoin and crypto - Faucet claims, Direct Crypto Faucet to FaucetPay, Games, Shortlinks, Offerwalls, PTC Ads, Coupons, Achievements, Tournaments, and more!",
 }
 
 function EarnPageSkeleton() {
@@ -225,6 +225,30 @@ export default async function EarnPage() {
       badge: "Bonus",
       badgeColor: "bg-amber-500",
     },
+    {
+      title: "Tournaments",
+      description: "Compete with other users in daily, weekly, and monthly tournaments to win massive prize pools!",
+      icon: Crown,
+      color: "text-yellow-500",
+      bgColor: "bg-gradient-to-br from-yellow-500/20 to-amber-500/10",
+      borderColor: "border-yellow-500/30",
+      href: "/dashboard/tournaments",
+      reward: "Up to 30,000 sats",
+      badge: "Compete & Win",
+      badgeColor: "bg-yellow-500",
+    },
+    {
+      title: "Support & Earn",
+      description: "Watch ads to help keep the faucet running and earn bonus satoshis while supporting us!",
+      icon: Heart,
+      color: "text-red-500",
+      bgColor: "bg-gradient-to-br from-red-500/20 to-pink-500/10",
+      borderColor: "border-red-500/30",
+      href: "/dashboard/support-us",
+      reward: "5-50 sats/view",
+      badge: "Help Us Grow",
+      badgeColor: "bg-red-500",
+    },
   ]
 
   const bonusMethods = [
@@ -250,7 +274,7 @@ export default async function EarnPage() {
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">All Earning Options</h1>
         <p className="text-sm sm:text-base text-muted-foreground">
-          8+ ways to earn free Bitcoin and crypto - from instant faucet claims to high-paying offerwalls!
+          10+ ways to earn free Bitcoin and crypto - from instant faucet claims to tournaments and high-paying offerwalls!
         </p>
       </div>
 

@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Ticket, Gift, Clock, CheckCircle, XCircle, Sparkles, Coins, AlertCircle } from "lucide-react"
-
+import { WatchAdBonusReward } from "@/components/ads/watch-ad-bonus-reward"
+import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface CouponRedemption {
@@ -29,6 +31,8 @@ export default function CouponsPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [recentRedemptions, setRecentRedemptions] = useState<CouponRedemption[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [lastRewardAmount, setLastRewardAmount] = useState<number>(0)
+  const [showDoubleBonus, setShowDoubleBonus] = useState(false)
 
   // Featured promo codes (hints)
   const promoHints = [
@@ -88,6 +92,8 @@ export default function CouponsPage() {
           text: `Congratulations! You received ${data.reward} satoshis!`
         })
         setCouponCode("")
+        setLastRewardAmount(data.reward)
+        setShowDoubleBonus(true)
         // Hard refresh the page to update balance and redemption history
         router.refresh()
         loadRedemptions()
@@ -164,6 +170,33 @@ export default function CouponsPage() {
                   <XCircle className="h-5 w-5 flex-shrink-0" />
                 )}
                 <span>{message.text}</span>
+              </div>
+            )}
+
+            {/* Watch Ad to Double Coupon Reward */}
+            {showDoubleBonus && lastRewardAmount > 0 && (
+              <div className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-pink-500/5 border border-purple-500/30">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-purple-500/20">
+                      <Gift className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm text-white">Double Your Coupon Reward!</p>
+                      <p className="text-xs text-gray-400">
+                        Watch 3 ads to earn +{lastRewardAmount} bonus satoshis
+                      </p>
+                    </div>
+                  </div>
+                  <WatchAdBonusReward
+                    type="coupon_double"
+                    baseAmount={lastRewardAmount}
+                    multiplier={2}
+                    isVisible={true}
+                    onComplete={() => setShowDoubleBonus(false)}
+                    className="shrink-0"
+                  />
+                </div>
               </div>
             )}
           </CardContent>
@@ -254,6 +287,15 @@ export default function CouponsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
+        <GoogleRewardedAds position="bottom" className="mt-6" />
+
+        {/* Spacer to separate Google Ads from other networks per policy */}
+        <div className="h-8" aria-hidden="true" />
+
+        {/* Other 11 Ad Networks */}
+        <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
       </div>
     </div>
   )

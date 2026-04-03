@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Heart, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Info } from "lucide-react"
+import { Heart, TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Info, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CryptoIcon } from "@/components/crypto-icon"
+import useSWR from "swr"
 
 interface CryptoHealth {
   symbol: string
@@ -19,18 +21,8 @@ interface CryptoHealth {
   estimatedDaysLeft: number
 }
 
-const CRYPTO_ICONS: Record<string, string> = {
-  BTC: "₿",
-  LTC: "Ł",
-  DOGE: "Ð",
-  TRX: "◈",
-  SOL: "◎",
-  ETH: "Ξ",
-  BNB: "⬡",
-  USDT: "$",
-  XRP: "✕",
-  MATIC: "⬢",
-}
+// SWR fetcher
+const fetcher = (url: string) => fetch(url).then(res => res.json())
 
 const CRYPTO_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   BTC: { bg: "bg-orange-500/10", text: "text-orange-500", border: "border-orange-500/30" },
@@ -80,45 +72,33 @@ interface FaucetHealthPerCryptoProps {
 }
 
 export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps) {
-  const [cryptoHealth, setCryptoHealth] = useState<CryptoHealth[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function fetchHealth() {
-      try {
-        const response = await fetch("/api/faucet-health/crypto")
-        if (response.ok) {
-          const data = await response.json()
-          setCryptoHealth(data.cryptos || [])
-        } else {
-          // Use mock data for demo
-          setCryptoHealth([
-            { symbol: "BTC", name: "Bitcoin", icon: "₿", healthPercentage: 85, status: "healthy", balanceSatoshis: 5000000, dailyPayouts: 50000, estimatedDaysLeft: 100 },
-            { symbol: "LTC", name: "Litecoin", icon: "Ł", healthPercentage: 72, status: "moderate", balanceSatoshis: 3500000, dailyPayouts: 45000, estimatedDaysLeft: 77 },
-            { symbol: "DOGE", name: "Dogecoin", icon: "Ð", healthPercentage: 90, status: "healthy", balanceSatoshis: 8000000, dailyPayouts: 80000, estimatedDaysLeft: 100 },
-            { symbol: "TRX", name: "TRON", icon: "◈", healthPercentage: 45, status: "low", balanceSatoshis: 1500000, dailyPayouts: 30000, estimatedDaysLeft: 50 },
-            { symbol: "SOL", name: "Solana", icon: "◎", healthPercentage: 95, status: "healthy", balanceSatoshis: 6000000, dailyPayouts: 55000, estimatedDaysLeft: 109 },
-            { symbol: "ETH", name: "Ethereum", icon: "Ξ", healthPercentage: 60, status: "moderate", balanceSatoshis: 2000000, dailyPayouts: 35000, estimatedDaysLeft: 57 },
-          ])
-        }
-      } catch {
-        // Use mock data on error
-        setCryptoHealth([
-          { symbol: "BTC", name: "Bitcoin", icon: "₿", healthPercentage: 85, status: "healthy", balanceSatoshis: 5000000, dailyPayouts: 50000, estimatedDaysLeft: 100 },
-          { symbol: "LTC", name: "Litecoin", icon: "Ł", healthPercentage: 72, status: "moderate", balanceSatoshis: 3500000, dailyPayouts: 45000, estimatedDaysLeft: 77 },
-          { symbol: "DOGE", name: "Dogecoin", icon: "Ð", healthPercentage: 90, status: "healthy", balanceSatoshis: 8000000, dailyPayouts: 80000, estimatedDaysLeft: 100 },
-          { symbol: "TRX", name: "TRON", icon: "◈", healthPercentage: 45, status: "low", balanceSatoshis: 1500000, dailyPayouts: 30000, estimatedDaysLeft: 50 },
-          { symbol: "SOL", name: "Solana", icon: "◎", healthPercentage: 95, status: "healthy", balanceSatoshis: 6000000, dailyPayouts: 55000, estimatedDaysLeft: 109 },
-        ])
-      } finally {
-        setLoading(false)
+  // Use SWR for better caching and background revalidation
+  const { data, isLoading, error } = useSWR<{ cryptos: CryptoHealth[]; source: string; timestamp: string }>(
+    "/api/faucet-health/crypto",
+    fetcher,
+    {
+      refreshInterval: 60000, // Refresh every 60 seconds
+      revalidateOnFocus: false,
+      dedupingInterval: 30000, // Dedupe requests within 30 seconds
+      errorRetryCount: 3,
+      fallbackData: {
+        cryptos: [
+          { symbol: "BTC", name: "Bitcoin", icon: "BTC", healthPercentage: 85, status: "healthy" as const, balanceSatoshis: 5000000, dailyPayouts: 50000, estimatedDaysLeft: 100 },
+          { symbol: "LTC", name: "Litecoin", icon: "LTC", healthPercentage: 72, status: "moderate" as const, balanceSatoshis: 3500000, dailyPayouts: 45000, estimatedDaysLeft: 77 },
+          { symbol: "DOGE", name: "Dogecoin", icon: "DOGE", healthPercentage: 90, status: "healthy" as const, balanceSatoshis: 8000000, dailyPayouts: 80000, estimatedDaysLeft: 100 },
+          { symbol: "TRX", name: "TRON", icon: "TRX", healthPercentage: 45, status: "low" as const, balanceSatoshis: 1500000, dailyPayouts: 30000, estimatedDaysLeft: 50 },
+          { symbol: "SOL", name: "Solana", icon: "SOL", healthPercentage: 95, status: "healthy" as const, balanceSatoshis: 6000000, dailyPayouts: 55000, estimatedDaysLeft: 109 },
+          { symbol: "ETH", name: "Ethereum", icon: "ETH", healthPercentage: 60, status: "moderate" as const, balanceSatoshis: 2000000, dailyPayouts: 35000, estimatedDaysLeft: 57 },
+        ],
+        source: "fallback",
+        timestamp: new Date().toISOString()
       }
     }
+  )
 
-    fetchHealth()
-    const interval = setInterval(fetchHealth, 120000) // Refresh every 2 minutes
-    return () => clearInterval(interval)
-  }, [])
+  const cryptoHealth = data?.cryptos || []
+  const dataSource = data?.source || "fallback"
+  const loading = isLoading && cryptoHealth.length === 0
 
   if (loading) {
     return (
@@ -143,16 +123,27 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
     <TooltipProvider>
       <Card className={cn("border-primary/20", className)}>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Heart className="h-4 w-4 text-primary" />
-            Faucet Health by Crypto
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Heart className="h-4 w-4 text-primary" />
+              Faucet Health by Crypto
+            </CardTitle>
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px] h-5",
+                dataSource === "faucetpay" ? "text-green-500 border-green-500/30" : "text-muted-foreground"
+              )}
+            >
+              {dataSource === "faucetpay" ? "Live" : "Estimated"}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
             {cryptoHealth.map((crypto) => {
               const colors = CRYPTO_COLORS[crypto.symbol] || { bg: "bg-muted", text: "text-foreground", border: "border-muted" }
-              
+
               return (
                 <Tooltip key={crypto.symbol}>
                   <TooltipTrigger asChild>
@@ -165,13 +156,11 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
                     >
                       {/* Crypto Icon & Name */}
                       <div className="flex items-center gap-1.5 mb-2">
-                        <span className={cn("text-lg font-bold", colors.text)}>
-                          {CRYPTO_ICONS[crypto.symbol] || crypto.symbol.charAt(0)}
-                        </span>
+                        <CryptoIcon symbol={crypto.symbol} size="sm" />
                         <span className="text-xs font-medium truncate">{crypto.symbol}</span>
                         {getStatusIcon(crypto.status)}
                       </div>
-                      
+
                       {/* Health Percentage */}
                       <div className="flex items-center justify-between mb-1.5">
                         <span className={cn("text-xl font-bold", getStatusColor(crypto.status))}>
@@ -183,18 +172,18 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
                           <TrendingDown className="h-3 w-3 text-red-500" />
                         )}
                       </div>
-                      
+
                       {/* Progress Bar */}
                       <div className="h-1.5 w-full rounded-full bg-black/20 overflow-hidden">
-                        <div 
+                        <div
                           className={cn("h-full transition-all duration-500", getProgressColor(crypto.status))}
                           style={{ width: `${crypto.healthPercentage}%` }}
                         />
                       </div>
-                      
+
                       {/* Status Badge */}
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={cn(
                           "absolute -top-1.5 -right-1.5 text-[8px] px-1 py-0 h-4 capitalize",
                           getStatusColor(crypto.status),
@@ -225,7 +214,7 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
               )
             })}
           </div>
-          
+
           {/* Legend */}
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3 pt-3 border-t text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> Healthy (70%+)</span>

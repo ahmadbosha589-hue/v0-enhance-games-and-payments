@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getUser, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
+import { validateClaimRequest, type ClaimContext } from "@/lib/security/anti-drain-protection"
 
 const CLAIM_VALUE_USD = 0.0009 // $0.0009 per claim
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
@@ -343,11 +344,67 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Account under review" }, { status: 403 })
     }
 
-    // Get IP address for rate limiting
+    // Get IP address and request headers for security validation
     const headersList = await headers()
     const ip = headersList.get("x-forwarded-for")?.split(",")[0] ||
       headersList.get("x-real-ip") ||
       "unknown"
+    const userAgent = headersList.get("user-agent") || ""
+
+    // Collect all headers for analysis
+    const requestHeaders: Record<string, string> = {}
+    headersList.forEach((value, key) => {
+      requestHeaders[key] = value
+    })
+
+    // =========================================================================
+    // ANTI-DRAIN PROTECTION - Multi-layer security validation
+    // =========================================================================
+    const claimContext: ClaimContext = {
+      userId: user.id,
+      ip,
+      userAgent,
+      fingerprint: fingerprint?.visitorId,
+      captchaToken,
+      timestamp: Date.now(),
+      cryptoSymbol,
+      requestHeaders
+    }
+
+    const antiDrainResult = await validateClaimRequest(claimContext)
+
+    if (!antiDrainResult.isAllowed) {
+      log.warn("Anti-drain protection blocked claim", {
+        userId: user.id,
+        ip,
+        reason: antiDrainResult.reason,
+        riskScore: antiDrainResult.riskScore,
+        factors: antiDrainResult.suspiciousFactors
+      })
+
+      return NextResponse.json(
+        {
+          error: antiDrainResult.reason || "Request blocked for security reasons",
+          code: "SECURITY_BLOCK",
+          retryAfter: antiDrainResult.blockDuration
+        },
+        {
+          status: 429,
+          headers: antiDrainResult.blockDuration
+            ? { "Retry-After": String(antiDrainResult.blockDuration) }
+            : undefined
+        }
+      )
+    }
+
+    // Log if risk score is elevated (but still allowed)
+    if (antiDrainResult.riskScore > 30) {
+      log.warn("Elevated risk claim allowed", {
+        userId: user.id,
+        riskScore: antiDrainResult.riskScore,
+        factors: antiDrainResult.suspiciousFactors
+      })
+    }
 
     // Check if IP has claimed recently (rate limiting)
     const { data: recentIpClaims } = await adminSupabase

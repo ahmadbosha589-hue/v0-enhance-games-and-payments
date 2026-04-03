@@ -50,9 +50,9 @@ interface AdSetting {
 async function AdStats() {
   try {
     const adminSupabase = createAdminClient()
-    
+
     if (!adminSupabase) return <AdStatsEmpty />
-    
+
     // Fetch from both old and new tables
     const [adsResult, networkConfigsResult] = await Promise.all([
       adminSupabase.from("ad_settings").select("*").order("position"),
@@ -157,7 +157,7 @@ function AdStatsEmpty() {
 async function ActiveNetworksList() {
   try {
     const adminSupabase = createAdminClient()
-    
+
     if (!adminSupabase) {
       return (
         <div className="text-center py-8 text-muted-foreground">
@@ -165,7 +165,7 @@ async function ActiveNetworksList() {
         </div>
       )
     }
-    
+
     const [adsResult, networkConfigsResult] = await Promise.all([
       adminSupabase.from("ad_settings").select("*").eq("enabled", true).order("position"),
       adminSupabase.from("ad_network_configs").select("*").eq("enabled", true)
@@ -243,7 +243,7 @@ async function ActiveNetworksList() {
             </CardContent>
           </Card>
         ))}
-        
+
         {/* New network configs */}
         {networkConfigs.map((config) => (
           <Card key={config.id} className="border-border/50">
@@ -306,11 +306,11 @@ async function getAdNetworkConfigs() {
   try {
     const adminSupabase = createAdminClient()
     if (!adminSupabase) return {}
-    
+
     const { data: configs } = await adminSupabase.from("ad_network_configs").select("*")
-    
+
     const configMap: Record<string, { config: Record<string, string>; enabled: boolean }> = {}
-    
+
     if (configs) {
       for (const config of configs) {
         configMap[config.network_id] = {
@@ -319,7 +319,7 @@ async function getAdNetworkConfigs() {
         }
       }
     }
-    
+
     return configMap
   } catch {
     return {}
@@ -391,11 +391,16 @@ export default async function AdminAdsPage() {
 
       {/* Tabs for Settings and Overview */}
       <Tabs defaultValue="networks" className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full max-w-lg grid-cols-3 h-auto">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4 h-auto">
           <TabsTrigger value="networks" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
             <Megaphone className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Networks</span>
             <span className="sm:hidden">Nets</span>
+          </TabsTrigger>
+          <TabsTrigger value="rewarded" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
+            <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Rewarded Ads</span>
+            <span className="sm:hidden">Rewarded</span>
           </TabsTrigger>
           <TabsTrigger value="legacy" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
             <Settings2 className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -413,6 +418,111 @@ export default async function AdminAdsPage() {
           <AdNetworkSettings initialConfigs={networkConfigs} />
         </TabsContent>
 
+        <TabsContent value="rewarded" className="space-y-4 sm:space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
+                Google Rewarded Ads Configuration
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Configure the 3 static 60-second rewarded ads that display on every page
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert className="border-blue-500/20 bg-blue-500/5">
+                <Lightbulb className="h-4 w-4" />
+                <AlertTitle className="text-sm">How Rewarded Ads Work</AlertTitle>
+                <AlertDescription className="text-xs mt-1">
+                  Rewarded ads are 60-second video ads that users watch to earn bonus rewards.
+                  Three ads run simultaneously on each page for maximum revenue.
+                  Users can also watch ads to double their faucet claim rewards.
+                </AlertDescription>
+              </Alert>
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3].map((slot) => (
+                  <Card key={slot} className="border-primary/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 rounded-lg bg-primary/10">
+                          <Eye className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">Rewarded Ad #{slot}</p>
+                          <p className="text-[10px] text-muted-foreground">60 seconds duration</p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Status</span>
+                          <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-500 border-green-500/30">
+                            <CheckCircle2 className="h-2.5 w-2.5 mr-1" />
+                            Active
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Slot ID</span>
+                          <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
+                            GOOGLE_ADS_SLOT_REWARDED_{slot}
+                          </code>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Duration</span>
+                          <span>60 seconds</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="pt-4 border-t">
+                <h4 className="font-medium text-sm mb-3">Ad Placement Settings</h4>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Card className="border-muted">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Monitor className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">Top Position</span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">Header</Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Shows rewarded ads at the top of pages
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-muted">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Monitor className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">Bottom Position</span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">Footer</Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Shows rewarded ads at the bottom of pages
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+
+              <Alert className="border-amber-500/20 bg-amber-500/5">
+                <Zap className="h-4 w-4" />
+                <AlertTitle className="text-sm">Double Reward Feature</AlertTitle>
+                <AlertDescription className="text-xs mt-1">
+                  Users can watch all 3 rewarded ads to double their faucet claim.
+                  This feature is available under each cryptocurrency on the manual faucet page.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="legacy" className="space-y-4 sm:space-y-6">
           <Alert className="border-amber-500/20 bg-amber-500/5">
             <Lightbulb className="h-4 w-4" />
@@ -421,7 +531,7 @@ export default async function AdminAdsPage() {
               These are the original 3 ad networks (A-ADS, CoinZilla, Bitmedia). For new networks, use the Networks tab.
             </AlertDescription>
           </Alert>
-          
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base sm:text-lg flex items-center gap-2">

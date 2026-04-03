@@ -65,7 +65,9 @@ const AD_NETWORKS: AdNetwork[] = [
     fields: [
       { key: "GOOGLE_ADS_CLIENT_ID", label: "Client ID", type: "text", placeholder: "ca-pub-XXXXXXXXXXXXXXXX", required: true },
       { key: "GOOGLE_ADS_SLOT_BANNER", label: "Banner Slot ID", type: "text", placeholder: "1234567890", required: true },
-      { key: "GOOGLE_ADS_SLOT_REWARDED", label: "Rewarded Ad Slot ID", type: "text", placeholder: "0987654321" },
+      { key: "GOOGLE_ADS_SLOT_REWARDED_1", label: "Rewarded Ad Slot 1", type: "text", placeholder: "0987654321", helpText: "First 60-second rewarded ad slot" },
+      { key: "GOOGLE_ADS_SLOT_REWARDED_2", label: "Rewarded Ad Slot 2", type: "text", placeholder: "0987654322", helpText: "Second 60-second rewarded ad slot" },
+      { key: "GOOGLE_ADS_SLOT_REWARDED_3", label: "Rewarded Ad Slot 3", type: "text", placeholder: "0987654323", helpText: "Third 60-second rewarded ad slot" },
     ],
     website: "https://adsense.google.com",
     revenueType: "CPC",
@@ -474,9 +476,9 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ networkId, config, enabled }),
     })
-    
+
     if (!response.ok) throw new Error("Failed to save")
-    
+
     setConfigs(prev => ({
       ...prev,
       [networkId]: { config, enabled }
@@ -487,9 +489,9 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
     const response = await fetch(`/api/admin/ad-networks?networkId=${networkId}`, {
       method: "DELETE",
     })
-    
+
     if (!response.ok) throw new Error("Failed to delete")
-    
+
     setConfigs(prev => {
       const newConfigs = { ...prev }
       delete newConfigs[networkId]
@@ -604,7 +606,7 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
 
         <TabsContent value="crypto" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            {AD_NETWORKS.filter(n => 
+            {AD_NETWORKS.filter(n =>
               ["cointraffic", "a_ads", "coinzilla", "bitmedia", "mellowads"].includes(n.id)
             ).map((network) => (
               <AdNetworkCard
@@ -624,7 +626,7 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
 
         <TabsContent value="premium" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            {AD_NETWORKS.filter(n => 
+            {AD_NETWORKS.filter(n =>
               ["google_ads", "medianet", "adsterra"].includes(n.id)
             ).map((network) => (
               <AdNetworkCard

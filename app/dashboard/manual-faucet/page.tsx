@@ -25,6 +25,7 @@ import {
   Database,
 } from "lucide-react"
 import { createClient, isSupabaseConfigured, clearOrphanedAuthLock } from "@/lib/supabase/client"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import Link from "next/link"
 import useSWR from "swr"
@@ -458,6 +459,208 @@ function ErrorState({
   )
 }
 
+// Watch Ad to Double Reward Component
+function WatchAdDoubleReward({
+  cryptoSymbol,
+  baseAmount,
+  isAvailable
+}: {
+  cryptoSymbol: string
+  baseAmount: number
+  isAvailable: boolean
+}) {
+  const [showModal, setShowModal] = useState(false)
+  const [adProgress, setAdProgress] = useState<number[]>([0, 0, 0])
+  const [adStatus, setAdStatus] = useState<("pending" | "playing" | "completed")[]>(["pending", "pending", "pending"])
+  const [allCompleted, setAllCompleted] = useState(false)
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [timeRemaining, setTimeRemaining] = useState([60, 60, 60])
+
+  const startAds = useCallback(() => {
+    setShowModal(true)
+    setAdStatus(["playing", "playing", "playing"])
+    setAdProgress([0, 0, 0])
+    setTimeRemaining([60, 60, 60])
+    setAllCompleted(false)
+  }, [])
+
+  // Run all 3 ads simultaneously
+  useEffect(() => {
+    if (!showModal || allCompleted) return
+
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        const newTimes = prev.map(t => Math.max(0, t - 1))
+
+        // Update progress
+        setAdProgress(newTimes.map(t => ((60 - t) / 60) * 100))
+
+        // Update status
+        setAdStatus(newTimes.map(t => t === 0 ? "completed" : "playing"))
+
+        // Check if all completed
+        if (newTimes.every(t => t === 0)) {
+          setAllCompleted(true)
+        }
+
+        return newTimes
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [showModal, allCompleted])
+
+  const handleClaimDouble = async () => {
+    if (!allCompleted || isClaiming) return
+    setIsClaiming(true)
+
+    try {
+      const response = await fetch("/api/manual-faucet/double-reward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cryptoSymbol, baseAmount })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        toast.success(`Double reward claimed! +${data.amount} ${cryptoSymbol}`, {
+          description: "Sent to your FaucetPay account"
+        })
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+        setShowModal(false)
+      } else {
+        const error = await response.json()
+        toast.error(error.error || "Failed to claim double reward")
+      }
+    } catch {
+      toast.error("Failed to claim double reward")
+    } finally {
+      setIsClaiming(false)
+    }
+  }
+
+  if (!isAvailable) return null
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full mt-2 gap-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:border-amber-500/50"
+        onClick={startAds}
+      >
+        <Play className="h-3 w-3" />
+        Watch Ads to Double Reward
+      </Button>
+
+      {/* Modal with 3 Google Rewarded Ads running simultaneously */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-2xl border-amber-500/30">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Play className="h-5 w-5 text-amber-500" />
+                Watch Ads to Double Your {cryptoSymbol} Reward
+              </CardTitle>
+              <CardDescription>
+                Watch all 3 ads (60 seconds each) to receive 2x your last claim
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* 3 Ad Slots Running Simultaneously */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "relative rounded-lg border p-3 transition-all",
+                      adStatus[i] === "completed" && "bg-green-500/10 border-green-500/30",
+                      adStatus[i] === "playing" && "bg-red-500/5 border-red-500/30",
+                      adStatus[i] === "pending" && "bg-muted/30"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium">Ad #{i + 1}</span>
+                      {adStatus[i] === "completed" ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <div className="flex items-center gap-1 text-red-500">
+                          <Clock className="h-3 w-3 animate-pulse" />
+                          <span className="text-xs font-mono">{timeRemaining[i]}s</span>
+                        </div>
+                      )}
+                    </div>
+                    <Progress value={adProgress[i]} className="h-1.5" />
+
+                    {/* Ad Content Placeholder */}
+                    <div
+                      className="mt-2 aspect-video bg-muted/50 rounded flex items-center justify-center border border-dashed"
+                      data-ad-slot={`double-reward-${cryptoSymbol}-${i}`}
+                    >
+                      {adStatus[i] === "playing" ? (
+                        <div className="text-center">
+                          <Play className="h-6 w-6 mx-auto text-muted-foreground/50 animate-pulse" />
+                          <span className="text-[10px] text-muted-foreground">Ad playing...</span>
+                        </div>
+                      ) : adStatus[i] === "completed" ? (
+                        <CheckCircle className="h-6 w-6 text-green-500" />
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">Waiting...</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 11 Other Ad Networks Running */}
+              <div className="border-t pt-4">
+                <p className="text-xs text-muted-foreground mb-2">Partner Ads</p>
+                <MultiNetworkAds position="content" layout="inline" showLabels={false} priority="high" />
+              </div>
+
+              {/* Claim Button */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className={cn(
+                    "flex-1 gap-2",
+                    allCompleted ? "bg-gradient-to-r from-amber-500 to-orange-500" : ""
+                  )}
+                  disabled={!allCompleted || isClaiming}
+                  onClick={handleClaimDouble}
+                >
+                  {isClaiming ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Claiming...
+                    </>
+                  ) : allCompleted ? (
+                    <>
+                      <Coins className="h-4 w-4" />
+                      Claim Double Reward
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-4 w-4" />
+                      Complete All Ads
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </>
+  )
+}
+
 // Main faucet content - ULTRA ROBUST with state caching
 function DirectFaucetContent() {
   const mountedRef = useRef(true)
@@ -773,10 +976,10 @@ function DirectFaucetContent() {
       // Fast path - use cached data immediately
       setUser(cachedUser)
       if (cachedProfile) setProfile(cachedProfile)
-if (cachedPtcCount !== null) {
-  setPtcAdsCompleted(cachedPtcCount)
-  setIsLocked(cachedPtcCount < PTC_REQUIRED_COUNT)
-  }
+      if (cachedPtcCount !== null) {
+        setPtcAdsCompleted(cachedPtcCount)
+        setIsLocked(cachedPtcCount < PTC_REQUIRED_COUNT)
+      }
       if (cachedClaimsData) {
         const counts: Record<string, number> = {}
         let total = 0
@@ -1429,7 +1632,10 @@ if (cachedPtcCount !== null) {
   if (pageReady && isWaiting) {
     return (
       <div className="min-h-screen p-4 md:p-6 lg:p-8">
-        <div className="max-w-xl mx-auto space-y-4">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Google Rewarded Ads - Top (3x 60s static) */}
+          <GoogleRewardedAds position="top" lazyLoad={false} />
+
           <Card className="border-primary/20">
             <CardHeader className="text-center pb-3">
               <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center mb-3">
@@ -1451,6 +1657,13 @@ if (cachedPtcCount !== null) {
               </p>
             </CardContent>
           </Card>
+
+          {/* 11 Ad Networks - Grid */}
+          <MultiNetworkAds position="content" layout="grid" showLabels={false} priority="high" />
+
+          {/* Google Rewarded Ads - Bottom */}
+          <div className="h-6" aria-hidden="true" />
+          <GoogleRewardedAds position="bottom" lazyLoad={false} />
         </div>
       </div>
     )
@@ -1593,14 +1806,14 @@ if (cachedPtcCount !== null) {
                 </div>
                 <div>
                   <h2 className="text-xl font-bold">Access Locked</h2>
-<p className="text-muted-foreground mt-1">
-  Complete{" "}
-  <span className="font-bold text-amber-500">{PTC_REQUIRED_COUNT} PTC Ads</span> to unlock
-  </p>
-  </div>
-  <div className="flex items-center gap-2">
-  <Progress value={(ptcAdsCompleted / PTC_REQUIRED_COUNT) * 100} className="w-48 h-2" />
-  <span className="text-sm font-medium">{ptcAdsCompleted}/{PTC_REQUIRED_COUNT}</span>
+                  <p className="text-muted-foreground mt-1">
+                    Complete{" "}
+                    <span className="font-bold text-amber-500">{PTC_REQUIRED_COUNT} PTC Ads</span> to unlock
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Progress value={(ptcAdsCompleted / PTC_REQUIRED_COUNT) * 100} className="w-48 h-2" />
+                  <span className="text-sm font-medium">{ptcAdsCompleted}/{PTC_REQUIRED_COUNT}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button asChild className="gap-2 bg-amber-500 hover:bg-amber-600">
@@ -1827,6 +2040,13 @@ if (cachedPtcCount !== null) {
                           </>
                         )}
                       </Button>
+
+                      {/* Watch Ad to Double Reward Button */}
+                      <WatchAdDoubleReward
+                        cryptoSymbol={crypto.symbol}
+                        baseAmount={rawAmount}
+                        isAvailable={!isOnCooldown && hasPriceData && claimCount > 0}
+                      />
                     </CardContent>
 
                     {isOnCooldown && (
