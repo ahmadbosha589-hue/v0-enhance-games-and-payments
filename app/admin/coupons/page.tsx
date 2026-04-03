@@ -57,7 +57,7 @@ interface Coupon {
   description: string
   reward_satoshis: number
   max_uses: number
-  uses_remaining: number
+  current_uses: number
   expires_at: string | null
   is_active: boolean
   is_demo: boolean
@@ -219,14 +219,15 @@ export default function AdminCouponsPage() {
 
   const exportCoupons = () => {
     const csv = [
-      ["Code", "Description", "Reward (sats)", "Max Uses", "Remaining", "Expires", "Active"].join(","),
+      ["Code", "Description", "Reward (sats)", "Max Uses", "Used", "Remaining", "Expires", "Active"].join(","),
       ...coupons.map((c) =>
         [
           c.code,
           `"${c.description}"`,
           c.reward_satoshis,
           c.max_uses,
-          c.uses_remaining,
+          c.current_uses || 0,
+          c.max_uses - (c.current_uses || 0),
           c.expires_at ? new Date(c.expires_at).toLocaleDateString() : "Never",
           c.is_active ? "Yes" : "No",
         ].join(",")
@@ -243,9 +244,10 @@ export default function AdminCouponsPage() {
   }
 
   const filteredCoupons = coupons.filter((coupon) => {
-    if (filter === "active") return coupon.is_active && coupon.uses_remaining > 0
+    const remaining = coupon.max_uses - (coupon.current_uses || 0)
+    if (filter === "active") return coupon.is_active && remaining > 0
     if (filter === "expired") return coupon.expires_at && new Date(coupon.expires_at) < new Date()
-    if (filter === "depleted") return coupon.uses_remaining === 0
+    if (filter === "depleted") return remaining <= 0
     return true
   })
 
@@ -557,8 +559,8 @@ export default function AdminCouponsPage() {
                           {coupon.reward_satoshis} sats
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          <span className={coupon.uses_remaining === 0 ? "text-destructive" : ""}>
-                            {coupon.max_uses - coupon.uses_remaining}/{coupon.max_uses}
+                          <span className={(coupon.current_uses || 0) >= coupon.max_uses ? "text-destructive" : ""}>
+                            {coupon.current_uses || 0}/{coupon.max_uses}
                           </span>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-xs">
@@ -567,7 +569,7 @@ export default function AdminCouponsPage() {
                             : "Never"}
                         </TableCell>
                         <TableCell>
-                          {coupon.uses_remaining === 0 ? (
+                          {(coupon.current_uses || 0) >= coupon.max_uses ? (
                             <Badge variant="secondary">Depleted</Badge>
                           ) : coupon.expires_at && new Date(coupon.expires_at) < new Date() ? (
                             <Badge variant="destructive">Expired</Badge>

@@ -67,16 +67,17 @@ export async function POST(req: NextRequest) {
       }, { status: 500 })
     }
 
-    // Insert all coupons
+    // Insert all coupons - using current_uses (starts at 0)
     const couponsToInsert = codes.map((code) => ({
       code,
       description: description || "Generated coupon",
       reward_satoshis,
       max_uses: max_uses || 10,
-      uses_remaining: max_uses || 10,
+      current_uses: 0,
       expires_at: expiresAt,
       is_active: true,
       is_demo: false,
+      created_by: user.id,
     }))
 
     const { error } = await adminSupabase

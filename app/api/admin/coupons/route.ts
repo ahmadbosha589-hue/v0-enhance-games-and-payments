@@ -35,12 +35,12 @@ export async function GET() {
       return NextResponse.json({ error: "Failed to fetch coupons" }, { status: 500 })
     }
 
-    // Calculate stats
+    // Calculate stats - using current_uses (not uses_remaining)
     const totalCoupons = coupons?.length || 0
-    const activeCoupons = coupons?.filter(c => c.is_active && c.uses_remaining > 0).length || 0
-    const totalRedemptions = coupons?.reduce((acc, c) => acc + (c.max_uses - c.uses_remaining), 0) || 0
+    const activeCoupons = coupons?.filter(c => c.is_active && (c.current_uses || 0) < c.max_uses).length || 0
+    const totalRedemptions = coupons?.reduce((acc, c) => acc + (c.current_uses || 0), 0) || 0
     const totalSatoshisGiven = coupons?.reduce(
-      (acc, c) => acc + (c.max_uses - c.uses_remaining) * c.reward_satoshis,
+      (acc, c) => acc + (c.current_uses || 0) * c.reward_satoshis,
       0
     ) || 0
 
@@ -116,10 +116,11 @@ export async function POST(req: NextRequest) {
         description: description || "",
         reward_satoshis,
         max_uses: max_uses || 100,
-        uses_remaining: max_uses || 100,
+        current_uses: 0,
         expires_at: expiresAt,
         is_active: is_active !== false,
         is_demo: false,
+        created_by: user.id,
       })
       .select()
       .single()
