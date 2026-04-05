@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Sparkles, Loader2, CheckCircle, Clock, Gift, AlertCircle } from "lucide-react"
+import { Sparkles, Loader2, CheckCircle, Clock, Gift, AlertCircle, Play } from "lucide-react"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
+import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
 
 interface DailyBonusButtonProps {
   className?: string
@@ -26,6 +27,8 @@ export function DailyBonusButton({ className, onBalanceUpdate }: DailyBonusButto
   const [lastAmount, setLastAmount] = useState(0)
   const [totalBonuses, setTotalBonuses] = useState(0)
   const [errorMessage, setErrorMessage] = useState("")
+  const [showDoubleRewardModal, setShowDoubleRewardModal] = useState(false)
+  const [canShowDoubleReward, setCanShowDoubleReward] = useState(false)
 
   const checkBonusStatus = useCallback(async () => {
     try {
@@ -109,6 +112,7 @@ export function DailyBonusButton({ className, onBalanceUpdate }: DailyBonusButto
       setLastAmount(data.amount)
       setTotalBonuses(data.totalBonuses)
       setState("success")
+      setCanShowDoubleReward(true) // Enable double reward button
 
       // Trigger confetti
       confetti({
@@ -119,7 +123,7 @@ export function DailyBonusButton({ className, onBalanceUpdate }: DailyBonusButto
       })
 
       toast.success(`Daily bonus claimed!`, {
-        description: `You received ${data.amount} satoshis`,
+        description: `You received ${data.amount} satoshis. Watch ads to double it!`,
       })
 
       if (typeof window !== "undefined") {
@@ -229,6 +233,7 @@ export function DailyBonusButton({ className, onBalanceUpdate }: DailyBonusButto
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
+                className="flex flex-col items-center gap-1"
               >
                 <Button
                   size="sm"
@@ -237,6 +242,20 @@ export function DailyBonusButton({ className, onBalanceUpdate }: DailyBonusButto
                 >
                   <CheckCircle className="h-4 w-4" />+{lastAmount} sats
                 </Button>
+                {canShowDoubleReward && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-[10px] gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowDoubleRewardModal(true)
+                    }}
+                  >
+                    <Play className="h-3 w-3" />
+                    Double it! (+{lastAmount} sats)
+                  </Button>
+                )}
               </motion.div>
             )}
 
@@ -268,6 +287,28 @@ export function DailyBonusButton({ className, onBalanceUpdate }: DailyBonusButto
           </div>
         )}
       </CardContent>
+
+      {/* Fullscreen Double Reward Modal */}
+      <FullscreenAdModal
+        isOpen={showDoubleRewardModal}
+        onClose={() => {
+          setShowDoubleRewardModal(false)
+          setCanShowDoubleReward(false)
+        }}
+        type="daily_bonus"
+        baseAmount={lastAmount}
+        multiplier={2}
+        onComplete={(bonusAmount) => {
+          if (onBalanceUpdate) {
+            // Trigger balance update with the bonus
+            onBalanceUpdate(bonusAmount)
+          }
+          setCanShowDoubleReward(false)
+          // Force refresh
+          setTimeout(() => window.location.reload(), 1000)
+        }}
+        apiEndpoint="/api/daily-bonus/double"
+      />
     </Card>
   )
 }
