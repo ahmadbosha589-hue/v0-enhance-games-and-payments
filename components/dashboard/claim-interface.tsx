@@ -16,6 +16,7 @@ import { AntiBotVerification, type VerificationMetadata } from "@/components/cap
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
+import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
 import { useDeviceFingerprintContext } from "@/components/security/device-fingerprint-provider"
 import { usePersistentVPNCheck } from "@/hooks/use-persistent-vpn-check"
 
@@ -620,110 +621,27 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
         </div>
       </CardContent>
 
-      {/* Watch Ad Double Reward Modal */}
-      {showDoubleRewardModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-2xl border-amber-500/30 max-h-[90vh] overflow-y-auto">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Play className="h-5 w-5 text-amber-500" />
-                Watch Ads to Double Your Reward
-              </CardTitle>
-              <CardDescription>
-                Watch all 3 ads (60 seconds each) to receive +{formatSatoshisDisplay(lastClaimAmount)} bonus
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* 3 Ad Slots Running Simultaneously */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "relative rounded-lg border p-3 transition-all",
-                      adStatus[i] === "completed" && "bg-green-500/10 border-green-500/30",
-                      adStatus[i] === "playing" && "bg-red-500/5 border-red-500/30",
-                      adStatus[i] === "pending" && "bg-muted/30"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium">Ad #{i + 1}</span>
-                      {adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <div className="flex items-center gap-1 text-red-500">
-                          <Clock className="h-3 w-3 animate-pulse" />
-                          <span className="text-xs font-mono">{adTimeRemaining[i]}s</span>
-                        </div>
-                      )}
-                    </div>
-                    <Progress value={adProgress[i]} className="h-1.5" />
-
-                    {/* Ad Content Placeholder */}
-                    <div
-                      className="mt-2 aspect-video bg-muted/50 rounded flex items-center justify-center border border-dashed"
-                      data-ad-slot={`double-reward-faucet-${i}`}
-                    >
-                      {adStatus[i] === "playing" ? (
-                        <div className="text-center">
-                          <Play className="h-6 w-6 mx-auto text-muted-foreground/50 animate-pulse" />
-                          <span className="text-[10px] text-muted-foreground">Ad playing...</span>
-                        </div>
-                      ) : adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-6 w-6 text-green-500" />
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">Waiting...</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 11 Other Ad Networks Running */}
-              <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2">Partner Ads</p>
-                <MultiNetworkAds position="content" layout="inline" showLabels={false} priority="high" />
-              </div>
-
-              {/* Claim Button */}
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowDoubleRewardModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className={cn(
-                    "flex-1 gap-2",
-                    allAdsCompleted ? "bg-gradient-to-r from-amber-500 to-orange-500" : ""
-                  )}
-                  disabled={!allAdsCompleted || isClaimingDouble}
-                  onClick={handleClaimDoubleReward}
-                >
-                  {isClaimingDouble ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Claiming...
-                    </>
-                  ) : allAdsCompleted ? (
-                    <>
-                      <Coins className="h-4 w-4" />
-                      Claim +{formatSatoshisDisplay(lastClaimAmount)}
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-4 w-4" />
-                      Complete All Ads
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Fullscreen Double Reward Modal */}
+      <FullscreenAdModal
+        isOpen={showDoubleRewardModal}
+        onClose={() => setShowDoubleRewardModal(false)}
+        type="faucet_claim"
+        baseAmount={lastClaimAmount}
+        multiplier={2}
+        onComplete={(bonusAmount) => {
+          setNewBalance((prev) => prev + bonusAmount)
+          toast.success(`Double reward claimed!`, {
+            description: `+${formatSatoshisDisplay(bonusAmount)} bonus satoshis added!`,
+          })
+          confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ["#FFD700", "#FFA500", "#FF6347"],
+          })
+        }}
+        apiEndpoint="/api/claim/double"
+      />
     </Card>
   )
 }
