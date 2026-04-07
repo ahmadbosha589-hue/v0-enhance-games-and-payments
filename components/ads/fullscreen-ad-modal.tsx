@@ -13,6 +13,7 @@ import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
 
 export type DoubleRewardType =
   | "faucet"
+  | "faucet_claim"
   | "manual_faucet"
   | "daily_bonus"
   | "shortlink"
@@ -40,6 +41,14 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   bgGradient: string
 }> = {
   faucet: {
+    title: "Double Your Faucet Reward",
+    description: "Watch all ads to receive 2x your faucet claim",
+    icon: Coins,
+    gradient: "from-green-500 to-emerald-500",
+    borderColor: "border-green-500/50",
+    bgGradient: "from-green-500/10 via-emerald-500/5 to-transparent"
+  },
+  faucet_claim: {
     title: "Double Your Faucet Reward",
     description: "Watch all ads to receive 2x your faucet claim",
     icon: Coins,

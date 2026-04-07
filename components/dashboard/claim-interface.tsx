@@ -625,7 +625,7 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
       <FullscreenAdModal
         isOpen={showDoubleRewardModal}
         onClose={() => setShowDoubleRewardModal(false)}
-        type="faucet_claim"
+        type="faucet"
         baseAmount={lastClaimAmount}
         multiplier={2}
         onComplete={(bonusAmount) => {
