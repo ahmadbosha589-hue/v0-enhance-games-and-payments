@@ -171,11 +171,11 @@ function BoosterTierCard({
       {/* Header gradient */}
       <div className={cn("h-2 w-full bg-gradient-to-r", gradient)} />
       
-      {/* Popular badge */}
+      {/* Popular badge - better positioned */}
       {isPopular && (
-        <div className="absolute -right-8 top-8 rotate-45 bg-primary px-8 py-1 text-xs font-bold text-primary-foreground shadow-md">
-          Popular
-        </div>
+        <Badge className="absolute top-3 right-3 bg-primary text-primary-foreground text-[10px] sm:text-xs px-2 py-0.5 shadow-lg z-10">
+          Most Popular
+        </Badge>
       )}
 
       <CardHeader className="pb-3 flex-shrink-0">

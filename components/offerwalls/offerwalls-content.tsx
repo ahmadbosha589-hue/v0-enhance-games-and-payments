@@ -118,12 +118,13 @@ function OfferwallCard({ offerwall, userId }: { offerwall: OfferwallData; userId
     return offerwall.url
       .replace("{user_id}", userId)
       .replace("{app_id}", process.env.NEXT_PUBLIC_CPX_APP_ID || "")
-      .replace("{pub_id}", process.env.NEXT_PUBLIC_OFFERTORO_PUB_ID || "")
+      .replace("{pub_id}", process.env.NEXT_PUBLIC_TOROX_PUB_ID || "")
       .replace("{wall_code}", process.env.NEXT_PUBLIC_ADGATE_WALL_CODE || "")
       .replace("{placement_id}", process.env.NEXT_PUBLIC_LOOTABLY_PLACEMENT_ID || "")
       .replace("{api_token}", process.env.NEXT_PUBLIC_BITLABS_TOKEN || "")
       .replace("{api_key}", process.env.NEXT_PUBLIC_TIMEWALL_KEY || "")
       .replace("{adslot_id}", process.env.NEXT_PUBLIC_AYET_ADSLOT || "")
+      .replace("{player_id}", process.env.NEXT_PUBLIC_ADGEM_PLAYER_ID || "")
   }
 
   const totalPaid = offerwall.stats?.total_paid || 0
@@ -135,7 +136,7 @@ function OfferwallCard({ offerwall, userId }: { offerwall: OfferwallData; userId
   return (
     <Card
       className={cn(
-        "group relative overflow-hidden transition-all duration-300",
+        "group relative overflow-hidden transition-all duration-300 flex flex-col h-full",
         "hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1",
         "border-l-4"
       )}
@@ -149,93 +150,100 @@ function OfferwallCard({ offerwall, userId }: { offerwall: OfferwallData; userId
         }}
       />
       
-      <CardHeader className="pb-3 relative">
+      <CardHeader className="pb-2 sm:pb-3 relative flex-shrink-0">
         <div className="flex items-start justify-between gap-2">
           <div
             className={cn(
-              "h-11 sm:h-12 w-28 sm:w-32 relative rounded-xl overflow-hidden flex items-center justify-center p-2",
+              "h-10 sm:h-11 px-3 sm:px-4 relative rounded-lg overflow-hidden flex items-center justify-center",
               "bg-gradient-to-br shadow-sm",
               offerwall.bgGradient
             )}
           >
             <span 
-              className="font-bold text-xs sm:text-sm drop-shadow-sm" 
+              className="font-bold text-[11px] sm:text-xs whitespace-nowrap" 
               style={{ color: offerwall.color }}
             >
               {offerwall.name}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {isHot && (
-              <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-[10px] gap-0.5 px-1.5">
+              <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 text-[9px] sm:text-[10px] gap-0.5 px-1.5 py-0.5">
                 <Flame className="h-2.5 w-2.5" />
                 Hot
               </Badge>
             )}
             {isPopular && !isHot && (
-              <Badge variant="secondary" className="text-[10px] gap-0.5 px-1.5">
+              <Badge variant="secondary" className="text-[9px] sm:text-[10px] gap-0.5 px-1.5 py-0.5">
                 <TrendingUp className="h-2.5 w-2.5" />
-                Popular
+                Top
               </Badge>
             )}
           </div>
         </div>
         <div className="mt-2">
-          <CardTitle className="text-base sm:text-lg leading-tight">{offerwall.name}</CardTitle>
-          <CardDescription className="text-xs sm:text-sm line-clamp-2 mt-1">
+          <CardTitle className="text-sm sm:text-base leading-tight">{offerwall.name}</CardTitle>
+          <CardDescription className="text-[11px] sm:text-xs mt-0.5 line-clamp-2">
             {offerwall.description}
           </CardDescription>
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-3 relative">
-        {/* Features */}
-        <div className="flex flex-wrap gap-1.5">
+      <CardContent className="space-y-2 sm:space-y-3 relative flex-1 flex flex-col">
+        {/* Features - compact badges */}
+        <div className="flex flex-wrap gap-1">
           {offerwall.features.slice(0, 3).map((feature) => (
-            <Badge key={feature} variant="outline" className="text-[10px] sm:text-xs px-2 py-0.5 font-normal">
+            <Badge 
+              key={feature} 
+              variant="outline" 
+              className="text-[9px] sm:text-[10px] px-1.5 py-0 font-normal h-5"
+            >
               {feature}
             </Badge>
           ))}
         </div>
 
-        {/* Stats grid */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col p-2.5 rounded-lg bg-muted/50 border border-border/50">
-            <span className="text-[10px] text-muted-foreground">Total Paid</span>
-            <span className="text-sm font-semibold text-green-500">
-              {totalPaid >= 1000 ? `${(totalPaid / 1000).toFixed(1)}k` : totalPaid} sats
+        {/* Stats grid - more compact */}
+        <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+          <div className="flex flex-col p-2 rounded-md bg-muted/50 border border-border/50">
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground">Paid</span>
+            <span className="text-xs sm:text-sm font-semibold text-green-500">
+              {totalPaid >= 1000 ? `${(totalPaid / 1000).toFixed(0)}k` : totalPaid}
             </span>
           </div>
-          <div className="flex flex-col p-2.5 rounded-lg bg-muted/50 border border-border/50">
-            <span className="text-[10px] text-muted-foreground">Completions</span>
-            <span className="text-sm font-semibold">
-              {completions.toLocaleString()}
+          <div className="flex flex-col p-2 rounded-md bg-muted/50 border border-border/50">
+            <span className="text-[9px] sm:text-[10px] text-muted-foreground">Done</span>
+            <span className="text-xs sm:text-sm font-semibold">
+              {completions >= 1000 ? `${(completions / 1000).toFixed(0)}k` : completions}
             </span>
           </div>
         </div>
 
-        {/* User earnings highlight */}
+        {/* User earnings highlight - compact */}
         {userEarnings > 0 && (
-          <div className="flex items-center justify-between p-2.5 rounded-lg bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20">
-            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1.5">
-              <Award className="h-3.5 w-3.5" />
-              Your Earnings
+          <div className="flex items-center justify-between p-2 rounded-md bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/20">
+            <span className="text-[10px] sm:text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+              <Award className="h-3 w-3" />
+              Earned
             </span>
-            <span className="text-sm font-bold text-green-500">
-              {userEarnings.toLocaleString()} sats
+            <span className="text-xs sm:text-sm font-bold text-green-500">
+              {userEarnings >= 1000 ? `${(userEarnings / 1000).toFixed(1)}k` : userEarnings}
             </span>
           </div>
         )}
 
+        {/* Spacer to push button to bottom */}
+        <div className="flex-1" />
+
         <Button 
-          className="w-full gap-2 group/btn transition-all" 
+          className="w-full gap-1.5 sm:gap-2 group/btn transition-all mt-auto" 
           size="sm" 
           asChild
         >
           <a href={getOfferwallUrl()} target="_blank" rel="noopener noreferrer">
-            <Zap className="h-3.5 w-3.5" />
-            <span>View Offers</span>
-            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5" />
+            <Zap className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            <span className="text-xs sm:text-sm">View Offers</span>
+            <ArrowRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 transition-transform group-hover/btn:translate-x-0.5" />
           </a>
         </Button>
       </CardContent>
@@ -261,7 +269,7 @@ function OfferwallsGrid({ offerwalls, userId }: { offerwalls: OfferwallData[]; u
   }
 
   return (
-    <div className="grid gap-4 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {offerwalls.map((offerwall) => (
         <OfferwallCard key={offerwall.id} offerwall={offerwall} userId={userId} />
       ))}
