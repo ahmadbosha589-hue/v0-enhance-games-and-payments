@@ -245,7 +245,7 @@ export default async function EarnPage() {
       bgColor: "bg-gradient-to-br from-red-500/20 to-pink-500/10",
       borderColor: "border-red-500/30",
       href: "/dashboard/support-us",
-      reward: "5-50 sats/view",
+      reward: "$0.0007/ad",
       badge: "Help Us Grow",
       badgeColor: "bg-red-500",
     },
