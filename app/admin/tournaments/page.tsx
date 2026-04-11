@@ -1,4 +1,4 @@
-import { createAdminClient, safeQuery } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -60,17 +60,19 @@ async function fetchTournaments(): Promise<Tournament[]> {
     const adminSupabase = createAdminClient()
     if (!adminSupabase) return []
 
-    const result = await safeQuery(
-      () =>
-        adminSupabase
-          .from("tournaments")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(50),
-      [],
-    )
-    return (result || []) as Tournament[]
-  } catch {
+    const { data, error } = await adminSupabase
+      .from("tournaments")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
+
+    if (error) {
+      console.error("[Admin Tournaments] Error fetching:", error)
+      return []
+    }
+    return (data || []) as Tournament[]
+  } catch (err) {
+    console.error("[Admin Tournaments] Exception:", err)
     return []
   }
 }
@@ -80,20 +82,22 @@ async function fetchParticipantCounts(): Promise<Record<string, number>> {
     const adminSupabase = createAdminClient()
     if (!adminSupabase) return {}
 
-    const result = await safeQuery(
-      () =>
-        adminSupabase
-          .from("tournament_participants")
-          .select("tournament_id"),
-      [],
-    ) as TournamentParticipant[]
+    const { data, error } = await adminSupabase
+      .from("tournament_participants")
+      .select("tournament_id")
+
+    if (error) {
+      console.error("[Admin Tournaments] Error fetching participants:", error)
+      return {}
+    }
 
     const counts: Record<string, number> = {}
-    result.forEach((p) => {
+    ;(data || []).forEach((p: { tournament_id: string }) => {
       counts[p.tournament_id] = (counts[p.tournament_id] || 0) + 1
     })
     return counts
-  } catch {
+  } catch (err) {
+    console.error("[Admin Tournaments] Participants exception:", err)
     return {}
   }
 }
