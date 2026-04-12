@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { SupabaseStatusIndicator } from "@/components/admin/supabase-status-indicator"
 
 interface AdminSidebarProps {
   profile: Profile
@@ -174,7 +175,8 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
         </div>
 
         {/* Footer - fixed at bottom */}
-        <div className="border-t border-border p-4 shrink-0">
+        <div className="border-t border-border p-4 shrink-0 space-y-3">
+          <SupabaseStatusIndicator />
           <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-primary font-bold shrink-0">
               {profile.username?.[0]?.toUpperCase() || "A"}
@@ -184,7 +186,7 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
               <p className="text-xs text-muted-foreground capitalize">{profile.role}</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="w-full mt-2 justify-start" asChild>
+          <Button variant="ghost" size="sm" className="w-full justify-start" asChild>
             <Link href="/dashboard" onClick={handleLinkClick}>
               <ChevronLeft className="mr-2 h-4 w-4" />
               {t("admin.nav.backToUserView")}
