@@ -337,6 +337,7 @@ export type TranslationKey =
   | "userMenu.helpCenter"
   | "userMenu.adminPanel"
   | "userMenu.signOut"
+  | "userMenu.signingOut"
   | "userMenu.signIn"
   | "userMenu.getStarted"
   | "common.loading"
@@ -1808,7 +1809,7 @@ const zh: Record<TranslationKey, string> = {
   "contact.form.success": "消息发送成功！",
   "contact.form.error": "消息发送失败。请重试。",
   "contact.success.title": "消息已发送！",
-  "contact.success.description": "感谢您的联系。我们将在24小时内回复您。",
+  "contact.success.description": "感谢您的联系。我���将在24小时内回复您。",
   "contact.success.another": "发送另一条消息",
   "blog.badge": "最新更新",
   "blog.title": "我们的",
@@ -2143,7 +2144,7 @@ const ja: Record<TranslationKey, string> = {
     "エンタープライズグレードのセキュリティ対策により、あなたの資金とデータの安全を最優先します。",
   "about.values.instant.title": "即時支払い",
   "about.values.instant.description": "待つ必要はありません – いつでも好きな時に収益を即時出金できます。",
-  "about.values.community.title": "コミュニティ主導",
+  "about.values.community.title": "コミュニティ���導",
   "about.values.community.description":
     "コミュニティによって、コミュニティのために構築されました。あなた���フィードバックがプラットフォームを形成します。",
   "about.values.global.title": "グローバルアクセス",
@@ -2431,7 +2432,7 @@ const ko: Record<TranslationKey, string> = {
   "howItWorks.step2.feature3": "봇 방지 기능",
   "howItWorks.step3.title": "잔액 쌓기",
   "howItWorks.step3.description": "연속 기록을 유지하고 친구를 초대하세요.",
-  "howItWorks.step3.feature1": "최대 100% 보너스",
+  "howItWorks.step3.feature1": "최대 100% 보너���",
   "howItWorks.step3.feature2": "3단계 추천",
   "howItWorks.step3.feature3": "실시간 추적",
   "howItWorks.step4.title": "언제든지 출금",
@@ -2524,7 +2525,7 @@ const ko: Record<TranslationKey, string> = {
   "about.values.subtitle": "우리가 하는 모든 일을 안내하는 원칙",
   "about.values.security.title": "안전 최우선",
   "about.values.security.description": "기업급 보안 조치를 통해 자금과 데이터의 안전을 최우선으로 생각합니다.",
-  "about.values.instant.title": "즉시 지급",
+  "about.values.instant.title": "���시 지급",
   "about.values.instant.description": "기다릴 필요 없이 언제든지 수입을 즉시 출금하세요.",
   "about.values.community.title": "커뮤니티 중심",
   "about.values.community.description":
@@ -3055,7 +3056,7 @@ const th: Record<TranslationKey, string> = {
   "footer.legal": "กฎหมาย",
   "footer.support": "สนับสนุน",
   "footer.rights": "สงวนลิขสิทธิ์",
-  "footer.about": "เกี่ยวกับเรา",
+  "footer.about": "เก��่ยวกับเรา",
   "footer.blog": "บล็อก",
   "footer.contact": "ติดต่อ",
   "footer.terms": "ข้อกำหนดการให้บริการ",
