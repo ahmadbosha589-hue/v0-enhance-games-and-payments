@@ -91,22 +91,39 @@ export default function SignUpPage() {
       return
     }
 
+    let redirecting = false
+
     const checkSession = async () => {
       try {
         // Clear orphaned Web Lock before auth operation to prevent hangs
         await clearOrphanedAuthLock()
 
+        // First try getSession (reads from localStorage, fast)
         const {
           data: { session },
         } = await supabase.auth.getSession()
+
         if (session?.user) {
-          router.replace("/dashboard")
+          console.log("[SignUp] Session found, redirecting to dashboard")
+          redirecting = true
+          window.location.href = "/dashboard"
+          return
+        }
+
+        // Also check with getUser in case OAuth just completed
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          console.log("[SignUp] User found via getUser, redirecting to dashboard")
+          redirecting = true
+          window.location.href = "/dashboard"
           return
         }
       } catch (err) {
-        console.warn("Session check failed:", err)
+        console.warn("[SignUp] Session check failed:", err)
       } finally {
-        setIsCheckingSession(false)
+        if (!redirecting) {
+          setIsCheckingSession(false)
+        }
       }
     }
 
@@ -115,7 +132,11 @@ export default function SignUpPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
+      console.log("[SignUp] Auth state change:", event, !!session?.user)
+
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user && !redirecting) {
+        console.log("[SignUp] Auth state SIGNED_IN, redirecting...")
+        redirecting = true
         toast.success("Account created successfully!")
         window.location.href = "/dashboard"
       }

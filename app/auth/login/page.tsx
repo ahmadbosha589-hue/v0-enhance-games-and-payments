@@ -79,22 +79,42 @@ export default function LoginPage() {
       return
     }
 
+    let redirecting = false
+
     const checkSession = async () => {
       try {
         // Clear orphaned Web Lock before auth operation to prevent hangs
         await clearOrphanedAuthLock()
 
+        // First try getSession (reads from localStorage, fast)
         const {
           data: { session },
         } = await supabase.auth.getSession()
+
         if (session?.user) {
-          router.replace(redirect)
+          console.log("[Login] Session found, redirecting to dashboard")
+          redirecting = true
+          // Use window.location.href for a full page navigation to ensure clean state
+          window.location.href = redirect
+          return
+        }
+
+        // If no session from localStorage, try getUser (verifies with server)
+        // This catches the case where OAuth just completed and cookies are set
+        // but localStorage hasn't synced yet
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          console.log("[Login] User found via getUser, redirecting to dashboard")
+          redirecting = true
+          window.location.href = redirect
           return
         }
       } catch (err) {
-        console.warn("Session check failed:", err)
+        console.warn("[Login] Session check failed:", err)
       } finally {
-        setIsCheckingSession(false)
+        if (!redirecting) {
+          setIsCheckingSession(false)
+        }
       }
     }
 
@@ -103,7 +123,12 @@ export default function LoginPage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user && !isManualLogin) {
+      console.log("[Login] Auth state change:", event, !!session?.user)
+
+      // Handle any sign-in event (OAuth callback, manual login, etc.)
+      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user && !isManualLogin && !redirecting) {
+        console.log("[Login] Auth state SIGNED_IN, redirecting...")
+        redirecting = true
         toast.success("Welcome back!")
         window.location.href = redirect
       }

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { LogoFull } from "@/components/icons/logo"
 import { HeroSection } from "@/components/landing/hero-section"
@@ -14,14 +15,77 @@ import { WithdrawalTickerMarquee } from "@/components/shared/withdrawal-ticker-m
 import { SkipLink } from "@/components/ui/skip-link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageSelector } from "@/components/language-selector"
-import { Menu } from "lucide-react"
+import { Menu, Loader2 } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { useState } from "react"
+import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 
 export default function HomePage() {
   const { t } = useLanguage()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+
+  // Check if user is already logged in and redirect to dashboard
+  useEffect(() => {
+    const checkAuth = async () => {
+      const supabase = createClient()
+      if (!supabase) {
+        setIsCheckingAuth(false)
+        return
+      }
+
+      try {
+        // Clear orphaned lock first
+        await clearOrphanedAuthLock()
+
+        // Quick check with getSession (reads localStorage, fast)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          console.log("[Landing] User already logged in, redirecting to dashboard")
+          window.location.href = "/dashboard"
+          return
+        }
+
+        // Also check with getUser in case session just completed via OAuth
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          console.log("[Landing] User found via getUser, redirecting to dashboard")
+          window.location.href = "/dashboard"
+          return
+        }
+      } catch (err) {
+        console.warn("[Landing] Auth check failed:", err)
+      } finally {
+        setIsCheckingAuth(false)
+      }
+    }
+
+    checkAuth()
+
+    // Also listen for auth changes (in case OAuth callback just fired)
+    const supabase = createClient()
+    if (!supabase) return
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        console.log("[Landing] Auth state changed to SIGNED_IN, redirecting")
+        window.location.href = "/dashboard"
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  // Show loading while checking auth to prevent flash
+  if (isCheckingAuth) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
