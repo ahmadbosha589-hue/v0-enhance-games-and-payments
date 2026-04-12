@@ -58,6 +58,11 @@ export function RecentActivity() {
 
     try {
       const supabase = createClient()
+      if (!supabase) {
+        setLogs([])
+        setIsLoading(false)
+        return
+      }
 
       const { data: auditLogs, error: queryError } = await supabase
         .from("audit_logs")

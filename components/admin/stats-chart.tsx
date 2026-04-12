@@ -45,6 +45,11 @@ export function AdminStatsChart() {
 
     try {
       const supabase = createClient()
+      if (!supabase) {
+        setData(generateEmptyData())
+        setIsLoading(false)
+        return
+      }
 
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
