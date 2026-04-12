@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       .eq("id", user.id)
       .single()
 
-    if (!profile || !["admin", "owner"].includes(profile.role)) {
+    if (!profile || !["admin", "superadmin", "owner"].includes(profile.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     while (codes.length < count && attempts < maxAttempts) {
       const code = generateSecureCouponCode()
-      
+
       // Check if code already exists
       const { data: existing } = await adminSupabase
         .from("coupons")
@@ -62,8 +62,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (codes.length < count) {
-      return NextResponse.json({ 
-        error: `Could only generate ${codes.length} unique codes` 
+      return NextResponse.json({
+        error: `Could only generate ${codes.length} unique codes`
       }, { status: 500 })
     }
 
@@ -89,8 +89,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to create coupons" }, { status: 500 })
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       count: codes.length,
       codes,
     })
