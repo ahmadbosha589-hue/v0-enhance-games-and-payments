@@ -96,7 +96,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 /**
  * Next.js 16 proxy with enterprise security
  */
-export default async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const ip = getClientIP(request)
 

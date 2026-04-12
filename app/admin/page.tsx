@@ -43,16 +43,17 @@ async function safeQuery<T>(
 }
 
 async function AdminStats() {
-  let supabase: ReturnType<typeof createAdminClient> = null
-
-  try {
-    supabase = createAdminClient()
-  } catch (err) {
-    console.error("[Admin Stats] Failed to create admin client:", err)
-  }
+  const supabaseOrNull = (() => {
+    try {
+      return createAdminClient()
+    } catch (err) {
+      console.error("[Admin Stats] Failed to create admin client:", err)
+      return null
+    }
+  })()
 
   // If database not configured, show empty stats with zeros
-  if (!supabase) {
+  if (!supabaseOrNull) {
     const emptyStats = [
       {
         title: "Total Users",
@@ -139,6 +140,9 @@ async function AdminStats() {
       </>
     )
   }
+
+  // Assign to const so TypeScript narrowing holds inside closures
+  const supabase = supabaseOrNull
 
   // Run all queries in parallel with error handling
   let totalUsers = 0
