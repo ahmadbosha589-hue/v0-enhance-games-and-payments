@@ -107,8 +107,8 @@ export default function AdminCouponsPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        // If database not configured, show empty state without error toast
-        if (data.error === "Database not configured") {
+        // If database not configured or auth issues, show empty state without error toast
+        if (data.error === "Database not configured" || res.status === 401 || res.status === 403) {
           setCoupons([])
           setStats({ totalCoupons: 0, activeCoupons: 0, totalRedemptions: 0, totalSatoshisGiven: 0 })
           return

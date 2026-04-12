@@ -32,6 +32,11 @@ export function FraudAlerts() {
 
     try {
       const supabase = createClient()
+      if (!supabase) {
+        setAlerts([])
+        setIsLoading(false)
+        return
+      }
 
       const { data, error } = await supabase
         .from("fraud_flags")
@@ -65,6 +70,10 @@ export function FraudAlerts() {
     setActionLoading(flagId)
     try {
       const supabase = createClient()
+      if (!supabase) {
+        toast.error("Database not configured")
+        return
+      }
       const { error } = await supabase.from("fraud_flags").update({ status: "false_positive" }).eq("id", flagId)
 
       if (error) throw error
@@ -82,6 +91,10 @@ export function FraudAlerts() {
     setActionLoading(flagId)
     try {
       const supabase = createClient()
+      if (!supabase) {
+        toast.error("Database not configured")
+        return
+      }
 
       await supabase.from("profiles").update({ status: "banned" }).eq("id", userId)
       await supabase.from("fraud_flags").update({ status: "confirmed_fraud" }).eq("id", flagId)
@@ -175,10 +188,10 @@ export function FraudAlerts() {
                     <p className="text-xs text-muted-foreground">Severity</p>
                     <p
                       className={`font-bold text-sm ${alert.severity >= 70
-                          ? "text-red-500"
-                          : alert.severity >= 40
-                            ? "text-amber-500"
-                            : "text-emerald-500"
+                        ? "text-red-500"
+                        : alert.severity >= 40
+                          ? "text-amber-500"
+                          : "text-emerald-500"
                         }`}
                     >
                       {alert.severity}
