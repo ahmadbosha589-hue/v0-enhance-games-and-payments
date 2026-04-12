@@ -20,6 +20,7 @@ import { useLanguage } from "@/lib/i18n/language-context"
 import { UserMenu } from "@/components/user-menu"
 import type { Profile } from "@/lib/types/database"
 import { AdminSidebar } from "./sidebar"
+import { SupabaseStatusIndicator } from "@/components/admin/supabase-status-indicator"
 import { createClient } from "@/lib/supabase/client"
 import { formatRelativeTime } from "@/lib/utils"
 
@@ -143,6 +144,11 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
+          {/* Supabase connectivity status - compact in header */}
+          <div className="hidden sm:block">
+            <SupabaseStatusIndicator compact />
+          </div>
+
           {/* Notifications - Only show real notifications */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

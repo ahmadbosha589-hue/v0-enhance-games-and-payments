@@ -273,7 +273,8 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-4 shrink-0">
+      <div className="border-t border-border p-4 shrink-0 space-y-3">
+        <SupabaseStatusIndicator />
         <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-primary font-bold shrink-0">
             {profile.username?.[0]?.toUpperCase() || "A"}
