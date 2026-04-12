@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, type ReactNode } from "react"
+import { createContext, useContext, type ReactNode, useMemo } from "react"
 import { useSupabaseStatus, type SupabaseHealthStatus, type SupabaseStatus } from "@/hooks/use-supabase-status"
 
 export type { SupabaseHealthStatus }
@@ -23,6 +23,10 @@ export interface SupabaseHealthState {
 interface SupabaseHealthContextValue extends SupabaseHealthState {
   refresh: () => Promise<void>
   isRefreshing: boolean
+  /** Whether the database is available for operations (connected or degraded) */
+  isAvailable: boolean
+  /** Whether we should show a warning banner */
+  shouldShowWarning: boolean
 }
 
 const DEFAULT_STATE: SupabaseHealthContextValue = {
@@ -40,6 +44,8 @@ const DEFAULT_STATE: SupabaseHealthContextValue = {
   consecutiveFailures: 0,
   refresh: async () => { },
   isRefreshing: false,
+  isAvailable: false,
+  shouldShowWarning: false,
 }
 
 const SupabaseHealthContext = createContext<SupabaseHealthContextValue>(DEFAULT_STATE)
@@ -57,7 +63,7 @@ interface SupabaseHealthProviderProps {
 export function SupabaseHealthProvider({ children }: SupabaseHealthProviderProps) {
   const status = useSupabaseStatus()
 
-  const value: SupabaseHealthContextValue = {
+  const value: SupabaseHealthContextValue = useMemo(() => ({
     status: status.status,
     connected: status.connected,
     latency: status.latency,
@@ -68,7 +74,10 @@ export function SupabaseHealthProvider({ children }: SupabaseHealthProviderProps
     consecutiveFailures: status.consecutiveFailures,
     refresh: status.refresh,
     isRefreshing: status.isRefreshing,
-  }
+    // Computed helpers
+    isAvailable: status.status === "connected" || status.status === "degraded",
+    shouldShowWarning: status.status === "disconnected" || status.status === "unconfigured" || status.status === "degraded",
+  }), [status])
 
   return (
     <SupabaseHealthContext.Provider value={value}>

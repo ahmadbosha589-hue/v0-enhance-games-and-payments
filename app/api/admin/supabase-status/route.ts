@@ -4,9 +4,11 @@ import { createAdminClient } from "@/lib/supabase/server"
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
+export type SupabaseHealthStatus = "connected" | "degraded" | "disconnected" | "unconfigured"
+
 export interface SupabaseStatus {
   connected: boolean
-  status: "connected" | "degraded" | "disconnected" | "unconfigured"
+  status: SupabaseHealthStatus
   latency: number | null
   message: string
   timestamp: string
@@ -14,6 +16,11 @@ export interface SupabaseStatus {
     envVars: boolean
     clientCreation: boolean
     dbQuery: boolean
+  }
+  details?: {
+    projectUrl?: string
+    tableCount?: number
+    lastSuccessfulQuery?: string
   }
 }
 
@@ -133,6 +140,17 @@ export async function GET() {
 
     const status: SupabaseStatus["status"] = latency > 2000 ? "degraded" : "connected"
 
+    // Try to get additional details
+    let tableCount: number | undefined
+    try {
+      const { count } = await adminClient
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+      tableCount = count ?? undefined
+    } catch {
+      // Non-critical, continue without count
+    }
+
     return jsonResponse({
       connected: true,
       status,
@@ -142,6 +160,11 @@ export async function GET() {
         : `Supabase is connected and healthy (${latency}ms).`,
       timestamp,
       checks,
+      details: {
+        projectUrl: supabaseUrl?.replace("https://", "").split(".")[0],
+        tableCount,
+        lastSuccessfulQuery: new Date().toISOString(),
+      },
     })
   } catch (err) {
     clearTimeout(timeoutId)
