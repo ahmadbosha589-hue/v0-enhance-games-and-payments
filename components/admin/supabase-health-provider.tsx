@@ -1,8 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react"
+import { createContext, useContext, type ReactNode } from "react"
+import { useSupabaseStatus, type SupabaseHealthStatus, type SupabaseStatus } from "@/hooks/use-supabase-status"
 
-export type SupabaseHealthStatus = "checking" | "connected" | "degraded" | "disconnected" | "unconfigured"
+export type { SupabaseHealthStatus }
 
 export interface SupabaseHealthState {
   status: SupabaseHealthStatus
@@ -24,7 +25,7 @@ interface SupabaseHealthContextValue extends SupabaseHealthState {
   isRefreshing: boolean
 }
 
-const DEFAULT_STATE: SupabaseHealthState = {
+const DEFAULT_STATE: SupabaseHealthContextValue = {
   status: "checking",
   connected: false,
   latency: null,
@@ -37,112 +38,40 @@ const DEFAULT_STATE: SupabaseHealthState = {
   },
   lastCheckedAt: 0,
   consecutiveFailures: 0,
-}
-
-const SupabaseHealthContext = createContext<SupabaseHealthContextValue>({
-  ...DEFAULT_STATE,
   refresh: async () => { },
   isRefreshing: false,
-})
+}
 
-const POLL_INTERVAL = 60_000 // 60s normal polling
-const FAST_POLL_INTERVAL = 15_000 // 15s when disconnected
-const FETCH_TIMEOUT = 8_000
+const SupabaseHealthContext = createContext<SupabaseHealthContextValue>(DEFAULT_STATE)
 
 interface SupabaseHealthProviderProps {
   children: ReactNode
 }
 
+/**
+ * Delegates all health-check logic to the global singleton in
+ * `use-supabase-status` hook, then exposes it via React context so
+ * both `useSupabaseHealth()` and `useSupabaseStatus()` share a
+ * single polling loop with no duplication.
+ */
 export function SupabaseHealthProvider({ children }: SupabaseHealthProviderProps) {
-  const [state, setState] = useState<SupabaseHealthState>(DEFAULT_STATE)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const mountedRef = useRef(true)
+  const status = useSupabaseStatus()
 
-  const fetchHealth = useCallback(async () => {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
-
-      const res = await fetch("/api/admin/supabase-status", {
-        cache: "no-store",
-        signal: controller.signal,
-      })
-
-      clearTimeout(timeoutId)
-
-      if (!mountedRef.current) return
-
-      if (res.ok) {
-        const data = await res.json()
-        setState((prev) => ({
-          status: data.status,
-          connected: data.connected,
-          latency: data.latency,
-          message: data.message,
-          timestamp: data.timestamp,
-          checks: data.checks,
-          lastCheckedAt: Date.now(),
-          consecutiveFailures: data.connected ? 0 : prev.consecutiveFailures + 1,
-        }))
-      } else {
-        setState((prev) => ({
-          ...prev,
-          status: "disconnected",
-          connected: false,
-          message: `Health check returned ${res.status}`,
-          timestamp: new Date().toISOString(),
-          lastCheckedAt: Date.now(),
-          consecutiveFailures: prev.consecutiveFailures + 1,
-        }))
-      }
-    } catch {
-      if (!mountedRef.current) return
-      setState((prev) => ({
-        ...prev,
-        status: "disconnected",
-        connected: false,
-        message: "Network error checking Supabase status.",
-        timestamp: new Date().toISOString(),
-        lastCheckedAt: Date.now(),
-        consecutiveFailures: prev.consecutiveFailures + 1,
-      }))
-    }
-  }, [])
-
-  const refresh = useCallback(async () => {
-    setIsRefreshing(true)
-    await fetchHealth()
-    setIsRefreshing(false)
-  }, [fetchHealth])
-
-  // Initial fetch
-  useEffect(() => {
-    mountedRef.current = true
-    fetchHealth()
-    return () => {
-      mountedRef.current = false
-    }
-  }, [fetchHealth])
-
-  // Adaptive polling: faster when disconnected, slower when connected
-  useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-    }
-
-    const interval = state.connected ? POLL_INTERVAL : FAST_POLL_INTERVAL
-    intervalRef.current = setInterval(fetchHealth, interval)
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-  }, [state.connected, fetchHealth])
+  const value: SupabaseHealthContextValue = {
+    status: status.status,
+    connected: status.connected,
+    latency: status.latency,
+    message: status.message,
+    timestamp: status.timestamp,
+    checks: status.checks,
+    lastCheckedAt: status.lastCheckedAt,
+    consecutiveFailures: status.consecutiveFailures,
+    refresh: status.refresh,
+    isRefreshing: status.isRefreshing,
+  }
 
   return (
-    <SupabaseHealthContext.Provider value={{ ...state, refresh, isRefreshing }}>
+    <SupabaseHealthContext.Provider value={value}>
       {children}
     </SupabaseHealthContext.Provider>
   )
