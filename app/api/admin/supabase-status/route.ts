@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 export interface SupabaseStatus {
   connected: boolean
@@ -14,6 +15,14 @@ export interface SupabaseStatus {
     clientCreation: boolean
     dbQuery: boolean
   }
+}
+
+function jsonResponse(data: SupabaseStatus, cacheSeconds = 10) {
+  return NextResponse.json<SupabaseStatus>(data, {
+    headers: {
+      "Cache-Control": `private, max-age=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 2}`,
+    },
+  })
 }
 
 export async function GET() {
@@ -30,14 +39,14 @@ export async function GET() {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || (!serviceRoleKey && !anonKey)) {
-    return NextResponse.json<SupabaseStatus>({
+    return jsonResponse({
       connected: false,
       status: "unconfigured",
       latency: null,
       message: "Supabase environment variables are not configured. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
       timestamp,
       checks,
-    })
+    }, 30)
   }
 
   checks.envVars = true
@@ -47,7 +56,7 @@ export async function GET() {
   try {
     adminClient = createAdminClient()
     if (!adminClient) {
-      return NextResponse.json<SupabaseStatus>({
+      return jsonResponse({
         connected: false,
         status: "disconnected",
         latency: null,
@@ -58,7 +67,7 @@ export async function GET() {
     }
     checks.clientCreation = true
   } catch {
-    return NextResponse.json<SupabaseStatus>({
+    return jsonResponse({
       connected: false,
       status: "disconnected",
       latency: null,
@@ -68,21 +77,26 @@ export async function GET() {
     })
   }
 
-  // Check 3: Database query with latency measurement
+  // Check 3: Database query with latency measurement and timeout
   const dbStart = Date.now()
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 6000)
+
   try {
     const { error } = await adminClient
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .limit(1)
+      .abortSignal(controller.signal)
 
+    clearTimeout(timeoutId)
     const latency = Date.now() - dbStart
 
     if (error) {
       // Table might not exist but Supabase is reachable
       if (error.code === "42P01") {
         checks.dbQuery = true
-        return NextResponse.json<SupabaseStatus>({
+        return jsonResponse({
           connected: true,
           status: "degraded",
           latency,
@@ -92,7 +106,20 @@ export async function GET() {
         })
       }
 
-      return NextResponse.json<SupabaseStatus>({
+      // Permission error — client can reach Supabase but RLS or key issue
+      if (error.code === "42501" || error.message?.includes("permission denied")) {
+        checks.dbQuery = true
+        return jsonResponse({
+          connected: true,
+          status: "degraded",
+          latency,
+          message: "Supabase is connected but query permissions are restricted. Check RLS policies.",
+          timestamp,
+          checks,
+        })
+      }
+
+      return jsonResponse({
         connected: false,
         status: "degraded",
         latency,
@@ -106,7 +133,7 @@ export async function GET() {
 
     const status: SupabaseStatus["status"] = latency > 2000 ? "degraded" : "connected"
 
-    return NextResponse.json<SupabaseStatus>({
+    return jsonResponse({
       connected: true,
       status,
       latency,
@@ -116,13 +143,18 @@ export async function GET() {
       timestamp,
       checks,
     })
-  } catch {
+  } catch (err) {
+    clearTimeout(timeoutId)
     const latency = Date.now() - dbStart
-    return NextResponse.json<SupabaseStatus>({
+    const isTimeout = err instanceof DOMException && err.name === "AbortError"
+
+    return jsonResponse({
       connected: false,
       status: "disconnected",
       latency,
-      message: "Cannot reach Supabase. The service may be temporarily unavailable.",
+      message: isTimeout
+        ? `Supabase health check timed out after ${latency}ms.`
+        : "Cannot reach Supabase. The service may be temporarily unavailable.",
       timestamp,
       checks,
     })
