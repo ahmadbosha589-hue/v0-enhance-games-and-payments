@@ -15,23 +15,47 @@ export function useAuth(): UseAuthReturn {
   const signOut = async () => {
     try {
       const supabase = createClient()
-      if (!supabase) {
-        toast.error("Service unavailable")
-        return
-      }
 
       // Clear orphaned Web Lock before auth operation
       await clearOrphanedAuthLock()
 
-      const { error } = await supabase.auth.signOut()
+      if (supabase) {
+        const { error } = await supabase.auth.signOut()
+        if (error) {
+          console.error("[useAuth] Sign out error:", error)
+        }
+      }
 
-      if (error) throw error
+      // Clear all local storage auth data
+      if (typeof window !== "undefined") {
+        // Clear Supabase auth tokens from localStorage
+        const keysToRemove = Object.keys(localStorage).filter(
+          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+        )
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+
+        // Clear session storage too
+        const sessionKeysToRemove = Object.keys(sessionStorage).filter(
+          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+        )
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key))
+      }
 
       toast.success("Signed out successfully")
-      router.push("/")
-      router.refresh()
-    } catch {
-      toast.error("Failed to sign out")
+
+      // Force a hard navigation to clear all state
+      window.location.href = "/"
+    } catch (err) {
+      console.error("[useAuth] Sign out failed:", err)
+      // Even if signOut fails, clear local data and redirect
+      if (typeof window !== "undefined") {
+        const keysToRemove = Object.keys(localStorage).filter(
+          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+        )
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+      }
+      toast.error("Sign out encountered an issue, but you've been logged out locally")
+      window.location.href = "/"
     }
   }
 

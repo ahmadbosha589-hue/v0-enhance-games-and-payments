@@ -3,6 +3,9 @@ import { getUser, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import { validateClaimRequest, type ClaimContext } from "@/lib/security/anti-drain-protection"
+import { checkAntiDrain, recordClaim } from "@/lib/redis/anti-drain"
+import { checkRateLimit, RATE_LIMITS } from "@/lib/redis/rate-limiter"
+import { checkAndSetCooldown, COOLDOWNS } from "@/lib/redis/cooldowns"
 
 const CLAIM_VALUE_USD = 0.0009 // $0.0009 per claim
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
@@ -358,7 +361,64 @@ export async function POST(request: NextRequest) {
     })
 
     // =========================================================================
-    // ANTI-DRAIN PROTECTION - Multi-layer security validation
+    // REDIS-BACKED RATE LIMITING (works across serverless instances)
+    // =========================================================================
+    const rateLimitResult = await checkRateLimit(`${user.id}:${cryptoSymbol}`, RATE_LIMITS.MANUAL_FAUCET)
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: `Too many claims. Try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter
+        },
+        { status: 429 }
+      )
+    }
+
+    // =========================================================================
+    // REDIS-BACKED COOLDOWN (per crypto, 60 seconds)
+    // =========================================================================
+    const cooldownResult = await checkAndSetCooldown(`${user.id}:${cryptoSymbol}`, COOLDOWNS.MANUAL_FAUCET)
+    if (!cooldownResult.allowed) {
+      return NextResponse.json(
+        {
+          error: "Cooldown active",
+          cooldownRemaining: cooldownResult.remainingSeconds
+        },
+        { status: 429 }
+      )
+    }
+
+    // =========================================================================
+    // REDIS-BACKED ANTI-DRAIN PROTECTION (tracks across all instances)
+    // =========================================================================
+    const redisAntiDrainResult = await checkAntiDrain({
+      userId: user.id,
+      ip,
+      deviceFingerprint: fingerprint?.visitorId,
+      claimAmount: 1, // We'll update with actual amount after calculation
+      claimType: `manual_faucet_${cryptoSymbol}`,
+    })
+
+    if (!redisAntiDrainResult.allowed) {
+      log.warn("Redis anti-drain blocked claim", {
+        userId: user.id,
+        ip,
+        reason: redisAntiDrainResult.reason,
+        riskScore: redisAntiDrainResult.riskScore,
+        flags: redisAntiDrainResult.flags
+      })
+
+      return NextResponse.json(
+        {
+          error: redisAntiDrainResult.reason || "Request blocked for security reasons",
+          code: "SECURITY_BLOCK"
+        },
+        { status: 429 }
+      )
+    }
+
+    // =========================================================================
+    // LEGACY ANTI-DRAIN PROTECTION - Multi-layer security validation (backup)
     // =========================================================================
     const claimContext: ClaimContext = {
       userId: user.id,
@@ -374,7 +434,7 @@ export async function POST(request: NextRequest) {
     const antiDrainResult = await validateClaimRequest(claimContext)
 
     if (!antiDrainResult.isAllowed) {
-      log.warn("Anti-drain protection blocked claim", {
+      log.warn("Legacy anti-drain protection blocked claim", {
         userId: user.id,
         ip,
         reason: antiDrainResult.reason,
@@ -398,11 +458,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Log if risk score is elevated (but still allowed)
-    if (antiDrainResult.riskScore > 30) {
+    if (antiDrainResult.riskScore > 30 || redisAntiDrainResult.riskScore > 30) {
       log.warn("Elevated risk claim allowed", {
         userId: user.id,
-        riskScore: antiDrainResult.riskScore,
-        factors: antiDrainResult.suspiciousFactors
+        riskScore: Math.max(antiDrainResult.riskScore, redisAntiDrainResult.riskScore),
+        factors: antiDrainResult.suspiciousFactors,
+        redisFlags: redisAntiDrainResult.flags
       })
     }
 
@@ -645,6 +706,15 @@ export async function POST(request: NextRequest) {
       log.error("Failed to record claim (but payment was sent)", { error: insertError })
       // Don't fail the request since payment was already sent
     }
+
+    // Record claim in Redis for anti-drain tracking
+    await recordClaim({
+      userId: user.id,
+      ip,
+      deviceFingerprint: fingerprint?.visitorId,
+      claimAmount: amountInSmallestUnit,
+      claimType: `manual_faucet_${cryptoSymbol}`,
+    })
 
     return NextResponse.json({
       success: true,

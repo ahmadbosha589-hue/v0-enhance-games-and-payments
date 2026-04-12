@@ -4,7 +4,6 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -35,24 +34,46 @@ interface UserMenuProps {
 export function UserMenu({ user }: UserMenuProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [copied, setCopied] = useState(false)
-  const router = useRouter()
   const { t } = useLanguage()
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (isLoading) return
+
     setIsLoading(true)
     try {
       const supabase = createClient()
       const { error } = await supabase.auth.signOut()
 
-      if (error) throw error
+      if (error) {
+        console.error("[UserMenu] Sign out error:", error)
+      }
+
+      // Clear all local storage auth data
+      if (typeof window !== "undefined") {
+        const keysToRemove = Object.keys(localStorage).filter(
+          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+        )
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+      }
 
       toast.success("Signed out successfully")
-      router.push("/")
-      router.refresh()
-    } catch {
-      toast.error("Failed to sign out")
-    } finally {
-      setIsLoading(false)
+
+      // Force a hard navigation to clear all state
+      window.location.href = "/"
+    } catch (error) {
+      console.error("[UserMenu] Sign out failed:", error)
+      // Even if signOut fails, clear local data and redirect
+      if (typeof window !== "undefined") {
+        const keysToRemove = Object.keys(localStorage).filter(
+          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+        )
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+      }
+      toast.error("Sign out encountered an issue, but you've been logged out locally")
+      window.location.href = "/"
     }
   }
 
@@ -90,7 +111,7 @@ export function UserMenu({ user }: UserMenuProps) {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
+      <DropdownMenuContent className="w-56" align="end" forceMount onCloseAutoFocus={(e) => e.preventDefault()}>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user.display_name || "User"}</p>

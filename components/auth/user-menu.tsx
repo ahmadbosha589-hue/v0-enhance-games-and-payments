@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import { useUser } from "@/lib/hooks/use-user"
 import { useAuth } from "@/lib/hooks/use-auth"
@@ -16,13 +17,29 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
-import { User, Settings, CreditCard, LogOut, Shield, LayoutDashboard, Users } from "lucide-react"
+import { User, Settings, CreditCard, LogOut, Shield, LayoutDashboard, Users, Loader2 } from "lucide-react"
 import { maskEmail } from "@/lib/utils/mask-email"
 
 export function UserMenu() {
   const { user, profile, isLoading } = useUser()
   const { signOut } = useAuth()
   const { t } = useLanguage()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  const handleSignOut = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (isSigningOut) return
+
+    setIsSigningOut(true)
+    try {
+      await signOut()
+    } catch (error) {
+      console.error("[UserMenu] Sign out error:", error)
+      setIsSigningOut(false)
+    }
+  }, [signOut, isSigningOut])
 
   if (isLoading) {
     return <Skeleton className="h-8 w-8 rounded-full" />
@@ -115,9 +132,17 @@ export function UserMenu() {
           </>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={signOut} className="text-destructive focus:text-destructive">
-          <LogOut className="mr-2 h-4 w-4" />
-          {t("userMenu.signOut")}
+        <DropdownMenuItem
+          onClick={handleSignOut}
+          className="text-destructive focus:text-destructive cursor-pointer"
+          disabled={isSigningOut}
+        >
+          {isSigningOut ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <LogOut className="mr-2 h-4 w-4" />
+          )}
+          {isSigningOut ? t("userMenu.signingOut") || "Signing out..." : t("userMenu.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

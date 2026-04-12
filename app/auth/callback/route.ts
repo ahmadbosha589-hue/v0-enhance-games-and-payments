@@ -173,8 +173,8 @@ export async function GET(request: Request) {
                 fraud_score: 100,
                 is_banned: true,
                 ban_reason: `VPN/Proxy detected during signup (${vpnResult.isTor ? "Tor" :
-                    vpnResult.isResidentialProxy ? "Residential Proxy" :
-                      vpnResult.isProxy ? "Proxy" : "VPN"
+                  vpnResult.isResidentialProxy ? "Residential Proxy" :
+                    vpnResult.isProxy ? "Proxy" : "VPN"
                   }, confidence: ${vpnResult.confidence}%, risk: ${vpnResult.riskLevel})`,
                 status: "banned",
               })
@@ -220,7 +220,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // ── MULTI-ACCOUNT CHECK (BLOCKING FOR NEW SIGNUPS) ──
+    // ── MULTI-ACCOUNT CHECK (BLOCKING FOR NEW SIGNUPS + SESSION INVALIDATION) ──
     // Check if this fingerprint is associated with other accounts
     if (fingerprint) {
       const adminSupabase = createAdminClient()
@@ -235,6 +235,50 @@ export async function GET(request: Request) {
 
       if (existingFingerprints && existingFingerprints.length > 0) {
         const otherUserIds = existingFingerprints.map(f => f.user_id)
+
+        // ══════════════════════════════════════════════════════════════════════
+        // SIGN OUT OTHER SESSIONS ON SAME DEVICE/IP
+        // If user logs in with another account on the same device, invalidate
+        // all other sessions from accounts associated with this device
+        // ══════════════════════════════════════════════════════════════════════
+        if (!isNewUser) {
+          // For existing user login, sign out any other accounts logged in on this device
+          for (const otherUserId of otherUserIds) {
+            try {
+              // Use admin client to sign out the other user's sessions
+              await adminSupabase.auth.admin.signOut(otherUserId, "global")
+
+              log.info("Signed out other account on same device", {
+                currentUserId: userId,
+                signedOutUserId: otherUserId,
+                fingerprint: fingerprint.substring(0, 16) + "...",
+              })
+            } catch (err) {
+              log.warn("Failed to sign out other account", {
+                error: err,
+                currentUserId: userId,
+                otherUserId,
+              })
+            }
+          }
+
+          // Also flag this as potential account sharing
+          await adminSupabase.from("fraud_flags").upsert({
+            user_id: userId,
+            flag_type: "account_sharing_suspected",
+            severity: "low",
+            details: {
+              fingerprint: fingerprint.substring(0, 32),
+              other_accounts_on_device: otherUserIds.length,
+              signed_out_accounts: otherUserIds,
+              detected_at: new Date().toISOString(),
+            },
+            status: "pending",
+          }, {
+            onConflict: "user_id,flag_type",
+            ignoreDuplicates: false,
+          })
+        }
 
         log.warn("Multi-account detected via fingerprint", {
           userId,
@@ -378,16 +422,16 @@ export async function GET(request: Request) {
     if (isNewUser && ref) {
       try {
         const adminSupabase = createAdminClient()
-        
+
         // Find the referrer
         const { data: referrer } = await adminSupabase
           .from("profiles")
           .select("id, referral_code, is_banned, status, fraud_score")
           .eq("referral_code", ref.toUpperCase())
           .single()
-        
+
         if (referrer && referrer.id !== userId && !referrer.is_banned && referrer.status !== "banned") {
-          
+
           // ═══════════════════════════════════════════════════════════════
           // ROBUST REFERRAL FRAUD DETECTION
           // Multi-layer protection against self-referrals and bot networks
@@ -406,14 +450,14 @@ export async function GET(request: Request) {
               },
             }
           )
-          
+
           if (referralValidation.valid) {
             // Referral is valid - apply it
             await adminSupabase
               .from("profiles")
               .update({ referred_by: referrer.id })
               .eq("id", userId)
-            
+
             // Increment referrer's count
             await adminSupabase.rpc("increment_referral_count", {
               p_referrer_id: referrer.id,
@@ -422,13 +466,13 @@ export async function GET(request: Request) {
               adminSupabase
                 .from("profiles")
                 .update({
-                  referral_count: (referrer as { referral_count?: number }).referral_count 
-                    ? (referrer as { referral_count?: number }).referral_count! + 1 
+                  referral_count: (referrer as { referral_count?: number }).referral_count
+                    ? (referrer as { referral_count?: number }).referral_count! + 1
                     : 1,
                 })
                 .eq("id", referrer.id)
             })
-            
+
             log.info("Valid referral applied", {
               newUserId: userId,
               referrerId: referrer.id,
@@ -445,7 +489,7 @@ export async function GET(request: Request) {
               riskLevel: referralValidation.fraudResult?.riskLevel,
               matchedLayers: referralValidation.fraudResult?.matchedLayers,
             })
-            
+
             // Increase fraud score for the new user
             await adminSupabase
               .from("profiles")
@@ -453,7 +497,7 @@ export async function GET(request: Request) {
                 fraud_score: Math.min(100, (referralValidation.fraudResult?.confidence || 50)),
               })
               .eq("id", userId)
-            
+
             // If high confidence, also penalize the referrer (potential abuse)
             if (referralValidation.fraudResult && referralValidation.fraudResult.confidence >= 80) {
               await adminSupabase.rpc("increment_fraud_score", {
@@ -472,7 +516,7 @@ export async function GET(request: Request) {
         } else if (referrer && referrer.id === userId) {
           // Attempting to self-refer with same user ID - immediate ban
           log.warn("Direct self-referral attempt", { userId, referralCode: ref })
-          
+
           await adminSupabase.from("fraud_flags").insert({
             user_id: userId,
             flag_type: "direct_self_referral",
@@ -483,7 +527,7 @@ export async function GET(request: Request) {
             },
             status: "confirmed",
           })
-          
+
           await adminSupabase
             .from("profiles")
             .update({
@@ -493,7 +537,7 @@ export async function GET(request: Request) {
               status: "banned",
             })
             .eq("id", userId)
-          
+
           await supabase.auth.signOut()
           return NextResponse.redirect(`${origin}/auth/error?error=self_referral_blocked`)
         }

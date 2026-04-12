@@ -37,6 +37,7 @@ import { useDeviceFingerprintContext } from "@/components/security/device-finger
 import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { FaucetHealthPerCrypto } from "@/components/dashboard/faucet-health-per-crypto"
+import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
 
 // FaucetPay supported cryptocurrencies (excluding BTC which is on main claim page)
 const FAUCETPAY_CRYPTOS = [
@@ -459,7 +460,7 @@ function ErrorState({
   )
 }
 
-// Watch Ad to Double Reward Component
+// Watch Ad to Double Reward Component - Uses FullscreenAdModal
 function WatchAdDoubleReward({
   cryptoSymbol,
   baseAmount,
@@ -470,76 +471,11 @@ function WatchAdDoubleReward({
   isAvailable: boolean
 }) {
   const [showModal, setShowModal] = useState(false)
-  const [adProgress, setAdProgress] = useState<number[]>([0, 0, 0])
-  const [adStatus, setAdStatus] = useState<("pending" | "playing" | "completed")[]>(["pending", "pending", "pending"])
-  const [allCompleted, setAllCompleted] = useState(false)
-  const [isClaiming, setIsClaiming] = useState(false)
-  const [timeRemaining, setTimeRemaining] = useState([60, 60, 60])
-
-  const startAds = useCallback(() => {
-    setShowModal(true)
-    setAdStatus(["playing", "playing", "playing"])
-    setAdProgress([0, 0, 0])
-    setTimeRemaining([60, 60, 60])
-    setAllCompleted(false)
-  }, [])
-
-  // Run all 3 ads simultaneously
-  useEffect(() => {
-    if (!showModal || allCompleted) return
-
-    const interval = setInterval(() => {
-      setTimeRemaining(prev => {
-        const newTimes = prev.map(t => Math.max(0, t - 1))
-
-        // Update progress
-        setAdProgress(newTimes.map(t => ((60 - t) / 60) * 100))
-
-        // Update status
-        setAdStatus(newTimes.map(t => t === 0 ? "completed" : "playing"))
-
-        // Check if all completed
-        if (newTimes.every(t => t === 0)) {
-          setAllCompleted(true)
-        }
-
-        return newTimes
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [showModal, allCompleted])
-
-  const handleClaimDouble = async () => {
-    if (!allCompleted || isClaiming) return
-    setIsClaiming(true)
-
-    try {
-      const response = await fetch("/api/manual-faucet/double-reward", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cryptoSymbol, baseAmount })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        toast.success(`Double reward claimed! +${data.amount} ${cryptoSymbol}`, {
-          description: "Sent to your FaucetPay account"
-        })
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
-        setShowModal(false)
-      } else {
-        const error = await response.json()
-        toast.error(error.error || "Failed to claim double reward")
-      }
-    } catch {
-      toast.error("Failed to claim double reward")
-    } finally {
-      setIsClaiming(false)
-    }
-  }
 
   if (!isAvailable) return null
+
+  // Convert baseAmount to a numeric value for the modal (baseAmount is already the raw crypto amount)
+  const baseAmountNumeric = typeof baseAmount === 'string' ? parseFloat(baseAmount) : baseAmount
 
   return (
     <>
@@ -547,116 +483,27 @@ function WatchAdDoubleReward({
         variant="outline"
         size="sm"
         className="w-full mt-2 gap-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:border-amber-500/50"
-        onClick={startAds}
+        onClick={() => setShowModal(true)}
       >
         <Play className="h-3 w-3" />
         Watch Ads to Double Reward
       </Button>
 
-      {/* Modal with 3 Google Rewarded Ads running simultaneously */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-2xl border-amber-500/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Play className="h-5 w-5 text-amber-500" />
-                Watch Ads to Double Your {cryptoSymbol} Reward
-              </CardTitle>
-              <CardDescription>
-                Watch all 3 ads (60 seconds each) to receive 2x your last claim
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* 3 Ad Slots Running Simultaneously */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "relative rounded-lg border p-3 transition-all",
-                      adStatus[i] === "completed" && "bg-green-500/10 border-green-500/30",
-                      adStatus[i] === "playing" && "bg-red-500/5 border-red-500/30",
-                      adStatus[i] === "pending" && "bg-muted/30"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium">Ad #{i + 1}</span>
-                      {adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <div className="flex items-center gap-1 text-red-500">
-                          <Clock className="h-3 w-3 animate-pulse" />
-                          <span className="text-xs font-mono">{timeRemaining[i]}s</span>
-                        </div>
-                      )}
-                    </div>
-                    <Progress value={adProgress[i]} className="h-1.5" />
-
-                    {/* Ad Content Placeholder */}
-                    <div
-                      className="mt-2 aspect-video bg-muted/50 rounded flex items-center justify-center border border-dashed"
-                      data-ad-slot={`double-reward-${cryptoSymbol}-${i}`}
-                    >
-                      {adStatus[i] === "playing" ? (
-                        <div className="text-center">
-                          <Play className="h-6 w-6 mx-auto text-muted-foreground/50 animate-pulse" />
-                          <span className="text-[10px] text-muted-foreground">Ad playing...</span>
-                        </div>
-                      ) : adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-6 w-6 text-green-500" />
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">Waiting...</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 11 Other Ad Networks Running */}
-              <div className="border-t pt-4">
-                <p className="text-xs text-muted-foreground mb-2">Partner Ads</p>
-                <MultiNetworkAds position="content" layout="inline" showLabels={false} priority="high" />
-              </div>
-
-              {/* Claim Button */}
-              <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className={cn(
-                    "flex-1 gap-2",
-                    allCompleted ? "bg-gradient-to-r from-amber-500 to-orange-500" : ""
-                  )}
-                  disabled={!allCompleted || isClaiming}
-                  onClick={handleClaimDouble}
-                >
-                  {isClaiming ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Claiming...
-                    </>
-                  ) : allCompleted ? (
-                    <>
-                      <Coins className="h-4 w-4" />
-                      Claim Double Reward
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="h-4 w-4" />
-                      Complete All Ads
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Fullscreen Ad Modal with 3 Google Rewarded Ads + 11 Ad Networks */}
+      <FullscreenAdModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        type="manual_faucet"
+        baseAmount={baseAmountNumeric}
+        multiplier={2}
+        cryptoSymbol={cryptoSymbol}
+        apiEndpoint="/api/manual-faucet/double-reward"
+        onComplete={(bonusAmount) => {
+          toast.success(`Double reward claimed! +${bonusAmount} ${cryptoSymbol}`, {
+            description: "Sent to your FaucetPay account"
+          })
+        }}
+      />
     </>
   )
 }

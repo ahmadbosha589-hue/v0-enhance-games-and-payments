@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AdSlot } from "@/components/ads/ad-slot"
+import { FloatingWithdrawalTicker } from "@/components/shared/withdrawal-ticker-marquee"
 import { AdblockProvider } from "@/components/adblock/adblock-provider"
 import { PageAdsWrapper } from "@/components/ads/page-ads-wrapper"
 import { ServerTime } from "@/components/server-time"
@@ -68,7 +69,7 @@ export default async function DashboardLayout({
             <SidebarInset>
               <DashboardHeader profile={safeProfile} />
               <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 pb-24 sm:pb-20 scroll-smooth-container">
-                <PageAdsWrapper 
+                <PageAdsWrapper
                   showHeaderAds={true}
                   showFooterAds={true}
                   showSidebarAds={false}
@@ -81,6 +82,7 @@ export default async function DashboardLayout({
                 </div>
               </main>
               <ServerTime />
+              <FloatingWithdrawalTicker />
             </SidebarInset>
           </AdblockProvider>
         </AntiBotProvider>

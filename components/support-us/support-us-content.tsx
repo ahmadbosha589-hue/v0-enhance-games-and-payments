@@ -9,22 +9,37 @@ import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Play, Pause, Heart, Coins, Clock, CheckCircle2,
-  TrendingUp, Sparkles, Volume2, VolumeX, X
+  TrendingUp, Sparkles, Volume2, VolumeX, X, RefreshCw
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import confetti from "canvas-confetti"
-import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
 interface SupportUsContentProps {
   userId: string
 }
 
-// $0.0007 per ad = approximately 7 satoshis at current rates
-const REWARD_PER_AD_USD = 0.0007 // USD per ad
-const REWARD_PER_AD = 7 // satoshis (approximate)
+// 11 Ad Networks (same as multi-network-ads.tsx)
+const AD_NETWORKS = [
+  { id: "a-ads", name: "A-ADS", color: "bg-blue-500" },
+  { id: "coinzilla", name: "CoinZilla", color: "bg-amber-500" },
+  { id: "bitmedia", name: "BitMedia", color: "bg-orange-500" },
+  { id: "cointraffic", name: "CoinTraffic", color: "bg-green-500" },
+  { id: "medianet", name: "Media.net", color: "bg-purple-500" },
+  { id: "hilltopads", name: "HilltopAds", color: "bg-red-500" },
+  { id: "adsterra", name: "Adsterra", color: "bg-cyan-500" },
+  { id: "propellerads", name: "PropellerAds", color: "bg-pink-500" },
+  { id: "trafficstars", name: "TrafficStars", color: "bg-indigo-500" },
+  { id: "mellowads", name: "MellowAds", color: "bg-teal-500" },
+  { id: "adskeeper", name: "AdsKeeper", color: "bg-emerald-500" },
+] as const
+
+// $0.0003 per ad = approximately 3 satoshis
+const REWARD_PER_AD_USD = 0.0003 // USD per ad
+const REWARD_PER_AD = 3 // satoshis (approximate)
 const AD_DURATION = 60 // seconds
-const ADS_PER_SESSION = 3
+const ADS_PER_SESSION = 3 // 3 ads running simultaneously
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -42,13 +57,19 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
   const [isMuted, setIsMuted] = useState(false)
   const [showDoubleReward, setShowDoubleReward] = useState(false)
   const [lastSessionEarnings, setLastSessionEarnings] = useState(0)
+  const [isClaiming, setIsClaiming] = useState(false)
+
+  // For continuous looping of all 11 ad networks
+  const [adNetworkIndex, setAdNetworkIndex] = useState(0)
+  const [loopCount, setLoopCount] = useState(0)
+
   const modalRef = useRef<HTMLDivElement>(null)
 
   // Fetch user's support stats
   const { data: statsData, mutate } = useSWR(
     `/api/support-stats?userId=${userId}`,
     fetcher,
-    { 
+    {
       refreshInterval: 60000,
       revalidateOnFocus: false,
       fallbackData: { totalEarnings: 0, adsWatchedToday: 0 }
@@ -112,6 +133,23 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     return () => clearInterval(interval)
   }, [isWatching, hasStarted, allCompleted])
 
+  // Rotate through ad networks every few seconds when watching
+  useEffect(() => {
+    if (!isWatching || !hasStarted) return
+
+    const rotateInterval = setInterval(() => {
+      setAdNetworkIndex(prev => {
+        const next = (prev + 1) % AD_NETWORKS.length
+        if (next === 0) {
+          setLoopCount(c => c + 1)
+        }
+        return next
+      })
+    }, 5000) // Rotate every 5 seconds
+
+    return () => clearInterval(rotateInterval)
+  }, [isWatching, hasStarted])
+
   const startWatching = useCallback(() => {
     setIsWatching(true)
     setHasStarted(true)
@@ -120,17 +158,20 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     setTimeRemaining(Array(ADS_PER_SESSION).fill(AD_DURATION))
     setAllCompleted(false)
     setSessionEarnings(0)
+    setAdNetworkIndex(0)
+    setLoopCount(0)
     toast.info("Starting ad session...", { description: "All 3 ads playing simultaneously" })
   }, [])
 
   const handleClaimReward = async () => {
-    if (!allCompleted) return
+    if (!allCompleted || isClaiming) return
+    setIsClaiming(true)
 
     const totalSessionEarnings = ADS_PER_SESSION * REWARD_PER_AD
     setLastSessionEarnings(totalSessionEarnings)
 
     try {
-      const response = await fetch("/api/support-us/complete", {
+      const response = await fetch("/api/support-us/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,10 +180,12 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         })
       })
 
+      const data = await response.json()
+
       if (response.ok) {
         setTotalEarnings(prev => prev + totalSessionEarnings)
         setAdsWatchedToday(prev => prev + ADS_PER_SESSION)
-        
+
         toast.success(`Session complete! +${totalSessionEarnings} sats`, {
           description: "Watch ads again to double your reward!"
         })
@@ -166,10 +209,54 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         setShowDoubleReward(true)
 
         mutate()
+      } else {
+        toast.error(data.error || "Failed to claim rewards")
       }
     } catch (error) {
       console.error("Failed to record support earnings:", error)
       toast.error("Failed to claim rewards")
+    } finally {
+      setIsClaiming(false)
+    }
+  }
+
+  const handleClaimDoubleReward = async () => {
+    if (isClaiming) return
+    setIsClaiming(true)
+
+    try {
+      const response = await fetch("/api/support-us/double", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adsWatched: ADS_PER_SESSION,
+          baseAmount: lastSessionEarnings
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        const bonusAmount = data.bonusAmount || lastSessionEarnings
+        setTotalEarnings(prev => prev + bonusAmount)
+        toast.success(`Double reward claimed! +${bonusAmount} sats`)
+
+        confetti({
+          particleCount: 150,
+          spread: 100,
+          origin: { y: 0.5 }
+        })
+
+        setShowDoubleReward(false)
+        mutate()
+      } else {
+        toast.error(data.error || "Failed to claim double reward")
+      }
+    } catch (error) {
+      console.error("Failed to claim double reward:", error)
+      toast.error("Failed to claim double reward")
+    } finally {
+      setIsClaiming(false)
     }
   }
 
@@ -179,10 +266,21 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  // Get current 3 ad networks to display
+  const getCurrentAdNetworks = () => {
+    const networks = []
+    for (let i = 0; i < ADS_PER_SESSION; i++) {
+      networks.push(AD_NETWORKS[(adNetworkIndex + i) % AD_NETWORKS.length])
+    }
+    return networks
+  }
+
   // Fullscreen ad watching UI
   if (isWatching && hasStarted) {
+    const currentNetworks = getCurrentAdNetworks()
+
     return (
-      <div 
+      <div
         ref={modalRef}
         className="fixed inset-0 z-50 bg-background flex flex-col"
       >
@@ -193,11 +291,14 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             <div>
               <h2 className="font-bold text-lg">Supporting CryptoFaucet</h2>
               <p className="text-xs text-muted-foreground">
-                All {ADS_PER_SESSION} ads playing simultaneously
+                All {ADS_PER_SESSION} ads playing simultaneously | Loop #{loopCount + 1}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              {AD_NETWORKS[adNetworkIndex].name}
+            </Badge>
             <Button
               variant="ghost"
               size="icon"
@@ -224,65 +325,118 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
 
         {/* 3 Ad Slots - Grid layout for simultaneous viewing */}
         <div className="flex-1 p-4 overflow-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-full">
-            {[0, 1, 2].map((i) => (
-              <Card
-                key={i}
-                className={cn(
-                  "relative overflow-hidden transition-all duration-300 flex flex-col",
-                  adStatus[i] === "completed" && "border-green-500/50 bg-green-500/5",
-                  adStatus[i] === "playing" && "border-red-500/50"
-                )}
-              >
-                <CardHeader className="pb-2 flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <Badge 
-                      variant={adStatus[i] === "completed" ? "default" : "secondary"}
-                      className={cn(
-                        adStatus[i] === "completed" && "bg-green-500",
-                        adStatus[i] === "playing" && "bg-red-500 animate-pulse"
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[0, 1, 2].map((i) => {
+              const network = currentNetworks[i]
+              return (
+                <Card
+                  key={i}
+                  className={cn(
+                    "relative overflow-hidden transition-all duration-300 flex flex-col",
+                    adStatus[i] === "completed" && "border-green-500/50 bg-green-500/5",
+                    adStatus[i] === "playing" && "border-red-500/50"
+                  )}
+                >
+                  <CardHeader className="pb-2 flex-shrink-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={cn("w-2 h-2 rounded-full", network.color)} />
+                        <Badge
+                          variant={adStatus[i] === "completed" ? "default" : "secondary"}
+                          className={cn(
+                            adStatus[i] === "completed" && "bg-green-500",
+                            adStatus[i] === "playing" && "bg-red-500 animate-pulse"
+                          )}
+                        >
+                          Ad #{i + 1} - {network.name}
+                        </Badge>
+                      </div>
+                      {adStatus[i] === "completed" ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-red-500">
+                          <Clock className="h-4 w-4 animate-pulse" />
+                          <span className="text-sm font-mono font-bold">{formatTime(timeRemaining[i])}</span>
+                        </div>
                       )}
-                    >
-                      Ad #{i + 1}
-                    </Badge>
-                    {adStatus[i] === "completed" ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    </div>
+                    <Progress value={adProgress[i]} className="h-2 mt-2" />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Reward: ${REWARD_PER_AD_USD} ({REWARD_PER_AD} sats)
+                    </p>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex items-center justify-center">
+                    {/* Ad placeholder - in production, embed actual ad here */}
+                    <div className="aspect-video w-full bg-gradient-to-br from-muted/50 to-muted rounded-lg border border-dashed flex items-center justify-center">
+                      {adStatus[i] === "playing" ? (
+                        <div className="text-center space-y-2">
+                          <div className={cn("w-4 h-4 mx-auto rounded-full animate-pulse", network.color)} />
+                          <Play className="h-10 w-10 mx-auto text-red-500 animate-pulse" />
+                          <p className="text-sm text-muted-foreground">{network.name} ad playing...</p>
+                          <p className="text-xs text-muted-foreground/70">
+                            ${REWARD_PER_AD_USD} reward
+                          </p>
+                        </div>
+                      ) : adStatus[i] === "completed" ? (
+                        <div className="text-center space-y-2">
+                          <CheckCircle2 className="h-10 w-10 mx-auto text-green-500" />
+                          <p className="text-sm font-medium text-green-500">Completed!</p>
+                          <p className="text-xs text-muted-foreground">+{REWARD_PER_AD} sats</p>
+                        </div>
+                      ) : (
+                        <div className="text-center space-y-2">
+                          <Play className="h-10 w-10 mx-auto text-muted-foreground/50" />
+                          <p className="text-sm text-muted-foreground">Waiting...</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* All 11 Ad Networks Display - Below main ads */}
+          <div className="mt-6 border-t pt-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                All 11 Partner Ad Networks (Looping)
+              </p>
+              <Badge variant="outline" className="text-xs">
+                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                Auto-rotating
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {AD_NETWORKS.map((network, idx) => (
+                <div
+                  key={network.id}
+                  className={cn(
+                    "p-3 rounded-lg border transition-all duration-300",
+                    idx === adNetworkIndex && "border-primary bg-primary/5 scale-105 shadow-md",
+                    idx !== adNetworkIndex && "border-muted bg-muted/30"
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={cn("w-2 h-2 rounded-full", network.color)} />
+                    <span className="text-xs font-medium truncate">{network.name}</span>
+                  </div>
+                  <div className="aspect-video bg-muted/50 rounded flex items-center justify-center">
+                    {idx === adNetworkIndex ? (
+                      <Play className="h-4 w-4 text-primary animate-pulse" />
                     ) : (
-                      <div className="flex items-center gap-1.5 text-red-500">
-                        <Clock className="h-4 w-4 animate-pulse" />
-                        <span className="text-sm font-mono font-bold">{formatTime(timeRemaining[i])}</span>
-                      </div>
+                      <div className={cn("w-3 h-3 rounded-full opacity-50", network.color)} />
                     )}
                   </div>
-                  <Progress value={adProgress[i]} className="h-2 mt-2" />
-                </CardHeader>
-                <CardContent className="flex-1 flex items-center justify-center">
-                  {/* Ad placeholder - in production, embed actual ad here */}
-                  <div className="aspect-video w-full bg-gradient-to-br from-muted/50 to-muted rounded-lg border border-dashed flex items-center justify-center">
-                    {adStatus[i] === "playing" ? (
-                      <div className="text-center space-y-2">
-                        <Play className="h-10 w-10 mx-auto text-red-500 animate-pulse" />
-                        <p className="text-sm text-muted-foreground">Ad playing...</p>
-                        <p className="text-xs text-muted-foreground/70">
-                          ${REWARD_PER_AD_USD} reward
-                        </p>
-                      </div>
-                    ) : adStatus[i] === "completed" ? (
-                      <div className="text-center space-y-2">
-                        <CheckCircle2 className="h-10 w-10 mx-auto text-green-500" />
-                        <p className="text-sm font-medium text-green-500">Completed!</p>
-                        <p className="text-xs text-muted-foreground">+{REWARD_PER_AD} sats</p>
-                      </div>
-                    ) : (
-                      <div className="text-center space-y-2">
-                        <Play className="h-10 w-10 mx-auto text-muted-foreground/50" />
-                        <p className="text-sm text-muted-foreground">Waiting...</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Additional inline banner ads */}
+          <div className="mt-6">
+            <MultiNetworkAds position="content" layout="grid" priority="high" />
           </div>
         </div>
 
@@ -295,22 +449,30 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
               <div>
                 <p className="text-xs text-muted-foreground">Session Earnings</p>
                 <p className="text-lg font-bold text-green-500">{sessionEarnings} sats</p>
+                <p className="text-[10px] text-muted-foreground">
+                  ${(sessionEarnings / REWARD_PER_AD * REWARD_PER_AD_USD).toFixed(4)} USD
+                </p>
               </div>
             </div>
 
             {/* Claim button */}
-            <Button 
+            <Button
               size="lg"
               onClick={handleClaimReward}
-              disabled={!allCompleted}
+              disabled={!allCompleted || isClaiming}
               className={cn(
                 "gap-2 min-w-[200px]",
-                allCompleted 
-                  ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600" 
+                allCompleted
+                  ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
                   : ""
               )}
             >
-              {allCompleted ? (
+              {isClaiming ? (
+                <>
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                  Claiming...
+                </>
+              ) : allCompleted ? (
                 <>
                   <Coins className="h-5 w-5" />
                   Claim {ADS_PER_SESSION * REWARD_PER_AD} Satoshis
@@ -365,9 +527,22 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             </div>
           </div>
 
+          {/* Reward breakdown */}
+          <div className="p-3 rounded-lg bg-muted/30 border">
+            <p className="text-xs text-muted-foreground mb-2">Reward Breakdown:</p>
+            <div className="flex items-center justify-between text-sm">
+              <span>Each ad</span>
+              <span className="font-mono">${REWARD_PER_AD_USD} ({REWARD_PER_AD} sats)</span>
+            </div>
+            <div className="flex items-center justify-between text-sm font-medium text-green-500 mt-1">
+              <span>3 ads total</span>
+              <span className="font-mono">${(REWARD_PER_AD_USD * 3).toFixed(4)} ({REWARD_PER_AD * 3} sats)</span>
+            </div>
+          </div>
+
           {/* Start Button */}
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             onClick={startWatching}
             className="w-full gap-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600"
           >
@@ -414,30 +589,94 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         </Card>
       </div>
 
+      {/* 11 Ad Networks Info */}
+      <Card className="border-muted">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            11 Partner Ad Networks
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Our ads rotate through all 11 partner networks for maximum earnings
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+            {AD_NETWORKS.map((network) => (
+              <div
+                key={network.id}
+                className="p-2 rounded-lg bg-muted/30 border text-center"
+              >
+                <div className={cn("w-2 h-2 rounded-full mx-auto mb-1", network.color)} />
+                <span className="text-[10px] text-muted-foreground">{network.name}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Tips */}
       <Alert className="border-amber-500/30 bg-amber-500/5">
         <Sparkles className="h-4 w-4 text-amber-500" />
         <AlertTitle className="text-amber-600 dark:text-amber-400">Pro Tip</AlertTitle>
         <AlertDescription className="text-xs sm:text-sm">
-          All 3 ads run simultaneously, so you only wait 60 seconds total! After claiming, you can 
-          watch more ads to double your reward. Keep this tab open and let the ads run.
+          All 3 ads run simultaneously, so you only wait 60 seconds total! After claiming, you can
+          watch more ads to double your reward. Keep this tab open and let the ads run through all 11 networks.
         </AlertDescription>
       </Alert>
 
       {/* Double Reward Modal */}
-      <FullscreenAdModal
-        isOpen={showDoubleReward}
-        onClose={() => setShowDoubleReward(false)}
-        type="daily_bonus"
-        baseAmount={lastSessionEarnings}
-        multiplier={2}
-        onComplete={(bonusAmount) => {
-          setTotalEarnings(prev => prev + bonusAmount)
-          toast.success(`Double reward claimed! +${bonusAmount} sats`)
-          mutate()
-        }}
-        apiEndpoint="/api/support-us/double"
-      />
+      {showDoubleReward && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-md border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Sparkles className="h-5 w-5 text-amber-500" />
+                Double Your Reward!
+              </CardTitle>
+              <CardDescription>
+                Watch another ad session to double your earnings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 rounded-lg bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 text-center">
+                <p className="text-sm text-muted-foreground mb-1">You earned</p>
+                <p className="text-3xl font-bold text-green-500">{lastSessionEarnings} sats</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Claim double to get +{lastSessionEarnings} more!
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowDoubleReward(false)}
+                >
+                  Skip
+                </Button>
+                <Button
+                  className="flex-1 gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+                  onClick={handleClaimDoubleReward}
+                  disabled={isClaiming}
+                >
+                  {isClaiming ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Claiming...
+                    </>
+                  ) : (
+                    <>
+                      <Coins className="h-4 w-4" />
+                      Double Reward
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

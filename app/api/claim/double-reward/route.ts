@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { getUser, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
+import { checkAndSetCooldown, checkDailyLimit, incrementDailyUsage, COOLDOWNS } from "@/lib/redis/cooldowns"
+import { checkRateLimit, RATE_LIMITS } from "@/lib/redis/rate-limiter"
 
-// Rate limit: 1 double reward per 10 minutes per user
-const DOUBLE_REWARD_COOLDOWN_MS = 10 * 60 * 1000
-const doubleRewardCooldowns = new Map<string, number>()
+// Max double rewards per day per user
+const MAX_DOUBLE_REWARDS_PER_DAY = 10
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,24 +22,65 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid base amount" }, { status: 400 })
     }
 
-    // Rate limit check
-    const now = Date.now()
-    const lastDoubleReward = doubleRewardCooldowns.get(user.id) || 0
-    if (now - lastDoubleReward < DOUBLE_REWARD_COOLDOWN_MS) {
-      const remainingSeconds = Math.ceil((DOUBLE_REWARD_COOLDOWN_MS - (now - lastDoubleReward)) / 1000)
-      return NextResponse.json(
-        { error: `Please wait ${remainingSeconds}s before claiming another double reward` },
-        { status: 429 }
-      )
-    }
-
-    // Get IP for logging
+    // Get IP for rate limiting and logging
     const headersList = await headers()
     const ip = headersList.get("x-forwarded-for")?.split(",")[0] ||
       headersList.get("x-real-ip") ||
       "unknown"
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // REDIS-BACKED RATE LIMITING (prevents spam even across serverless instances)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Check rate limit (5 per hour)
+    const rateLimitResult = await checkRateLimit(`${user.id}:${ip}`, RATE_LIMITS.DOUBLE_REWARD)
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: `Rate limit exceeded. Try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter
+        },
+        { status: 429 }
+      )
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // REDIS-BACKED COOLDOWN (10 minute cooldown between double rewards)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const cooldownResult = await checkAndSetCooldown(user.id, COOLDOWNS.DOUBLE_REWARD)
+    if (!cooldownResult.allowed) {
+      const minutes = Math.floor(cooldownResult.remainingSeconds / 60)
+      const seconds = cooldownResult.remainingSeconds % 60
+      return NextResponse.json(
+        {
+          error: `Please wait ${minutes}m ${seconds}s before claiming another double reward`,
+          remainingSeconds: cooldownResult.remainingSeconds
+        },
+        { status: 429 }
+      )
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DAILY LIMIT CHECK (max 10 double rewards per day)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const dailyLimit = await checkDailyLimit(user.id, MAX_DOUBLE_REWARDS_PER_DAY, "double_reward")
+    if (!dailyLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: `Daily limit reached (${MAX_DOUBLE_REWARDS_PER_DAY} double rewards per day). Try again tomorrow.`,
+          used: dailyLimit.used,
+          limit: MAX_DOUBLE_REWARDS_PER_DAY
+        },
+        { status: 429 }
+      )
+    }
+
     const supabase = await createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
+    }
 
     // Verify user has recent claim
     const { data: recentClaim } = await supabase
@@ -163,19 +205,21 @@ export async function POST(request: NextRequest) {
       }).catch(() => { })
     }
 
-    // Update cooldown
-    doubleRewardCooldowns.set(user.id, now)
+    // Increment daily usage counter in Redis
+    await incrementDailyUsage(user.id, "double_reward")
 
     log.info("Double reward claimed (faucet)", {
       userId: user.id,
       originalAmount: baseAmount,
       bonusAmount: doubleAmount,
+      dailyUsed: dailyLimit.used + 1,
       ip
     })
 
     return NextResponse.json({
       success: true,
       amount: doubleAmount,
+      dailyRemaining: MAX_DOUBLE_REWARDS_PER_DAY - dailyLimit.used - 1,
       message: "Double reward claimed successfully!"
     })
 

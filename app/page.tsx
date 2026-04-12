@@ -10,7 +10,7 @@ import { StatsSection } from "@/components/landing/stats-section"
 import { FAQSection } from "@/components/landing/faq-section"
 import { CTASection } from "@/components/landing/cta-section"
 import { Footer } from "@/components/landing/footer"
-import { LiveWithdrawals } from "@/components/landing/live-withdrawals"
+import { WithdrawalTickerMarquee } from "@/components/shared/withdrawal-ticker-marquee"
 import { SkipLink } from "@/components/ui/skip-link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageSelector } from "@/components/language-selector"
@@ -136,7 +136,11 @@ export default function HomePage() {
       {/* Main Content */}
       <main id="main-content" className="flex-1">
         <HeroSection />
-        <LiveWithdrawals />
+        <section className="py-6 sm:py-10 border-y border-border/50 bg-muted/20">
+          <div className="container px-4 sm:px-6">
+            <WithdrawalTickerMarquee variant="landing" speed="normal" showHeader={true} />
+          </div>
+        </section>
         <StatsSection />
         <FeaturesSection />
         <HowItWorksSection />

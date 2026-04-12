@@ -104,12 +104,25 @@ export default function AdminCouponsPage() {
     setIsLoading(true)
     try {
       const res = await fetch("/api/admin/coupons")
-      if (!res.ok) throw new Error("Failed to fetch")
       const data = await res.json()
+
+      if (!res.ok) {
+        // If database not configured, show empty state without error toast
+        if (data.error === "Database not configured") {
+          setCoupons([])
+          setStats({ totalCoupons: 0, activeCoupons: 0, totalRedemptions: 0, totalSatoshisGiven: 0 })
+          return
+        }
+        throw new Error(data.error || "Failed to fetch")
+      }
+
       setCoupons(data.coupons || [])
-      setStats(data.stats || null)
-    } catch {
+      setStats(data.stats || { totalCoupons: 0, activeCoupons: 0, totalRedemptions: 0, totalSatoshisGiven: 0 })
+    } catch (err) {
+      console.error("[Admin Coupons] Fetch error:", err)
       toast.error("Failed to load coupons")
+      setCoupons([])
+      setStats({ totalCoupons: 0, activeCoupons: 0, totalRedemptions: 0, totalSatoshisGiven: 0 })
     } finally {
       setIsLoading(false)
     }

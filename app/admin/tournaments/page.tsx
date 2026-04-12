@@ -56,10 +56,13 @@ interface TournamentParticipant {
 }
 
 async function fetchTournaments(): Promise<Tournament[]> {
-  try {
-    const adminSupabase = createAdminClient()
-    if (!adminSupabase) return []
+  const adminSupabase = createAdminClient()
+  if (!adminSupabase) {
+    console.warn("[Admin Tournaments] Database not configured")
+    return []
+  }
 
+  try {
     const { data, error } = await adminSupabase
       .from("tournaments")
       .select("*")
@@ -92,9 +95,9 @@ async function fetchParticipantCounts(): Promise<Record<string, number>> {
     }
 
     const counts: Record<string, number> = {}
-    ;(data || []).forEach((p: { tournament_id: string }) => {
-      counts[p.tournament_id] = (counts[p.tournament_id] || 0) + 1
-    })
+      ; (data || []).forEach((p: { tournament_id: string }) => {
+        counts[p.tournament_id] = (counts[p.tournament_id] || 0) + 1
+      })
     return counts
   } catch (err) {
     console.error("[Admin Tournaments] Participants exception:", err)

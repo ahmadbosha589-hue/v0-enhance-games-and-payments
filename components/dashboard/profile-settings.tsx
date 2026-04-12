@@ -2,14 +2,15 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import type { Profile } from "@/lib/types/database"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { createClient } from "@/lib/supabase/client"
-import { Loader2, Copy, Check, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Loader2, Copy, Check, AlertCircle, CheckCircle2, Camera, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 
 interface ProfileSettingsProps {
@@ -20,12 +21,125 @@ interface ProfileSettingsProps {
 export function ProfileSettings({ profile, email }: ProfileSettingsProps) {
   const [displayName, setDisplayName] = useState(profile.display_name || "")
   const [username, setUsername] = useState(profile.username || "")
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url || "")
   const [isLoading, setIsLoading] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
+
+  const initials =
+    displayName
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) ||
+    email?.slice(0, 2).toUpperCase() ||
+    "U"
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file")
+      return
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be smaller than 2MB")
+      return
+    }
+
+    setIsUploadingAvatar(true)
+
+    try {
+      const supabase = createClient()
+      if (!supabase) {
+        throw new Error("Service unavailable")
+      }
+
+      // Create unique filename
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${profile.id}-${Date.now()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+        })
+
+      if (uploadError) {
+        // If storage bucket doesn't exist, show helpful message
+        if (uploadError.message.includes("Bucket not found")) {
+          toast.error("Avatar storage not configured. Please contact support.")
+          return
+        }
+        throw uploadError
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath)
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("id", profile.id)
+
+      if (updateError) throw updateError
+
+      setAvatarUrl(publicUrl)
+      toast.success("Avatar updated successfully!")
+      router.refresh()
+    } catch (error) {
+      console.error("[ProfileSettings] Avatar upload error:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to upload avatar")
+    } finally {
+      setIsUploadingAvatar(false)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
+  }
+
+  const handleRemoveAvatar = async () => {
+    setIsUploadingAvatar(true)
+    try {
+      const supabase = createClient()
+      if (!supabase) {
+        throw new Error("Service unavailable")
+      }
+
+      // Update profile to remove avatar URL
+      const { error } = await supabase
+        .from("profiles")
+        .update({ avatar_url: null })
+        .eq("id", profile.id)
+
+      if (error) throw error
+
+      setAvatarUrl("")
+      toast.success("Avatar removed")
+      router.refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove avatar")
+    } finally {
+      setIsUploadingAvatar(false)
+    }
+  }
 
   const copyUserId = async () => {
     try {
@@ -178,7 +292,75 @@ export function ProfileSettings({ profile, email }: ProfileSettingsProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Avatar Upload Section */}
+      <div className="space-y-3">
+        <Label>Profile Photo</Label>
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <Avatar className="h-20 w-20 border-2 border-border">
+              <AvatarImage src={avatarUrl || undefined} alt={displayName || "Profile"} />
+              <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            {/* Overlay on hover */}
+            <div
+              className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Camera className="h-6 w-6 text-white" />
+            </div>
+            {isUploadingAvatar && (
+              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                <Loader2 className="h-6 w-6 text-white animate-spin" />
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              className="hidden"
+              disabled={isUploadingAvatar}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="gap-2"
+            >
+              {isUploadingAvatar ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              Upload Photo
+            </Button>
+            {avatarUrl && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRemoveAvatar}
+                disabled={isUploadingAvatar}
+                className="gap-2 text-destructive hover:text-destructive"
+              >
+                <X className="h-4 w-4" />
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Recommended: Square image, at least 200x200px. Max 2MB.
+        </p>
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="userId">User ID</Label>
         <div className="flex gap-2">

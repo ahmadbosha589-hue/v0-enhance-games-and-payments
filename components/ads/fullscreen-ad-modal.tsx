@@ -244,7 +244,7 @@ export function FullscreenAdModal({
         })
 
         onComplete?.(data.bonusAmount || bonusAmount)
-        
+
         // Reset and close
         setTimeout(() => {
           setHasStarted(false)
@@ -286,7 +286,7 @@ export function FullscreenAdModal({
   const overallProgress = (completedCount / AD_COUNT) * 100
 
   return (
-    <div 
+    <div
       ref={modalRef}
       className="fixed inset-0 z-[9999] overflow-hidden"
       style={{ touchAction: "none" }}
@@ -296,7 +296,7 @@ export function FullscreenAdModal({
         "absolute inset-0 bg-background",
         `bg-gradient-to-br ${config.bgGradient}`
       )} />
-      
+
       {/* Main content container */}
       <div className="relative h-full w-full flex flex-col overflow-y-auto">
         {/* Header - fixed at top */}
@@ -318,7 +318,7 @@ export function FullscreenAdModal({
                   <p className="text-xs sm:text-sm text-muted-foreground">{config.description}</p>
                 </div>
               </div>
-              
+
               {/* Controls */}
               <div className="flex items-center gap-2">
                 <Button
@@ -483,27 +483,44 @@ export function FullscreenAdModal({
                 ))}
               </div>
 
-              {/* Additional Ad Networks - Below main ads */}
+              {/* All 11 Ad Networks - Below main Google ads */}
               <div className="border-t pt-6">
                 <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
                   <Sparkles className="h-4 w-4" />
-                  Partner Advertisements
+                  Partner Ad Networks (11 Networks)
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Array.from({ length: 9 }).map((_, i) => (
-                    <div key={`partner-${i}`} className="aspect-video rounded-lg overflow-hidden bg-muted/30">
-                      <AdSlotMultiNetwork
-                        position="content"
-                        size="rectangle"
-                        className="w-full h-full"
-                        priority="medium"
-                      />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {[
+                    "A-ADS",
+                    "CoinZilla",
+                    "BitMedia",
+                    "CoinTraffic",
+                    "Media.net",
+                    "HilltopAds",
+                    "Adsterra",
+                    "PropellerAds",
+                    "TrafficStars",
+                    "MellowAds",
+                    "AdsKeeper"
+                  ].map((network, i) => (
+                    <div key={`partner-${network}`} className="rounded-lg overflow-hidden bg-muted/30 border border-border/50">
+                      <div className="px-2 py-1 bg-muted/50 border-b border-border/30">
+                        <span className="text-[10px] font-medium text-muted-foreground">{network}</span>
+                      </div>
+                      <div className="aspect-video">
+                        <AdSlotMultiNetwork
+                          position="content"
+                          size="rectangle"
+                          className="w-full h-full"
+                          priority="medium"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Inline banner ads */}
+              {/* Additional inline banner ads */}
               <MultiNetworkAds position="content" layout="grid" priority="high" />
             </div>
           )}

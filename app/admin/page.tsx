@@ -43,11 +43,95 @@ async function safeQuery<T>(
 }
 
 async function AdminStats() {
-  let supabase
-  try {
-    supabase = createAdminClient()
-  } catch {
-    return <StatsError />
+  const supabase = createAdminClient()
+
+  // If database not configured, show empty stats with zeros
+  if (!supabase) {
+    const emptyStats = [
+      {
+        title: "Total Users",
+        value: "0",
+        change: "+0 today",
+        changeType: "neutral" as const,
+        icon: Users,
+      },
+      {
+        title: "Total Claims",
+        value: "0",
+        change: "+0 today",
+        changeType: "neutral" as const,
+        icon: Coins,
+      },
+      {
+        title: "Pending Withdrawals",
+        value: "0",
+        change: "No database",
+        changeType: "neutral" as const,
+        icon: CreditCard,
+      },
+      {
+        title: "Flagged Users",
+        value: "0",
+        change: "No database",
+        changeType: "neutral" as const,
+        icon: AlertTriangle,
+      },
+    ]
+
+    return (
+      <>
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+          {emptyStats.map((stat) => (
+            <Card key={stat.title} className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <div className="text-lg sm:text-2xl font-bold">{stat.value}</div>
+                <div className="flex items-center gap-1 text-xs mt-1">
+                  <span className="text-muted-foreground">{stat.change}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Active Users (24h)</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground mt-1">0% of total users</p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Total Distributed</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold">0 sats</div>
+              <p className="text-xs text-muted-foreground mt-1">All-time satoshis paid out</p>
+            </CardContent>
+          </Card>
+          <Card className="hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Platform Health</CardTitle>
+              <Badge variant="outline" className="text-amber-500 border-amber-500/30 text-xs">
+                No Database
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold">--</div>
+              <p className="text-xs text-muted-foreground mt-1">Connect Supabase to see stats</p>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    )
   }
 
   // Run all queries in parallel
@@ -279,11 +363,22 @@ function ChartLoading() {
 }
 
 async function AdblockDetectionStats() {
-  let supabase
-  try {
-    supabase = createAdminClient()
-  } catch {
-    return null
+  const supabase = createAdminClient()
+  if (!supabase) {
+    return (
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Adblock Detection Rate</CardTitle>
+          <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+          <div className="text-lg sm:text-2xl font-bold text-muted-foreground">--</div>
+          <div className="flex flex-col gap-0.5 mt-1">
+            <p className="text-xs text-muted-foreground">No database connected</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   // Try to get stats from the database function first

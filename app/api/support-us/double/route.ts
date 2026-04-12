@@ -1,14 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextRequest, NextResponse } from "next/server"
 
-// $0.0007 per ad = approximately 7 satoshis
-const REWARD_PER_AD = 7
+// $0.0003 per ad = approximately 3 satoshis
+const REWARD_PER_AD = 3
 const ADS_PER_SESSION = 3
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       const lastDouble = new Date(profile.last_support_us_double_at)
       const now = new Date()
       const diffMinutes = (now.getTime() - lastDouble.getTime()) / (1000 * 60)
-      
+
       // 5 minute cooldown between double rewards
       if (diffMinutes < 5) {
         return NextResponse.json(

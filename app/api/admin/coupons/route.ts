@@ -3,14 +3,23 @@ import { createAdminClient, getUser } from "@/lib/supabase/server"
 
 export async function GET() {
   try {
+    const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      // Return empty data when database is not configured
+      return NextResponse.json({
+        coupons: [],
+        stats: {
+          totalCoupons: 0,
+          activeCoupons: 0,
+          totalRedemptions: 0,
+          totalSatoshisGiven: 0,
+        },
+      })
+    }
+
     const user = await getUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const adminSupabase = createAdminClient()
-    if (!adminSupabase) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
 
     // Check if user is admin

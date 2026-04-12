@@ -333,7 +333,7 @@ export default function SignUpPage() {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
         options: {
@@ -357,6 +357,28 @@ export default function SignUpPage() {
         return
       }
 
+      // If user is created and session exists, log them in directly
+      if (signUpData?.user && signUpData?.session) {
+        // Store device fingerprint for the new user
+        if (deviceFingerprint) {
+          await supabase.from("device_fingerprints").upsert(
+            {
+              user_id: signUpData.user.id,
+              fingerprint_hash: deviceFingerprint,
+              last_seen_at: new Date().toISOString(),
+              times_seen: 1,
+              is_trusted: true,
+            },
+            { onConflict: "user_id,fingerprint_hash" },
+          )
+        }
+
+        toast.success("Account created successfully! Welcome!")
+        window.location.href = "/dashboard"
+        return
+      }
+
+      // If email confirmation is required (no session), redirect to verify page
       router.push("/auth/verify-email")
     } catch (err) {
       console.error("Sign-up error:", err)
