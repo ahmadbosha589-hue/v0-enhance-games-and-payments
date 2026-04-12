@@ -41,8 +41,8 @@ export function useAuth(): UseAuthReturn {
       const supabase = createClient()
 
       if (supabase) {
-        // Use a timeout to prevent hanging - if signOut takes too long, proceed anyway
-        const signOutPromise = supabase.auth.signOut({ scope: 'local' })
+        // Use global scope to clear server-side session as well
+        const signOutPromise = supabase.auth.signOut({ scope: 'global' })
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Sign out timeout")), 3000)
         )
@@ -60,8 +60,17 @@ export function useAuth(): UseAuthReturn {
       console.error("[useAuth] Sign out failed:", err)
       toast.success("Signed out") // Still show success since storage was cleared
     } finally {
-      // Always redirect - storage is already cleared
-      window.location.href = "/"
+      // Clear cookies and redirect with cache-busting query to force fresh state
+      if (typeof document !== "undefined") {
+        document.cookie.split(";").forEach((c) => {
+          const name = c.split("=")[0].trim()
+          if (name.includes("supabase") || name.includes("sb-")) {
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
+          }
+        })
+      }
+      // Add timestamp to force fresh load and bypass any caching
+      window.location.href = `/?signedOut=${Date.now()}`
     }
   }
 

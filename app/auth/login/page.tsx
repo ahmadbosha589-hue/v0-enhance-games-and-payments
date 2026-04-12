@@ -252,15 +252,22 @@ export default function LoginPage() {
         callbackUrl.searchParams.set("fingerprint", deviceFingerprint)
       }
 
-      // Block multi-account: Use "consent" instead of "select_account" to prevent account chooser
-      // This forces re-authorization without showing other Google accounts
+      // Use "select_account" to allow Google account selection while still
+      // remembering the last logged in account. This provides:
+      // 1. Fast sign-in for returning users (account is pre-selected)
+      // 2. Ability to switch accounts if needed
+      // Security is maintained through:
+      // - VPN/Proxy blocking (checked above)
+      // - Device fingerprinting (passed in callback URL)
+      // - Multi-account detection on callback
+      // - Fraud detection pipeline on server
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: callbackUrl.toString(),
           queryParams: {
             access_type: "offline",
-            prompt: "consent",
+            prompt: "select_account",
           },
         },
       })

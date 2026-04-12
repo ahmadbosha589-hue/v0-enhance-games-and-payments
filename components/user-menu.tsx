@@ -64,8 +64,8 @@ export function UserMenu({ user }: UserMenuProps) {
     try {
       const supabase = createClient()
       if (supabase) {
-        // Use timeout to prevent hanging
-        const signOutPromise = supabase.auth.signOut({ scope: 'local' })
+        // Use global scope to clear server-side session as well
+        const signOutPromise = supabase.auth.signOut({ scope: 'global' })
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Timeout")), 3000)
         )
@@ -82,8 +82,15 @@ export function UserMenu({ user }: UserMenuProps) {
       console.error("[UserMenu] Sign out failed:", error)
       toast.success("Signed out")
     } finally {
-      // Always redirect
-      window.location.href = "/"
+      // Clear cookies and redirect with cache-busting query to force fresh state
+      document.cookie.split(";").forEach((c) => {
+        const name = c.split("=")[0].trim()
+        if (name.includes("supabase") || name.includes("sb-")) {
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
+        }
+      })
+      // Add timestamp to force fresh load and bypass any caching
+      window.location.href = `/?signedOut=${Date.now()}`
     }
   }
 

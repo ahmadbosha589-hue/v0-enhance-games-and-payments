@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LogoFull } from "@/components/icons/logo"
 import { HeroSection } from "@/components/landing/hero-section"
@@ -20,13 +21,25 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { useLanguage } from "@/lib/i18n/language-context"
 import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 
-export default function HomePage() {
+function HomePageContent() {
   const { t } = useLanguage()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+  const searchParams = useSearchParams()
+
+  // Check if user just signed out - skip auth check entirely
+  const justSignedOut = searchParams.get("signedOut")
 
   // Check if user is already logged in and redirect to dashboard
   useEffect(() => {
+    // If user just signed out, don't check auth - just show the page
+    if (justSignedOut) {
+      // Clear the signedOut param from URL without refresh
+      window.history.replaceState({}, "", "/")
+      setIsCheckingAuth(false)
+      return
+    }
+
     const checkAuth = async () => {
       const supabase = createClient()
       if (!supabase) {
@@ -38,24 +51,20 @@ export default function HomePage() {
         // Clear orphaned lock first
         await clearOrphanedAuthLock()
 
-        // Quick check with getSession (reads localStorage, fast)
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          console.log("[Landing] User already logged in, redirecting to dashboard")
-          window.location.href = "/dashboard"
+        // Use getUser which validates against server - getSession can be stale
+        const { data: { user }, error } = await supabase.auth.getUser()
+
+        // If there's an error or no user, they're not logged in
+        if (error || !user) {
+          setIsCheckingAuth(false)
           return
         }
 
-        // Also check with getUser in case session just completed via OAuth
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          console.log("[Landing] User found via getUser, redirecting to dashboard")
-          window.location.href = "/dashboard"
-          return
-        }
+        // User is authenticated, redirect to dashboard
+        console.log("[Landing] User authenticated, redirecting to dashboard")
+        window.location.href = "/dashboard"
       } catch (err) {
         console.warn("[Landing] Auth check failed:", err)
-      } finally {
         setIsCheckingAuth(false)
       }
     }
@@ -67,7 +76,8 @@ export default function HomePage() {
     if (!supabase) return
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN" && session?.user) {
+      // Only redirect on explicit sign in, not cached sessions
+      if (event === "SIGNED_IN" && session?.user && !justSignedOut) {
         console.log("[Landing] Auth state changed to SIGNED_IN, redirecting")
         window.location.href = "/dashboard"
       }
@@ -76,7 +86,7 @@ export default function HomePage() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [justSignedOut])
 
   // Show loading while checking auth to prevent flash
   if (isCheckingAuth) {
@@ -215,5 +225,17 @@ export default function HomePage() {
       {/* Footer */}
       <Footer />
     </div>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   )
 }
