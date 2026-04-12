@@ -1,5 +1,3 @@
-"use server"
-
 import { Redis } from "@upstash/redis"
 
 // Singleton Redis client
