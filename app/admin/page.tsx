@@ -43,7 +43,13 @@ async function safeQuery<T>(
 }
 
 async function AdminStats() {
-  const supabase = createAdminClient()
+  let supabase: ReturnType<typeof createAdminClient> = null
+
+  try {
+    supabase = createAdminClient()
+  } catch (err) {
+    console.error("[Admin Stats] Failed to create admin client:", err)
+  }
 
   // If database not configured, show empty stats with zeros
   if (!supabase) {
@@ -134,61 +140,75 @@ async function AdminStats() {
     )
   }
 
-  // Run all queries in parallel
-  const [
-    usersResult,
-    activeUsersResult,
-    claimsResult,
-    pendingWithdrawalsResult,
-    flaggedUsersResult,
-    totalDistributedResult,
-    todayClaimsResult,
-    todaySignupsResult,
-  ] = await Promise.all([
-    safeQuery(() => supabase.from("profiles").select("*", { count: "exact", head: true }), null),
-    safeQuery(
-      () =>
-        supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .gte("last_claim_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
-      null,
-    ),
-    safeQuery(() => supabase.from("claims").select("*", { count: "exact", head: true }), null),
-    safeQuery(
-      () => supabase.from("withdrawals").select("*", { count: "exact", head: true }).eq("status", "pending"),
-      null,
-    ),
-    safeQuery(() => supabase.from("profiles").select("*", { count: "exact", head: true }).eq("is_flagged", true), null),
-    safeQuery(() => supabase.from("profiles").select("total_earned_satoshis"), []),
-    safeQuery(
-      () =>
-        supabase
-          .from("claims")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-      null,
-    ),
-    safeQuery(
-      () =>
-        supabase
-          .from("profiles")
-          .select("*", { count: "exact", head: true })
-          .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-      null,
-    ),
-  ])
+  // Run all queries in parallel with error handling
+  let totalUsers = 0
+  let activeUsers = 0
+  let totalClaims = 0
+  let pendingWithdrawals = 0
+  let flaggedUsers = 0
+  let todayClaims = 0
+  let todaySignups = 0
+  let totalDistributed = 0
 
-  const totalUsers = usersResult.count
-  const activeUsers = activeUsersResult.count
-  const totalClaims = claimsResult.count
-  const pendingWithdrawals = pendingWithdrawalsResult.count
-  const flaggedUsers = flaggedUsersResult.count
-  const todayClaims = todayClaimsResult.count
-  const todaySignups = todaySignupsResult.count
+  try {
+    const [
+      usersResult,
+      activeUsersResult,
+      claimsResult,
+      pendingWithdrawalsResult,
+      flaggedUsersResult,
+      totalDistributedResult,
+      todayClaimsResult,
+      todaySignupsResult,
+    ] = await Promise.all([
+      safeQuery(() => supabase.from("profiles").select("*", { count: "exact", head: true }), null),
+      safeQuery(
+        () =>
+          supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .gte("last_claim_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+        null,
+      ),
+      safeQuery(() => supabase.from("claims").select("*", { count: "exact", head: true }), null),
+      safeQuery(
+        () => supabase.from("withdrawals").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        null,
+      ),
+      safeQuery(() => supabase.from("profiles").select("*", { count: "exact", head: true }).eq("is_flagged", true), null),
+      safeQuery(() => supabase.from("profiles").select("total_earned_satoshis"), []),
+      safeQuery(
+        () =>
+          supabase
+            .from("claims")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
+        null,
+      ),
+      safeQuery(
+        () =>
+          supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true })
+            .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
+        null,
+      ),
+    ])
 
-  const distributedData = totalDistributedResult.data as { total_earned_satoshis: number }[] | null
-  const totalDistributed = distributedData?.reduce((sum, p) => sum + Number(p.total_earned_satoshis || 0), 0) || 0
+    totalUsers = usersResult.count
+    activeUsers = activeUsersResult.count
+    totalClaims = claimsResult.count
+    pendingWithdrawals = pendingWithdrawalsResult.count
+    flaggedUsers = flaggedUsersResult.count
+    todayClaims = todayClaimsResult.count
+    todaySignups = todaySignupsResult.count
+
+    const distributedData = totalDistributedResult.data as { total_earned_satoshis: number }[] | null
+    totalDistributed = distributedData?.reduce((sum, p) => sum + Number(p.total_earned_satoshis || 0), 0) || 0
+  } catch (err) {
+    console.error("[Admin Stats] Failed to fetch stats:", err)
+    // Continue with zeros
+  }
 
   const stats = [
     {

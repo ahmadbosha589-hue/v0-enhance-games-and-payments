@@ -146,20 +146,62 @@ export default async function AdminTournamentsPage() {
   let tournaments: Tournament[] = []
   let participantCounts: Record<string, number> = {}
   let loadError = false
+  let dbConfigured = true
 
-  try {
-    const [t, p] = await Promise.all([
-      fetchTournaments(),
-      fetchParticipantCounts(),
-    ])
-    tournaments = t
-    participantCounts = p
-  } catch (err) {
-    console.error("[Admin Tournaments] Failed to load data:", err)
-    loadError = true
+  // Check if database is configured first
+  const adminSupabase = createAdminClient()
+  if (!adminSupabase) {
+    dbConfigured = false
+  } else {
+    try {
+      const [t, p] = await Promise.all([
+        fetchTournaments(),
+        fetchParticipantCounts(),
+      ])
+      tournaments = t
+      participantCounts = p
+    } catch (err) {
+      console.error("[Admin Tournaments] Failed to load data:", err)
+      loadError = true
+    }
   }
 
   const stats = await fetchStats(tournaments, participantCounts)
+
+  if (!dbConfigured) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Crown className="h-6 w-6 text-yellow-500" />
+              Tournament Management
+            </h1>
+            <p className="text-muted-foreground">Create and manage platform tournaments</p>
+          </div>
+        </div>
+        <Card className="border-amber-500/30">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mx-auto w-14 h-14 bg-amber-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertTriangle className="h-7 w-7 text-amber-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">Database Not Configured</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mb-4">
+              Please configure your Supabase environment variables to manage tournaments.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/admin/tournaments">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   if (loadError) {
     return (
@@ -180,17 +222,17 @@ export default async function AdminTournamentsPage() {
             </div>
             <h3 className="text-lg font-semibold mb-2">Unable to Load Tournaments</h3>
             <p className="text-sm text-muted-foreground max-w-sm mb-4">
-              Could not connect to the database. The service may be temporarily unavailable or not configured.
+              There was an error loading tournaments. This may be a temporary issue.
             </p>
             <div className="flex gap-2">
               <Button variant="outline" asChild>
                 <Link href="/admin/tournaments">
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  Retry
+                  Try Again
                 </Link>
               </Button>
               <Button variant="outline" asChild>
-                <Link href="/admin/env-vars">Check Configuration</Link>
+                <Link href="/admin">Back to Dashboard</Link>
               </Button>
             </div>
           </CardContent>
