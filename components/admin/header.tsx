@@ -47,6 +47,11 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
     async function fetchNotifications() {
       try {
         const supabase = createClient()
+        if (!supabase) {
+          setNotifications([])
+          setNotificationCount(0)
+          return
+        }
 
         // Fetch pending fraud flags as admin notifications
         const { data: fraudFlags, count: fraudCount } = await supabase

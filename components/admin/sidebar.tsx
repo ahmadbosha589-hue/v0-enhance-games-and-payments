@@ -47,6 +47,10 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
     async function fetchFraudCount() {
       try {
         const supabase = createClient()
+        if (!supabase) {
+          setFraudCount(0)
+          return
+        }
         const { count } = await supabase
           .from("fraud_flags")
           .select("*", { count: "exact", head: true })

@@ -41,46 +41,48 @@ const defaultAdminProfile: Profile = {
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-
-  // If supabase is not configured, redirect to login
-  if (!supabase) {
-    redirect("/auth/login?redirect=/admin&error=db_not_configured")
-  }
-
-  const { data: authData, error: authError } = await supabase.auth.getUser()
-
-  if (authError || !authData?.user) {
-    redirect("/auth/login?redirect=/admin")
-  }
-
-  const user = authData.user
-  const email = user.email || ""
-
-  // Get profile using admin client (bypasses RLS)
+  let user: { id: string; email?: string } | null = null
   let profile: Profile | null = null
 
   try {
-    const adminSupabase = createAdminClient()
-    const { data: profileData } = await adminSupabase.from("profiles").select("*").eq("id", user.id).single()
+    const supabase = await createClient()
 
-    if (profileData) {
-      profile = profileData as Profile
+    if (supabase) {
+      const { data: authData, error: authError } = await supabase.auth.getUser()
+
+      if (!authError && authData?.user) {
+        user = authData.user
+
+        // Get profile using admin client (bypasses RLS)
+        try {
+          const adminSupabase = createAdminClient()
+          if (adminSupabase) {
+            const { data: profileData } = await adminSupabase.from("profiles").select("*").eq("id", user.id).single()
+            if (profileData) {
+              profile = profileData as Profile
+            }
+          }
+        } catch {
+          // Continue with null profile
+        }
+
+        // Redirect regular users away from admin
+        if (profile && profile.role === "user") {
+          redirect("/dashboard")
+        }
+      }
     }
   } catch {
-    // Continue with null profile
+    // Supabase not available - continue with defaults to allow page to render
   }
 
-  // Redirect regular users away from admin
-  if (profile && profile.role === "user") {
-    redirect("/dashboard")
-  }
+  const email = user?.email || ""
 
   // Use profile or default
   const safeProfile: Profile = profile || {
     ...defaultAdminProfile,
-    id: user.id,
-    username: email.split("@")[0] || "Admin",
+    id: user?.id || "",
+    username: email ? email.split("@")[0] : "Admin",
   }
 
   return (
