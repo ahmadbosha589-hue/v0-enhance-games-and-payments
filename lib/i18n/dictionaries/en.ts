@@ -1124,6 +1124,21 @@ export const en = {
     exportCSV: "Export as CSV",
     exportPDF: "Export as PDF",
   },
+  // User Menu
+  userMenu: {
+    dashboard: "Dashboard",
+    profile: "Profile",
+    withdrawals: "Withdrawals",
+    referrals: "Referrals",
+    history: "History",
+    settings: "Settings",
+    helpCenter: "Help Center",
+    adminPanel: "Admin Panel",
+    signIn: "Sign In",
+    signOut: "Sign Out",
+    signingOut: "Signing out...",
+    getStarted: "Get Started",
+  },
 }
 
 export type Dictionary = typeof en

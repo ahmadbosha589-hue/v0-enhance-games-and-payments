@@ -43,36 +43,46 @@ export function UserMenu({ user }: UserMenuProps) {
     if (isLoading) return
 
     setIsLoading(true)
-    try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signOut()
 
-      if (error) {
-        console.error("[UserMenu] Sign out error:", error)
-      }
-
-      // Clear all local storage auth data
-      if (typeof window !== "undefined") {
-        const keysToRemove = Object.keys(localStorage).filter(
+    // Clear all local storage auth data first
+    if (typeof window !== "undefined") {
+      try {
+        const localKeys = Object.keys(localStorage).filter(
           key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
         )
-        keysToRemove.forEach(key => localStorage.removeItem(key))
+        localKeys.forEach(key => localStorage.removeItem(key))
+
+        const sessionKeys = Object.keys(sessionStorage).filter(
+          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+        )
+        sessionKeys.forEach(key => sessionStorage.removeItem(key))
+      } catch (e) {
+        console.warn("[UserMenu] Error clearing storage:", e)
+      }
+    }
+
+    try {
+      const supabase = createClient()
+      if (supabase) {
+        // Use timeout to prevent hanging
+        const signOutPromise = supabase.auth.signOut({ scope: 'local' })
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 3000)
+        )
+
+        try {
+          await Promise.race([signOutPromise, timeoutPromise])
+        } catch {
+          // Timeout or error - continue anyway
+        }
       }
 
       toast.success("Signed out successfully")
-
-      // Force a hard navigation to clear all state
-      window.location.href = "/"
     } catch (error) {
       console.error("[UserMenu] Sign out failed:", error)
-      // Even if signOut fails, clear local data and redirect
-      if (typeof window !== "undefined") {
-        const keysToRemove = Object.keys(localStorage).filter(
-          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
-        )
-        keysToRemove.forEach(key => localStorage.removeItem(key))
-      }
-      toast.error("Sign out encountered an issue, but you've been logged out locally")
+      toast.success("Signed out")
+    } finally {
+      // Always redirect
       window.location.href = "/"
     }
   }
@@ -194,7 +204,7 @@ export function UserMenu({ user }: UserMenuProps) {
           ) : (
             <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
           )}
-          {t("userMenu.signOut")}
+          {isLoading ? t("userMenu.signingOut") : t("userMenu.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -142,7 +142,7 @@ export function UserMenu() {
           ) : (
             <LogOut className="mr-2 h-4 w-4" />
           )}
-          {isSigningOut ? t("userMenu.signingOut") || "Signing out..." : t("userMenu.signOut")}
+          {isSigningOut ? t("userMenu.signingOut") : t("userMenu.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

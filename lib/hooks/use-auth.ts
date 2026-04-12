@@ -9,52 +9,58 @@ interface UseAuthReturn {
   updateProfile: (data: Record<string, unknown>) => Promise<void>
 }
 
+// Helper to clear all auth-related storage
+function clearAuthStorage() {
+  if (typeof window === "undefined") return
+
+  try {
+    // Clear localStorage
+    const localKeys = Object.keys(localStorage).filter(
+      key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+    )
+    localKeys.forEach(key => localStorage.removeItem(key))
+
+    // Clear sessionStorage
+    const sessionKeys = Object.keys(sessionStorage).filter(
+      key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
+    )
+    sessionKeys.forEach(key => sessionStorage.removeItem(key))
+  } catch (e) {
+    console.warn("[useAuth] Error clearing storage:", e)
+  }
+}
+
 export function useAuth(): UseAuthReturn {
   const router = useRouter()
 
   const signOut = async () => {
+    // Clear storage first to ensure user is logged out even if API call hangs
+    clearAuthStorage()
+
     try {
       const supabase = createClient()
 
-      // Clear orphaned Web Lock before auth operation
-      await clearOrphanedAuthLock()
-
       if (supabase) {
-        const { error } = await supabase.auth.signOut()
-        if (error) {
-          console.error("[useAuth] Sign out error:", error)
+        // Use a timeout to prevent hanging - if signOut takes too long, proceed anyway
+        const signOutPromise = supabase.auth.signOut({ scope: 'local' })
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Sign out timeout")), 3000)
+        )
+
+        try {
+          await Promise.race([signOutPromise, timeoutPromise])
+        } catch (err) {
+          // Timeout or error - continue with redirect anyway
+          console.warn("[useAuth] Sign out API call issue:", err)
         }
       }
 
-      // Clear all local storage auth data
-      if (typeof window !== "undefined") {
-        // Clear Supabase auth tokens from localStorage
-        const keysToRemove = Object.keys(localStorage).filter(
-          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
-        )
-        keysToRemove.forEach(key => localStorage.removeItem(key))
-
-        // Clear session storage too
-        const sessionKeysToRemove = Object.keys(sessionStorage).filter(
-          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
-        )
-        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key))
-      }
-
       toast.success("Signed out successfully")
-
-      // Force a hard navigation to clear all state
-      window.location.href = "/"
     } catch (err) {
       console.error("[useAuth] Sign out failed:", err)
-      // Even if signOut fails, clear local data and redirect
-      if (typeof window !== "undefined") {
-        const keysToRemove = Object.keys(localStorage).filter(
-          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
-        )
-        keysToRemove.forEach(key => localStorage.removeItem(key))
-      }
-      toast.error("Sign out encountered an issue, but you've been logged out locally")
+      toast.success("Signed out") // Still show success since storage was cleared
+    } finally {
+      // Always redirect - storage is already cleared
       window.location.href = "/"
     }
   }
