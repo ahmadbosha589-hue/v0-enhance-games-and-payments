@@ -5,6 +5,7 @@ import { AdminSidebar } from "@/components/admin/sidebar"
 import { AdminHeader } from "@/components/admin/header"
 import { ServerTime } from "@/components/server-time"
 import { SupabaseHealthProvider } from "@/components/admin/supabase-health-provider"
+import { ConnectivityBanner } from "@/components/admin/connectivity-banner"
 import type { Profile } from "@/lib/types/database"
 
 export const dynamic = "force-dynamic"
@@ -92,6 +93,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminSidebar profile={safeProfile} />
         <div className="lg:pl-72 flex flex-col flex-1">
           <AdminHeader profile={safeProfile} email={email} />
+          <ConnectivityBanner />
           <main className="flex-1 p-3 sm:p-4 md:p-6 pb-16">{children}</main>
           <ServerTime />
         </div>
