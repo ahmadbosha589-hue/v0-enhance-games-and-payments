@@ -437,7 +437,7 @@ export default async function AdminTournamentsPage() {
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5" />
                             {tournament.ends_at
-                              ? `Ends ${formatDistanceToNow(new Date(tournament.ends_at), { addSuffix: true })}`
+                              ? (() => { try { const d = new Date(tournament.ends_at); return isNaN(d.getTime()) ? "—" : `Ends ${formatDistanceToNow(d, { addSuffix: true })}` } catch { return "—" } })()
                               : "—"}
                           </div>
                         </TableCell>
