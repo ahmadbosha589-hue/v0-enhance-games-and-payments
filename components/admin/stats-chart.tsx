@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,13 @@ export function AdminStatsChart() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchStats = useCallback(async () => {
+    // Quick check - if Supabase isn't configured, skip the fetch entirely
+    if (!isSupabaseConfigured()) {
+      setData(generateEmptyData())
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 

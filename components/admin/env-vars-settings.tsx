@@ -98,9 +98,23 @@ export function EnvVarsSettings() {
 
   const fetchStatus = useCallback(async () => {
     setIsLoading(true)
+
+    // Add timeout to prevent hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+
     try {
-      const res = await fetch("/api/admin/env-vars/status")
-      if (!res.ok) throw new Error("Failed to fetch")
+      const res = await fetch("/api/admin/env-vars/status", {
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
+      if (!res.ok) {
+        // Don't throw, just keep defaults
+        console.error("Env vars status returned error:", res.status)
+        return
+      }
+
       const data = await res.json()
 
       setConfigs(prev => prev.map(config => ({
@@ -109,7 +123,13 @@ export function EnvVarsSettings() {
         lastUpdated: data.lastUpdated?.[config.key]
       })))
     } catch (error) {
-      console.error("Failed to fetch env var status:", error)
+      clearTimeout(timeoutId)
+      if (error instanceof Error && error.name === "AbortError") {
+        console.error("Env vars status request timed out")
+      } else {
+        console.error("Failed to fetch env var status:", error)
+      }
+      // Keep defaults, don't crash
     } finally {
       setIsLoading(false)
     }
@@ -127,21 +147,38 @@ export function EnvVarsSettings() {
 
     setIsSaving(true)
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
       const res = await fetch("/api/admin/env-vars", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, value: inputValue })
+        body: JSON.stringify({ key, value: inputValue }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to save")
 
-      toast.success(`${key} configured successfully`)
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save")
+      }
+
+      // Show informational message - env vars can't be modified at runtime
+      if (data.message) {
+        toast.info(data.message, { duration: 8000 })
+      } else {
+        toast.success(`${key} configured successfully`)
+      }
+
       setEditingKey(null)
       setInputValue("")
-      await fetchStatus()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save")
+      if (error instanceof Error && error.name === "AbortError") {
+        toast.error("Request timed out")
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to save")
+      }
     } finally {
       setIsSaving(false)
     }
@@ -154,19 +191,35 @@ export function EnvVarsSettings() {
 
     setIsDeleting(key)
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
       const res = await fetch("/api/admin/env-vars", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key })
+        body: JSON.stringify({ key }),
+        signal: controller.signal,
       })
+      clearTimeout(timeoutId)
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to delete")
 
-      toast.success(`${key} deleted`)
-      await fetchStatus()
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete")
+      }
+
+      // Show informational message - env vars can't be deleted at runtime
+      if (data.message) {
+        toast.info(data.message, { duration: 8000 })
+      } else {
+        toast.success(`${key} deleted`)
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete")
+      if (error instanceof Error && error.name === "AbortError") {
+        toast.error("Request timed out")
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to delete")
+      }
     } finally {
       setIsDeleting(null)
     }

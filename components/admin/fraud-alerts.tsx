@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Eye, Ban, CheckCircle, Loader2, RefreshCw, ShieldCheck } from "lucide-react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { formatRelativeTime } from "@/lib/utils"
 import { toast } from "sonner"
 
@@ -25,6 +25,13 @@ export function FraudAlerts() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const fetchAlerts = useCallback(async () => {
+    // Quick check - if Supabase isn't configured, skip the fetch entirely
+    if (!isSupabaseConfigured()) {
+      setAlerts([])
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(true)
 
     const controller = new AbortController()

@@ -23,6 +23,7 @@ export async function GET() {
   await logHoneypotProbeRequest("ctrl_faucet").catch(() => { })
 
   try {
+    // Create admin client - returns null if not configured
     const supabase = createAdminClient()
 
     let faucetPayBalance = 0
@@ -46,15 +47,24 @@ export async function GET() {
       logger.warn("FaucetPay balance fetch failed", { errorMessage: faucetPayError })
     }
 
-    // Get fraud stats in parallel
-    const [{ data: fraudStats }, { data: todayFraudStats }, { data: claimStats }] = await Promise.all([
-      supabase.from("fraud_flags").select("fraud_type, severity", { count: "exact" }),
-      supabase
-        .from("fraud_flags")
-        .select("id", { count: "exact" })
-        .gte("created_at", new Date().toISOString().split("T")[0]),
-      supabase.from("claims").select("id", { count: "exact" }).gte("fraud_score", 70),
-    ])
+    // Get fraud stats in parallel (only if supabase is available)
+    let fraudStats: { fraud_type: string; severity: number }[] | null = null
+    let todayFraudStats: { id: string }[] | null = null
+    let claimStats: { id: string }[] | null = null
+
+    if (supabase) {
+      const [fraudResult, todayFraudResult, claimResult] = await Promise.all([
+        supabase.from("fraud_flags").select("fraud_type, severity", { count: "exact" }),
+        supabase
+          .from("fraud_flags")
+          .select("id", { count: "exact" })
+          .gte("created_at", new Date().toISOString().split("T")[0]),
+        supabase.from("claims").select("id", { count: "exact" }).gte("fraud_score", 70),
+      ])
+      fraudStats = fraudResult.data
+      todayFraudStats = todayFraudResult.data
+      claimStats = claimResult.data
+    }
 
     // This makes it clear: 100% = you have enough for healthy operation
     let healthPercentage = 0
