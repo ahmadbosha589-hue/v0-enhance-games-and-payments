@@ -37,23 +37,47 @@ const ENV_VAR_CONFIGS: EnvVarConfig[] = [
   { key: "COINZILLA_ZONE", label: "Coinzilla Zone", description: "Zone ID for Coinzilla", category: "ads", isSet: false },
   { key: "BITSMEDIA_ID", label: "Bitsmedia ID", description: "Publisher ID for Bitsmedia", category: "ads", isSet: false },
   { key: "BITMEDIA_ID", label: "Bitmedia ID", description: "Zone ID for Bitmedia", category: "ads", isSet: false },
-  
+
   // Payment Processors
   { key: "FAUCETPAY_API_KEY", label: "FaucetPay API Key", description: "API key for FaucetPay withdrawals", category: "payments", isSet: false },
   { key: "CCPAYMENT_APP_ID", label: "CCPayment App ID", description: "App ID for CCPayment", category: "payments", isSet: false },
   { key: "CCPAYMENT_APP_SECRET", label: "CCPayment App Secret", description: "App Secret for CCPayment", category: "payments", isSet: false },
   { key: "CWALLET_API_KEY", label: "CWallet API Key", description: "API key for CWallet integration", category: "payments", isSet: false },
-  
+
   // Security
   { key: "TURNSTILE_SECRET_KEY", label: "Turnstile Secret", description: "Cloudflare Turnstile secret key", category: "security", isSet: false },
   { key: "HCAPTCHA_SECRET", label: "hCaptcha Secret", description: "hCaptcha secret key", category: "security", isSet: false },
-  
-  // Offerwall APIs
-  { key: "CPX_APP_ID", label: "CPX Research App ID", description: "App ID for CPX Research", category: "api", isSet: false },
-  { key: "OFFERTORO_PUB_ID", label: "OfferToro Pub ID", description: "Publisher ID for OfferToro", category: "api", isSet: false },
-  { key: "ADGATE_WALL_CODE", label: "AdGate Wall Code", description: "Wall code for AdGate Media", category: "api", isSet: false },
-  { key: "LOOTABLY_PLACEMENT_ID", label: "Lootably Placement ID", description: "Placement ID for Lootably", category: "api", isSet: false },
-  { key: "BITLABS_TOKEN", label: "BitLabs Token", description: "API token for BitLabs", category: "api", isSet: false },
+
+  // Offerwall Public Keys
+  { key: "NEXT_PUBLIC_CPX_APP_ID", label: "CPX Research App ID", description: "App ID for CPX Research", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_TOROX_PUB_ID", label: "Torox Publisher ID", description: "Publisher ID for Torox", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_ADGATE_WALL_CODE", label: "AdGate Wall Code", description: "Wall code for AdGate Media", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_LOOTABLY_PLACEMENT_ID", label: "Lootably Placement ID", description: "Placement ID for Lootably", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_BITLABS_TOKEN", label: "BitLabs Token", description: "API token for BitLabs", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_TIMEWALL_KEY", label: "Timewall API Key", description: "API key for Timewall", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_AYET_ADSLOT", label: "ayeT-Studios Ad Slot", description: "Ad slot ID for ayeT-Studios", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_ADGEM_PLAYER_ID", label: "AdGem Player ID", description: "Player ID for AdGem", category: "api", isSet: false },
+
+  // Offerwall Secret Keys (Postback Verification)
+  { key: "CPX_SECRET_KEY", label: "CPX Secret Key", description: "Secret key for CPX Research postbacks", category: "api", isSet: false },
+  { key: "TOROX_SECRET_KEY", label: "Torox Secret Key", description: "Secret key for Torox postbacks", category: "api", isSet: false },
+  { key: "LOOTABLY_SECRET_KEY", label: "Lootably Secret Key", description: "Secret key for Lootably postbacks", category: "api", isSet: false },
+  { key: "ADGATE_SECRET_KEY", label: "AdGate Secret Key", description: "Secret key for AdGate postbacks", category: "api", isSet: false },
+  { key: "BITLABS_SECRET_KEY", label: "BitLabs Secret Key", description: "Secret key for BitLabs postbacks", category: "api", isSet: false },
+  { key: "TIMEWALL_SECRET_KEY", label: "Timewall Secret Key", description: "Secret key for Timewall postbacks", category: "api", isSet: false },
+  { key: "AYET_STUDIOS_SECRET_KEY", label: "ayeT-Studios Secret Key", description: "Secret key for ayeT-Studios postbacks", category: "api", isSet: false },
+  { key: "MM_WALL_SECRET_KEY", label: "MM Wall Secret Key", description: "Secret key for MM Wall postbacks", category: "api", isSet: false },
+  { key: "OFFERWALLME_SECRET_KEY", label: "Offerwall.me Secret Key", description: "Secret key for Offerwall.me postbacks", category: "api", isSet: false },
+  { key: "BICOTASKS_SECRET_KEY", label: "BicoTasks Secret Key", description: "Secret key for BicoTasks postbacks", category: "api", isSet: false },
+  { key: "ADSCEND_SECRET_KEY", label: "Adscend Secret Key", description: "Secret key for Adscend postbacks", category: "api", isSet: false },
+  { key: "HANG_MY_ADS_SECRET_KEY", label: "Hang My Ads Secret Key", description: "Secret key for Hang My Ads postbacks", category: "api", isSet: false },
+  { key: "NOTIK_SECRET_KEY", label: "Notik Secret Key", description: "Secret key for Notik postbacks", category: "api", isSet: false },
+  { key: "MONLIX_APP_ID", label: "Monlix App ID", description: "App ID for Monlix", category: "api", isSet: false },
+  { key: "MONLIX_SECRET_KEY", label: "Monlix Secret Key", description: "Secret key for Monlix postbacks", category: "api", isSet: false },
+  { key: "HIDEOUT_SECRET_KEY", label: "Hideout Secret Key", description: "Secret key for Hideout.tv postbacks", category: "api", isSet: false },
+
+  // Cron Jobs
+  { key: "CRON_SECRET", label: "Cron Secret", description: "Secret for cron job authentication", category: "security", isSet: false },
 ]
 
 const CATEGORY_INFO = {
@@ -78,7 +102,7 @@ export function EnvVarsSettings() {
       const res = await fetch("/api/admin/env-vars/status")
       if (!res.ok) throw new Error("Failed to fetch")
       const data = await res.json()
-      
+
       setConfigs(prev => prev.map(config => ({
         ...config,
         isSet: data.configured?.includes(config.key) || false,
@@ -169,7 +193,7 @@ export function EnvVarsSettings() {
         <Shield className="h-4 w-4 text-blue-500" />
         <AlertTitle className="text-blue-600 dark:text-blue-400">Secure Configuration</AlertTitle>
         <AlertDescription className="text-xs sm:text-sm">
-          All sensitive values are encrypted using AES-256 before storage. 
+          All sensitive values are encrypted using AES-256 before storage.
           Once configured, values cannot be viewed again - only replaced or deleted.
         </AlertDescription>
       </Alert>
@@ -193,7 +217,7 @@ export function EnvVarsSettings() {
             </CardHeader>
             <CardContent className="space-y-4">
               {categoryConfigs.map((config) => (
-                <div 
+                <div
                   key={config.key}
                   className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border bg-muted/20"
                 >

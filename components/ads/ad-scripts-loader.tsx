@@ -27,16 +27,27 @@ export function AdScriptsLoader({ config }: { config: AdConfig }) {
   const loadedRef = useRef<Set<string>>(new Set())
   const refreshIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
-  // Initialize Google AdSense (static, no refresh)
+  // Initialize Google AdSense - push all ad slots at once
   const initGoogleAds = useCallback(() => {
     if (!config.googleAdsenseId || loadedRef.current.has("google")) return
-    
+
     try {
-      // @ts-ignore
-      (window.adsbygoogle = window.adsbygoogle || []).push({})
+      // Find all AdSense ad slots on the page and initialize them simultaneously
+      const adSlots = document.querySelectorAll("ins.adsbygoogle:not([data-adsbygoogle-status])")
+
+      // Push all ads at once for parallel loading
+      adSlots.forEach(() => {
+        try {
+          // @ts-ignore
+          (window.adsbygoogle = window.adsbygoogle || []).push({})
+        } catch {
+          // Individual ad push failed, continue with others
+        }
+      })
+
       loadedRef.current.add("google")
     } catch (e) {
-      console.warn("[v0] Google Ads init failed:", e)
+      console.warn("[AdScriptsLoader] Google Ads init failed:", e)
     }
   }, [config.googleAdsenseId])
 
@@ -167,9 +178,9 @@ export function AdScriptsLoader({ config }: { config: AdConfig }) {
         slots.forEach(slot => {
           const currentCount = parseInt(slot.getAttribute("data-refresh-count") || "0")
           slot.setAttribute("data-refresh-count", String(currentCount + 1))
-          
+
           // Trigger custom event for refresh
-          slot.dispatchEvent(new CustomEvent("adRefresh", { 
+          slot.dispatchEvent(new CustomEvent("adRefresh", {
             detail: { network, count: currentCount + 1 }
           }))
         })
@@ -224,7 +235,7 @@ export function refreshAdNetwork(networkId: string) {
   slots.forEach(slot => {
     const currentCount = parseInt(slot.getAttribute("data-refresh-count") || "0")
     slot.setAttribute("data-refresh-count", String(currentCount + 1))
-    slot.dispatchEvent(new CustomEvent("adRefresh", { 
+    slot.dispatchEvent(new CustomEvent("adRefresh", {
       detail: { network: networkId, count: currentCount + 1 }
     }))
   })
@@ -235,7 +246,7 @@ export function refreshAdNetwork(networkId: string) {
  */
 export async function getAdConfig(): Promise<AdConfig> {
   try {
-    const response = await fetch("/api/ads/config", { 
+    const response = await fetch("/api/ads/config", {
       cache: "force-cache",
       next: { revalidate: 3600 } // Revalidate every hour
     })

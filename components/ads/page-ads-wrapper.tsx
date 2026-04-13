@@ -167,7 +167,7 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
           <LazyAdSection
             fallback={<GoogleAdSkeleton />}
             rootMargin="100px"
-            delay={100}
+            delay={0}
             timeout={3000}
           >
             <Suspense fallback={<GoogleAdSkeleton />}>
@@ -194,7 +194,7 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
             <LazyAdSection
               fallback={<SidebarSkeleton />}
               rootMargin="200px"
-              delay={300}
+              delay={0}
               timeout={3000}
             >
               <Suspense fallback={<SidebarSkeleton />}>
@@ -222,7 +222,7 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
           <LazyAdSection
             fallback={<NetworkAdSkeleton />}
             rootMargin="400px"
-            delay={200}
+            delay={0}
             timeout={3000}
           >
             <Suspense fallback={<NetworkAdSkeleton />}>
@@ -237,12 +237,12 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
             </Suspense>
           </LazyAdSection>
 
-          {/* Bottom Google Rewarded Ads - Low priority, well separated */}
+          {/* Bottom Google Rewarded Ads - Load in parallel */}
           <div className="mt-8 sm:mt-12">
             <LazyAdSection
               fallback={<GoogleAdSkeleton />}
               rootMargin="500px"
-              delay={400}
+              delay={0}
               timeout={3000}
             >
               <Suspense fallback={<GoogleAdSkeleton />}>
@@ -302,7 +302,7 @@ export const InlineAds = memo(function InlineAds({ className }: { className?: st
       <LazyAdSection
         fallback={<div className="h-[90px] bg-muted rounded-lg animate-pulse" />}
         rootMargin="200px"
-        delay={150}
+        delay={0}
       >
         <Suspense fallback={<div className="h-[90px] bg-muted rounded-lg animate-pulse" />}>
           <MultiNetworkAds
@@ -327,7 +327,7 @@ export const ContentBreakAds = memo(function ContentBreakAds({ className }: { cl
       <LazyAdSection
         fallback={<div className="h-[90px] max-w-[728px] mx-auto bg-muted rounded-lg animate-pulse" />}
         rootMargin="300px"
-        delay={200}
+        delay={0}
       >
         <div className="flex items-center justify-center gap-4 overflow-x-auto pb-2">
           <div

@@ -127,7 +127,7 @@ const ENV_VAR_CONFIG: Omit<EnvVar, "value" | "isSet">[] = [
     description: "OAuth redirect URL for development",
   },
 
-  // ===== OFFERWALL API KEYS =====
+  // ===== OFFERWALL PUBLIC KEYS =====
   {
     key: "NEXT_PUBLIC_CPX_APP_ID",
     category: "api",
@@ -175,6 +175,112 @@ const ENV_VAR_CONFIG: Omit<EnvVar, "value" | "isSet">[] = [
     category: "api",
     isSecret: false,
     description: "AdGem Player ID",
+  },
+
+  // ===== OFFERWALL SECRET KEYS (for postback verification) =====
+  {
+    key: "CPX_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "CPX Research postback secret key",
+  },
+  {
+    key: "TOROX_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Torox postback secret key",
+  },
+  {
+    key: "LOOTABLY_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Lootably postback secret key",
+  },
+  {
+    key: "ADGATE_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "AdGate Media postback secret key",
+  },
+  {
+    key: "BITLABS_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "BitLabs postback secret key",
+  },
+  {
+    key: "TIMEWALL_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Timewall postback secret key",
+  },
+  {
+    key: "AYET_STUDIOS_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "ayeT-Studios postback secret key",
+  },
+  {
+    key: "MM_WALL_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "MM Wall postback secret key",
+  },
+  {
+    key: "OFFERWALLME_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Offerwall.me postback secret key",
+  },
+  {
+    key: "BICOTASKS_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "BicoTasks postback secret key",
+  },
+  {
+    key: "ADSCEND_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Adscend Media postback secret key",
+  },
+  {
+    key: "HANG_MY_ADS_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Hang My Ads postback secret key",
+  },
+  {
+    key: "NOTIK_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Notik postback secret key",
+  },
+  {
+    key: "MONLIX_APP_ID",
+    category: "api",
+    isSecret: false,
+    description: "Monlix App ID",
+  },
+  {
+    key: "MONLIX_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Monlix postback secret key",
+  },
+  {
+    key: "HIDEOUT_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Hideout.tv postback secret key",
+  },
+
+  // ===== CRON JOB SECURITY =====
+  {
+    key: "CRON_SECRET",
+    category: "security",
+    isSecret: true,
+    description: "Secret key for cron job authentication",
   },
 
   // ===== SHORTLINK PROVIDERS =====

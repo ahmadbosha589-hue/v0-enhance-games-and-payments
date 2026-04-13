@@ -98,10 +98,8 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
   ])
   const [isVisible, setIsVisible] = useState(!lazyLoad)
   const [shouldRender, setShouldRender] = useState(!lazyLoad)
-  const [userTimeOnPage, setUserTimeOnPage] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
-  const pageTimeRef = useRef<NodeJS.Timeout | null>(null)
 
   // Lazy load with Intersection Observer
   useEffect(() => {
@@ -162,32 +160,22 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
     return () => clearTimeout(timer)
   }, [shouldRender])
 
-  // Track user time on page
-  useEffect(() => {
-    if (!shouldRender) return
-
-    pageTimeRef.current = setInterval(() => {
-      setUserTimeOnPage(prev => prev + 1)
-    }, 1000)
-
-    return () => {
-      if (pageTimeRef.current) clearInterval(pageTimeRef.current)
-    }
-  }, [shouldRender])
-
-  // Start ads when visible and user has been on page
+  // Start ALL ads simultaneously when visible
   useEffect(() => {
     if (!isVisible || !shouldRender) return
 
-    const pendingAd = adSlots.find(ad => ad.status === "pending")
-    if (pendingAd && userTimeOnPage >= (pendingAd.id - 1) * 10) {
-      setAdSlots(prev => prev.map(ad =>
-        ad.id === pendingAd.id
+    // Start all pending ads at once for parallel loading
+    setAdSlots(prev => {
+      const hasAnyPending = prev.some(ad => ad.status === "pending")
+      if (!hasAnyPending) return prev
+
+      return prev.map(ad =>
+        ad.status === "pending"
           ? { ...ad, status: "playing" as const, startedAt: Date.now() }
           : ad
-      ))
-    }
-  }, [isVisible, shouldRender, userTimeOnPage, adSlots])
+      )
+    })
+  }, [isVisible, shouldRender])
 
   // Handle ad countdown
   useEffect(() => {
