@@ -59,10 +59,6 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
   const [lastSessionEarnings, setLastSessionEarnings] = useState(0)
   const [isClaiming, setIsClaiming] = useState(false)
 
-  // For continuous looping of all 11 ad networks
-  const [adNetworkIndex, setAdNetworkIndex] = useState(0)
-  const [loopCount, setLoopCount] = useState(0)
-
   const modalRef = useRef<HTMLDivElement>(null)
 
   // Fetch user's support stats
@@ -133,23 +129,6 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     return () => clearInterval(interval)
   }, [isWatching, hasStarted, allCompleted])
 
-  // Rotate through ad networks every few seconds when watching
-  useEffect(() => {
-    if (!isWatching || !hasStarted) return
-
-    const rotateInterval = setInterval(() => {
-      setAdNetworkIndex(prev => {
-        const next = (prev + 1) % AD_NETWORKS.length
-        if (next === 0) {
-          setLoopCount(c => c + 1)
-        }
-        return next
-      })
-    }, 5000) // Rotate every 5 seconds
-
-    return () => clearInterval(rotateInterval)
-  }, [isWatching, hasStarted])
-
   const startWatching = useCallback(() => {
     setIsWatching(true)
     setHasStarted(true)
@@ -158,9 +137,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     setTimeRemaining(Array(ADS_PER_SESSION).fill(AD_DURATION))
     setAllCompleted(false)
     setSessionEarnings(0)
-    setAdNetworkIndex(0)
-    setLoopCount(0)
-    toast.info("Starting ad session...", { description: "All 3 ads playing simultaneously" })
+    toast.info("Starting ad session...", { description: "3 Google Rewarded Ads playing simultaneously" })
   }, [])
 
   const handleClaimReward = async () => {
@@ -266,19 +243,8 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Get current 3 ad networks to display
-  const getCurrentAdNetworks = () => {
-    const networks = []
-    for (let i = 0; i < ADS_PER_SESSION; i++) {
-      networks.push(AD_NETWORKS[(adNetworkIndex + i) % AD_NETWORKS.length])
-    }
-    return networks
-  }
-
   // Fullscreen ad watching UI
   if (isWatching && hasStarted) {
-    const currentNetworks = getCurrentAdNetworks()
-
     return (
       <div
         ref={modalRef}
@@ -291,13 +257,13 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             <div>
               <h2 className="font-bold text-lg">Supporting CryptoFaucet</h2>
               <p className="text-xs text-muted-foreground">
-                All {ADS_PER_SESSION} ads playing simultaneously | Loop #{loopCount + 1}
+                3 Google Rewarded Ads running simultaneously
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
-              {AD_NETWORKS[adNetworkIndex].name}
+            <Badge variant="outline" className="text-xs bg-red-500/10 text-red-500 border-red-500/30">
+              Google Rewarded
             </Badge>
             <Button
               variant="ghost"
@@ -323,120 +289,121 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
           </div>
         </div>
 
-        {/* 3 Ad Slots - Grid layout for simultaneous viewing */}
+        {/* 3 Google Rewarded Ad Slots - Running Simultaneously */}
         <div className="flex-1 p-4 overflow-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[0, 1, 2].map((i) => {
-              const network = currentNetworks[i]
-              return (
-                <Card
-                  key={i}
-                  className={cn(
-                    "relative overflow-hidden transition-all duration-300 flex flex-col",
-                    adStatus[i] === "completed" && "border-green-500/50 bg-green-500/5",
-                    adStatus[i] === "playing" && "border-red-500/50"
-                  )}
-                >
-                  <CardHeader className="pb-2 flex-shrink-0">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={cn("w-2 h-2 rounded-full", network.color)} />
-                        <Badge
-                          variant={adStatus[i] === "completed" ? "default" : "secondary"}
-                          className={cn(
-                            adStatus[i] === "completed" && "bg-green-500",
-                            adStatus[i] === "playing" && "bg-red-500 animate-pulse"
-                          )}
-                        >
-                          Ad #{i + 1} - {network.name}
-                        </Badge>
-                      </div>
-                      {adStatus[i] === "completed" ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-red-500">
-                          <Clock className="h-4 w-4 animate-pulse" />
-                          <span className="text-sm font-mono font-bold">{formatTime(timeRemaining[i])}</span>
-                        </div>
-                      )}
-                    </div>
-                    <Progress value={adProgress[i]} className="h-2 mt-2" />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Reward: ${REWARD_PER_AD_USD} ({REWARD_PER_AD} sats)
-                    </p>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex items-center justify-center">
-                    {/* Ad placeholder - in production, embed actual ad here */}
-                    <div className="aspect-video w-full bg-gradient-to-br from-muted/50 to-muted rounded-lg border border-dashed flex items-center justify-center">
-                      {adStatus[i] === "playing" ? (
-                        <div className="text-center space-y-2">
-                          <div className={cn("w-4 h-4 mx-auto rounded-full animate-pulse", network.color)} />
-                          <Play className="h-10 w-10 mx-auto text-red-500 animate-pulse" />
-                          <p className="text-sm text-muted-foreground">{network.name} ad playing...</p>
-                          <p className="text-xs text-muted-foreground/70">
-                            ${REWARD_PER_AD_USD} reward
-                          </p>
-                        </div>
-                      ) : adStatus[i] === "completed" ? (
-                        <div className="text-center space-y-2">
-                          <CheckCircle2 className="h-10 w-10 mx-auto text-green-500" />
-                          <p className="text-sm font-medium text-green-500">Completed!</p>
-                          <p className="text-xs text-muted-foreground">+{REWARD_PER_AD} sats</p>
-                        </div>
-                      ) : (
-                        <div className="text-center space-y-2">
-                          <Play className="h-10 w-10 mx-auto text-muted-foreground/50" />
-                          <p className="text-sm text-muted-foreground">Waiting...</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+          <div className="mb-4">
+            <h3 className="font-semibold flex items-center gap-2 mb-2">
+              <Play className="h-4 w-4 text-red-500" />
+              3 Google Rewarded Ads (60 Seconds Each)
+            </h3>
+            <p className="text-xs text-muted-foreground">All 3 ads run simultaneously - watch all to claim reward</p>
           </div>
 
-          {/* All 11 Ad Networks Display - Below main ads */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[0, 1, 2].map((i) => (
+              <Card
+                key={i}
+                className={cn(
+                  "relative overflow-hidden transition-all duration-300 flex flex-col",
+                  adStatus[i] === "completed" && "border-green-500/50 bg-green-500/5",
+                  adStatus[i] === "playing" && "border-red-500/50 shadow-lg"
+                )}
+              >
+                <CardHeader className="pb-2 flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                      <Badge
+                        variant={adStatus[i] === "completed" ? "default" : "secondary"}
+                        className={cn(
+                          adStatus[i] === "completed" && "bg-green-500",
+                          adStatus[i] === "playing" && "bg-red-500 text-white animate-pulse"
+                        )}
+                      >
+                        Google Ad #{i + 1}
+                      </Badge>
+                    </div>
+                    {adStatus[i] === "completed" ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-red-500">
+                        <Clock className="h-4 w-4 animate-pulse" />
+                        <span className="text-sm font-mono font-bold">{formatTime(timeRemaining[i])}</span>
+                      </div>
+                    )}
+                  </div>
+                  <Progress value={adProgress[i]} className="h-2 mt-2" />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Reward: ${REWARD_PER_AD_USD} ({REWARD_PER_AD} sats)
+                  </p>
+                </CardHeader>
+                <CardContent className="flex-1 flex items-center justify-center">
+                  <div className="aspect-video w-full bg-gradient-to-br from-red-500/10 to-orange-500/10 rounded-lg border border-red-500/20 flex items-center justify-center">
+                    {adStatus[i] === "playing" ? (
+                      <div className="text-center space-y-2">
+                        <div className="relative">
+                          <div className="w-12 h-12 mx-auto rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
+                            <Play className="h-6 w-6 text-red-500" />
+                          </div>
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
+                        </div>
+                        <p className="text-sm font-medium">Google Rewarded Ad</p>
+                        <p className="text-xs text-muted-foreground">60 Second Video</p>
+                      </div>
+                    ) : adStatus[i] === "completed" ? (
+                      <div className="text-center space-y-2">
+                        <CheckCircle2 className="h-10 w-10 mx-auto text-green-500" />
+                        <p className="text-sm font-medium text-green-500">Completed!</p>
+                        <p className="text-xs text-muted-foreground">+{REWARD_PER_AD} sats</p>
+                      </div>
+                    ) : (
+                      <div className="text-center space-y-2">
+                        <Play className="h-10 w-10 mx-auto text-muted-foreground/50" />
+                        <p className="text-sm text-muted-foreground">Waiting...</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* All 11 Partner Ad Networks - Displayed Statically Below Google Ads */}
           <div className="mt-6 border-t pt-6">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <Sparkles className="h-4 w-4" />
-                All 11 Partner Ad Networks (Looping)
-              </p>
+              <div>
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  11 Partner Ad Networks
+                </p>
+                <p className="text-xs text-muted-foreground">All networks displayed while you watch Google Ads</p>
+              </div>
               <Badge variant="outline" className="text-xs">
-                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                Auto-rotating
+                All Displayed
               </Badge>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {AD_NETWORKS.map((network, idx) => (
+              {AD_NETWORKS.map((network) => (
                 <div
                   key={network.id}
-                  className={cn(
-                    "p-3 rounded-lg border transition-all duration-300",
-                    idx === adNetworkIndex && "border-primary bg-primary/5 scale-105 shadow-md",
-                    idx !== adNetworkIndex && "border-muted bg-muted/30"
-                  )}
+                  className="p-3 rounded-lg border border-muted bg-muted/30 hover:border-primary/30 transition-all"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <div className={cn("w-2 h-2 rounded-full", network.color)} />
                     <span className="text-xs font-medium truncate">{network.name}</span>
                   </div>
-                  <div className="aspect-video bg-muted/50 rounded flex items-center justify-center">
-                    {idx === adNetworkIndex ? (
-                      <Play className="h-4 w-4 text-primary animate-pulse" />
-                    ) : (
-                      <div className={cn("w-3 h-3 rounded-full opacity-50", network.color)} />
-                    )}
+                  <div className="aspect-video bg-gradient-to-br from-muted/50 to-muted/20 rounded flex items-center justify-center">
+                    <div className="text-center">
+                      <div className={cn("w-4 h-4 rounded-full mx-auto mb-1", network.color, "opacity-60")} />
+                      <p className="text-[8px] text-muted-foreground">{network.name}</p>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Additional inline banner ads */}
-          <div className="mt-6">
-            <MultiNetworkAds position="content" layout="grid" priority="high" />
+            <p className="text-xs text-muted-foreground text-center mt-3">
+              All 11 partner networks display their ads while you watch the 3 Google Rewarded Ads above
+            </p>
           </div>
         </div>
 

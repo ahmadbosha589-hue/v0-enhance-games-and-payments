@@ -10,16 +10,51 @@ const RATE_LIMIT_WINDOW = 60 * 60 * 1000 // 1 hour in ms
 // In-memory rate limiting (use Redis in production)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 
-type BonusType = "shortlink_double" | "coupon_double" | "ptc_5x" | "faucet_double" | "manual_faucet_double"
+type BonusType =
+  | "shortlink_double"
+  | "coupon_double"
+  | "ptc_5x"
+  | "faucet_double"
+  | "manual_faucet_double"
+  | "faucet"
+  | "faucet_claim"
+  | "manual_faucet"
+  | "daily_bonus"
+  | "shortlink"
+  | "coupon"
+  | "ptc_milestone"
+  | "game"
 
-const VALID_TYPES: BonusType[] = ["shortlink_double", "coupon_double", "ptc_5x", "faucet_double", "manual_faucet_double"]
+const VALID_TYPES: BonusType[] = [
+  "shortlink_double",
+  "coupon_double",
+  "ptc_5x",
+  "faucet_double",
+  "manual_faucet_double",
+  "faucet",
+  "faucet_claim",
+  "manual_faucet",
+  "daily_bonus",
+  "shortlink",
+  "coupon",
+  "ptc_milestone",
+  "game"
+]
 
 const TYPE_TRANSACTION_MAP: Record<BonusType, string> = {
   shortlink_double: "shortlink_bonus",
   coupon_double: "coupon_bonus",
   ptc_5x: "ptc_bonus",
   faucet_double: "faucet_bonus",
-  manual_faucet_double: "manual_faucet_bonus"
+  manual_faucet_double: "manual_faucet_bonus",
+  faucet: "faucet_bonus",
+  faucet_claim: "faucet_bonus",
+  manual_faucet: "manual_faucet_bonus",
+  daily_bonus: "daily_bonus_bonus",
+  shortlink: "shortlink_bonus",
+  coupon: "coupon_bonus",
+  ptc_milestone: "ptc_milestone_bonus",
+  game: "game_bonus"
 }
 
 export async function POST(request: NextRequest) {
@@ -78,6 +113,9 @@ export async function POST(request: NextRequest) {
     const ip = headersList.get("x-forwarded-for")?.split(",")[0] || "unknown"
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+    }
 
     // Check for recent bonus claim to prevent abuse (10 minute cooldown per type)
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()

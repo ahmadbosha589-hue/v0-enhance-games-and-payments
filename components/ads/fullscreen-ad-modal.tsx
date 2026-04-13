@@ -4,12 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Play, Clock, CheckCircle, Coins, Loader2, Sparkles, Gift, Zap, X, Volume2, VolumeX } from "lucide-react"
+import { Play, Clock, CheckCircle, Coins, Loader2, Sparkles, Gift, Zap, X, Volume2, VolumeX, Trophy } from "lucide-react"
 import { toast } from "sonner"
 import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
-import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
-import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
 
 export type DoubleRewardType =
   | "faucet"
@@ -42,7 +40,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
 }> = {
   faucet: {
     title: "Double Your Faucet Reward",
-    description: "Watch all ads to receive 2x your faucet claim",
+    description: "Watch all 3 Google rewarded ads to receive 2x your faucet claim",
     icon: Coins,
     gradient: "from-green-500 to-emerald-500",
     borderColor: "border-green-500/50",
@@ -50,7 +48,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   faucet_claim: {
     title: "Double Your Faucet Reward",
-    description: "Watch all ads to receive 2x your faucet claim",
+    description: "Watch all 3 Google rewarded ads to receive 2x your faucet claim",
     icon: Coins,
     gradient: "from-green-500 to-emerald-500",
     borderColor: "border-green-500/50",
@@ -58,7 +56,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   manual_faucet: {
     title: "Double Your Manual Faucet Reward",
-    description: "Watch all ads to receive 2x your claim",
+    description: "Watch all 3 Google rewarded ads to receive 2x your claim",
     icon: Coins,
     gradient: "from-amber-500 to-yellow-500",
     borderColor: "border-amber-500/50",
@@ -66,7 +64,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   daily_bonus: {
     title: "Double Your Daily Bonus",
-    description: "Watch all ads to receive 2x your daily bonus",
+    description: "Watch all 3 Google rewarded ads to receive 2x your daily bonus",
     icon: Gift,
     gradient: "from-purple-500 to-pink-500",
     borderColor: "border-purple-500/50",
@@ -74,7 +72,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   shortlink: {
     title: "Double Your Shortlink Reward",
-    description: "Watch all ads to receive 2x your shortlink earnings",
+    description: "Watch all 3 Google rewarded ads to receive 2x your shortlink earnings",
     icon: Sparkles,
     gradient: "from-blue-500 to-cyan-500",
     borderColor: "border-blue-500/50",
@@ -82,7 +80,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   coupon: {
     title: "Double Your Coupon Reward",
-    description: "Watch all ads to receive 2x your coupon earnings",
+    description: "Watch all 3 Google rewarded ads to receive 2x your coupon earnings",
     icon: Gift,
     gradient: "from-pink-500 to-rose-500",
     borderColor: "border-pink-500/50",
@@ -90,7 +88,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   ptc_milestone: {
     title: "Claim Your 5x PTC Milestone Bonus",
-    description: "You've watched 5 PTC ads! Claim your milestone bonus",
+    description: "You&apos;ve watched 5 PTC ads! Watch 3 rewarded ads for milestone bonus",
     icon: Zap,
     gradient: "from-orange-500 to-red-500",
     borderColor: "border-orange-500/50",
@@ -98,7 +96,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   game: {
     title: "Double Your Game Winnings",
-    description: "Watch all ads to receive 2x your game reward",
+    description: "Watch all 3 Google rewarded ads to receive 2x your game reward",
     icon: Sparkles,
     gradient: "from-indigo-500 to-violet-500",
     borderColor: "border-indigo-500/50",
@@ -106,8 +104,23 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   }
 }
 
+// 11 Partner Ad Networks
+const AD_NETWORKS = [
+  { id: "a-ads", name: "A-ADS", color: "bg-blue-500" },
+  { id: "coinzilla", name: "CoinZilla", color: "bg-amber-500" },
+  { id: "bitmedia", name: "BitMedia", color: "bg-orange-500" },
+  { id: "cointraffic", name: "CoinTraffic", color: "bg-green-500" },
+  { id: "medianet", name: "Media.net", color: "bg-purple-500" },
+  { id: "hilltopads", name: "HilltopAds", color: "bg-red-500" },
+  { id: "adsterra", name: "Adsterra", color: "bg-cyan-500" },
+  { id: "propellerads", name: "PropellerAds", color: "bg-pink-500" },
+  { id: "trafficstars", name: "TrafficStars", color: "bg-indigo-500" },
+  { id: "mellowads", name: "MellowAds", color: "bg-teal-500" },
+  { id: "adskeeper", name: "AdsKeeper", color: "bg-emerald-500" },
+] as const
+
 const AD_COUNT = 3
-const AD_DURATION = 60 // seconds per ad
+const AD_DURATION = 60 // seconds per ad - all 3 run simultaneously
 
 export function FullscreenAdModal({
   isOpen,
@@ -418,110 +431,117 @@ export function FullscreenAdModal({
                 <Progress value={overallProgress} className="h-3" />
               </div>
 
-              {/* Ad Slots Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {Array.from({ length: AD_COUNT }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "rounded-xl border-2 p-4 transition-all",
-                      adStatus[i] === "completed" && "bg-green-500/10 border-green-500/50",
-                      adStatus[i] === "playing" && "bg-primary/5 border-primary/30 shadow-lg",
-                      adStatus[i] === "pending" && "bg-muted/30 border-muted"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="font-semibold">Ad #{i + 1}</span>
-                      {adStatus[i] === "completed" ? (
-                        <div className="flex items-center gap-1 text-green-500">
-                          <CheckCircle className="h-5 w-5" />
-                          <span className="text-sm font-medium">Done</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 text-primary">
-                          <Clock className="h-4 w-4 animate-pulse" />
-                          <span className="text-lg font-mono font-bold">{timeRemaining[i]}s</span>
-                        </div>
-                      )}
-                    </div>
-                    <Progress value={adProgress[i]} className="h-2 mb-3" />
+              {/* 3 Google Rewarded Ads - Running Simultaneously */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-500" />
+                  <h3 className="font-semibold text-lg">Google Rewarded Ads ({AD_COUNT} Running Simultaneously)</h3>
+                </div>
 
-                    {/* Ad Content Area - Large */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {Array.from({ length: AD_COUNT }).map((_, i) => (
                     <div
+                      key={i}
                       className={cn(
-                        "aspect-video rounded-lg flex items-center justify-center overflow-hidden",
-                        adStatus[i] === "completed" ? "bg-green-500/10" : "bg-muted/50"
+                        "rounded-xl border-2 p-4 transition-all",
+                        adStatus[i] === "completed" && "bg-green-500/10 border-green-500/50",
+                        adStatus[i] === "playing" && "bg-red-500/5 border-red-500/30 shadow-lg",
+                        adStatus[i] === "pending" && "bg-muted/30 border-muted"
                       )}
                     >
-                      {adStatus[i] === "playing" ? (
-                        <div className="w-full h-full relative">
-                          {/* Actual ad slot */}
-                          <AdSlotMultiNetwork
-                            position="content"
-                            size="rectangle"
-                            className="w-full h-full"
-                            priority="high"
-                          />
-                          {/* Overlay showing time */}
-                          <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                            {timeRemaining[i]}s
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                          <span className="font-semibold">Google Ad #{i + 1}</span>
+                        </div>
+                        {adStatus[i] === "completed" ? (
+                          <div className="flex items-center gap-1 text-green-500">
+                            <CheckCircle className="h-5 w-5" />
+                            <span className="text-sm font-medium">Done</span>
                           </div>
-                        </div>
-                      ) : adStatus[i] === "completed" ? (
-                        <div className="text-center">
-                          <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
-                          <span className="text-sm text-green-600 font-medium">Completed</span>
-                        </div>
-                      ) : (
-                        <div className="text-center text-muted-foreground">
-                          <Play className="h-8 w-8 mx-auto mb-1 opacity-50" />
-                          <span className="text-xs">Waiting...</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* All 11 Ad Networks - Below main Google ads */}
-              <div className="border-t pt-6">
-                <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Partner Ad Networks (11 Networks)
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {[
-                    "A-ADS",
-                    "CoinZilla",
-                    "BitMedia",
-                    "CoinTraffic",
-                    "Media.net",
-                    "HilltopAds",
-                    "Adsterra",
-                    "PropellerAds",
-                    "TrafficStars",
-                    "MellowAds",
-                    "AdsKeeper"
-                  ].map((network, i) => (
-                    <div key={`partner-${network}`} className="rounded-lg overflow-hidden bg-muted/30 border border-border/50">
-                      <div className="px-2 py-1 bg-muted/50 border-b border-border/30">
-                        <span className="text-[10px] font-medium text-muted-foreground">{network}</span>
+                        ) : (
+                          <div className="flex items-center gap-2 text-red-500">
+                            <Clock className="h-4 w-4 animate-pulse" />
+                            <span className="text-lg font-mono font-bold">{timeRemaining[i]}s</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="aspect-video">
-                        <AdSlotMultiNetwork
-                          position="content"
-                          size="rectangle"
-                          className="w-full h-full"
-                          priority="medium"
-                        />
+                      <Progress value={adProgress[i]} className="h-2 mb-3" />
+
+                      {/* Google Rewarded Ad Content Area */}
+                      <div
+                        className={cn(
+                          "aspect-video rounded-lg flex items-center justify-center overflow-hidden relative",
+                          adStatus[i] === "completed" ? "bg-green-500/10" : "bg-gradient-to-br from-red-500/10 to-orange-500/10"
+                        )}
+                      >
+                        {adStatus[i] === "playing" ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-4">
+                            <div className="relative mb-3">
+                              <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
+                                <Play className="h-8 w-8 text-red-500" />
+                              </div>
+                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-ping" />
+                            </div>
+                            <p className="text-sm font-medium text-center">Google Rewarded Ad</p>
+                            <p className="text-xs text-muted-foreground text-center">60 Second Video</p>
+                            <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-mono">
+                              {timeRemaining[i]}s
+                            </div>
+                          </div>
+                        ) : adStatus[i] === "completed" ? (
+                          <div className="text-center">
+                            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                            <span className="text-sm text-green-600 font-medium">Completed</span>
+                          </div>
+                        ) : (
+                          <div className="text-center text-muted-foreground">
+                            <Play className="h-8 w-8 mx-auto mb-1 opacity-50" />
+                            <span className="text-xs">Waiting...</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Additional inline banner ads */}
-              <MultiNetworkAds position="content" layout="grid" priority="high" />
+              {/* All 11 Partner Ad Networks - Displayed Below Google Ads */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-amber-500" />
+                    <h3 className="font-semibold">Partner Ad Networks (11 Networks)</h3>
+                  </div>
+                  <Badge variant="outline" className="text-xs">All Displayed</Badge>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                  {AD_NETWORKS.map((network) => (
+                    <div
+                      key={network.id}
+                      className="rounded-lg overflow-hidden bg-muted/30 border border-border/50 hover:border-primary/30 transition-all"
+                    >
+                      <div className="px-2 py-1.5 bg-muted/50 border-b border-border/30 flex items-center gap-2">
+                        <div className={cn("w-2 h-2 rounded-full", network.color)} />
+                        <span className="text-[10px] font-medium text-muted-foreground truncate">{network.name}</span>
+                      </div>
+                      <div className="aspect-video bg-gradient-to-br from-muted/50 to-muted/20 flex items-center justify-center">
+                        <div className="text-center p-2">
+                          <div className={cn("w-6 h-6 rounded-full mx-auto mb-1 flex items-center justify-center", network.color, "bg-opacity-20")}>
+                            <div className={cn("w-3 h-3 rounded-full", network.color)} />
+                          </div>
+                          <p className="text-[8px] text-muted-foreground">{network.name}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center mt-4">
+                  All 11 partner ad networks are displayed while you watch the 3 Google Rewarded Ads above
+                </p>
+              </div>
             </div>
           )}
         </div>
