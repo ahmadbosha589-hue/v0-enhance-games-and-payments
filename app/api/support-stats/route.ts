@@ -7,12 +7,13 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getUser()
     if (!user) {
+      // Return default stats for demo/unauthenticated mode (no error, just empty stats)
       return NextResponse.json({
-        error: "Unauthorized",
         totalEarnings: 0,
         adsWatchedToday: 0,
-        totalAdsWatched: 0
-      }, { status: 401 })
+        totalAdsWatched: 0,
+        demo: true
+      })
     }
 
     const searchParams = request.nextUrl.searchParams
@@ -21,11 +22,10 @@ export async function GET(request: NextRequest) {
     // Users can only see their own stats
     if (requestedUserId && requestedUserId !== user.id) {
       return NextResponse.json({
-        error: "Unauthorized",
         totalEarnings: 0,
         adsWatchedToday: 0,
         totalAdsWatched: 0
-      }, { status: 403 })
+      })
     }
 
     const supabase = createAdminClient()
