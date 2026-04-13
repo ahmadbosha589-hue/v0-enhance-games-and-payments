@@ -36,9 +36,9 @@ const AD_NETWORKS = [
   { id: "adskeeper", name: "AdsKeeper", color: "bg-emerald-500" },
 ] as const
 
-// $0.0003 per ad = approximately 3 satoshis
+// $0.0003 per ad, 3 ads = $0.0009 USDT sent to FaucetPay
 const REWARD_PER_AD_USD = 0.0003 // USD per ad
-const REWARD_PER_AD = 3 // satoshis (approximate)
+const TOTAL_REWARD_USDT = 0.0009 // Total USDT per session
 const AD_DURATION = 60 // seconds
 const ADS_PER_SESSION = 3 // 3 ads running simultaneously
 
@@ -186,27 +186,22 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     if (!allCompleted || isClaiming) return
     setIsClaiming(true)
 
-    const totalSessionEarnings = ADS_PER_SESSION * REWARD_PER_AD
-    setLastSessionEarnings(totalSessionEarnings)
-
     try {
       const response = await fetch("/api/support-us/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          adsWatched: ADS_PER_SESSION,
-          totalEarnings: totalSessionEarnings
+          adsWatched: ADS_PER_SESSION
         })
       })
 
       const data = await response.json()
 
-      if (response.ok) {
-        setTotalEarnings(prev => prev + totalSessionEarnings)
+      if (response.ok && data.success) {
         setAdsWatchedToday(prev => prev + ADS_PER_SESSION)
 
-        toast.success(`Session complete! +${totalSessionEarnings} sats`, {
-          description: "Watch ads again to double your reward!"
+        toast.success(`${TOTAL_REWARD_USDT} USDT sent to FaucetPay!`, {
+          description: data.message || "Check your FaucetPay account"
         })
 
         confetti({
@@ -248,17 +243,16 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          adsWatched: ADS_PER_SESSION,
-          baseAmount: lastSessionEarnings
+          adsWatched: ADS_PER_SESSION
         })
       })
 
       const data = await response.json()
 
-      if (response.ok) {
-        const bonusAmount = data.bonusAmount || lastSessionEarnings
-        setTotalEarnings(prev => prev + bonusAmount)
-        toast.success(`Double reward claimed! +${bonusAmount} sats`)
+      if (response.ok && data.success) {
+        toast.success(`${TOTAL_REWARD_USDT} USDT bonus sent to FaucetPay!`, {
+          description: data.message || "Check your FaucetPay account"
+        })
 
         confetti({
           particleCount: 150,
