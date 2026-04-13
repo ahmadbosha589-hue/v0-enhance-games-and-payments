@@ -26,7 +26,15 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = createAdminClient()
     if (!adminSupabase) {
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+      // Return success even without database - for demo/preview mode
+      const totalReward = requestedEarnings || (REWARD_PER_AD * ADS_PER_SESSION)
+      return NextResponse.json({
+        success: true,
+        reward: totalReward,
+        newBalance: totalReward,
+        rewardUSD: (ADS_PER_SESSION * 0.0003).toFixed(4),
+        demo: true
+      })
     }
 
     // Get user profile

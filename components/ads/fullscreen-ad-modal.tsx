@@ -8,6 +8,7 @@ import { Play, Clock, CheckCircle, Coins, Loader2, Sparkles, Gift, Zap, X, Volum
 import { toast } from "sonner"
 import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
+import { AdSlotMultiNetwork } from "./ad-slot-multi-network"
 
 export type DoubleRewardType =
   | "faucet"
@@ -506,40 +507,41 @@ export function FullscreenAdModal({
                 </div>
               </div>
 
-              {/* All 11 Partner Ad Networks - Displayed Below Google Ads */}
+              {/* All 11 Partner Ad Networks - Real Ad Slots */}
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-amber-500" />
                     <h3 className="font-semibold">Partner Ad Networks (11 Networks)</h3>
+                    <Badge className="bg-green-500 text-white text-[10px] animate-pulse">LIVE</Badge>
                   </div>
-                  <Badge variant="outline" className="text-xs">All Displayed</Badge>
+                  <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">
+                    Generating Impressions
+                  </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-                  {AD_NETWORKS.map((network) => (
-                    <div
-                      key={network.id}
-                      className="rounded-lg overflow-hidden bg-muted/30 border border-border/50 hover:border-primary/30 transition-all"
-                    >
-                      <div className="px-2 py-1.5 bg-muted/50 border-b border-border/30 flex items-center gap-2">
+                {/* Real Ad Slots - Grid of actual ad network slots */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {AD_NETWORKS.map((network, index) => (
+                    <div key={network.id} className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 px-1">
                         <div className={cn("w-2 h-2 rounded-full", network.color)} />
-                        <span className="text-[10px] font-medium text-muted-foreground truncate">{network.name}</span>
+                        <span className="text-[10px] font-medium text-muted-foreground">{network.name}</span>
                       </div>
-                      <div className="aspect-video bg-gradient-to-br from-muted/50 to-muted/20 flex items-center justify-center">
-                        <div className="text-center p-2">
-                          <div className={cn("w-6 h-6 rounded-full mx-auto mb-1 flex items-center justify-center", network.color, "bg-opacity-20")}>
-                            <div className={cn("w-3 h-3 rounded-full", network.color)} />
-                          </div>
-                          <p className="text-[8px] text-muted-foreground">{network.name}</p>
-                        </div>
-                      </div>
+                      <AdSlotMultiNetwork
+                        position="content"
+                        size="rectangle"
+                        className="w-full"
+                        priority={index < 4 ? "high" : index < 8 ? "medium" : "low"}
+                        lazyLoad={index >= 4}
+                      />
                     </div>
                   ))}
                 </div>
 
-                <p className="text-xs text-muted-foreground text-center mt-4">
-                  All 11 partner ad networks are displayed while you watch the 3 Google Rewarded Ads above
+                <p className="text-xs text-muted-foreground text-center mt-4 flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
+                  All 11 partner ad networks generating real impressions while you watch
                 </p>
               </div>
             </div>

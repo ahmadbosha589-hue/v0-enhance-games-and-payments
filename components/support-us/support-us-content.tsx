@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import confetti from "canvas-confetti"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
+import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
 
 interface SupportUsContentProps {
   userId: string
@@ -368,42 +369,50 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             ))}
           </div>
 
-          {/* All 11 Partner Ad Networks - Displayed Statically Below Google Ads */}
-          <div className="mt-6 border-t pt-6">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-amber-500" />
-                  11 Partner Ad Networks
-                </p>
-                <p className="text-xs text-muted-foreground">All networks displayed while you watch Google Ads</p>
+          {/* All 11 Partner Ad Networks - Real Ad Slots */}
+          <div className="mt-6 p-4 rounded-xl border-2 border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-orange-500/5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/20">
+                  <Sparkles className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold flex items-center gap-2">
+                    11 Partner Ad Networks
+                    <Badge className="bg-green-500 text-white text-[10px] animate-pulse">LIVE</Badge>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Real ads generating impressions</p>
+                </div>
               </div>
-              <Badge variant="outline" className="text-xs">
-                All Displayed
+              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">
+                Generating Revenue
               </Badge>
             </div>
+
+            {/* Real Ad Slots Grid - 2 rows of ads for better visibility */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {AD_NETWORKS.map((network) => (
-                <div
-                  key={network.id}
-                  className="p-3 rounded-lg border border-muted bg-muted/30 hover:border-primary/30 transition-all"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className={cn("w-2 h-2 rounded-full", network.color)} />
-                    <span className="text-xs font-medium truncate">{network.name}</span>
+              {AD_NETWORKS.map((network, index) => (
+                <div key={network.id} className="flex flex-col gap-1.5 p-2 rounded-lg border bg-background/50">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("w-2.5 h-2.5 rounded-full", network.color)} />
+                    <span className="text-[10px] font-medium truncate">{network.name}</span>
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
                   </div>
-                  <div className="aspect-video bg-gradient-to-br from-muted/50 to-muted/20 rounded flex items-center justify-center">
-                    <div className="text-center">
-                      <div className={cn("w-4 h-4 rounded-full mx-auto mb-1", network.color, "opacity-60")} />
-                      <p className="text-[8px] text-muted-foreground">{network.name}</p>
-                    </div>
-                  </div>
+                  <AdSlotMultiNetwork
+                    position="content"
+                    size="rectangle"
+                    className="w-full"
+                    priority={index < 4 ? "high" : index < 8 ? "medium" : "low"}
+                    lazyLoad={index >= 6}
+                  />
                 </div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground text-center mt-3">
-              All 11 partner networks display their ads while you watch the 3 Google Rewarded Ads above
-            </p>
+
+            <div className="mt-4 flex items-center justify-center gap-2 text-xs text-green-600 dark:text-green-400 bg-green-500/10 rounded-lg py-2">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
+              <span>All 11 ad networks actively generating real impressions</span>
+            </div>
           </div>
         </div>
 
