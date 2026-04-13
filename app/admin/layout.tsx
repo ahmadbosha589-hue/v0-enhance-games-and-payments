@@ -47,15 +47,18 @@ const defaultAdminProfile: Profile = {
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Prevent caching to ensure fresh auth state
   noStore()
+  console.log("[v0] AdminLayout: Starting render")
 
   let user: { id: string; email?: string } | null = null
   let profile: Profile | null = null
 
   try {
+    console.log("[v0] AdminLayout: Creating Supabase client...")
     const supabase = await Promise.race([
       createClient(),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
     ])
+    console.log("[v0] AdminLayout: Supabase client created:", !!supabase)
 
     if (supabase) {
       // Use Promise.race with a timeout to prevent hanging
@@ -66,12 +69,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       const { data: authData, error: authError } = await Promise.race([authPromise, timeoutPromise])
 
+      console.log("[v0] AdminLayout: Auth result:", { hasUser: !!authData?.user, error: authError?.message })
       if (!authError && authData?.user) {
         user = authData.user
+        console.log("[v0] AdminLayout: User found:", user.id)
 
         // Get profile using admin client (bypasses RLS) with timeout
         try {
           const adminSupabase = createAdminClient()
+          console.log("[v0] AdminLayout: Admin client created:", !!adminSupabase)
           if (adminSupabase) {
             const profilePromise = adminSupabase.from("profiles").select("*").eq("id", user.id).single()
             const profileTimeout = new Promise<{ data: null }>((resolve) =>
@@ -92,10 +98,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         }
       }
     }
-  } catch {
+  } catch (layoutError) {
     // Supabase not available - continue with defaults to allow page to render
+    console.error("[v0] AdminLayout: Error in layout:", layoutError)
   }
 
+  console.log("[v0] AdminLayout: Rendering with user:", !!user, "profile:", !!profile)
   const email = user?.email || ""
 
   // Use profile or default
