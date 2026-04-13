@@ -6,6 +6,8 @@ import { log } from "@/lib/logger"
 
 // Same reward as main claim - 0.0009 USDT
 const TOTAL_REWARD_USDT = 0.0009
+// FaucetPay expects amounts in smallest unit (8 decimals for USDT)
+const TOTAL_REWARD_SMALLEST_UNIT = Math.floor(TOTAL_REWARD_USDT * 100000000) // 90000
 const ADS_PER_SESSION = 3
 const COOLDOWN_SECONDS = 60 // 1 minute cooldown for double rewards
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
@@ -209,11 +211,11 @@ export async function POST(request: NextRequest) {
       }, { status: 503 })
     }
 
-    // Send payment directly to FaucetPay
+    // Send payment directly to FaucetPay (amount in smallest unit)
     const paymentResult = await sendFaucetPayPayment(
       faucetPayApiKey,
       profile.faucetpay_email,
-      TOTAL_REWARD_USDT,
+      TOTAL_REWARD_SMALLEST_UNIT,
       ip
     )
 

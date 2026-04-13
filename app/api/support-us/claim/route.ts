@@ -8,6 +8,8 @@ import { log } from "@/lib/logger"
 const REWARD_PER_AD_USD = 0.0003
 const ADS_PER_SESSION = 3
 const TOTAL_REWARD_USDT = 0.0009 // 0.0009 USDT sent to FaucetPay
+// FaucetPay expects amounts in smallest unit (satoshis for BTC, 8 decimals for USDT)
+const TOTAL_REWARD_SMALLEST_UNIT = Math.floor(TOTAL_REWARD_USDT * 100000000) // 90000
 const COOLDOWN_SECONDS = 120 // 2 minute cooldown between sessions
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
 
@@ -38,7 +40,7 @@ async function sendFaucetPayPayment(
     const formData = new URLSearchParams()
     formData.append("api_key", apiKey)
     formData.append("to", toEmail)
-    formData.append("amount", String(amount))
+    formData.append("amount", String(amount)) // Amount in smallest unit (satoshis/8 decimals)
     formData.append("currency", "USDT")
     formData.append("ip_address", ipAddress)
     formData.append("referral", "false")
@@ -66,7 +68,11 @@ async function sendFaucetPayPayment(
 
     const result = await response.json()
 
-    log.info("FaucetPay support-us response", { status: result.status, message: result.message })
+    log.info("FaucetPay support-us response", {
+      status: result.status,
+      message: result.message,
+      amount
+    })
 
     if (result.status === 200) {
       return {
@@ -211,11 +217,11 @@ export async function POST(request: NextRequest) {
       }, { status: 503 })
     }
 
-    // Send payment directly to FaucetPay
+    // Send payment directly to FaucetPay (amount in smallest unit)
     const paymentResult = await sendFaucetPayPayment(
       faucetPayApiKey,
       profile.faucetpay_email,
-      TOTAL_REWARD_USDT,
+      TOTAL_REWARD_SMALLEST_UNIT,
       ip
     )
 
