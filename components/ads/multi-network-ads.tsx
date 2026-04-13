@@ -20,6 +20,14 @@ const AD_NETWORKS = [
   { id: "adskeeper", name: "AdsKeeper", refreshInterval: 0, color: "bg-emerald-500", pageLoadOnly: true },
 ] as const
 
+interface AdNetworkConfig {
+  enabled: boolean
+  publisherId?: string
+  zoneId?: string
+  slotId?: string
+  [key: string]: unknown
+}
+
 interface MultiNetworkAdsProps {
   className?: string
   position?: "header" | "sidebar" | "content" | "footer"
@@ -58,8 +66,8 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
   )
 })
 
-// Memoized network ad slot - hidden placeholder for real ad injection
-// Only becomes visible when ad scripts populate content
+// Memoized network ad slot - container for ad script injection
+// Only rendered for enabled/configured networks
 const NetworkAdSlot = memo(function NetworkAdSlot({
   network,
   refreshCount,
@@ -73,9 +81,8 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
   isVisible: boolean
 }) {
   const slotRef = useRef<HTMLDivElement>(null)
-  const [hasAdContent, setHasAdContent] = useState(false)
 
-  // Check if ad content has been injected
+  // Set ad config data for ad scripts to use
   useEffect(() => {
     if (!slotRef.current || !isVisible) return
 
@@ -87,61 +94,20 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
     }
 
     slotRef.current.dataset.adConfig = JSON.stringify(adConfig)
-
-    // Observe for ad content being injected
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.addedNodes.length > 0) {
-          setHasAdContent(true)
-          observer.disconnect()
-          break
-        }
-      }
-    })
-
-    const adSlot = document.getElementById(`ad-${network.id}-${position}`)
-    if (adSlot) {
-      // Check if already has content
-      if (adSlot.children.length > 0 || adSlot.innerHTML.trim() !== '') {
-        setHasAdContent(true)
-      } else {
-        observer.observe(adSlot, { childList: true, subtree: true })
-      }
-    }
-
-    return () => observer.disconnect()
   }, [network.id, position, refreshCount, isVisible])
 
-  // Hidden until ad content is injected - prevents empty placeholder grid
-  if (!hasAdContent) {
-    return (
-      <div
-        ref={slotRef}
-        className="hidden"
-        data-ad-network={network.id}
-        data-ad-position={position}
-        data-refresh-count={refreshCount}
-        data-page-load-only={network.pageLoadOnly || false}
-      >
-        <div
-          id={`ad-${network.id}-${position}`}
-          data-ad-slot={`${network.id}-${position}`}
-        />
-      </div>
-    )
-  }
-
+  // Ad slot container - ad scripts inject content into the inner div
   return (
     <div
       ref={slotRef}
-      className="relative rounded-md overflow-hidden"
+      className="relative min-h-[90px] rounded-md overflow-hidden"
       data-ad-network={network.id}
       data-ad-position={position}
       data-refresh-count={refreshCount}
       data-page-load-only={network.pageLoadOnly || false}
     >
       <div
-        className="w-full"
+        className="w-full min-h-[90px]"
         id={`ad-${network.id}-${position}`}
         data-ad-slot={`${network.id}-${position}`}
       />
@@ -160,8 +126,41 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   const [refreshCounts, setRefreshCounts] = useState<Record<string, number>>({})
   const [isVisible, setIsVisible] = useState(!lazyLoad || priority === "high")
   const [shouldRender, setShouldRender] = useState(!lazyLoad || priority === "high")
+  const [enabledNetworks, setEnabledNetworks] = useState<string[]>([])
+  const [configLoaded, setConfigLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const intervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+
+  // Fetch ad config to determine which networks are enabled
+  useEffect(() => {
+    async function fetchAdConfig() {
+      try {
+        const response = await fetch("/api/ads/config", { cache: "force-cache" })
+        if (response.ok) {
+          const data = await response.json()
+          const configs = data.configs as Record<string, AdNetworkConfig>
+
+          // Filter to only enabled networks that have required IDs
+          const enabled = AD_NETWORKS
+            .filter(network => {
+              const config = configs[network.id]
+              if (!config?.enabled) return false
+              // Check if network has any required ID configured
+              return config.publisherId || config.zoneId || config.slotId
+            })
+            .map(n => n.id)
+
+          setEnabledNetworks(enabled)
+        }
+      } catch {
+        // If config fetch fails, don't show any ad slots
+        setEnabledNetworks([])
+      }
+      setConfigLoaded(true)
+    }
+
+    fetchAdConfig()
+  }, [])
 
   // Lazy load with Intersection Observer
   useEffect(() => {
@@ -264,6 +263,16 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     }
   }, [layout])
 
+  // Don't render anything while loading config
+  if (!configLoaded) {
+    return null
+  }
+
+  // Don't render if no ad networks are enabled/configured
+  if (enabledNetworks.length === 0) {
+    return null
+  }
+
   // Show skeleton while lazy loading
   if (!shouldRender) {
     return (
@@ -273,11 +282,14 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     )
   }
 
+  // Filter to only enabled networks
+  const networksToRender = AD_NETWORKS.filter(n => enabledNetworks.includes(n.id))
+
   return (
     <div
       ref={containerRef}
       className={cn(
-        "relative rounded-lg border bg-muted/20 p-3 sm:p-4",
+        "relative",
         className
       )}
     >
@@ -289,7 +301,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
       )}
 
       <div className={getLayoutClasses()}>
-        {AD_NETWORKS.map((network) => (
+        {networksToRender.map((network) => (
           <NetworkAdSlot
             key={network.id}
             network={network}
