@@ -28,6 +28,25 @@ interface PTCAd {
   total_views: number
 }
 
+// Demo PTC ads for when database isn't connected
+const DEMO_PTC_ADS: PTCAd[] = [
+  { id: "demo-1", title: "Bitcoin News Today", description: "Stay updated with the latest Bitcoin news and market analysis", url: "https://bitcoin.org", duration_seconds: 30, reward_satoshis: 5, total_views: 12453 },
+  { id: "demo-2", title: "Learn About Ethereum", description: "Discover the world of Ethereum and smart contracts", url: "https://ethereum.org", duration_seconds: 30, reward_satoshis: 5, total_views: 9821 },
+  { id: "demo-3", title: "Crypto Trading Guide", description: "Essential tips for cryptocurrency trading beginners", url: "https://coinmarketcap.com", duration_seconds: 30, reward_satoshis: 5, total_views: 8234 },
+  { id: "demo-4", title: "Blockchain Technology", description: "Understanding blockchain technology and its applications", url: "https://blockchain.com", duration_seconds: 30, reward_satoshis: 5, total_views: 7654 },
+  { id: "demo-5", title: "DeFi Explained", description: "Introduction to Decentralized Finance and yield farming", url: "https://defipulse.com", duration_seconds: 30, reward_satoshis: 5, total_views: 6432 },
+  { id: "demo-6", title: "Binance Exchange", description: "World largest cryptocurrency exchange platform", url: "https://binance.com", duration_seconds: 45, reward_satoshis: 8, total_views: 15678 },
+  { id: "demo-7", title: "Coinbase Learn", description: "Free crypto education and earn opportunities", url: "https://coinbase.com", duration_seconds: 45, reward_satoshis: 8, total_views: 11234 },
+  { id: "demo-8", title: "Crypto Wallet Security", description: "Best practices for securing your crypto assets", url: "https://ledger.com", duration_seconds: 45, reward_satoshis: 8, total_views: 9876 },
+  { id: "demo-9", title: "NFT Marketplace", description: "Explore the world of digital collectibles and NFTs", url: "https://opensea.io", duration_seconds: 45, reward_satoshis: 8, total_views: 8765 },
+  { id: "demo-10", title: "Mining Guide 2024", description: "Complete guide to cryptocurrency mining", url: "https://whattomine.com", duration_seconds: 45, reward_satoshis: 8, total_views: 7654 },
+  { id: "demo-11", title: "Trezor Hardware Wallet", description: "Keep your crypto safe with hardware wallet", url: "https://trezor.io", duration_seconds: 60, reward_satoshis: 12, total_views: 5432 },
+  { id: "demo-12", title: "CoinGecko Analytics", description: "Track crypto prices and market data", url: "https://coingecko.com", duration_seconds: 60, reward_satoshis: 12, total_views: 6543 },
+  { id: "demo-13", title: "Lightning Network", description: "Fast and cheap Bitcoin transactions explained", url: "https://lightning.network", duration_seconds: 60, reward_satoshis: 12, total_views: 4321 },
+  { id: "demo-14", title: "Staking Rewards", description: "Earn passive income by staking your crypto", url: "https://stakingrewards.com", duration_seconds: 60, reward_satoshis: 12, total_views: 3456 },
+  { id: "demo-15", title: "Crypto Tax Guide", description: "Understanding cryptocurrency taxation and reporting", url: "https://koinly.io", duration_seconds: 60, reward_satoshis: 12, total_views: 2345 },
+]
+
 interface PTCView {
   id: string
   reward_satoshis: number
@@ -90,6 +109,25 @@ async function PTCStats({ userId }: { userId: string }) {
 async function AvailableAds({ userId }: { userId: string }) {
   const adminSupabase = createAdminClient()
 
+  // If no database, use demo ads
+  if (!adminSupabase) {
+    return (
+      <div className="space-y-4">
+        <Alert className="border-amber-500/30 bg-amber-500/10">
+          <AlertCircle className="h-4 w-4 text-amber-500" />
+          <AlertDescription className="text-xs sm:text-sm">
+            <strong>Demo Mode:</strong> These are sample ads. Connect Supabase to enable real PTC ads and earnings.
+          </AlertDescription>
+        </Alert>
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {DEMO_PTC_ADS.map((ad) => (
+            <PTCAdCard key={ad.id} ad={ad} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   // Get ads that user hasn't watched TODAY (midnight UTC reset)
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
@@ -111,7 +149,10 @@ async function AvailableAds({ userId }: { userId: string }) {
   ])
 
   const watchedAdIds = new Set((watchedToday || []).map((v: any) => v.ad_id))
-  const availableAds = (ads || []).filter((ad) => !watchedAdIds.has(ad.id))
+
+  // Use demo ads if no real ads available
+  const dbAds = (ads || []).filter((ad) => !watchedAdIds.has(ad.id))
+  const availableAds = dbAds.length > 0 ? dbAds : DEMO_PTC_ADS
 
   // Check if user watched all ads today
   const watchedAllToday = watchedAdIds.size > 0 && ads.length > 0 && watchedAdIds.size >= ads.length
@@ -202,10 +243,10 @@ async function WatchHistory({ userId }: { userId: string }) {
 
 export default async function PTCPage() {
   const user = await getUser()
-  if (!user) redirect("/auth/login?redirect=/dashboard/ptc")
 
-  const profile = await getProfile(user.id)
-  if (!profile) redirect("/auth/login?redirect=/dashboard/ptc")
+  // Allow demo mode without login
+  const userId = user?.id || "demo-user"
+  const profile = user ? await getProfile(user.id) : null
 
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-6">
@@ -241,7 +282,7 @@ export default async function PTCPage() {
             </div>
           }
         >
-          <PTCStats userId={user.id} />
+          <PTCStats userId={userId} />
         </Suspense>
 
         {/* Tabs */}
@@ -267,7 +308,7 @@ export default async function PTCPage() {
                 </div>
               }
             >
-              <AvailableAds userId={user.id} />
+              <AvailableAds userId={userId} />
             </Suspense>
           </TabsContent>
 
@@ -279,7 +320,7 @@ export default async function PTCPage() {
               </CardHeader>
               <CardContent>
                 <Suspense fallback={<Skeleton className="h-[350px]" />}>
-                  <WatchHistory userId={user.id} />
+                  <WatchHistory userId={userId} />
                 </Suspense>
               </CardContent>
             </Card>

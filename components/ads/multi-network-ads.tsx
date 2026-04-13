@@ -58,7 +58,7 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
   )
 })
 
-// Memoized network ad slot
+// Memoized network ad slot with visible ad placeholder
 const NetworkAdSlot = memo(function NetworkAdSlot({
   network,
   refreshCount,
@@ -102,10 +102,18 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
     <div
       ref={slotRef}
       className={cn(
-        "relative aspect-[4/3] sm:aspect-video rounded-md overflow-hidden transition-all duration-300",
-        "border border-muted-foreground/10 bg-muted/30",
+        "relative min-h-[100px] sm:min-h-[120px] rounded-md overflow-hidden transition-all duration-300",
+        "border-2 border-dashed bg-gradient-to-br",
         isLoading && "opacity-50 scale-95"
       )}
+      style={{
+        borderColor: network.color.replace('bg-', '').includes('-500')
+          ? `rgb(var(--${network.color.replace('bg-', '').replace('-500', '')}-500) / 0.4)`
+          : 'rgb(var(--muted-foreground) / 0.2)',
+        background: `linear-gradient(135deg, ${network.color.replace('bg-', '').includes('-500')
+          ? `rgb(var(--${network.color.replace('bg-', '').replace('-500', '')}-500) / 0.05)`
+          : 'rgb(var(--muted) / 0.3)'} 0%, rgb(var(--background) / 0.8) 100%)`
+      }}
       data-ad-network={network.id}
       data-ad-position={position}
       data-refresh-count={refreshCount}
@@ -117,17 +125,23 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
         </div>
       )}
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
-        <div className={cn("w-2 h-2 rounded-full mb-1", network.color)} />
-        {showLabel && (
-          <span className="text-[8px] text-muted-foreground text-center leading-tight">
-            {network.name}
-          </span>
-        )}
+      {/* Visible ad placeholder content */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-3">
+        <div className={cn("w-3 h-3 rounded-full mb-2 animate-pulse", network.color)} />
+        <span className="text-[10px] font-medium text-foreground/80 text-center leading-tight mb-1">
+          {network.name}
+        </span>
+        <span className="text-[8px] text-muted-foreground/70 text-center">
+          Ad Placement
+        </span>
+        <div className="mt-2 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
+          <span className="text-[7px] text-green-500/80">Active</span>
+        </div>
       </div>
 
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         id={`ad-${network.id}-${position}`}
         data-ad-slot={`${network.id}-${position}`}
       />

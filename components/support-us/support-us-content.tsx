@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Play, Pause, Heart, Coins, Clock, CheckCircle2,
-  TrendingUp, Sparkles, Volume2, VolumeX, X, RefreshCw
+  TrendingUp, Sparkles, Volume2, VolumeX, X, RefreshCw, AlertTriangle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -59,6 +59,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
   const [showDoubleReward, setShowDoubleReward] = useState(false)
   const [lastSessionEarnings, setLastSessionEarnings] = useState(0)
   const [isClaiming, setIsClaiming] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
 
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -106,9 +107,43 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     }
   }, [isWatching, hasStarted])
 
-  // Run all ads simultaneously
+  // Page visibility detection - pause when user leaves the page
   useEffect(() => {
     if (!isWatching || !hasStarted || allCompleted) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        setIsPaused(true)
+        toast.warning("Ads paused! Return to continue watching.", {
+          description: "Timer paused because you left the page",
+          duration: 5000
+        })
+      } else if (document.visibilityState === "visible" && isPaused) {
+        // User returned - show resume option
+        toast.info("Welcome back! Click resume to continue.", {
+          description: "Your progress is saved"
+        })
+      }
+    }
+
+    const handleBlur = () => {
+      if (isWatching && hasStarted && !allCompleted) {
+        setIsPaused(true)
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("blur", handleBlur)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("blur", handleBlur)
+    }
+  }, [isWatching, hasStarted, allCompleted, isPaused])
+
+  // Run all ads simultaneously
+  useEffect(() => {
+    if (!isWatching || !hasStarted || allCompleted || isPaused) return
 
     const interval = setInterval(() => {
       setTimeRemaining(prev => {
@@ -128,17 +163,23 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [isWatching, hasStarted, allCompleted])
+  }, [isWatching, hasStarted, allCompleted, isPaused])
 
   const startWatching = useCallback(() => {
     setIsWatching(true)
     setHasStarted(true)
+    setIsPaused(false)
     setAdStatus(Array(ADS_PER_SESSION).fill("playing"))
     setAdProgress(Array(ADS_PER_SESSION).fill(0))
     setTimeRemaining(Array(ADS_PER_SESSION).fill(AD_DURATION))
     setAllCompleted(false)
     setSessionEarnings(0)
     toast.info("Starting ad session...", { description: "3 Google Rewarded Ads playing simultaneously" })
+  }, [])
+
+  const resumeWatching = useCallback(() => {
+    setIsPaused(false)
+    toast.success("Timer resumed!", { description: "Keep watching to earn your reward" })
   }, [])
 
   const handleClaimReward = async () => {
@@ -290,12 +331,49 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
           </div>
         </div>
 
+        {/* Paused Overlay */}
+        {isPaused && !allCompleted && (
+          <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center">
+            <Card className="max-w-md mx-4 border-2 border-yellow-500/50 bg-yellow-500/5">
+              <CardHeader className="text-center">
+                <div className="mx-auto w-16 h-16 rounded-full bg-yellow-500/20 flex items-center justify-center mb-4">
+                  <AlertTriangle className="h-8 w-8 text-yellow-500" />
+                </div>
+                <CardTitle className="text-xl text-yellow-600">Ads Paused</CardTitle>
+                <CardDescription>
+                  You left the page! Return here and click resume to continue watching.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-3 rounded-lg bg-muted/50 text-center">
+                  <p className="text-sm text-muted-foreground mb-1">Time remaining</p>
+                  <p className="text-2xl font-bold font-mono">
+                    {formatTime(Math.max(...timeRemaining))}
+                  </p>
+                </div>
+                <Button
+                  onClick={resumeWatching}
+                  className="w-full gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                  size="lg"
+                >
+                  <Play className="h-5 w-5" />
+                  Resume Watching
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  Your progress is saved. Stay on this page to earn your reward.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* 3 Google Rewarded Ad Slots - Running Simultaneously */}
-        <div className="flex-1 p-4 overflow-auto">
+        <div className={cn("flex-1 p-4 overflow-auto", isPaused && "opacity-50 pointer-events-none")}>
           <div className="mb-4">
             <h3 className="font-semibold flex items-center gap-2 mb-2">
               <Play className="h-4 w-4 text-red-500" />
               3 Google Rewarded Ads (60 Seconds Each)
+              {isPaused && <Badge variant="outline" className="text-yellow-500 border-yellow-500/30">PAUSED</Badge>}
             </h3>
             <p className="text-xs text-muted-foreground">All 3 ads run simultaneously - watch all to claim reward</p>
           </div>
