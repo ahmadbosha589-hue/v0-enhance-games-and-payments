@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useId } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { RefreshCw, CheckCircle, XCircle, Loader2, GripVertical } from "lucide-react"
@@ -36,6 +36,7 @@ const PATTERNS = [
 ]
 
 export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) {
+  const uniqueId = useId()
   const [targetX, setTargetX] = useState(0)
   const [targetY, setTargetY] = useState(0)
   const [sliderPosition, setSliderPosition] = useState(0)
@@ -43,6 +44,11 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
   const [status, setStatus] = useState<"pending" | "verifying" | "correct" | "incorrect">("pending")
   const [attempts, setAttempts] = useState(0)
   const [pattern, setPattern] = useState(0)
+
+  // Unique IDs for SVG elements to prevent conflicts
+  const cutoutId = `cutout-${uniqueId}`
+  const pieceId = `piece-${uniqueId}`
+  const gradientId = `pieceGradient-${uniqueId}`
 
   const containerRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -285,7 +291,7 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
         >
           <svg width={PIECE_SIZE + 10} height={PIECE_SIZE + 10} className="absolute -left-1 -top-1">
             <defs>
-              <clipPath id="cutout">
+              <clipPath id={cutoutId}>
                 <path d={puzzlePiecePath} />
               </clipPath>
             </defs>
@@ -295,7 +301,7 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
               width={PIECE_SIZE + 10}
               height={PIECE_SIZE + 10}
               fill="rgba(0,0,0,0.4)"
-              clipPath="url(#cutout)"
+              clipPath={`url(#${cutoutId})`}
             />
             <path
               d={puzzlePiecePath}
@@ -324,21 +330,21 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
         >
           <svg width={PIECE_SIZE + 10} height={PIECE_SIZE + 10} className="absolute -left-1 -top-1 drop-shadow-lg">
             <defs>
-              <clipPath id="piece">
+              <clipPath id={pieceId}>
                 <path d={puzzlePiecePath} />
               </clipPath>
-              <linearGradient id="pieceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.9" />
                 <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.7" />
               </linearGradient>
             </defs>
-            <g clipPath="url(#piece)">
+            <g clipPath={`url(#${pieceId})`}>
               <rect
                 x="0"
                 y="0"
                 width={PIECE_SIZE + 10}
                 height={PIECE_SIZE + 10}
-                fill="url(#pieceGradient)"
+                fill={`url(#${gradientId})`}
               />
               {/* Inner detail */}
               <rect

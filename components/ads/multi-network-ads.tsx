@@ -58,12 +58,12 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
   )
 })
 
-// Memoized network ad slot with visible ad placeholder
+// Memoized network ad slot - hidden placeholder for real ad injection
+// Only becomes visible when ad scripts populate content
 const NetworkAdSlot = memo(function NetworkAdSlot({
   network,
   refreshCount,
   position,
-  showLabel,
   isVisible
 }: {
   network: typeof AD_NETWORKS[number]
@@ -72,19 +72,10 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
   showLabel?: boolean
   isVisible: boolean
 }) {
-  const [isLoading, setIsLoading] = useState(false)
   const slotRef = useRef<HTMLDivElement>(null)
+  const [hasAdContent, setHasAdContent] = useState(false)
 
-  // Trigger refresh animation when count changes
-  useEffect(() => {
-    if (refreshCount === 0 || !isVisible) return
-
-    setIsLoading(true)
-    const timeout = setTimeout(() => setIsLoading(false), 500)
-    return () => clearTimeout(timeout)
-  }, [refreshCount, isVisible])
-
-  // Simulate ad content loading - only when visible
+  // Check if ad content has been injected
   useEffect(() => {
     if (!slotRef.current || !isVisible) return
 
@@ -96,52 +87,61 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
     }
 
     slotRef.current.dataset.adConfig = JSON.stringify(adConfig)
+
+    // Observe for ad content being injected
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+          setHasAdContent(true)
+          observer.disconnect()
+          break
+        }
+      }
+    })
+
+    const adSlot = document.getElementById(`ad-${network.id}-${position}`)
+    if (adSlot) {
+      // Check if already has content
+      if (adSlot.children.length > 0 || adSlot.innerHTML.trim() !== '') {
+        setHasAdContent(true)
+      } else {
+        observer.observe(adSlot, { childList: true, subtree: true })
+      }
+    }
+
+    return () => observer.disconnect()
   }, [network.id, position, refreshCount, isVisible])
+
+  // Hidden until ad content is injected - prevents empty placeholder grid
+  if (!hasAdContent) {
+    return (
+      <div
+        ref={slotRef}
+        className="hidden"
+        data-ad-network={network.id}
+        data-ad-position={position}
+        data-refresh-count={refreshCount}
+        data-page-load-only={network.pageLoadOnly || false}
+      >
+        <div
+          id={`ad-${network.id}-${position}`}
+          data-ad-slot={`${network.id}-${position}`}
+        />
+      </div>
+    )
+  }
 
   return (
     <div
       ref={slotRef}
-      className={cn(
-        "relative min-h-[100px] sm:min-h-[120px] rounded-md overflow-hidden transition-all duration-300",
-        "border-2 border-dashed bg-gradient-to-br",
-        isLoading && "opacity-50 scale-95"
-      )}
-      style={{
-        borderColor: network.color.replace('bg-', '').includes('-500')
-          ? `rgb(var(--${network.color.replace('bg-', '').replace('-500', '')}-500) / 0.4)`
-          : 'rgb(var(--muted-foreground) / 0.2)',
-        background: `linear-gradient(135deg, ${network.color.replace('bg-', '').includes('-500')
-          ? `rgb(var(--${network.color.replace('bg-', '').replace('-500', '')}-500) / 0.05)`
-          : 'rgb(var(--muted) / 0.3)'} 0%, rgb(var(--background) / 0.8) 100%)`
-      }}
+      className="relative rounded-md overflow-hidden"
       data-ad-network={network.id}
       data-ad-position={position}
       data-refresh-count={refreshCount}
       data-page-load-only={network.pageLoadOnly || false}
     >
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
-          <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-        </div>
-      )}
-
-      {/* Visible ad placeholder content */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center p-3">
-        <div className={cn("w-3 h-3 rounded-full mb-2 animate-pulse", network.color)} />
-        <span className="text-[10px] font-medium text-foreground/80 text-center leading-tight mb-1">
-          {network.name}
-        </span>
-        <span className="text-[8px] text-muted-foreground/70 text-center">
-          Ad Placement
-        </span>
-        <div className="mt-2 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
-          <span className="text-[7px] text-green-500/80">Active</span>
-        </div>
-      </div>
-
       <div
-        className="absolute inset-0 pointer-events-none"
+        className="w-full"
         id={`ad-${network.id}-${position}`}
         data-ad-slot={`${network.id}-${position}`}
       />
