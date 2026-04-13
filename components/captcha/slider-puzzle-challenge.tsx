@@ -260,15 +260,14 @@ export function SliderPuzzleChallenge({ onVerify }: SliderPuzzleChallengeProps) 
             <div className="absolute top-8 right-20 w-10 h-10 rotate-12 bg-foreground/5" />
           </div>
 
-          {/* Grid lines for visual interest */}
-          <svg className="absolute inset-0 w-full h-full opacity-10">
-            <defs>
-              <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth="0.5" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
+          {/* Subtle grid overlay */}
+          <div
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+              backgroundSize: '20px 20px'
+            }}
+          />
         </div>
 
         {/* Cutout hole (target area) - where piece should go */}
