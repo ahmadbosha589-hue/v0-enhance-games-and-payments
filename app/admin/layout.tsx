@@ -48,11 +48,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // Prevent caching to ensure fresh auth state
   noStore()
 
+  console.log("[v0] Admin layout starting")
+
   let user: { id: string; email?: string } | null = null
   let profile: Profile | null = null
 
   try {
-    const supabase = await createClient()
+    console.log("[v0] Creating Supabase client...")
+    const supabase = await Promise.race([
+      createClient(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+    ])
+    console.log("[v0] Supabase client created:", !!supabase)
 
     if (supabase) {
       // Use Promise.race with a timeout to prevent hanging
@@ -89,10 +96,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         }
       }
     }
-  } catch {
+  } catch (err) {
     // Supabase not available - continue with defaults to allow page to render
+    console.log("[v0] Admin layout auth error:", err)
   }
 
+  console.log("[v0] Admin layout rendering with profile role:", profile?.role || "default")
   const email = user?.email || ""
 
   // Use profile or default

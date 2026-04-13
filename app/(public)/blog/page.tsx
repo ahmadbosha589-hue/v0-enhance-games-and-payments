@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Search, Clock, ArrowRight, TrendingUp, BookOpen, Shield, Coins, Loader2, Zap } from "lucide-react"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { NewsletterForm } from "@/components/blog/newsletter-form"
+import { ResponsiveAd } from "@/components/ads/responsive-ad"
 
 const allPosts = [
   {
@@ -334,6 +335,9 @@ export default function BlogPage() {
 
   return (
     <div className="container py-6 sm:py-8 md:py-12 lg:py-16">
+      {/* Top Ad - Leaderboard */}
+      <ResponsiveAd position="header" className="mb-6 sm:mb-8" mobileHidden />
+
       {/* Header */}
       <div className="mx-auto mb-6 sm:mb-8 md:mb-12 max-w-3xl text-center px-2 sm:px-4">
         <Badge variant="outline" className="mb-3 sm:mb-4">
@@ -377,9 +381,8 @@ export default function BlogPage() {
               key={category.name}
               variant={selectedCategory === category.name ? "default" : "outline"}
               size="sm"
-              className={`gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm h-8 sm:h-9 px-2.5 sm:px-3 ${
-                selectedCategory === category.name ? "" : "bg-transparent"
-              }`}
+              className={`gap-1.5 sm:gap-2 whitespace-nowrap flex-shrink-0 text-xs sm:text-sm h-8 sm:h-9 px-2.5 sm:px-3 ${selectedCategory === category.name ? "" : "bg-transparent"
+                }`}
               onClick={() => handleCategoryChange(category.name)}
             >
               <category.icon className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -451,6 +454,9 @@ export default function BlogPage() {
           </div>
         </Card>
       )}
+
+      {/* Mid-Section Ad - Between featured and grid */}
+      <ResponsiveAd position="between-content" className="mb-6 sm:mb-8 md:mb-12" />
 
       {/* Posts Grid */}
       {totalFiltered === 0 ? (
@@ -528,6 +534,9 @@ export default function BlogPage() {
           </p>
         </div>
       )}
+
+      {/* Footer Ad */}
+      <ResponsiveAd position="footer" className="mt-8 sm:mt-10 md:mt-12" />
 
       {/* Newsletter - Premium styling */}
       <Card className="mt-10 sm:mt-14 md:mt-20 border-primary/15 bg-gradient-to-br from-primary/8 via-primary/5 to-accent/5 overflow-hidden relative">

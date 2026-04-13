@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Clock, Calendar, ArrowLeft, ChevronRight } from "lucide-react"
 import { ShareButtons } from "@/components/blog/share-buttons"
+import { ResponsiveAd } from "@/components/ads/responsive-ad"
 
 // This would normally come from a database/CMS
 const posts: Record<
@@ -1991,7 +1992,7 @@ function generateHeadingId(text: string): string {
 function extractHeadings(content: string): { id: string; text: string; level: number }[] {
   const headings: { id: string; text: string; level: number }[] = []
   const lines = content.split("\n")
-  
+
   for (const line of lines) {
     if (line.startsWith("## ")) {
       const text = line.replace("## ", "").trim()
@@ -2001,7 +2002,7 @@ function extractHeadings(content: string): { id: string; text: string; level: nu
       headings.push({ id: generateHeadingId(text), text, level: 3 })
     }
   }
-  
+
   return headings
 }
 
@@ -2141,10 +2142,20 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               </div>
             </CardContent>
           </Card>
+
+          {/* Content Bottom Ad */}
+          <div className="mt-6 sm:mt-8">
+            <ResponsiveAd position="content" />
+          </div>
         </article>
 
         {/* Sidebar */}
         <aside className="space-y-5 lg:space-y-6">
+          {/* Sidebar Ad */}
+          <div className="hidden lg:block">
+            <ResponsiveAd position="sidebar" />
+          </div>
+
           {/* Table of Contents */}
           <Card className="sticky top-20 border-border/30 bg-gradient-to-b from-card to-card/95 hidden lg:block">
             <CardHeader className="pb-3">
@@ -2152,9 +2163,9 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             </CardHeader>
             <CardContent className="space-y-0.5 text-sm max-h-[60vh] overflow-y-auto">
               {headings.filter(h => h.level === 2).map((heading) => (
-                <a 
-                  key={heading.id} 
-                  href={`#${heading.id}`} 
+                <a
+                  key={heading.id}
+                  href={`#${heading.id}`}
                   className="block py-1.5 px-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all"
                 >
                   {heading.text}

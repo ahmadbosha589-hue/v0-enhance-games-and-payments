@@ -16,6 +16,7 @@ import { WithdrawalTickerMarquee } from "@/components/shared/withdrawal-ticker-m
 import { SkipLink } from "@/components/ui/skip-link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageSelector } from "@/components/language-selector"
+import { ResponsiveAd } from "@/components/ads/responsive-ad"
 import { Menu, Loader2 } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useLanguage } from "@/lib/i18n/language-context"
@@ -210,15 +211,47 @@ function HomePageContent() {
       {/* Main Content */}
       <main id="main-content" className="flex-1">
         <HeroSection />
+
+        {/* Top Ad Banner - After Hero */}
+        <section className="py-4 sm:py-6 bg-muted/10">
+          <div className="container px-4 sm:px-6">
+            <ResponsiveAd position="header" mobileHidden />
+          </div>
+        </section>
+
         <section className="py-6 sm:py-10 border-y border-border/50 bg-muted/20">
           <div className="container px-4 sm:px-6">
             <WithdrawalTickerMarquee variant="landing" speed="normal" showHeader={true} />
           </div>
         </section>
         <StatsSection />
+
+        {/* Mid-Page Ad - Between Stats and Features */}
+        <section className="py-4 sm:py-6 bg-gradient-to-r from-transparent via-muted/20 to-transparent">
+          <div className="container px-4 sm:px-6">
+            <ResponsiveAd position="between-content" />
+          </div>
+        </section>
+
         <FeaturesSection />
         <HowItWorksSection />
+
+        {/* Content Break Ad - Between How It Works and FAQ */}
+        <section className="py-4 sm:py-6">
+          <div className="container px-4 sm:px-6">
+            <ResponsiveAd position="content" />
+          </div>
+        </section>
+
         <FAQSection />
+
+        {/* Footer Ad - Before CTA */}
+        <section className="py-4 sm:py-6 bg-muted/10">
+          <div className="container px-4 sm:px-6">
+            <ResponsiveAd position="footer" />
+          </div>
+        </section>
+
         <CTASection />
       </main>
 
