@@ -556,7 +556,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         </Card>
       </div>
 
-      {/* 11 Ad Networks Info */}
+      {/* 11 Ad Networks - REAL AD IMPRESSIONS */}
       <Card className="border-muted">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
@@ -564,20 +564,34 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             11 Partner Ad Networks
           </CardTitle>
           <CardDescription className="text-xs">
-            Our ads rotate through all 11 partner networks for maximum earnings
+            All 11 partner networks displaying below - you earn impressions while browsing this page
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-            {AD_NETWORKS.map((network) => (
-              <div
-                key={network.id}
-                className="p-2 rounded-lg bg-muted/30 border text-center"
-              >
-                <div className={cn("w-2 h-2 rounded-full mx-auto mb-1", network.color)} />
-                <span className="text-[10px] text-muted-foreground">{network.name}</span>
-              </div>
-            ))}
+        <CardContent className="space-y-4">
+          {/* Actual MultiNetworkAds component with real ad scripts */}
+          <MultiNetworkAds
+            position="content"
+            layout="grid"
+            showLabels={true}
+            lazyLoad={false}
+            priority="high"
+          />
+
+          {/* Network legend */}
+          <div className="pt-3 border-t">
+            <p className="text-xs text-muted-foreground mb-2">Networks currently displaying:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {AD_NETWORKS.map((network) => (
+                <Badge
+                  key={network.id}
+                  variant="outline"
+                  className="text-[10px] gap-1"
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full", network.color)} />
+                  {network.name}
+                </Badge>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
