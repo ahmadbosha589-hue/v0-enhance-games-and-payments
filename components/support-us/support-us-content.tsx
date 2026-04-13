@@ -151,9 +151,9 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         setAdProgress(newTimes.map(t => ((AD_DURATION - t) / AD_DURATION) * 100))
         setAdStatus(newTimes.map(t => t === 0 ? "completed" : "playing"))
 
-        // Update session earnings in real-time
+        // Update session earnings in real-time (in USDT)
         const completedAds = newTimes.filter(t => t === 0).length
-        setSessionEarnings(completedAds * REWARD_PER_AD)
+        setSessionEarnings(completedAds * REWARD_PER_AD_USD)
 
         if (newTimes.every(t => t === 0)) {
           setAllCompleted(true)
@@ -407,7 +407,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
                   </div>
                   <Progress value={adProgress[i]} className="h-2 mt-2" />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Reward: ${REWARD_PER_AD_USD} ({REWARD_PER_AD} sats)
+                    Reward: ${REWARD_PER_AD_USD} USDT
                   </p>
                 </CardHeader>
                 <CardContent className="flex-1 flex items-center justify-center">
@@ -427,7 +427,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
                       <div className="text-center space-y-2">
                         <CheckCircle2 className="h-10 w-10 mx-auto text-green-500" />
                         <p className="text-sm font-medium text-green-500">Completed!</p>
-                        <p className="text-xs text-muted-foreground">+{REWARD_PER_AD} sats</p>
+                        <p className="text-xs text-muted-foreground">+${REWARD_PER_AD_USD} USDT</p>
                       </div>
                     ) : (
                       <div className="text-center space-y-2">
@@ -496,9 +496,9 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
               <Coins className="h-5 w-5 text-green-500" />
               <div>
                 <p className="text-xs text-muted-foreground">Session Earnings</p>
-                <p className="text-lg font-bold text-green-500">{sessionEarnings} sats</p>
+                <p className="text-lg font-bold text-green-500">${sessionEarnings.toFixed(4)} USDT</p>
                 <p className="text-[10px] text-muted-foreground">
-                  ${(sessionEarnings / REWARD_PER_AD * REWARD_PER_AD_USD).toFixed(4)} USD
+                  Sent to FaucetPay
                 </p>
               </div>
             </div>
@@ -523,7 +523,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
               ) : allCompleted ? (
                 <>
                   <Coins className="h-5 w-5" />
-                  Claim {ADS_PER_SESSION * REWARD_PER_AD} Satoshis
+                  Claim ${TOTAL_REWARD_USDT} USDT
                 </>
               ) : (
                 <>
@@ -550,7 +550,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
                 Support Session
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm mt-1">
-                Watch {ADS_PER_SESSION} ads simultaneously to earn ${(ADS_PER_SESSION * REWARD_PER_AD_USD).toFixed(4)} (~{ADS_PER_SESSION * REWARD_PER_AD} sats)
+                Watch {ADS_PER_SESSION} ads simultaneously to earn ${TOTAL_REWARD_USDT} USDT (sent to FaucetPay)
               </CardDescription>
             </div>
           </div>
@@ -580,12 +580,13 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             <p className="text-xs text-muted-foreground mb-2">Reward Breakdown:</p>
             <div className="flex items-center justify-between text-sm">
               <span>Each ad</span>
-              <span className="font-mono">${REWARD_PER_AD_USD} ({REWARD_PER_AD} sats)</span>
+              <span className="font-mono">${REWARD_PER_AD_USD} USDT</span>
             </div>
             <div className="flex items-center justify-between text-sm font-medium text-green-500 mt-1">
               <span>3 ads total</span>
-              <span className="font-mono">${(REWARD_PER_AD_USD * 3).toFixed(4)} ({REWARD_PER_AD * 3} sats)</span>
+              <span className="font-mono">${TOTAL_REWARD_USDT} USDT</span>
             </div>
+            <p className="text-xs text-muted-foreground mt-2">Sent directly to your FaucetPay account</p>
           </div>
 
           {/* Start Button */}
