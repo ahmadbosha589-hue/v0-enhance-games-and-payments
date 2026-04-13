@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // Lazy load ad components for performance - only load when needed
-const GoogleRewardedAds = lazy(() => 
+const GoogleRewardedAds = lazy(() =>
   import("./google-rewarded-ads").then(m => ({ default: m.GoogleRewardedAds }))
 )
-const MultiNetworkAds = lazy(() => 
+const MultiNetworkAds = lazy(() =>
   import("./multi-network-ads").then(m => ({ default: m.MultiNetworkAds }))
 )
 
@@ -24,17 +24,10 @@ interface PageAdsWrapperProps {
 // Memoized skeletons to prevent re-renders
 const GoogleAdSkeleton = memo(function GoogleAdSkeleton() {
   return (
-    <div className="rounded-xl border bg-muted/20 p-4 sm:p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="h-8 w-8 rounded-lg bg-muted animate-pulse" />
-        <div className="space-y-1">
-          <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-          <div className="h-3 w-24 bg-muted rounded animate-pulse" />
-        </div>
-      </div>
+    <div className="rounded-xl border bg-muted/10 p-4 sm:p-6">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-16 bg-muted rounded-lg animate-pulse" />
+          <div key={i} className="h-14 bg-muted/30 rounded-lg animate-pulse" />
         ))}
       </div>
     </div>
@@ -44,9 +37,9 @@ const GoogleAdSkeleton = memo(function GoogleAdSkeleton() {
 const NetworkAdSkeleton = memo(function NetworkAdSkeleton() {
   return (
     <div className="rounded-lg border bg-muted/20 p-3 sm:p-4">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(i => (
-          <div key={i} className="aspect-video bg-muted rounded-md animate-pulse" />
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-3">
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className="aspect-video bg-muted/40 rounded-md animate-pulse" />
         ))}
       </div>
     </div>
@@ -56,8 +49,8 @@ const NetworkAdSkeleton = memo(function NetworkAdSkeleton() {
 const SidebarSkeleton = memo(function SidebarSkeleton() {
   return (
     <div className="space-y-3">
-      {[1, 2, 3, 4].map(i => (
-        <div key={i} className="h-[250px] bg-muted rounded-lg animate-pulse" />
+      {[1, 2].map(i => (
+        <div key={i} className="h-[200px] bg-muted/50 rounded-lg animate-pulse" />
       ))}
     </div>
   )
@@ -65,20 +58,24 @@ const SidebarSkeleton = memo(function SidebarSkeleton() {
 
 /**
  * LazyAdSection - Only renders ad content when visible and after page loads
+ * Has a timeout to prevent infinite loading states
  */
 const LazyAdSection = memo(function LazyAdSection({
   children,
   fallback,
   rootMargin = "300px",
   delay = 0,
+  timeout = 5000,
 }: {
   children: React.ReactNode
   fallback: React.ReactNode
   rootMargin?: string
   delay?: number
+  timeout?: number
 }) {
   const [isVisible, setIsVisible] = useState(false)
   const [shouldRender, setShouldRender] = useState(false)
+  const [timedOut, setTimedOut] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -124,6 +121,23 @@ const LazyAdSection = memo(function LazyAdSection({
     return () => clearTimeout(timer)
   }, [isVisible, delay])
 
+  // Timeout fallback - if component takes too long, just render nothing
+  useEffect(() => {
+    if (shouldRender) return
+
+    const timeoutTimer = setTimeout(() => {
+      setTimedOut(true)
+      setShouldRender(true)
+    }, timeout)
+
+    return () => clearTimeout(timeoutTimer)
+  }, [shouldRender, timeout])
+
+  // If timed out, render empty div instead of skeleton
+  if (timedOut) {
+    return <div ref={ref} />
+  }
+
   return (
     <div ref={ref}>
       {shouldRender ? children : fallback}
@@ -150,14 +164,15 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
       {/* Top Section: Google Rewarded Ads (Static, 60s each) - Lazy loaded */}
       {showHeaderAds && (
         <div className="mb-4 sm:mb-6">
-          <LazyAdSection 
+          <LazyAdSection
             fallback={<GoogleAdSkeleton />}
             rootMargin="100px"
             delay={100}
+            timeout={3000}
           >
             <Suspense fallback={<GoogleAdSkeleton />}>
-              <GoogleRewardedAds 
-                position="top" 
+              <GoogleRewardedAds
+                position="top"
                 lazyLoad={true}
                 className="animate-in fade-in duration-500"
               />
@@ -176,13 +191,14 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
         {/* Sidebar Ads (Desktop only) - Lazy loaded with low priority */}
         {showSidebarAds && (
           <aside className="hidden lg:block w-[300px] shrink-0 space-y-4">
-            <LazyAdSection 
+            <LazyAdSection
               fallback={<SidebarSkeleton />}
               rootMargin="200px"
               delay={300}
+              timeout={3000}
             >
               <Suspense fallback={<SidebarSkeleton />}>
-                <MultiNetworkAds 
+                <MultiNetworkAds
                   position="sidebar"
                   layout="stack"
                   showLabels={false}
@@ -203,13 +219,14 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
       {showFooterAds && (
         <div className="mt-4 sm:mt-6 space-y-4">
           {/* Other networks grid - Medium priority */}
-          <LazyAdSection 
+          <LazyAdSection
             fallback={<NetworkAdSkeleton />}
             rootMargin="400px"
             delay={200}
+            timeout={3000}
           >
             <Suspense fallback={<NetworkAdSkeleton />}>
-              <MultiNetworkAds 
+              <MultiNetworkAds
                 position="footer"
                 layout="grid"
                 showLabels={false}
@@ -222,13 +239,14 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
 
           {/* Bottom Google Rewarded Ads - Low priority, well separated */}
           <div className="mt-8 sm:mt-12">
-            <LazyAdSection 
+            <LazyAdSection
               fallback={<GoogleAdSkeleton />}
               rootMargin="500px"
               delay={400}
+              timeout={3000}
             >
               <Suspense fallback={<GoogleAdSkeleton />}>
-                <GoogleRewardedAds 
+                <GoogleRewardedAds
                   position="bottom"
                   lazyLoad={true}
                   className="animate-in fade-in duration-500 delay-200"
@@ -263,7 +281,7 @@ const MobileBottomAds = memo(function MobileBottomAds() {
     <div className="fixed bottom-0 left-0 right-0 lg:hidden z-40 safe-area-bottom">
       <div className="bg-background/95 backdrop-blur-sm border-t p-2">
         <div className="flex items-center justify-center gap-2 overflow-x-auto">
-          <div 
+          <div
             className="shrink-0 w-[320px] h-[50px] bg-muted/50 rounded flex items-center justify-center"
             data-ad-slot="mobile-bottom-banner"
           >
@@ -281,13 +299,13 @@ const MobileBottomAds = memo(function MobileBottomAds() {
 export const InlineAds = memo(function InlineAds({ className }: { className?: string }) {
   return (
     <div className={cn("my-4 sm:my-6", className)}>
-      <LazyAdSection 
+      <LazyAdSection
         fallback={<div className="h-[90px] bg-muted rounded-lg animate-pulse" />}
         rootMargin="200px"
         delay={150}
       >
         <Suspense fallback={<div className="h-[90px] bg-muted rounded-lg animate-pulse" />}>
-          <MultiNetworkAds 
+          <MultiNetworkAds
             position="content"
             layout="inline"
             showLabels={false}
@@ -306,13 +324,13 @@ export const InlineAds = memo(function InlineAds({ className }: { className?: st
 export const ContentBreakAds = memo(function ContentBreakAds({ className }: { className?: string }) {
   return (
     <div className={cn("py-4 sm:py-6 border-y border-dashed border-muted-foreground/10", className)}>
-      <LazyAdSection 
+      <LazyAdSection
         fallback={<div className="h-[90px] max-w-[728px] mx-auto bg-muted rounded-lg animate-pulse" />}
         rootMargin="300px"
         delay={200}
       >
         <div className="flex items-center justify-center gap-4 overflow-x-auto pb-2">
-          <div 
+          <div
             className="shrink-0 w-[728px] max-w-full h-[90px] bg-muted/30 rounded-lg flex items-center justify-center"
             data-ad-slot="content-break-leaderboard"
           >

@@ -23,13 +23,18 @@ import { AdminFaucetHealthCard } from "@/components/admin/faucet-health-card"
 
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 10
 
 async function safeQuery<T>(
   queryFn: () => Promise<{ data: T | null; error: any; count?: number | null }>,
   fallback: T,
+  timeoutMs = 5000,
 ): Promise<{ data: T; count: number }> {
   try {
-    const result = await queryFn()
+    const timeoutPromise = new Promise<{ data: T | null; error: { message: string }; count: null }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: { message: "Query timeout" }, count: null }), timeoutMs)
+    )
+    const result = await Promise.race([queryFn(), timeoutPromise])
     if (result.error) {
       return { data: fallback, count: 0 }
     }

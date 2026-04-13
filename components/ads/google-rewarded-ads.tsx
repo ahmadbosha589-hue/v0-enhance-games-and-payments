@@ -48,7 +48,7 @@ const GoogleAdSlot = memo(function GoogleAdSlot({ slot }: { slot: AdSlot }) {
       </div>
 
       <div className="h-1 bg-muted rounded-full overflow-hidden">
-        <div 
+        <div
           className={cn(
             "h-full transition-all duration-1000",
             slot.status === "completed" && "bg-green-500",
@@ -85,8 +85,8 @@ const AdsSkeleton = memo(function AdsSkeleton() {
   )
 })
 
-export const GoogleRewardedAds = memo(function GoogleRewardedAds({ 
-  className, 
+export const GoogleRewardedAds = memo(function GoogleRewardedAds({
+  className,
   onAllAdsComplete,
   position = "middle",
   lazyLoad = true,
@@ -106,7 +106,7 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
   // Lazy load with Intersection Observer
   useEffect(() => {
     if (!lazyLoad || isVisible) return
-    
+
     const element = containerRef.current
     if (!element) return
 
@@ -124,9 +124,9 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
           observer.disconnect()
         }
       },
-      { 
+      {
         rootMargin: "200px",
-        threshold: 0.01 
+        threshold: 0.01
       }
     )
 
@@ -151,6 +151,17 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
     return () => clearTimeout(timer)
   }, [isVisible, shouldRender])
 
+  // Timeout fallback - ensure we don't stay loading forever
+  useEffect(() => {
+    if (shouldRender) return
+
+    const timer = setTimeout(() => {
+      setShouldRender(true)
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [shouldRender])
+
   // Track user time on page
   useEffect(() => {
     if (!shouldRender) return
@@ -170,8 +181,8 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
 
     const pendingAd = adSlots.find(ad => ad.status === "pending")
     if (pendingAd && userTimeOnPage >= (pendingAd.id - 1) * 10) {
-      setAdSlots(prev => prev.map(ad => 
-        ad.id === pendingAd.id 
+      setAdSlots(prev => prev.map(ad =>
+        ad.id === pendingAd.id
           ? { ...ad, status: "playing" as const, startedAt: Date.now() }
           : ad
       ))
@@ -186,7 +197,7 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
     timerRef.current = setInterval(() => {
       setAdSlots(prev => prev.map(ad => {
         if (ad.status !== "playing") return ad
-        
+
         const newTime = ad.timeRemaining - 1
         if (newTime <= 0) {
           return { ...ad, status: "completed" as const, timeRemaining: 0 }
@@ -221,7 +232,7 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={cn(
         "relative rounded-xl border bg-gradient-to-br from-background via-background to-muted/30 p-4 sm:p-6",
@@ -261,7 +272,7 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
           <span>{Math.round(totalProgress)}%</span>
         </div>
         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-gradient-to-r from-red-500 to-orange-500 transition-all duration-500"
             style={{ width: `${totalProgress}%` }}
           />
@@ -271,7 +282,7 @@ export const GoogleRewardedAds = memo(function GoogleRewardedAds({
       {/* Google AdSense Slots - Static, no refresh */}
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[1, 2, 3].map((i) => (
-          <div 
+          <div
             key={i}
             className="aspect-video bg-muted/50 rounded-lg flex items-center justify-center border border-dashed border-muted-foreground/20"
             data-ad-client="ca-pub-XXXXXXXXXX"

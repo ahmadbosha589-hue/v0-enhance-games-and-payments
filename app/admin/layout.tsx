@@ -7,8 +7,10 @@ import { ServerTime } from "@/components/server-time"
 import { SupabaseHealthProvider } from "@/components/admin/supabase-health-provider"
 import { ConnectivityBanner } from "@/components/admin/connectivity-banner"
 import type { Profile } from "@/lib/types/database"
+import { unstable_noStore as noStore } from "next/cache"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 10 // Set max duration for server-side rendering
 
 const defaultAdminProfile: Profile = {
   id: "",
@@ -43,6 +45,9 @@ const defaultAdminProfile: Profile = {
 }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // Prevent caching to ensure fresh auth state
+  noStore()
+
   let user: { id: string; email?: string } | null = null
   let profile: Profile | null = null
 
@@ -50,16 +55,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     const supabase = await createClient()
 
     if (supabase) {
-      const { data: authData, error: authError } = await supabase.auth.getUser()
+      // Use Promise.race with a timeout to prevent hanging
+      const authPromise = supabase.auth.getUser()
+      const timeoutPromise = new Promise<{ data: { user: null }; error: null }>((resolve) =>
+        setTimeout(() => resolve({ data: { user: null }, error: null }), 5000)
+      )
+
+      const { data: authData, error: authError } = await Promise.race([authPromise, timeoutPromise])
 
       if (!authError && authData?.user) {
         user = authData.user
 
-        // Get profile using admin client (bypasses RLS)
+        // Get profile using admin client (bypasses RLS) with timeout
         try {
           const adminSupabase = createAdminClient()
           if (adminSupabase) {
-            const { data: profileData } = await adminSupabase.from("profiles").select("*").eq("id", user.id).single()
+            const profilePromise = adminSupabase.from("profiles").select("*").eq("id", user.id).single()
+            const profileTimeout = new Promise<{ data: null }>((resolve) =>
+              setTimeout(() => resolve({ data: null }), 3000)
+            )
+            const { data: profileData } = await Promise.race([profilePromise, profileTimeout])
             if (profileData) {
               profile = profileData as Profile
             }

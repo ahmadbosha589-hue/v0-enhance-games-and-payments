@@ -88,33 +88,9 @@ export function WithdrawalTickerMarquee({
   const animationDuration =
     speed === "slow" ? "60s" : speed === "fast" ? "20s" : "40s"
 
+  // Don't show anything while loading or if no withdrawals - avoids skeleton clutter
   if (isLoading || error || withdrawals.length === 0) {
-    // Show placeholder with skeleton
-    return (
-      <div className={cn("w-full overflow-hidden", className)}>
-        {showHeader && variant === "landing" && (
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-              </span>
-              <span className="text-xs sm:text-sm font-medium text-green-500">
-                Live Withdrawals
-              </span>
-            </div>
-          </div>
-        )}
-        <div className="flex gap-3 animate-pulse">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="flex-shrink-0 h-12 w-48 rounded-lg bg-muted/50"
-            />
-          ))}
-        </div>
-      </div>
-    )
+    return null
   }
 
   // Double the withdrawals for seamless loop

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 
-type TournamentType = "faucet_claims" | "offerwall_earnings" | "highest_earners"
+type TournamentType = "faucet_claims" | "offerwall_earnings" | "highest_earners" | "supporter_ads_watched" | "supporter_earnings"
 type TournamentPeriod = "daily" | "weekly" | "monthly"
 
 function getPeriodDates(period: TournamentPeriod): { start: Date; end: Date } {
@@ -258,6 +258,56 @@ export async function GET(request: Request) {
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
         .map((item, index) => ({ ...item, rank: index + 1 }))
+    } else if (type === "supporter_ads_watched" || type === "supporter_earnings") {
+      // Handle supporter tournament types - count support_us ads watched or earnings
+      const { data, error } = await supabase
+        .from("transactions")
+        .select(`
+          user_id,
+          amount,
+          profiles:user_id (
+            username,
+            avatar_url
+          )
+        `)
+        .eq("type", "support_us")
+        .eq("status", "completed")
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString())
+
+      if (error) {
+        console.error("Error fetching supporter data:", error)
+        return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
+      }
+
+      // Aggregate by user
+      const userData: Record<string, { count: number; total: number; username: string; avatar_url: string | null }> = {}
+      data?.forEach((tx) => {
+        const userId = tx.user_id
+        if (!userData[userId]) {
+          userData[userId] = {
+            count: 0,
+            total: 0,
+            username: (tx.profiles as { username?: string })?.username || "Anonymous",
+            avatar_url: (tx.profiles as { avatar_url?: string })?.avatar_url || null,
+          }
+        }
+        userData[userId].count++
+        userData[userId].total += tx.amount
+      })
+
+      leaderboard = Object.entries(userData)
+        .map(([user_id, data]) => ({
+          user_id,
+          username: data.username,
+          avatar_url: data.avatar_url,
+          score: type === "supporter_ads_watched" ? data.count : data.total,
+          rank: 0,
+          is_current_user: user_id === user?.id,
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map((item, index) => ({ ...item, rank: index + 1 }))
     }
 
     // Get current user's position if not in top
@@ -294,6 +344,20 @@ export async function GET(request: Request) {
           .gte("created_at", start.toISOString())
           .lte("created_at", end.toISOString())
         userScore = data?.reduce((sum, tx) => sum + tx.amount, 0) || 0
+      } else if (type === "supporter_ads_watched" || type === "supporter_earnings") {
+        const { data } = await supabase
+          .from("transactions")
+          .select("amount")
+          .eq("user_id", user.id)
+          .eq("type", "support_us")
+          .eq("status", "completed")
+          .gte("created_at", start.toISOString())
+          .lte("created_at", end.toISOString())
+        if (type === "supporter_ads_watched") {
+          userScore = data?.length || 0
+        } else {
+          userScore = data?.reduce((sum, tx) => sum + tx.amount, 0) || 0
+        }
       }
 
       if (userScore > 0) {

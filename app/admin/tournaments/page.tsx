@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 10
 
 export const metadata = {
   title: "Tournament Management | Admin",
@@ -67,11 +68,17 @@ async function fetchTournaments(): Promise<Tournament[]> {
   }
 
   try {
-    const { data, error } = await adminSupabase
+    const queryPromise = adminSupabase
       .from("tournaments")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50)
+
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: { message: "Query timeout" } }), 8000)
+    )
+
+    const { data, error } = await Promise.race([queryPromise, timeoutPromise])
 
     if (error) {
       console.error("[Admin Tournaments] Error fetching:", error)
@@ -89,9 +96,15 @@ async function fetchParticipantCounts(): Promise<Record<string, number>> {
     const adminSupabase = createAdminClient()
     if (!adminSupabase) return {}
 
-    const { data, error } = await adminSupabase
+    const queryPromise = adminSupabase
       .from("tournament_participants")
       .select("tournament_id")
+
+    const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: { message: "Query timeout" } }), 5000)
+    )
+
+    const { data, error } = await Promise.race([queryPromise, timeoutPromise])
 
     if (error) {
       console.error("[Admin Tournaments] Error fetching participants:", error)

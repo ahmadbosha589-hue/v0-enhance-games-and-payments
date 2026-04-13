@@ -59,13 +59,20 @@ export function AdSlot({ position, size, className, fallback }: AdSlotProps) {
           })
         }
       } catch (error) {
-        // No ad configured for this position
+        // No ad configured for this position - just finish loading
       } finally {
         setIsLoading(false)
       }
     }
 
+    // Set a timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      setIsLoading(false)
+    }, 3000)
+
     fetchAdConfig()
+
+    return () => clearTimeout(timeoutId)
   }, [position])
 
   if (isLoading) {

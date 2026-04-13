@@ -48,7 +48,7 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
     <div className="rounded-lg border bg-muted/20 p-3 sm:p-4 animate-pulse">
       <div className={getLayoutClasses()}>
         {AD_NETWORKS.map((network) => (
-          <div 
+          <div
             key={network.id}
             className="aspect-[4/3] sm:aspect-video rounded-md bg-muted/50"
           />
@@ -59,12 +59,12 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
 })
 
 // Memoized network ad slot
-const NetworkAdSlot = memo(function NetworkAdSlot({ 
-  network, 
-  refreshCount, 
-  position, 
+const NetworkAdSlot = memo(function NetworkAdSlot({
+  network,
+  refreshCount,
+  position,
   showLabel,
-  isVisible 
+  isVisible
 }: {
   network: typeof AD_NETWORKS[number]
   refreshCount: number
@@ -78,7 +78,7 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
   // Trigger refresh animation when count changes
   useEffect(() => {
     if (refreshCount === 0 || !isVisible) return
-    
+
     setIsLoading(true)
     const timeout = setTimeout(() => setIsLoading(false), 500)
     return () => clearTimeout(timeout)
@@ -126,7 +126,7 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
         )}
       </div>
 
-      <div 
+      <div
         className="absolute inset-0"
         id={`ad-${network.id}-${position}`}
         data-ad-slot={`${network.id}-${position}`}
@@ -135,8 +135,8 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
   )
 })
 
-export const MultiNetworkAds = memo(function MultiNetworkAds({ 
-  className, 
+export const MultiNetworkAds = memo(function MultiNetworkAds({
+  className,
   position = "content",
   layout = "grid",
   showLabels = false,
@@ -152,7 +152,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   // Lazy load with Intersection Observer
   useEffect(() => {
     if (!lazyLoad || isVisible) return
-    
+
     const element = containerRef.current
     if (!element) return
 
@@ -170,9 +170,9 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
           observer.disconnect()
         }
       },
-      { 
+      {
         rootMargin: "300px", // Start loading 300px before visible
-        threshold: 0.01 
+        threshold: 0.01
       }
     )
 
@@ -198,6 +198,17 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     const timer = setTimeout(() => setShouldRender(true), delay)
     return () => clearTimeout(timer)
   }, [isVisible, shouldRender, priority])
+
+  // Timeout fallback - ensure we don't stay loading forever
+  useEffect(() => {
+    if (shouldRender) return
+
+    const timer = setTimeout(() => {
+      setShouldRender(true)
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [shouldRender])
 
   // Setup auto-refresh for each network - only when fully rendered
   useEffect(() => {
@@ -249,7 +260,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={cn(
         "relative rounded-lg border bg-muted/20 p-3 sm:p-4",
@@ -280,12 +291,12 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
 })
 
 // Export individual network component for specific placements
-export const SingleNetworkAd = memo(function SingleNetworkAd({ 
-  networkId, 
+export const SingleNetworkAd = memo(function SingleNetworkAd({
+  networkId,
   className,
   size = "medium",
   lazyLoad = true
-}: { 
+}: {
   networkId: string
   className?: string
   size?: "small" | "medium" | "large"
@@ -322,7 +333,7 @@ export const SingleNetworkAd = memo(function SingleNetworkAd({
   }
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={cn(
         "rounded-md overflow-hidden border border-muted-foreground/10",

@@ -45,13 +45,22 @@ export function AdminFaucetHealthCard() {
 
   const fetchHealth = async () => {
     try {
-      const response = await fetch("/api/faucet-health")
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+      const response = await fetch("/api/faucet-health", {
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
       if (response.ok) {
         const result = await response.json()
         setData(result)
       }
     } catch (error) {
-      console.error("Failed to fetch faucet health:", error)
+      if ((error as Error).name !== "AbortError") {
+        console.error("Failed to fetch faucet health:", error)
+      }
     } finally {
       setLoading(false)
       setRefreshing(false)
