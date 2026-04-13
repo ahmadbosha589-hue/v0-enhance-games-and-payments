@@ -35,7 +35,7 @@ export function createAdminClient() {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl) {
-    console.warn("[Supabase Admin] SUPABASE_URL not configured")
+    console.warn("[Supabase Admin] NEXT_PUBLIC_SUPABASE_URL not configured")
     return null
   }
 

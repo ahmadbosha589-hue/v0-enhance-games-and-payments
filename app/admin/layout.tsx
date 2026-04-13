@@ -47,63 +47,62 @@ const defaultAdminProfile: Profile = {
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Prevent caching to ensure fresh auth state
   noStore()
-  console.log("[v0] AdminLayout: Starting render")
 
   let user: { id: string; email?: string } | null = null
   let profile: Profile | null = null
 
-  try {
-    console.log("[v0] AdminLayout: Creating Supabase client...")
-    const supabase = await Promise.race([
-      createClient(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
-    ])
-    console.log("[v0] AdminLayout: Supabase client created:", !!supabase)
+  // Check if Supabase is configured before attempting any operations
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    if (supabase) {
-      // Use Promise.race with a timeout to prevent hanging
-      const authPromise = supabase.auth.getUser()
-      const timeoutPromise = new Promise<{ data: { user: null }; error: null }>((resolve) =>
-        setTimeout(() => resolve({ data: { user: null }, error: null }), 5000)
-      )
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const supabase = await Promise.race([
+        createClient(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+      ])
 
-      const { data: authData, error: authError } = await Promise.race([authPromise, timeoutPromise])
+      if (supabase) {
+        // Use Promise.race with a timeout to prevent hanging
+        const authPromise = supabase.auth.getUser()
+        const timeoutPromise = new Promise<{ data: { user: null }; error: null }>((resolve) =>
+          setTimeout(() => resolve({ data: { user: null }, error: null }), 5000)
+        )
 
-      console.log("[v0] AdminLayout: Auth result:", { hasUser: !!authData?.user, error: authError?.message })
-      if (!authError && authData?.user) {
-        user = authData.user
-        console.log("[v0] AdminLayout: User found:", user.id)
+        const { data: authData, error: authError } = await Promise.race([authPromise, timeoutPromise])
 
-        // Get profile using admin client (bypasses RLS) with timeout
-        try {
-          const adminSupabase = createAdminClient()
-          console.log("[v0] AdminLayout: Admin client created:", !!adminSupabase)
-          if (adminSupabase) {
-            const profilePromise = adminSupabase.from("profiles").select("*").eq("id", user.id).single()
-            const profileTimeout = new Promise<{ data: null }>((resolve) =>
-              setTimeout(() => resolve({ data: null }), 3000)
-            )
-            const { data: profileData } = await Promise.race([profilePromise, profileTimeout])
-            if (profileData) {
-              profile = profileData as Profile
+        if (!authError && authData?.user) {
+          user = authData.user
+
+          // Get profile using admin client (bypasses RLS) with timeout
+          try {
+            const adminSupabase = createAdminClient()
+            if (adminSupabase) {
+              const profilePromise = adminSupabase.from("profiles").select("*").eq("id", user.id).single()
+              const profileTimeout = new Promise<{ data: null }>((resolve) =>
+                setTimeout(() => resolve({ data: null }), 3000)
+              )
+              const { data: profileData } = await Promise.race([profilePromise, profileTimeout])
+              if (profileData) {
+                profile = profileData as Profile
+              }
             }
+          } catch {
+            // Continue with null profile
           }
-        } catch {
-          // Continue with null profile
-        }
 
-        // Redirect regular users away from admin
-        if (profile && profile.role === "user") {
-          redirect("/dashboard")
+          // Redirect regular users away from admin
+          if (profile && profile.role === "user") {
+            redirect("/dashboard")
+          }
         }
       }
+    } catch (layoutError) {
+      // Supabase not available - continue with defaults to allow page to render
+      console.error("[AdminLayout] Error:", layoutError)
     }
-  } catch (layoutError) {
-    // Supabase not available - continue with defaults to allow page to render
-    console.error("[v0] AdminLayout: Error in layout:", layoutError)
   }
 
-  console.log("[v0] AdminLayout: Rendering with user:", !!user, "profile:", !!profile)
   const email = user?.email || ""
 
   // Use profile or default

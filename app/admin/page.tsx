@@ -392,8 +392,85 @@ function ChartLoading() {
 }
 
 async function AdblockDetectionStats() {
-  const supabase = createAdminClient()
-  if (!supabase) {
+  // Wrap everything in try-catch to prevent server component errors
+  try {
+    const supabase = createAdminClient()
+    if (!supabase) {
+      return (
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Adblock Detection Rate</CardTitle>
+            <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-lg sm:text-2xl font-bold text-muted-foreground">--</div>
+            <div className="flex flex-col gap-0.5 mt-1">
+              <p className="text-xs text-muted-foreground">No database connected</p>
+            </div>
+          </CardContent>
+        </Card>
+      )
+    }
+
+    // Try to get stats from the database function first
+    let stats = {
+      total_visits: 0,
+      adblock_detections: 0,
+      detection_rate: 0,
+      unique_users_with_adblock: 0,
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+
+      if (!error && data) {
+        stats = data
+      } else {
+        // Fallback: Query the table directly
+        const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: analyticsData } = await supabase
+          .from("adblock_analytics")
+          .select("adblock_detected, user_id")
+          .gte("created_at", cutoffDate)
+
+        if (analyticsData) {
+          const totalVisits = analyticsData.length
+          const detections = analyticsData.filter((a) => a.adblock_detected)
+          stats = {
+            total_visits: totalVisits,
+            adblock_detections: detections.length,
+            detection_rate: totalVisits > 0 ? Math.round((detections.length / totalVisits) * 10000) / 100 : 0,
+            unique_users_with_adblock: new Set(detections.map((d) => d.user_id)).size,
+          }
+        }
+      }
+    } catch {
+      // If table doesn't exist, return zeros (will be created when script runs)
+    }
+
+    const rateColor =
+      stats.detection_rate > 30 ? "text-red-500" : stats.detection_rate > 15 ? "text-amber-500" : "text-emerald-500"
+
+    return (
+      <Card className="hover:shadow-md transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Adblock Detection Rate</CardTitle>
+          <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+          <div className={`text-lg sm:text-2xl font-bold ${rateColor}`}>{stats.detection_rate.toFixed(1)}%</div>
+          <div className="flex flex-col gap-0.5 mt-1">
+            <p className="text-xs text-muted-foreground">
+              {formatNumber(stats.adblock_detections)} / {formatNumber(stats.total_visits)} visits (7d)
+            </p>
+            <p className="text-xs text-muted-foreground">{formatNumber(stats.unique_users_with_adblock)} unique users</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  } catch (error) {
+    // Catch any unexpected errors and render fallback UI
+    console.error("[AdblockDetectionStats] Error:", error)
     return (
       <Card className="hover:shadow-md transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
@@ -403,69 +480,12 @@ async function AdblockDetectionStats() {
         <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
           <div className="text-lg sm:text-2xl font-bold text-muted-foreground">--</div>
           <div className="flex flex-col gap-0.5 mt-1">
-            <p className="text-xs text-muted-foreground">No database connected</p>
+            <p className="text-xs text-muted-foreground">Unable to load stats</p>
           </div>
         </CardContent>
       </Card>
     )
   }
-
-  // Try to get stats from the database function first
-  let stats = {
-    total_visits: 0,
-    adblock_detections: 0,
-    detection_rate: 0,
-    unique_users_with_adblock: 0,
-  }
-
-  try {
-    const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
-
-    if (!error && data) {
-      stats = data
-    } else {
-      // Fallback: Query the table directly
-      const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      const { data: analyticsData } = await supabase
-        .from("adblock_analytics")
-        .select("adblock_detected, user_id")
-        .gte("created_at", cutoffDate)
-
-      if (analyticsData) {
-        const totalVisits = analyticsData.length
-        const detections = analyticsData.filter((a) => a.adblock_detected)
-        stats = {
-          total_visits: totalVisits,
-          adblock_detections: detections.length,
-          detection_rate: totalVisits > 0 ? Math.round((detections.length / totalVisits) * 10000) / 100 : 0,
-          unique_users_with_adblock: new Set(detections.map((d) => d.user_id)).size,
-        }
-      }
-    }
-  } catch {
-    // If table doesn't exist, return zeros (will be created when script runs)
-  }
-
-  const rateColor =
-    stats.detection_rate > 30 ? "text-red-500" : stats.detection_rate > 15 ? "text-amber-500" : "text-emerald-500"
-
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
-        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Adblock Detection Rate</CardTitle>
-        <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-        <div className={`text-lg sm:text-2xl font-bold ${rateColor}`}>{stats.detection_rate.toFixed(1)}%</div>
-        <div className="flex flex-col gap-0.5 mt-1">
-          <p className="text-xs text-muted-foreground">
-            {formatNumber(stats.adblock_detections)} / {formatNumber(stats.total_visits)} visits (7d)
-          </p>
-          <p className="text-xs text-muted-foreground">{formatNumber(stats.unique_users_with_adblock)} unique users</p>
-        </div>
-      </CardContent>
-    </Card>
-  )
 }
 
 function AdblockStatsLoading() {
