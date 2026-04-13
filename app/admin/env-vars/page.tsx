@@ -53,9 +53,9 @@ interface EnvVar {
   description: string
 }
 
-// Environment variable configuration
+// Environment variable configuration - comprehensive list of all env vars used in the app
 const ENV_VAR_CONFIG: Omit<EnvVar, "value" | "isSet">[] = [
-  // Database
+  // ===== DATABASE =====
   {
     key: "NEXT_PUBLIC_SUPABASE_URL",
     category: "database",
@@ -74,14 +74,60 @@ const ENV_VAR_CONFIG: Omit<EnvVar, "value" | "isSet">[] = [
     isSecret: true,
     description: "Supabase service role key (admin access)",
   },
-  // Payment
+  {
+    key: "SUPABASE_JWT_SECRET",
+    category: "database",
+    isSecret: true,
+    description: "Supabase JWT secret for token verification",
+  },
+  {
+    key: "KV_REST_API_URL",
+    category: "database",
+    isSecret: false,
+    description: "Vercel KV / Upstash Redis REST URL",
+  },
+  {
+    key: "KV_REST_API_TOKEN",
+    category: "database",
+    isSecret: true,
+    description: "Vercel KV / Upstash Redis REST Token",
+  },
+
+  // ===== PAYMENT =====
   {
     key: "FAUCETPAY_API_KEY",
     category: "payment",
     isSecret: true,
-    description: "FaucetPay API key for withdrawals",
+    description: "FaucetPay API key for crypto withdrawals",
   },
-  // API Keys
+  {
+    key: "CCPAYMENT_APP_ID",
+    category: "payment",
+    isSecret: false,
+    description: "CCPayment App ID for deposits",
+  },
+  {
+    key: "CCPAYMENT_APP_SECRET",
+    category: "payment",
+    isSecret: true,
+    description: "CCPayment App Secret for deposits",
+  },
+
+  // ===== APP CONFIG =====
+  {
+    key: "NEXT_PUBLIC_APP_URL",
+    category: "other",
+    isSecret: false,
+    description: "Public app URL (e.g., https://faucero.com)",
+  },
+  {
+    key: "NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL",
+    category: "other",
+    isSecret: false,
+    description: "OAuth redirect URL for development",
+  },
+
+  // ===== OFFERWALL API KEYS =====
   {
     key: "NEXT_PUBLIC_CPX_APP_ID",
     category: "api",
@@ -124,18 +170,217 @@ const ENV_VAR_CONFIG: Omit<EnvVar, "value" | "isSet">[] = [
     isSecret: false,
     description: "ayeT-Studios Ad Slot ID",
   },
-  // Security
   {
-    key: "UPSTASH_REDIS_REST_URL",
-    category: "security",
+    key: "NEXT_PUBLIC_ADGEM_PLAYER_ID",
+    category: "api",
     isSecret: false,
-    description: "Upstash Redis REST URL for rate limiting",
+    description: "AdGem Player ID",
+  },
+
+  // ===== SHORTLINK PROVIDERS =====
+  {
+    key: "SHORTLINK_PROVIDER",
+    category: "api",
+    isSecret: false,
+    description: "Active shortlink provider (shrinkme, exeio, fclc, gplinks, ouoio)",
   },
   {
-    key: "UPSTASH_REDIS_REST_TOKEN",
+    key: "SHRINKME_API_KEY",
+    category: "api",
+    isSecret: true,
+    description: "ShrinkMe API Key for shortlinks",
+  },
+  {
+    key: "EXEIO_API_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Exe.io API Key for shortlinks",
+  },
+  {
+    key: "FCLC_API_KEY",
+    category: "api",
+    isSecret: true,
+    description: "FC.LC API Key for shortlinks",
+  },
+  {
+    key: "GPLINKS_API_KEY",
+    category: "api",
+    isSecret: true,
+    description: "GPLinks API Key for shortlinks",
+  },
+  {
+    key: "OUOIO_API_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Ouo.io API Key for shortlinks",
+  },
+
+  // ===== SECURITY - VPN/PROXY DETECTION =====
+  {
+    key: "IP_API_KEY",
     category: "security",
     isSecret: true,
-    description: "Upstash Redis REST Token",
+    description: "IP-API.com API Key for geolocation",
+  },
+  {
+    key: "VPNAPI_KEY",
+    category: "security",
+    isSecret: true,
+    description: "VPNAPI.io Key for VPN detection",
+  },
+  {
+    key: "IPQUALITYSCORE_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "IPQualityScore API Key for fraud detection",
+  },
+  {
+    key: "PROXYCHECK_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "ProxyCheck.io API Key",
+  },
+  {
+    key: "GETIPINTEL_EMAIL",
+    category: "security",
+    isSecret: false,
+    description: "GetIPIntel contact email",
+  },
+  {
+    key: "IPHUB_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "IPHub API Key",
+  },
+  {
+    key: "IP2LOCATION_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "IP2Location API Key",
+  },
+  {
+    key: "ABUSEIPDB_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "AbuseIPDB API Key",
+  },
+  {
+    key: "SHODAN_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "Shodan API Key",
+  },
+  {
+    key: "IPINFO_TOKEN",
+    category: "security",
+    isSecret: true,
+    description: "IPInfo.io Token",
+  },
+  {
+    key: "BIGDATACLOUD_KEY",
+    category: "security",
+    isSecret: true,
+    description: "BigDataCloud API Key",
+  },
+  {
+    key: "SCAMALYTICS_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "Scamalytics API Key",
+  },
+  {
+    key: "FRAUDGUARD_USERNAME",
+    category: "security",
+    isSecret: false,
+    description: "FraudGuard Username",
+  },
+  {
+    key: "FRAUDGUARD_PASSWORD",
+    category: "security",
+    isSecret: true,
+    description: "FraudGuard Password",
+  },
+  {
+    key: "IP2PROXY_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "IP2Proxy API Key",
+  },
+  {
+    key: "DBIP_API_KEY",
+    category: "security",
+    isSecret: true,
+    description: "DB-IP API Key",
+  },
+  {
+    key: "SPUR_TOKEN",
+    category: "security",
+    isSecret: true,
+    description: "Spur.us Token for VPN detection",
+  },
+
+  // ===== SECURITY - CAPTCHA & TOKENS =====
+  {
+    key: "TURNSTILE_SECRET_KEY",
+    category: "security",
+    isSecret: true,
+    description: "Cloudflare Turnstile secret key",
+  },
+  {
+    key: "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+    category: "security",
+    isSecret: false,
+    description: "Cloudflare Turnstile site key",
+  },
+  {
+    key: "NEXT_PUBLIC_HCAPTCHA_SITE_KEY",
+    category: "security",
+    isSecret: false,
+    description: "hCaptcha site key",
+  },
+  {
+    key: "CSRF_SECRET",
+    category: "security",
+    isSecret: true,
+    description: "CSRF protection secret",
+  },
+  {
+    key: "CHALLENGE_SECRET",
+    category: "security",
+    isSecret: true,
+    description: "Challenge verification secret",
+  },
+  {
+    key: "BALANCE_INTEGRITY_SECRET",
+    category: "security",
+    isSecret: true,
+    description: "Balance integrity verification secret",
+  },
+  {
+    key: "IP_HASH_SALT",
+    category: "security",
+    isSecret: true,
+    description: "Salt for IP address hashing",
+  },
+
+  // ===== EMAIL =====
+  {
+    key: "RESEND_API_KEY",
+    category: "api",
+    isSecret: true,
+    description: "Resend API Key for email sending",
+  },
+  {
+    key: "EMAIL_FROM",
+    category: "api",
+    isSecret: false,
+    description: "Default from email address",
+  },
+  {
+    key: "SUPPORT_EMAIL",
+    category: "api",
+    isSecret: false,
+    description: "Support email address",
   },
 ]
 
