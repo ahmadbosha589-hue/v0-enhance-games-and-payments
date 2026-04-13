@@ -138,30 +138,32 @@ export async function POST(request: NextRequest) {
       // Claims table might not exist
     })
 
-    // Update support stats for tracking
-    const { data: existingStats } = await adminSupabase
-      .from("support_stats")
-      .select("ads_watched_today, total_ads_watched, total_support_earnings")
-      .eq("user_id", user.id)
-      .single()
+    // Update support stats for tracking (non-critical, don't fail the request)
+    try {
+      const { data: existingStats } = await adminSupabase
+        .from("support_stats")
+        .select("ads_watched_today, total_ads_watched, total_support_earnings")
+        .eq("user_id", user.id)
+        .single()
 
-    if (existingStats) {
-      await adminSupabase.from("support_stats").update({
-        ads_watched_today: (existingStats.ads_watched_today || 0) + adsWatched,
-        total_ads_watched: (existingStats.total_ads_watched || 0) + adsWatched,
-        total_support_earnings: (existingStats.total_support_earnings || 0) + totalReward,
-        updated_at: new Date().toISOString()
-      }).eq("user_id", user.id)
-    } else {
-      await adminSupabase.from("support_stats").insert({
-        user_id: user.id,
-        ads_watched_today: adsWatched,
-        total_ads_watched: adsWatched,
-        total_support_earnings: totalReward,
-        updated_at: new Date().toISOString()
-      }).catch(() => {
-        // Table might not exist yet
-      })
+      if (existingStats) {
+        await adminSupabase.from("support_stats").update({
+          ads_watched_today: (existingStats.ads_watched_today || 0) + adsWatched,
+          total_ads_watched: (existingStats.total_ads_watched || 0) + adsWatched,
+          total_support_earnings: (existingStats.total_support_earnings || 0) + totalReward,
+          updated_at: new Date().toISOString()
+        }).eq("user_id", user.id)
+      } else {
+        await adminSupabase.from("support_stats").insert({
+          user_id: user.id,
+          ads_watched_today: adsWatched,
+          total_ads_watched: adsWatched,
+          total_support_earnings: totalReward,
+          updated_at: new Date().toISOString()
+        })
+      }
+    } catch {
+      // support_stats table might not exist - this is non-critical
     }
 
     return NextResponse.json({
