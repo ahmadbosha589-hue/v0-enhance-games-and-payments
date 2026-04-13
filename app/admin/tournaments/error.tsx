@@ -17,7 +17,10 @@ export default function TournamentsError({
   const { status, connected, refresh, isRefreshing } = useSupabaseStatus()
 
   useEffect(() => {
-    console.error("[v0] Tournaments page error:", error)
+    // Log error for debugging in development
+    if (process.env.NODE_ENV === "development") {
+      console.error("Tournaments page error:", error)
+    }
   }, [error])
 
   const isSupabaseIssue = !connected || status === "disconnected" || status === "unconfigured"
@@ -55,9 +58,9 @@ export default function TournamentsError({
           {/* Connection status */}
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <span className={`h-2 w-2 rounded-full ${status === "connected" ? "bg-emerald-500" :
-                status === "degraded" ? "bg-amber-500" :
-                  status === "disconnected" ? "bg-red-500" :
-                    "bg-muted-foreground animate-pulse"
+              status === "degraded" ? "bg-amber-500" :
+                status === "disconnected" ? "bg-red-500" :
+                  "bg-muted-foreground animate-pulse"
               }`} />
             Database: <span className="capitalize">{status}</span>
           </div>

@@ -60,14 +60,14 @@ interface TournamentParticipant {
   prize_amount: number | null
 }
 
-async function fetchTournaments(): Promise<Tournament[]> {
-  const adminSupabase = createAdminClient()
-  if (!adminSupabase) {
-    console.warn("[Admin Tournaments] Database not configured")
-    return []
-  }
-
+async function fetchTournaments(): Promise<{ tournaments: Tournament[]; error: string | null }> {
   try {
+    const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      console.warn("[Admin Tournaments] Database not configured")
+      return { tournaments: [], error: "db_not_configured" }
+    }
+
     const queryPromise = adminSupabase
       .from("tournaments")
       .select("*")
@@ -82,12 +82,16 @@ async function fetchTournaments(): Promise<Tournament[]> {
 
     if (error) {
       console.error("[Admin Tournaments] Error fetching:", error)
-      return []
+      // Check if table doesn't exist
+      if (error.message?.includes("does not exist") || error.message?.includes("relation")) {
+        return { tournaments: [], error: "table_not_exists" }
+      }
+      return { tournaments: [], error: error.message }
     }
-    return (data || []) as Tournament[]
+    return { tournaments: (data || []) as Tournament[], error: null }
   } catch (err) {
     console.error("[Admin Tournaments] Exception:", err)
-    return []
+    return { tournaments: [], error: "exception" }
   }
 }
 
@@ -107,7 +111,10 @@ async function fetchParticipantCounts(): Promise<Record<string, number>> {
     const { data, error } = await Promise.race([queryPromise, timeoutPromise])
 
     if (error) {
-      console.error("[Admin Tournaments] Error fetching participants:", error)
+      // Silently fail if table doesn't exist
+      if (!error.message?.includes("does not exist")) {
+        console.error("[Admin Tournaments] Error fetching participants:", error)
+      }
       return {}
     }
 
@@ -160,23 +167,28 @@ export default async function AdminTournamentsPage() {
   let participantCounts: Record<string, number> = {}
   let loadError = false
   let dbConfigured = true
+  let tableNotExists = false
 
-  // Check if database is configured first
-  const adminSupabase = createAdminClient()
-  if (!adminSupabase) {
-    dbConfigured = false
-  } else {
-    try {
-      const [t, p] = await Promise.all([
-        fetchTournaments(),
-        fetchParticipantCounts(),
-      ])
-      tournaments = t
-      participantCounts = p
-    } catch (err) {
-      console.error("[Admin Tournaments] Failed to load data:", err)
+  // Fetch data with error handling
+  try {
+    const [tournamentsResult, p] = await Promise.all([
+      fetchTournaments(),
+      fetchParticipantCounts(),
+    ])
+
+    if (tournamentsResult.error === "db_not_configured") {
+      dbConfigured = false
+    } else if (tournamentsResult.error === "table_not_exists") {
+      tableNotExists = true
+    } else if (tournamentsResult.error) {
       loadError = true
     }
+
+    tournaments = tournamentsResult.tournaments
+    participantCounts = p
+  } catch (err) {
+    console.error("[Admin Tournaments] Failed to load data:", err)
+    loadError = true
   }
 
   const stats = await fetchStats(tournaments, participantCounts)
@@ -208,6 +220,44 @@ export default async function AdminTournamentsPage() {
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Retry
                 </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (tableNotExists) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Crown className="h-6 w-6 text-yellow-500" />
+              Tournament Management
+            </h1>
+            <p className="text-muted-foreground">Create and manage platform tournaments</p>
+          </div>
+        </div>
+        <Card className="border-blue-500/30">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mx-auto w-14 h-14 bg-blue-500/10 rounded-full flex items-center justify-center mb-4">
+              <Trophy className="h-7 w-7 text-blue-500" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">Tournaments Table Not Found</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mb-4">
+              The tournaments table has not been created yet. Run the database migrations to set up the tournament system.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" asChild>
+                <Link href="/admin/tournaments">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href="/admin">Back to Dashboard</Link>
               </Button>
             </div>
           </CardContent>
