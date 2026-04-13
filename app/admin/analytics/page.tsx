@@ -8,9 +8,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 export const dynamic = "force-dynamic"
 
 export default async function AnalyticsPage() {
-  const supabase = await createClient()
+  // Check if Supabase is configured
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabase) {
+  if (!supabaseUrl || !supabaseKey) {
     return (
       <div className="space-y-6">
         <div>
@@ -28,32 +30,12 @@ export default async function AnalyticsPage() {
     )
   }
 
-  // Get various analytics
-  const { count: totalUsers } = await supabase.from("profiles").select("*", { count: "exact", head: true })
-
-  const { count: totalClaims } = await supabase.from("claims").select("*", { count: "exact", head: true })
-
-  // Last 7 days stats
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-
-  const { count: newUsersWeek } = await supabase
-    .from("profiles")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", weekAgo.toISOString())
-
-  const { count: claimsWeek } = await supabase
-    .from("claims")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", weekAgo.toISOString())
-
-  const { count: withdrawalsWeek } = await supabase
-    .from("withdrawals")
-    .select("*", { count: "exact", head: true })
-    .gte("created_at", weekAgo.toISOString())
-
-  // Calculate averages
-  const avgClaimsPerUser = totalUsers ? (totalClaims || 0) / totalUsers : 0
-
+  // Default values for all stats
+  let totalUsers = 0
+  let totalClaims = 0
+  let newUsersWeek = 0
+  let claimsWeek = 0
+  let withdrawalsWeek = 0
   let adblockStats = {
     total_visits: 0,
     adblock_detections: 0,
@@ -61,29 +43,65 @@ export default async function AnalyticsPage() {
   }
 
   try {
-    const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
-    if (!error && data) {
-      adblockStats = data
-    } else {
-      // Fallback query
-      const { data: analyticsData } = await supabase
-        .from("adblock_analytics")
-        .select("adblock_detected")
-        .gte("created_at", weekAgo.toISOString())
+    const supabase = await createClient()
 
-      if (analyticsData) {
-        const totalVisits = analyticsData.length
-        const detections = analyticsData.filter((a) => a.adblock_detected).length
-        adblockStats = {
-          total_visits: totalVisits,
-          adblock_detections: detections,
-          detection_rate: totalVisits > 0 ? Math.round((detections / totalVisits) * 10000) / 100 : 0,
+    if (supabase) {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+      // Fetch all stats in parallel with individual error handling
+      const [
+        totalUsersResult,
+        totalClaimsResult,
+        newUsersResult,
+        claimsWeekResult,
+        withdrawalsResult,
+      ] = await Promise.all([
+        supabase.from("profiles").select("*", { count: "exact", head: true }).catch(() => ({ count: 0 })),
+        supabase.from("claims").select("*", { count: "exact", head: true }).catch(() => ({ count: 0 })),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
+        supabase.from("claims").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
+        supabase.from("withdrawals").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
+      ])
+
+      totalUsers = totalUsersResult.count || 0
+      totalClaims = totalClaimsResult.count || 0
+      newUsersWeek = newUsersResult.count || 0
+      claimsWeek = claimsWeekResult.count || 0
+      withdrawalsWeek = withdrawalsResult.count || 0
+
+      // Get adblock stats
+      try {
+        const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+        if (!error && data) {
+          adblockStats = data
+        } else {
+          // Fallback query
+          const { data: analyticsData } = await supabase
+            .from("adblock_analytics")
+            .select("adblock_detected")
+            .gte("created_at", weekAgo.toISOString())
+
+          if (analyticsData) {
+            const totalVisits = analyticsData.length
+            const detections = analyticsData.filter((a) => a.adblock_detected).length
+            adblockStats = {
+              total_visits: totalVisits,
+              adblock_detections: detections,
+              detection_rate: totalVisits > 0 ? Math.round((detections / totalVisits) * 10000) / 100 : 0,
+            }
+          }
         }
+      } catch {
+        // Table might not exist yet
       }
     }
-  } catch {
-    // Table might not exist yet
+  } catch (error) {
+    console.error("[AnalyticsPage] Error fetching data:", error)
+    // Continue with default values
   }
+
+  // Calculate averages
+  const avgClaimsPerUser = totalUsers ? totalClaims / totalUsers : 0
 
   const rateColor =
     adblockStats.detection_rate > 30
