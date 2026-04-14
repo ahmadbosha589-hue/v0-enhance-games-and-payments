@@ -589,14 +589,47 @@ export default function AdminFundsPage() {
 
         <TabsContent value="revenue" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                Revenue History & Corrections
-              </CardTitle>
-              <CardDescription>
-                View completed purchases and correct any erroneous test data. Total shown: ${overview?.totalBoosterRevenue?.toFixed(2) || "0.00"}
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-green-500" />
+                  Revenue History & Corrections
+                </CardTitle>
+                <CardDescription>
+                  View completed purchases and correct any erroneous test data. Total shown: ${overview?.totalBoosterRevenue?.toFixed(2) || "0.00"}
+                </CardDescription>
+              </div>
+              {completedPurchases.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setConfirmMessage(`This will mark ALL ${completedPurchases.length} completed purchases as test data and set their amounts to $0. This cannot be undone.`)
+                    setPendingAction(() => async () => {
+                      const response = await fetch("/api/admin/funds", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          action: "reset_all_test_revenue",
+                          reason: "Reset all erroneous test data"
+                        })
+                      })
+                      const data = await response.json()
+                      if (data.success) {
+                        toast.success("Test revenue reset", { description: data.message })
+                        refreshRevenue()
+                        refreshOverview()
+                      } else {
+                        toast.error(data.error || "Failed to reset")
+                      }
+                    })
+                    setConfirmDialogOpen(true)
+                  }}
+                >
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Reset All to $0
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {completedPurchases.length === 0 ? (

@@ -1,4 +1,4 @@
-import { createAdminClient, getUser, getProfile } from "@/lib/supabase/server"
+import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { log } from "@/lib/logger"
 import { z } from "zod"
@@ -57,19 +57,42 @@ function createIdempotencyKey(adminId: string, userId: string, type: string, act
 // =============================================================================
 
 async function verifyAdminPermissions(requestType: string) {
-  const user = await getUser()
-  if (!user) {
-    log.warn("Unauthorized funds access attempt", { requestType })
-    return { error: "Unauthorized", status: 401, user: null, profile: null }
-  }
+  try {
+    // Use the same pattern as /api/auth/me - createClient with cookies
+    const supabase = await createClient()
+    if (!supabase) {
+      log.warn("Supabase client not available", { requestType })
+      return { error: "Database not configured", status: 503, user: null, profile: null }
+    }
 
-  const profile = await getProfile(user.id)
-  if (!profile || !["admin", "superadmin"].includes(profile.role)) {
-    log.warn("Forbidden funds access attempt", { requestType, userId: user.id, role: profile?.role })
-    return { error: "Forbidden - Admin access required", status: 403, user: null, profile: null }
-  }
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      log.warn("Unauthorized funds access attempt - no user session", { requestType, authError: authError?.message })
+      return { error: "Unauthorized - Please log in", status: 401, user: null, profile: null }
+    }
 
-  return { error: null, status: 200, user, profile }
+    // Fetch profile using the same client (respects RLS)
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || !profile) {
+      log.warn("User profile not found", { requestType, userId: user.id, profileError: profileError?.message })
+      return { error: "User profile not found", status: 404, user: null, profile: null }
+    }
+
+    if (!["admin", "superadmin"].includes(profile.role)) {
+      log.warn("Forbidden funds access attempt", { requestType, userId: user.id, role: profile.role })
+      return { error: "Forbidden - Admin access required", status: 403, user: null, profile: null }
+    }
+
+    return { error: null, status: 200, user, profile }
+  } catch (error) {
+    log.error("Auth verification error", { requestType, error })
+    return { error: "Authentication error", status: 500, user: null, profile: null }
+  }
 }
 
 // =============================================================================
@@ -118,11 +141,12 @@ export async function GET(request: Request) {
 
       const pendingWithdrawals = withdrawals?.reduce((sum, w) => sum + Number(w.amount || 0), 0) || 0
 
-      // Booster revenue (completed purchases)
+      // Booster revenue (completed purchases only - excludes test_data, failed, refunded)
       const { data: boosterRevenue } = await adminSupabase
         .from("booster_purchases")
         .select("amount_usd")
         .eq("payment_status", "completed")
+        .gt("amount_usd", 0) // Only count purchases with actual payment
 
       const totalBoosterRevenue = boosterRevenue?.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0) || 0
 
@@ -163,6 +187,7 @@ export async function GET(request: Request) {
       const limit = Math.min(Number(searchParams.get("limit")) || 50, 100)
       const offset = Number(searchParams.get("offset")) || 0
 
+      // Try with all columns first, fall back to basic columns if ad_balance_usd doesn't exist
       let query = adminSupabase
         .from("profiles")
         .select("id, username, email, display_name, balance_satoshis, ad_balance_usd, role, created_at")
@@ -173,11 +198,33 @@ export async function GET(request: Request) {
         query = query.or(`username.ilike.%${search}%,email.ilike.%${search}%,display_name.ilike.%${search}%`)
       }
 
-      const { data: users, error } = await query
+      let { data: users, error } = await query
+
+      // If error mentions column doesn't exist, try without ad_balance_usd
+      if (error && error.message?.includes("ad_balance_usd")) {
+        log.warn("ad_balance_usd column not found, fetching without it")
+        let fallbackQuery = adminSupabase
+          .from("profiles")
+          .select("id, username, email, display_name, balance_satoshis, role, created_at")
+          .order("created_at", { ascending: false })
+          .range(offset, offset + limit - 1)
+
+        if (search) {
+          fallbackQuery = fallbackQuery.or(`username.ilike.%${search}%,email.ilike.%${search}%,display_name.ilike.%${search}%`)
+        }
+
+        const fallbackResult = await fallbackQuery
+        users = fallbackResult.data?.map(u => ({ ...u, ad_balance_usd: 0 })) || []
+        error = fallbackResult.error
+      }
 
       if (error) {
-        log.error("Failed to fetch users for funds management", { error })
-        return NextResponse.json({ error: "Failed to fetch users", details: error.message }, { status: 500 })
+        log.error("Failed to fetch users for funds management", { error: error.message, code: error.code })
+        return NextResponse.json({
+          error: "Failed to fetch users",
+          details: error.message,
+          code: error.code
+        }, { status: 500 })
       }
 
       return NextResponse.json({ users: users || [] })
@@ -898,6 +945,92 @@ export async function POST(request: Request) {
         message: `Revenue corrected: ${previousStatus} -> ${correctedStatus}, $${previousAmount} -> $0`,
         previousAmount,
         correctedAmount: 0
+      })
+    }
+
+    // =========================================================================
+    // RESET ALL TEST REVENUE - Mark all completed purchases as test_data
+    // =========================================================================
+    if (action === "reset_all_test_revenue") {
+      const { reason } = body
+
+      if (!reason || reason.length < 3) {
+        return NextResponse.json({ error: "Reason required (min 3 characters)" }, { status: 400 })
+      }
+
+      // Get all completed purchases
+      const { data: completedPurchases, error: fetchError } = await adminSupabase
+        .from("booster_purchases")
+        .select("id, amount_usd, user_id, booster_tier_id")
+        .eq("payment_status", "completed")
+
+      if (fetchError) {
+        return NextResponse.json({ error: "Failed to fetch purchases" }, { status: 500 })
+      }
+
+      if (!completedPurchases || completedPurchases.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: "No completed purchases to reset",
+          resetCount: 0,
+          totalAmountReset: 0
+        })
+      }
+
+      const totalAmountReset = completedPurchases.reduce((sum, p) => sum + Number(p.amount_usd || 0), 0)
+      const purchaseIds = completedPurchases.map(p => p.id)
+
+      // Update all to test_data with $0
+      const { error: updateError } = await adminSupabase
+        .from("booster_purchases")
+        .update({
+          payment_status: "test_data",
+          amount_usd: 0,
+          updated_at: new Date().toISOString()
+        })
+        .in("id", purchaseIds)
+
+      if (updateError) {
+        log.error("Failed to reset test revenue", { operationId, error: updateError })
+        return NextResponse.json({ error: "Failed to reset revenue" }, { status: 500 })
+      }
+
+      // Deactivate associated boosters
+      for (const purchase of completedPurchases) {
+        await adminSupabase
+          .from("user_boosters")
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq("user_id", purchase.user_id)
+          .eq("booster_tier_id", purchase.booster_tier_id)
+      }
+
+      // Create audit log
+      await adminSupabase.from("admin_audit_logs").insert({
+        admin_id: authResult.user.id,
+        action: "reset_all_test_revenue",
+        details: {
+          operationId,
+          resetCount: completedPurchases.length,
+          totalAmountReset,
+          purchaseIds,
+          reason
+        }
+      })
+
+      log.info("Admin reset all test revenue", {
+        operationId,
+        adminId: authResult.user.id,
+        resetCount: completedPurchases.length,
+        totalAmountReset,
+        reason
+      })
+
+      return NextResponse.json({
+        success: true,
+        operationId,
+        message: `Reset ${completedPurchases.length} purchases totaling $${totalAmountReset.toFixed(2)}`,
+        resetCount: completedPurchases.length,
+        totalAmountReset
       })
     }
 
