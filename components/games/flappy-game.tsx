@@ -261,12 +261,30 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         }
       }
 
-      // Spawn pipes
+      // Spawn pipes - ensure only ONE pipe spawns at a time
+      // Check minimum distance from the last pipe to prevent multiple pipes spawning together
+      const MIN_PIPE_DISTANCE = 150 // Minimum pixels between pipes
+      const lastPipe = pipesRef.current[pipesRef.current.length - 1]
+      const canSpawnPipe = !lastPipe || lastPipe.x < CANVAS_WIDTH - MIN_PIPE_DISTANCE
+
       const spawnRate = Math.max(80, 120 - difficultyRef.current * 8)
-      if (frameCount % spawnRate === 0) {
-        const minHeight = 50
-        const maxHeight = CANVAS_HEIGHT - currentPipeGap - minHeight - 40
-        const topHeight = Math.floor(Math.random() * (maxHeight - minHeight)) + minHeight
+      if (frameCount % spawnRate === 0 && canSpawnPipe) {
+        // Ensure proper pipe height calculations:
+        // - Ground is at CANVAS_HEIGHT - 20 (380)
+        // - Need space for gap (currentPipeGap ~110-135)
+        // - Need minimum pipe height visible (50 for top, 50 for bottom)
+        const groundY = CANVAS_HEIGHT - 20 // 380
+        const minTopPipeHeight = 40 // Minimum visible top pipe
+        const minBottomPipeHeight = 40 // Minimum visible bottom pipe
+        const maxTopPipeHeight = groundY - currentPipeGap - minBottomPipeHeight // Max top height leaving room for gap + bottom pipe
+
+        // Clamp to valid range
+        const safeMinHeight = Math.max(minTopPipeHeight, 40)
+        const safeMaxHeight = Math.min(maxTopPipeHeight, groundY - currentPipeGap - 40)
+
+        // Generate random height within safe bounds
+        const topHeight = safeMinHeight + Math.floor(Math.random() * Math.max(1, safeMaxHeight - safeMinHeight))
+
         const hasCoin = Math.random() < 0.4
 
         // Random coin type with weighted distribution: 50% bronze, 30% silver, 20% gold

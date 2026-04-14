@@ -249,9 +249,10 @@ export async function POST(req: NextRequest) {
       } catch { /* ignore cooldown errors */ }
     }
 
-    // Update daily limit
-    let gamesPlayedToday = 1
-    let totalEarnedToday = rewardAmount
+    // Update daily limit - ONLY COUNT WINS toward the 20 game limit
+    // Losses don't count against the daily limit so players can keep trying
+    let gamesPlayedToday = 0
+    let totalEarnedToday = 0
     try {
       const { data: existingLimit } = await adminSupabase
         .from("game_daily_limits")
@@ -261,17 +262,26 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (existingLimit) {
-        gamesPlayedToday = existingLimit.games_played + 1
-        totalEarnedToday = existingLimit.total_earned + rewardAmount
-        await adminSupabase
-          .from("game_daily_limits")
-          .update({
-            games_played: gamesPlayedToday,
-            total_earned: totalEarnedToday
-          })
-          .eq("user_id", user.id)
-          .eq("date", today)
-      } else {
+        gamesPlayedToday = existingLimit.games_played
+        totalEarnedToday = existingLimit.total_earned
+
+        // Only increment games_played and total_earned on WIN
+        if (isWinner) {
+          gamesPlayedToday = existingLimit.games_played + 1
+          totalEarnedToday = existingLimit.total_earned + rewardAmount
+          await adminSupabase
+            .from("game_daily_limits")
+            .update({
+              games_played: gamesPlayedToday,
+              total_earned: totalEarnedToday
+            })
+            .eq("user_id", user.id)
+            .eq("date", today)
+        }
+      } else if (isWinner) {
+        // Only create record on first WIN
+        gamesPlayedToday = 1
+        totalEarnedToday = rewardAmount
         await adminSupabase
           .from("game_daily_limits")
           .insert({
