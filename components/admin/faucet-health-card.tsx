@@ -16,6 +16,7 @@ interface FaucetHealthData {
   balanceBTC: number
   faucetPayConnected: boolean
   faucetPayError?: string | null
+  apiKeySource?: "database" | "environment" | null
   thresholds?: {
     critical: number
     low: number
@@ -190,6 +191,11 @@ export function AdminFaucetHealthCard() {
               </TooltipTrigger>
               <TooltipContent>
                 <p>{data.faucetPayConnected ? "FaucetPay API Connected" : "FaucetPay Not Connected"}</p>
+                {data.apiKeySource && (
+                  <p className="text-xs text-muted-foreground">
+                    Key source: {data.apiKeySource === "database" ? "Database" : "Environment Variable"}
+                  </p>
+                )}
                 {data.faucetPayError && <p className="text-xs text-red-400">{data.faucetPayError}</p>}
               </TooltipContent>
             </Tooltip>

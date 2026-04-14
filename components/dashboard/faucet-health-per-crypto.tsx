@@ -19,6 +19,7 @@ interface CryptoHealth {
   balanceSatoshis: number
   dailyPayouts: number
   estimatedDaysLeft: number
+  hasRealData?: boolean
 }
 
 // SWR fetcher
@@ -72,8 +73,8 @@ interface FaucetHealthPerCryptoProps {
 }
 
 export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps) {
-  // Use SWR for better caching and background revalidation
-  const { data, isLoading, error } = useSWR<{ cryptos: CryptoHealth[]; source: string; timestamp: string }>(
+  // Use SWR for better caching and background revalidation - NO fake fallback data
+  const { data, isLoading, error } = useSWR<{ cryptos: CryptoHealth[]; source: string; error?: string; timestamp: string }>(
     "/api/faucet-health/crypto",
     fetcher,
     {
@@ -81,24 +82,14 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
       revalidateOnFocus: false,
       dedupingInterval: 30000, // Dedupe requests within 30 seconds
       errorRetryCount: 3,
-      fallbackData: {
-        cryptos: [
-          { symbol: "BTC", name: "Bitcoin", icon: "BTC", healthPercentage: 85, status: "healthy" as const, balanceSatoshis: 5000000, dailyPayouts: 50000, estimatedDaysLeft: 100 },
-          { symbol: "LTC", name: "Litecoin", icon: "LTC", healthPercentage: 72, status: "moderate" as const, balanceSatoshis: 3500000, dailyPayouts: 45000, estimatedDaysLeft: 77 },
-          { symbol: "DOGE", name: "Dogecoin", icon: "DOGE", healthPercentage: 90, status: "healthy" as const, balanceSatoshis: 8000000, dailyPayouts: 80000, estimatedDaysLeft: 100 },
-          { symbol: "TRX", name: "TRON", icon: "TRX", healthPercentage: 45, status: "low" as const, balanceSatoshis: 1500000, dailyPayouts: 30000, estimatedDaysLeft: 50 },
-          { symbol: "SOL", name: "Solana", icon: "SOL", healthPercentage: 95, status: "healthy" as const, balanceSatoshis: 6000000, dailyPayouts: 55000, estimatedDaysLeft: 109 },
-          { symbol: "ETH", name: "Ethereum", icon: "ETH", healthPercentage: 60, status: "moderate" as const, balanceSatoshis: 2000000, dailyPayouts: 35000, estimatedDaysLeft: 57 },
-        ],
-        source: "fallback",
-        timestamp: new Date().toISOString()
-      }
+      // No fallbackData - show loading state until real data arrives
     }
   )
 
   const cryptoHealth = data?.cryptos || []
-  const dataSource = data?.source || "fallback"
-  const loading = isLoading && cryptoHealth.length === 0
+  const dataSource = data?.source || "loading"
+  const hasError = data?.error || error
+  const loading = isLoading && !data
 
   if (loading) {
     return (
@@ -132,10 +123,15 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
               variant="outline"
               className={cn(
                 "text-[10px] h-5",
-                dataSource === "faucetpay" ? "text-green-500 border-green-500/30" : "text-muted-foreground"
+                dataSource === "faucetpay" ? "text-green-500 border-green-500/30" :
+                  dataSource === "database" ? "text-blue-500 border-blue-500/30" :
+                    dataSource === "error" ? "text-red-500 border-red-500/30" :
+                      "text-muted-foreground"
               )}
             >
-              {dataSource === "faucetpay" ? "Live" : "Estimated"}
+              {dataSource === "faucetpay" ? "Live" :
+                dataSource === "database" ? "Database" :
+                  dataSource === "error" ? "Error" : "Loading"}
             </Badge>
           </div>
         </CardHeader>
@@ -163,22 +159,30 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
 
                       {/* Health Percentage */}
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className={cn("text-xl font-bold", getStatusColor(crypto.status))}>
-                          {crypto.healthPercentage}%
+                        <span className={cn("text-xl font-bold",
+                          crypto.hasRealData === false ? "text-muted-foreground" : getStatusColor(crypto.status)
+                        )}>
+                          {crypto.hasRealData === false ? "N/A" : `${crypto.healthPercentage}%`}
                         </span>
-                        {crypto.healthPercentage >= 70 ? (
-                          <TrendingUp className="h-3 w-3 text-green-500" />
-                        ) : (
-                          <TrendingDown className="h-3 w-3 text-red-500" />
+                        {crypto.hasRealData !== false && (
+                          crypto.healthPercentage >= 70 ? (
+                            <TrendingUp className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <TrendingDown className="h-3 w-3 text-red-500" />
+                          )
                         )}
                       </div>
 
                       {/* Progress Bar */}
                       <div className="h-1.5 w-full rounded-full bg-black/20 overflow-hidden">
-                        <div
-                          className={cn("h-full transition-all duration-500", getProgressColor(crypto.status))}
-                          style={{ width: `${crypto.healthPercentage}%` }}
-                        />
+                        {crypto.hasRealData === false ? (
+                          <div className="h-full w-full bg-muted-foreground/30 animate-pulse" />
+                        ) : (
+                          <div
+                            className={cn("h-full transition-all duration-500", getProgressColor(crypto.status))}
+                            style={{ width: `${crypto.healthPercentage}%` }}
+                          />
+                        )}
                       </div>
 
                       {/* Status Badge */}
@@ -186,24 +190,33 @@ export function FaucetHealthPerCrypto({ className }: FaucetHealthPerCryptoProps)
                         variant="outline"
                         className={cn(
                           "absolute -top-1.5 -right-1.5 text-[8px] px-1 py-0 h-4 capitalize",
-                          getStatusColor(crypto.status),
+                          crypto.hasRealData === false ? "text-muted-foreground" : getStatusColor(crypto.status),
                           "border-current bg-background"
                         )}
                       >
-                        {crypto.status}
+                        {crypto.hasRealData === false ? "Unknown" : crypto.status}
                       </Badge>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     <div className="space-y-1.5">
                       <p className="font-semibold">{crypto.name} ({crypto.symbol})</p>
-                      <div className="text-xs space-y-0.5">
-                        <p>Health: <span className={getStatusColor(crypto.status)}>{crypto.healthPercentage}%</span></p>
-                        <p>Balance: {(crypto.balanceSatoshis / 100000000).toFixed(6)} {crypto.symbol}</p>
-                        <p>Daily Payouts: ~{crypto.dailyPayouts.toLocaleString()} sats equivalent</p>
-                        <p>Est. Days Left: {crypto.estimatedDaysLeft} days</p>
-                      </div>
-                      {crypto.status === "critical" && (
+                      {crypto.hasRealData === false ? (
+                        <div className="text-xs text-amber-500">
+                          <p>Balance data unavailable</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            FaucetPay API not connected or database not configured
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="text-xs space-y-0.5">
+                          <p>Health: <span className={getStatusColor(crypto.status)}>{crypto.healthPercentage}%</span></p>
+                          <p>Balance: {(crypto.balanceSatoshis / 100000000).toFixed(6)} {crypto.symbol}</p>
+                          <p>Daily Payouts: ~{crypto.dailyPayouts.toLocaleString()} sats equivalent</p>
+                          <p>Est. Days Left: {crypto.estimatedDaysLeft} days</p>
+                        </div>
+                      )}
+                      {crypto.status === "critical" && crypto.hasRealData !== false && (
                         <p className="text-[10px] text-red-400 mt-1">
                           Low balance! Claims may fail until topped up.
                         </p>

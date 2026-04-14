@@ -198,9 +198,53 @@ export class FaucetPayClient {
   }
 }
 
-// Singleton instance per currency
+// Singleton instance per currency (keyed by currency + apiKey hash for cache invalidation)
 const faucetPayClients: Map<string, FaucetPayClient> = new Map()
 
+// Cache for database API key
+let cachedDbApiKey: { key: string | null; timestamp: number } | null = null
+const DB_KEY_CACHE_TTL = 60000 // 1 minute cache
+
+// Get API key from database (async)
+export async function getFaucetPayApiKeyFromDb(): Promise<string | null> {
+  // Check cache first
+  if (cachedDbApiKey && Date.now() - cachedDbApiKey.timestamp < DB_KEY_CACHE_TTL) {
+    return cachedDbApiKey.key
+  }
+
+  try {
+    // Dynamic import to avoid circular dependencies
+    const { createAdminClient } = await import("@/lib/supabase/server")
+    const supabase = createAdminClient()
+
+    if (!supabase) {
+      cachedDbApiKey = { key: null, timestamp: Date.now() }
+      return null
+    }
+
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "faucetpay_api_key")
+      .maybeSingle()
+
+    const key = (data?.value as string | null)?.trim() || null
+    cachedDbApiKey = { key, timestamp: Date.now() }
+    return key
+  } catch (error) {
+    log.warn("Failed to fetch FaucetPay API key from database", { error })
+    cachedDbApiKey = { key: null, timestamp: Date.now() }
+    return null
+  }
+}
+
+// Clear the cached API key (call this when key is updated)
+export function clearFaucetPayApiKeyCache(): void {
+  cachedDbApiKey = null
+  faucetPayClients.clear()
+}
+
+// Synchronous version that only checks env var (for backward compatibility)
 export function getFaucetPayClient(currency = "BTC"): FaucetPayClient {
   const apiKey = process.env.FAUCETPAY_API_KEY
   if (!apiKey) {
@@ -212,19 +256,53 @@ export function getFaucetPayClient(currency = "BTC"): FaucetPayClient {
     throw new FaucetPayError(`Currency ${currency} is not supported by FaucetPay`, 450)
   }
 
-  // Get or create client for this currency
-  let client = faucetPayClients.get(currency)
+  const cacheKey = `${currency}_env`
+  let client = faucetPayClients.get(cacheKey)
   if (!client) {
     client = new FaucetPayClient({ apiKey, currency })
-    faucetPayClients.set(currency, client)
+    faucetPayClients.set(cacheKey, client)
   }
 
   return client
 }
 
-// Check if FaucetPay is configured
+// Async version that checks database first, then falls back to env var
+export async function getFaucetPayClientAsync(currency = "BTC"): Promise<FaucetPayClient> {
+  // Validate currency first
+  if (!FAUCETPAY_SUPPORTED_CURRENCIES.includes(currency)) {
+    throw new FaucetPayError(`Currency ${currency} is not supported by FaucetPay`, 450)
+  }
+
+  // Try database first
+  const dbKey = await getFaucetPayApiKeyFromDb()
+  const apiKey = dbKey || process.env.FAUCETPAY_API_KEY
+
+  if (!apiKey) {
+    throw new FaucetPayError("FaucetPay API key not configured (check database or FAUCETPAY_API_KEY env var)", 500)
+  }
+
+  // Create a cache key based on source and currency
+  const source = dbKey ? "db" : "env"
+  const cacheKey = `${currency}_${source}_${apiKey.slice(-6)}`
+
+  let client = faucetPayClients.get(cacheKey)
+  if (!client) {
+    client = new FaucetPayClient({ apiKey, currency })
+    faucetPayClients.set(cacheKey, client)
+  }
+
+  return client
+}
+
+// Check if FaucetPay is configured (sync - env var only)
 export function isFaucetPayConfigured(): boolean {
   return !!process.env.FAUCETPAY_API_KEY
+}
+
+// Check if FaucetPay is configured (async - checks database and env var)
+export async function isFaucetPayConfiguredAsync(): Promise<boolean> {
+  const dbKey = await getFaucetPayApiKeyFromDb()
+  return !!dbKey || !!process.env.FAUCETPAY_API_KEY
 }
 
 // Verify a FaucetPay email is valid and registered

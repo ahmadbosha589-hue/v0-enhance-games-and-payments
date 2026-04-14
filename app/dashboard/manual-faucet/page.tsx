@@ -36,7 +36,7 @@ import { AntiBotVerification } from "@/components/captcha/anti-bot-verification"
 import { useDeviceFingerprintContext } from "@/components/security/device-fingerprint-provider"
 import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
-import { FaucetHealthPerCrypto } from "@/components/dashboard/faucet-health-per-crypto"
+
 import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
 
 // FaucetPay supported cryptocurrencies (excluding BTC which is on main claim page)
@@ -162,6 +162,14 @@ function withStrictTimeout<T>(
     }),
     timeoutPromise,
   ])
+}
+
+// Crypto health data type
+interface CryptoHealthData {
+  symbol: string
+  healthPercentage: number
+  status: "healthy" | "moderate" | "low" | "critical"
+  hasRealData?: boolean
 }
 
 // User-friendly error messages for common HTTP status codes
@@ -551,6 +559,9 @@ function DirectFaucetContent() {
   const [isLocked, setIsLocked] = useState(true)
   const [ptcAdsCompleted, setPtcAdsCompleted] = useState(0)
   const [shortlinkRequired, setShortlinkRequired] = useState(false)
+
+  // Crypto health states - for showing health on each crypto card
+  const [cryptoHealthMap, setCryptoHealthMap] = useState<Record<string, CryptoHealthData>>({})
 
   // Security states
   const [vpnDetected, setVpnDetected] = useState(false)
@@ -1220,6 +1231,37 @@ function DirectFaucetContent() {
     }
   }, [fingerprintLoading, updateStep])
 
+  // Fetch crypto health data for showing on each crypto card
+  useEffect(() => {
+    async function fetchCryptoHealth() {
+      try {
+        const response = await fetch("/api/faucet-health/crypto")
+        if (response.ok) {
+          const data = await response.json()
+          if (data.cryptos) {
+            const healthMap: Record<string, CryptoHealthData> = {}
+            for (const crypto of data.cryptos) {
+              healthMap[crypto.symbol] = {
+                symbol: crypto.symbol,
+                healthPercentage: crypto.healthPercentage,
+                status: crypto.status,
+                hasRealData: crypto.hasRealData
+              }
+            }
+            setCryptoHealthMap(healthMap)
+          }
+        }
+      } catch {
+        // Silently fail - health data is optional
+      }
+    }
+
+    // Fetch immediately and then every 60 seconds
+    fetchCryptoHealth()
+    const interval = setInterval(fetchCryptoHealth, 60000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Initialize on mount
   useEffect(() => {
     mountedRef.current = true
@@ -1565,8 +1607,7 @@ function DirectFaucetContent() {
           </div>
         </div>
 
-        {/* Faucet Health Per Crypto */}
-        <FaucetHealthPerCrypto className="mb-2" />
+        {/* Health indicators are now shown under each crypto in the grid below */}
 
         {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
         <GoogleRewardedAds position="top" className="mb-4" />
@@ -1801,6 +1842,11 @@ function DirectFaucetContent() {
                 const isOnCooldown = cooldown > 0
                 const isCurrentlyProcessing = isClaiming && selectedCrypto === crypto.symbol
                 const hasPriceData = price > 0
+                const health = cryptoHealthMap[crypto.symbol]
+                const healthColor = health?.status === "healthy" ? "bg-green-500" :
+                  health?.status === "moderate" ? "bg-yellow-500" :
+                    health?.status === "low" ? "bg-orange-500" :
+                      health?.status === "critical" ? "bg-red-500" : "bg-muted"
 
                 return (
                   <Card
@@ -1815,11 +1861,42 @@ function DirectFaucetContent() {
                         <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                           <CryptoIcon symbol={crypto.symbol} size="md" />
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="font-semibold">{crypto.symbol}</p>
                           <p className="text-xs text-muted-foreground">{crypto.name}</p>
                         </div>
+                        {/* Health indicator badge */}
+                        {health && health.hasRealData !== false && (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1.5 py-0 h-5",
+                              health.status === "healthy" && "text-green-500 border-green-500/30",
+                              health.status === "moderate" && "text-yellow-500 border-yellow-500/30",
+                              health.status === "low" && "text-orange-500 border-orange-500/30",
+                              health.status === "critical" && "text-red-500 border-red-500/30"
+                            )}
+                          >
+                            {health.healthPercentage}%
+                          </Badge>
+                        )}
                       </div>
+
+                      {/* Health Progress Bar */}
+                      {health && (
+                        <div className="mb-3">
+                          <div className="h-1.5 w-full rounded-full bg-muted/50 overflow-hidden">
+                            {health.hasRealData === false ? (
+                              <div className="h-full w-full bg-muted-foreground/20 animate-pulse" />
+                            ) : (
+                              <div
+                                className={cn("h-full transition-all duration-500", healthColor)}
+                                style={{ width: `${health.healthPercentage}%` }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="space-y-2">
                         {/* Crypto Amount - PRIMARY DISPLAY */}

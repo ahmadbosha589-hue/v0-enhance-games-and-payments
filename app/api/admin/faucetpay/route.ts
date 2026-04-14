@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
+import { clearFaucetPayApiKeyCache } from "@/lib/faucetpay/client"
 
 const ADMIN_ROLES = ["admin", "superadmin"]
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
@@ -161,6 +162,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to save API key to database" }, { status: 500 })
   }
 
+  // Clear the cached API key so the new one is used immediately
+  clearFaucetPayApiKeyCache()
+
   log.info("FaucetPay API key updated by admin", { adminId: admin.id })
 
   return NextResponse.json({
@@ -187,6 +191,9 @@ export async function DELETE() {
   if (error) {
     return NextResponse.json({ error: "Failed to remove API key" }, { status: 500 })
   }
+
+  // Clear the cached API key so it falls back to env var immediately
+  clearFaucetPayApiKeyCache()
 
   const hasEnvFallback = !!process.env.FAUCETPAY_API_KEY?.trim()
   log.info("FaucetPay API key removed from DB by admin", { adminId: admin.id })

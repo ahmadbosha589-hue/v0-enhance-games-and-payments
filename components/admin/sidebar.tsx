@@ -26,6 +26,7 @@ import {
   Rocket,
   Key,
   Ticket,
+  Wallet,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -74,6 +75,7 @@ export function AdminSidebar({ profile, isMobile = false, onNavigate }: AdminSid
       badge: fraudCount > 0 ? "alerts" : null,
       count: fraudCount,
     },
+    { nameKey: "admin.nav.funds", href: "/admin/funds", icon: Wallet },
     { nameKey: "admin.nav.withdrawals", href: "/admin/withdrawals", icon: CreditCard },
     { nameKey: "admin.nav.transactions", href: "/admin/transactions", icon: FileText },
     { nameKey: "admin.nav.tournaments", href: "/admin/tournaments", icon: Crown },

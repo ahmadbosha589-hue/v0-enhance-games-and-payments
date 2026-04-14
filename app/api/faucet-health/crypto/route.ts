@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getFaucetPayClient } from "@/lib/faucetpay/client"
+import { getFaucetPayClientAsync, isFaucetPayConfiguredAsync } from "@/lib/faucetpay/client"
 import { logger } from "@/lib/logger"
 
 export const revalidate = 60 // Cache for 60 seconds
@@ -14,6 +14,7 @@ interface CryptoHealth {
   balanceSatoshis: number
   dailyPayouts: number
   estimatedDaysLeft: number
+  hasRealData?: boolean
 }
 
 // Crypto configuration with FaucetPay currency codes
@@ -47,54 +48,70 @@ export async function GET() {
     let faucetPayBalances: Record<string, number> = {}
     let faucetPayConnected = false
 
-    // Try to fetch balances directly from FaucetPay API
-    try {
-      // Fetch balances for all supported currencies in parallel
-      // Each currency needs its own client instance
-      const balancePromises = Object.entries(CRYPTO_CONFIG).map(async ([symbol, config]) => {
-        try {
-          // Get a client for this specific currency
-          const faucetPay = getFaucetPayClient(config.fpCurrency.toUpperCase())
-          const response = await faucetPay.getBalance()
-          if (response.status === 200 && response.balance !== undefined) {
-            return { symbol, balance: response.balance }
+    // Check if FaucetPay is configured (checks DB first, then env var)
+    const fpConfigured = await isFaucetPayConfiguredAsync()
+
+    if (fpConfigured) {
+      try {
+        // Fetch balances for all supported currencies in parallel
+        // Each currency needs its own client instance
+        const balancePromises = Object.entries(CRYPTO_CONFIG).map(async ([symbol, config]) => {
+          try {
+            // Get a client for this specific currency (async - checks DB first)
+            const faucetPay = await getFaucetPayClientAsync(config.fpCurrency.toUpperCase())
+            const response = await faucetPay.getBalance()
+            if (response.status === 200 && response.balance !== undefined) {
+              return { symbol, balance: response.balance }
+            }
+            return { symbol, balance: null }
+          } catch (err) {
+            logger.debug(`Failed to fetch ${symbol} balance`, { error: err })
+            return { symbol, balance: null }
           }
-          return { symbol, balance: null }
-        } catch {
-          return { symbol, balance: null }
-        }
-      })
+        })
 
-      const results = await Promise.allSettled(balancePromises)
-      let successCount = 0
+        const results = await Promise.allSettled(balancePromises)
+        let successCount = 0
 
-      for (const result of results) {
-        if (result.status === "fulfilled" && result.value.balance !== null) {
-          faucetPayBalances[result.value.symbol] = result.value.balance
-          successCount++
+        for (const result of results) {
+          if (result.status === "fulfilled" && result.value.balance !== null) {
+            faucetPayBalances[result.value.symbol] = result.value.balance
+            successCount++
+          }
         }
+
+        faucetPayConnected = successCount > 0
+        logger.info("FaucetPay balances fetched", { successCount, total: Object.keys(CRYPTO_CONFIG).length })
+      } catch (error) {
+        logger.warn("FaucetPay balance fetch failed, using database fallback", { error })
       }
-
-      faucetPayConnected = successCount > 0
-      logger.info("FaucetPay balances fetched", { successCount, total: Object.keys(CRYPTO_CONFIG).length })
-    } catch (error) {
-      logger.warn("FaucetPay balance fetch failed, using database fallback", { error })
+    } else {
+      logger.info("FaucetPay not configured, using database fallback")
     }
 
-    // Fallback: Fetch from database if FaucetPay API failed
+    // Fallback: Fetch from database if FaucetPay API failed or not configured
     if (!faucetPayConnected) {
-      const { data: balances } = await supabase
-        .from("faucetpay_balances")
-        .select("*")
-        .single()
+      try {
+        const { data: balances, error: balanceError } = await supabase
+          .from("faucetpay_balances")
+          .select("*")
+          .maybeSingle()
 
-      if (balances) {
-        for (const symbol of Object.keys(CRYPTO_CONFIG)) {
-          const key = `${symbol.toLowerCase()}_balance`
-          if (balances[key]) {
-            faucetPayBalances[symbol] = balances[key]
+        if (balances && !balanceError) {
+          for (const symbol of Object.keys(CRYPTO_CONFIG)) {
+            const key = `${symbol.toLowerCase()}_balance`
+            if (balances[key] !== undefined && balances[key] !== null) {
+              faucetPayBalances[symbol] = Number(balances[key])
+            }
+          }
+          // If we got any balances from DB, consider it partially connected
+          if (Object.keys(faucetPayBalances).length > 0) {
+            faucetPayConnected = true
+            logger.info("Using database-stored FaucetPay balances", { count: Object.keys(faucetPayBalances).length })
           }
         }
+      } catch (dbError) {
+        logger.warn("Failed to fetch balances from database", { error: dbError })
       }
     }
 
@@ -120,37 +137,36 @@ export async function GET() {
     const cryptos: CryptoHealth[] = []
 
     for (const [symbol, config] of Object.entries(CRYPTO_CONFIG)) {
-      // Get balance from FaucetPay or use estimate
-      const balanceSatoshis = faucetPayBalances[symbol] || Math.floor(Math.random() * 5000000) + 500000
+      // Get balance from FaucetPay or database - NO fake data, use 0 if unknown
+      const balanceSatoshis = faucetPayBalances[symbol] ?? 0
+      const hasRealData = faucetPayBalances[symbol] !== undefined
 
       // Healthy threshold in satoshis (1 BTC = 100M satoshis)
       const healthyThreshold = config.thresholdBTC * 100000000
 
-      // Calculate health percentage
-      const healthPercentage = Math.min(100, Math.round((balanceSatoshis / healthyThreshold) * 100))
+      // Calculate health percentage - show 0% if no real data
+      const healthPercentage = hasRealData
+        ? Math.min(100, Math.round((balanceSatoshis / healthyThreshold) * 100))
+        : 0
 
-      // Get daily payouts for this crypto (use defaults if no data)
-      const defaultDailyPayouts: Record<string, number> = {
-        BTC: 50000, LTC: 45000, ETH: 35000, DOGE: 80000, TRX: 30000,
-        SOL: 55000, BNB: 40000, BCH: 25000, DASH: 20000, DGB: 15000,
-        FEY: 10000, ZEC: 18000, MATIC: 35000, USDT: 25000,
-      }
-      const dailyPayout = payoutsByCrypto[symbol] || defaultDailyPayouts[symbol] || 30000
+      // Get daily payouts for this crypto from actual database data
+      const dailyPayout = payoutsByCrypto[symbol] || 0
 
-      // Estimate days left
-      const estimatedDaysLeft = dailyPayout > 0
+      // Estimate days left (only if we have real balance data)
+      const estimatedDaysLeft = hasRealData && dailyPayout > 0
         ? Math.floor(balanceSatoshis / dailyPayout)
-        : 999
+        : hasRealData ? 999 : 0
 
       cryptos.push({
         symbol,
         name: config.name,
         icon: symbol,
         healthPercentage,
-        status: getStatus(healthPercentage),
+        status: hasRealData ? getStatus(healthPercentage) : "critical",
         balanceSatoshis,
         dailyPayouts: dailyPayout,
         estimatedDaysLeft: Math.min(estimatedDaysLeft, 999),
+        hasRealData, // New field to indicate if data is real
       })
     }
 
@@ -165,19 +181,23 @@ export async function GET() {
   } catch (error) {
     logger.error("Failed to fetch crypto health:", error instanceof Error ? error : new Error(String(error)))
 
-    // Return mock data on error
-    const mockCryptos: CryptoHealth[] = [
-      { symbol: "BTC", name: "Bitcoin", icon: "BTC", healthPercentage: 85, status: "healthy", balanceSatoshis: 5000000, dailyPayouts: 50000, estimatedDaysLeft: 100 },
-      { symbol: "LTC", name: "Litecoin", icon: "LTC", healthPercentage: 72, status: "moderate", balanceSatoshis: 3500000, dailyPayouts: 45000, estimatedDaysLeft: 77 },
-      { symbol: "DOGE", name: "Dogecoin", icon: "DOGE", healthPercentage: 90, status: "healthy", balanceSatoshis: 8000000, dailyPayouts: 80000, estimatedDaysLeft: 100 },
-      { symbol: "TRX", name: "TRON", icon: "TRX", healthPercentage: 45, status: "low", balanceSatoshis: 1500000, dailyPayouts: 30000, estimatedDaysLeft: 50 },
-      { symbol: "SOL", name: "Solana", icon: "SOL", healthPercentage: 95, status: "healthy", balanceSatoshis: 6000000, dailyPayouts: 55000, estimatedDaysLeft: 109 },
-      { symbol: "ETH", name: "Ethereum", icon: "ETH", healthPercentage: 60, status: "moderate", balanceSatoshis: 2000000, dailyPayouts: 35000, estimatedDaysLeft: 57 },
-    ]
+    // Return empty data with error indicator on failure - NO fake data
+    const emptyCryptos: CryptoHealth[] = Object.entries(CRYPTO_CONFIG).map(([symbol, config]) => ({
+      symbol,
+      name: config.name,
+      icon: symbol,
+      healthPercentage: 0,
+      status: "critical" as const,
+      balanceSatoshis: 0,
+      dailyPayouts: 0,
+      estimatedDaysLeft: 0,
+      hasRealData: false,
+    }))
 
     return NextResponse.json({
-      cryptos: mockCryptos,
-      source: "fallback",
+      cryptos: emptyCryptos,
+      source: "error",
+      error: "Failed to fetch balance data",
       timestamp: new Date().toISOString()
     })
   }

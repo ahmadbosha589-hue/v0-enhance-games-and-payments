@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
-import { getFaucetPayClient } from "@/lib/faucetpay/client"
+import { getFaucetPayClientAsync, isFaucetPayConfiguredAsync } from "@/lib/faucetpay/client"
 import { logger } from "@/lib/logger"
 import { logHoneypotProbeRequest } from "@/lib/security/honeypot-logger"
 
@@ -30,21 +30,35 @@ export async function GET() {
     let faucetPayConnected = false
     let balanceInBTC = 0
     let faucetPayError: string | null = null
+    let apiKeySource: "database" | "environment" | null = null
 
-    try {
-      const faucetPay = getFaucetPayClient()
-      const balanceResponse = await faucetPay.getBalance()
+    // First check if FaucetPay is configured at all (checks DB then env)
+    const isConfigured = await isFaucetPayConfiguredAsync()
 
-      if (balanceResponse.status === 200) {
-        faucetPayBalance = balanceResponse.balance || 0
-        balanceInBTC = balanceResponse.balance_bitcoin || 0
-        faucetPayConnected = true
-      } else {
-        faucetPayError = balanceResponse.message || "API returned non-200 status"
+    if (!isConfigured) {
+      faucetPayError = "FaucetPay API key not configured"
+    } else {
+      try {
+        // Use async client that checks database first
+        const faucetPay = await getFaucetPayClientAsync()
+        const balanceResponse = await faucetPay.getBalance()
+
+        if (balanceResponse.status === 200) {
+          faucetPayBalance = balanceResponse.balance || 0
+          balanceInBTC = balanceResponse.balance_bitcoin || 0
+          faucetPayConnected = true
+
+          // Determine source for debugging
+          const { getFaucetPayApiKeyFromDb } = await import("@/lib/faucetpay/client")
+          const dbKey = await getFaucetPayApiKeyFromDb()
+          apiKeySource = dbKey ? "database" : "environment"
+        } else {
+          faucetPayError = balanceResponse.message || "API returned non-200 status"
+        }
+      } catch (error) {
+        faucetPayError = error instanceof Error ? error.message : "Connection failed"
+        logger.warn("FaucetPay balance fetch failed", { errorMessage: faucetPayError })
       }
-    } catch (error) {
-      faucetPayError = error instanceof Error ? error.message : "Connection failed"
-      logger.warn("FaucetPay balance fetch failed", { errorMessage: faucetPayError })
     }
 
     // Get fraud stats in parallel (only if supabase is available)
@@ -105,6 +119,7 @@ export async function GET() {
       balanceBTC: balanceInBTC,
       faucetPayConnected,
       faucetPayError,
+      apiKeySource,
 
       // Anti-bot stats
       totalBotsBlocked,
