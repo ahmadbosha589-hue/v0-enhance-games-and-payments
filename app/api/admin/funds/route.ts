@@ -37,6 +37,12 @@ const paymentActionSchema = z.object({
   reason: z.string().max(500).optional()
 })
 
+const correctRevenueSchema = z.object({
+  purchaseId: z.string().uuid("Invalid purchase ID format"),
+  correctedStatus: z.enum(["failed", "refunded", "test_data"]),
+  reason: z.string().min(3, "Reason required").max(500)
+})
+
 // =============================================================================
 // HELPER: Create idempotency key for balance adjustments
 // =============================================================================
@@ -185,6 +191,36 @@ export async function GET(request: Request) {
         .order("created_at", { ascending: false })
 
       return NextResponse.json({ pendingPayments })
+    }
+
+    // Get all completed booster purchases for revenue review
+    if (action === "completed_purchases") {
+      const { data: completedPurchases } = await adminSupabase
+        .from("booster_purchases")
+        .select(`
+          *,
+          profiles!booster_purchases_user_id_fkey (username, email, display_name),
+          booster_tiers!booster_purchases_booster_tier_id_fkey (name, duration_days)
+        `)
+        .eq("payment_status", "completed")
+        .order("completed_at", { ascending: false })
+        .limit(100)
+
+      return NextResponse.json({ completedPurchases })
+    }
+
+    // Get all deposits for management
+    if (action === "deposits") {
+      const { data: deposits } = await adminSupabase
+        .from("ccpayment_deposits")
+        .select(`
+          *,
+          profiles!ccpayment_deposits_user_id_fkey (username, email, display_name)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(100)
+
+      return NextResponse.json({ deposits })
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
@@ -765,6 +801,97 @@ export async function POST(request: Request) {
         success: true,
         operationId,
         message: "Payment rejected"
+      })
+    }
+
+    // =========================================================================
+    // CORRECT ERRONEOUS REVENUE DATA - For fixing test/error data
+    // =========================================================================
+    if (action === "correct_revenue") {
+      const validated = correctRevenueSchema.safeParse(body)
+      if (!validated.success) {
+        return NextResponse.json({
+          error: "Invalid request",
+          details: validated.error.issues.map(i => i.message)
+        }, { status: 400 })
+      }
+
+      const { purchaseId, correctedStatus, reason } = validated.data
+
+      // Get the purchase
+      const { data: purchase, error: purchaseError } = await adminSupabase
+        .from("booster_purchases")
+        .select("*, booster_tiers(name), profiles(username)")
+        .eq("id", purchaseId)
+        .single()
+
+      if (purchaseError || !purchase) {
+        return NextResponse.json({ error: "Purchase not found" }, { status: 404 })
+      }
+
+      const previousStatus = purchase.payment_status
+      const previousAmount = purchase.amount_usd
+
+      // Update the purchase status
+      const { error: updateError } = await adminSupabase
+        .from("booster_purchases")
+        .update({
+          payment_status: correctedStatus,
+          amount_usd: 0, // Zero out the amount since it was erroneous
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", purchaseId)
+
+      if (updateError) {
+        log.error("Failed to correct revenue", { operationId, purchaseId, error: updateError })
+        return NextResponse.json({ error: "Failed to correct revenue data" }, { status: 500 })
+      }
+
+      // If there's an associated user_booster that was created erroneously, deactivate it
+      if (correctedStatus === "test_data" || correctedStatus === "failed") {
+        await adminSupabase
+          .from("user_boosters")
+          .update({ is_active: false, updated_at: new Date().toISOString() })
+          .eq("user_id", purchase.user_id)
+          .eq("booster_tier_id", purchase.booster_tier_id)
+          .gte("created_at", purchase.created_at)
+      }
+
+      // Create detailed audit log
+      await adminSupabase.from("admin_audit_logs").insert({
+        admin_id: authResult.user.id,
+        action: "revenue_correction",
+        target_user_id: purchase.user_id,
+        details: {
+          operationId,
+          purchaseId,
+          previousStatus,
+          correctedStatus,
+          previousAmount,
+          correctedAmount: 0,
+          boosterTier: (purchase.booster_tiers as any)?.name,
+          username: (purchase.profiles as any)?.username,
+          reason,
+          note: "Erroneous revenue data corrected"
+        }
+      })
+
+      log.info("Admin corrected revenue data", {
+        operationId,
+        adminId: authResult.user.id,
+        purchaseId,
+        previousStatus,
+        correctedStatus,
+        previousAmount,
+        reason
+      })
+
+      return NextResponse.json({
+        success: true,
+        operationId,
+        message: `Revenue corrected: ${previousStatus} -> ${correctedStatus}, $${previousAmount} -> $0`,
+        previousAmount,
+        correctedAmount: 0
       })
     }
 

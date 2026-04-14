@@ -74,6 +74,9 @@ export default function AdminFundsPage() {
   const [pendingAction, setPendingAction] = useState<(() => Promise<void>) | null>(null)
   const [confirmMessage, setConfirmMessage] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
+  const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false)
+  const [selectedPurchase, setSelectedPurchase] = useState<any>(null)
+  const [correctionReason, setCorrectionReason] = useState("")
 
   const [adjustForm, setAdjustForm] = useState({
     type: "satoshis" as "satoshis" | "ad_balance",
@@ -106,9 +109,16 @@ export default function AdminFundsPage() {
     { refreshInterval: 30000 }
   )
 
+  const { data: revenueData, mutate: refreshRevenue } = useSWR(
+    "/api/admin/funds?action=completed_purchases",
+    fetcher,
+    { refreshInterval: 60000 }
+  )
+
   const overview = overviewData?.overview
   const users = usersData?.users || []
   const pendingPayments = pendingData?.pendingPayments || []
+  const completedPurchases = revenueData?.completedPurchases || []
 
   const executeWithConfirmation = async (action: () => Promise<void>, message: string) => {
     setPendingAction(() => action)
@@ -217,6 +227,45 @@ export default function AdminFundsPage() {
     const message = `Grant ${tierName} booster to ${selectedUser?.display_name || selectedUser?.username || "user"} for ${duration} days?\n\nReason: ${boosterForm.reason}\n\nThis action is audited.`
 
     executeWithConfirmation(performGrantBooster, message)
+  }
+
+  const handleCorrectRevenue = async (purchaseId: string, correctedStatus: "failed" | "refunded" | "test_data") => {
+    if (!correctionReason.trim()) {
+      toast.error("Please provide a reason for the correction")
+      return
+    }
+
+    setIsProcessing(true)
+    try {
+      const response = await fetch("/api/admin/funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "correct_revenue",
+          purchaseId,
+          correctedStatus,
+          reason: correctionReason
+        })
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        toast.success("Revenue corrected successfully", {
+          description: data.message
+        })
+        setCorrectionDialogOpen(false)
+        setSelectedPurchase(null)
+        setCorrectionReason("")
+        refreshRevenue()
+        refreshOverview()
+      } else {
+        toast.error(data.error || "Failed to correct revenue")
+      }
+    } catch {
+      toast.error("Failed to correct revenue")
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handlePaymentAction = async (purchaseId: string, action: "approve" | "reject", transactionHash?: string) => {
@@ -342,6 +391,7 @@ export default function AdminFundsPage() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="revenue">Revenue History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -511,6 +561,79 @@ export default function AdminFundsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="revenue" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-500" />
+                Revenue History & Corrections
+              </CardTitle>
+              <CardDescription>
+                View completed purchases and correct any erroneous test data. Total shown: ${overview?.totalBoosterRevenue?.toFixed(2) || "0.00"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {completedPurchases.length === 0 ? (
+                <div className="text-center py-8">
+                  <DollarSign className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+                  <p className="text-muted-foreground">No completed purchases yet</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Booster</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {completedPurchases.map((purchase: any) => (
+                      <TableRow key={purchase.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{purchase.profiles?.display_name || purchase.profiles?.username || "Unknown"}</p>
+                            <p className="text-xs text-muted-foreground">{purchase.profiles?.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{purchase.booster_tiers?.name || "Unknown"}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono font-bold text-green-600">
+                          ${Number(purchase.amount_usd || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-sm capitalize">
+                          {purchase.payment_method?.replace(/_/g, " ") || "Unknown"}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {purchase.completed_at ? new Date(purchase.completed_at).toLocaleDateString() : "N/A"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-amber-600 border-amber-600/30 hover:bg-amber-600/10"
+                            onClick={() => {
+                              setSelectedPurchase(purchase)
+                              setCorrectionDialogOpen(true)
+                            }}
+                          >
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Correct
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Adjust Balance Dialog */}
@@ -627,6 +750,61 @@ export default function AdminFundsPage() {
             <Button onClick={handleGrantBooster} disabled={isProcessing}>
               {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
               Grant Booster
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revenue Correction Dialog */}
+      <Dialog open={correctionDialogOpen} onOpenChange={setCorrectionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Correct Revenue Entry
+            </DialogTitle>
+            <DialogDescription>
+              Mark this purchase as erroneous test data or failed payment. This will set the amount to $0 and update the revenue totals.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPurchase && (
+            <div className="py-4 space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Purchase Details</AlertTitle>
+                <AlertDescription className="text-sm space-y-1 mt-2">
+                  <p><strong>User:</strong> {selectedPurchase.profiles?.display_name || selectedPurchase.profiles?.username}</p>
+                  <p><strong>Booster:</strong> {selectedPurchase.booster_tiers?.name}</p>
+                  <p><strong>Amount:</strong> ${Number(selectedPurchase.amount_usd || 0).toFixed(2)}</p>
+                  <p><strong>Method:</strong> {selectedPurchase.payment_method}</p>
+                  <p><strong>Date:</strong> {new Date(selectedPurchase.completed_at || selectedPurchase.created_at).toLocaleString()}</p>
+                </AlertDescription>
+              </Alert>
+              <div className="space-y-2">
+                <Label>Reason for Correction (required)</Label>
+                <Textarea
+                  placeholder="e.g., Test transaction during development, payment webhook error, etc."
+                  value={correctionReason}
+                  onChange={(e) => setCorrectionReason(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => {
+              setCorrectionDialogOpen(false)
+              setSelectedPurchase(null)
+              setCorrectionReason("")
+            }}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => selectedPurchase && handleCorrectRevenue(selectedPurchase.id, "test_data")}
+              disabled={isProcessing || !correctionReason.trim()}
+            >
+              {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <XCircle className="h-4 w-4 mr-2" />}
+              Mark as Test Data ($0)
             </Button>
           </DialogFooter>
         </DialogContent>
