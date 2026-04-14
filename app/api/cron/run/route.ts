@@ -5,14 +5,7 @@ import { runProcessWithdrawals } from "@/app/api/cron/process-withdrawals/route"
 import { runRetryPostbacks } from "@/app/api/cron/retry-postbacks/route"
 import { runCleanup } from "@/app/api/cron/cleanup/route"
 
-/**
- * Unified cron handler — single Vercel cron entry at */5 * * * *
- *
- * Schedule logic:
- * process - withdrawals  → every tick(*/5 min)
-  * retry - postbacks      → every 10min(minutes % 10 === 0)
-    * cleanup              → daily 3 AM(hour === 3 && minutes < 5)
-      */
+
 export async function GET() {
   const headersList = await headers()
   const authHeader = headersList.get("authorization")
