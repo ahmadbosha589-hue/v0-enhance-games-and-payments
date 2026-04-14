@@ -29,17 +29,17 @@ function adjustColor(color: string, amount: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-// Base special block spawn rates - will be adjusted by difficulty
+// Base special block spawn rates - REDUCED for harder gameplay
 const BASE_SPECIAL_RATES = {
-  bomb: 0.018,
-  rainbow: 0.012,
-  multiplier: 0.018,
+  bomb: 0.012, // Reduced from 0.018
+  rainbow: 0.008, // Reduced from 0.012
+  multiplier: 0.010, // Reduced from 0.018
 }
 
 const SPECIAL_BLOCKS = {
-  bomb: { chance: BASE_SPECIAL_RATES.bomb, icon: "B", color: "#374151" },
-  rainbow: { chance: BASE_SPECIAL_RATES.rainbow, icon: "R", color: "rainbow" },
-  multiplier: { chance: BASE_SPECIAL_RATES.multiplier, icon: "2x", color: "#fbbf24" },
+  bomb: { chance: BASE_SPECIAL_RATES.bomb, icon: "💣", color: "#374151" },
+  rainbow: { chance: BASE_SPECIAL_RATES.rainbow, icon: "🌈", color: "rainbow" },
+  multiplier: { chance: BASE_SPECIAL_RATES.multiplier, icon: "2X", color: "#fbbf24" },
 }
 
 // Achievement messages for big blasts
@@ -119,11 +119,11 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     return null
   }, [difficultyLevel])
 
-  // Get number of colors based on difficulty - fewer colors = easier to find matches
+  // Get number of colors based on difficulty - MORE colors = harder to find matches
   const getColorsForDifficulty = useCallback((palette: string[]): string[] => {
-    // Scale colors with difficulty: 5 colors at level 1, up to 8 at level 10
-    const baseColors = 5
-    const extraColors = Math.min(3, Math.floor(difficultyLevel / 3)) // Add 1 color every 3 levels
+    // Scale colors with difficulty: 6 colors at level 1 (harder start), up to 8 at level 10
+    const baseColors = 6 // Start with more colors for harder gameplay
+    const extraColors = Math.min(2, Math.floor(difficultyLevel / 4)) // Add 1 color every 4 levels
     return palette.slice(0, baseColors + extraColors)
   }, [difficultyLevel])
 
@@ -144,9 +144,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       }))
     )
 
-    // Clustering scales with difficulty - higher difficulty = less clustering = harder
-    // Level 1: 30% clustering (medium-easy), Level 10: 10% clustering (hard)
-    const clusterChance = Math.max(0.10, 0.30 - (difficultyLevel - 1) * 0.022)
+    // Clustering scales with difficulty - REDUCED clustering for harder gameplay
+    // Level 1: 18% clustering (harder), Level 10: 5% clustering (very hard)
+    const clusterChance = Math.max(0.05, 0.18 - (difficultyLevel - 1) * 0.015)
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
         // Cluster blocks near same-colored neighbors
@@ -690,36 +690,44 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                 disabled={!isActive || isAnimating || gameOver || !cell.color}
                 className={`
                   rounded-md transition-all duration-150 relative touch-none
-                  ${isHighlighted ? "ring-2 ring-white scale-105 z-10 brightness-125" : ""}
-                  ${isBlasting ? "scale-0 opacity-0" : "scale-100 opacity-100"}
-                  ${!isAnimating && !gameOver && cell.color ? "hover:brightness-110 active:scale-95 cursor-pointer" : ""}
+                  ${isHighlighted ? "ring-2 ring-white scale-110 z-10 brightness-125" : ""}
+                  ${isBlasting ? "scale-0 opacity-0 rotate-180" : "scale-100 opacity-100"}
+                  ${!isAnimating && !gameOver && cell.color ? "hover:brightness-110 hover:scale-105 active:scale-95 cursor-pointer" : ""}
                   ${cell.glowing ? "animate-pulse" : ""}
-                  ${cell.special === "rainbow" ? "animate-rainbow-glow" : ""}
-                  ${cell.special === "bomb" ? "animate-pulse" : ""}
-                  ${cell.special === "multiplier" ? "animate-bounce-subtle" : ""}
+                  ${cell.special === "rainbow" ? "animate-spin-slow" : ""}
+                  ${cell.special === "bomb" ? "animate-pulse-fast" : ""}
+                  ${cell.special === "multiplier" ? "animate-glow-pulse" : ""}
                   disabled:cursor-not-allowed
                 `}
                 style={{
                   backgroundColor: cell.special === "rainbow"
                     ? undefined
                     : cell.special === "bomb"
-                      ? "#374151"
+                      ? "#1f1f1f"
                       : cell.special === "multiplier"
-                        ? "#fbbf24"
+                        ? undefined
                         : cell.color || "#1a1a2e",
                   background: cell.special === "rainbow"
                     ? "linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088, #ff0000)"
-                    : cell.color && !cell.special
-                      ? `linear-gradient(135deg, ${cell.color} 0%, ${adjustColor(cell.color, -30)} 100%)`
-                      : undefined,
-                  backgroundSize: cell.special === "rainbow" ? "400% 400%" : undefined,
-                  animation: cell.special === "rainbow" ? "rainbowShift 2s ease infinite" : undefined,
-                  boxShadow: cell.special === "rainbow"
-                    ? "0 0 10px rgba(255,0,0,0.6), 0 0 20px rgba(255,136,0,0.4), 0 0 30px rgba(0,255,0,0.3), 0 0 40px rgba(0,136,255,0.3), inset 0 0 10px rgba(255,255,255,0.5)"
                     : cell.special === "bomb"
-                      ? "0 0 8px rgba(100,100,100,0.8), inset 0 -3px 6px rgba(0,0,0,0.6)"
+                      ? "radial-gradient(circle at 30% 30%, #4a4a4a 0%, #1f1f1f 50%, #0a0a0a 100%)"
                       : cell.special === "multiplier"
-                        ? "0 0 12px rgba(251,191,36,0.8), 0 0 20px rgba(251,191,36,0.4), inset 0 -3px 6px rgba(0,0,0,0.4)"
+                        ? "linear-gradient(135deg, #ffd700 0%, #ff8c00 25%, #ffd700 50%, #ffed4e 75%, #ffd700 100%)"
+                        : cell.color && !cell.special
+                          ? `linear-gradient(135deg, ${cell.color} 0%, ${adjustColor(cell.color, -30)} 100%)`
+                          : undefined,
+                  backgroundSize: cell.special === "rainbow" ? "400% 400%" : cell.special === "multiplier" ? "200% 200%" : undefined,
+                  animation: cell.special === "rainbow" 
+                    ? "rainbowShift 2s ease infinite" 
+                    : cell.special === "multiplier" 
+                      ? "shimmer 1.5s ease-in-out infinite" 
+                      : undefined,
+                  boxShadow: cell.special === "rainbow"
+                    ? "0 0 15px rgba(255,0,0,0.7), 0 0 25px rgba(255,136,0,0.5), 0 0 35px rgba(0,255,0,0.4), 0 0 45px rgba(0,136,255,0.4), inset 0 0 15px rgba(255,255,255,0.6)"
+                    : cell.special === "bomb"
+                      ? "0 0 15px rgba(255,100,0,0.6), 0 0 25px rgba(255,50,0,0.4), inset 0 -4px 8px rgba(0,0,0,0.8), inset 0 4px 8px rgba(100,100,100,0.3)"
+                      : cell.special === "multiplier"
+                        ? "0 0 20px rgba(255,215,0,0.8), 0 0 35px rgba(255,140,0,0.5), 0 0 50px rgba(255,215,0,0.3), inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.6)"
                         : cell.color
                           ? `inset 0 -3px 6px rgba(0,0,0,0.4), inset 0 3px 6px rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.3)${cell.glowing ? `, 0 0 12px ${cell.color}, 0 0 20px ${cell.color}40` : ""}`
                           : "none",
@@ -728,16 +736,30 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                   touchAction: "none",
                   WebkitTapHighlightColor: "transparent",
                   border: cell.special === "rainbow"
-                    ? "2px solid rgba(255,255,255,0.6)"
+                    ? "2px solid rgba(255,255,255,0.8)"
                     : cell.special === "bomb"
-                      ? "2px solid #1f2937"
+                      ? "3px solid #ff4500"
                       : cell.special === "multiplier"
-                        ? "2px solid #f59e0b"
-                        : cell.color ? `1px solid ${adjustColor(cell.color, 20)}` : "none"
+                        ? "3px solid #ffd700"
+                        : cell.color ? `1px solid ${adjustColor(cell.color, 20)}` : "none",
+                  borderRadius: cell.special === "bomb" ? "50%" : cell.special === "multiplier" ? "8px" : undefined,
                 }}
               >
                 {cell.special && (
-                  <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold drop-shadow-md">
+                  <span 
+                    className={`absolute inset-0 flex items-center justify-center font-bold drop-shadow-lg
+                      ${cell.special === "bomb" ? "text-base" : ""}
+                      ${cell.special === "rainbow" ? "text-base" : ""}
+                      ${cell.special === "multiplier" ? "text-[11px] font-black text-white" : ""}
+                    `}
+                    style={{
+                      textShadow: cell.special === "multiplier" 
+                        ? "0 0 10px rgba(255,215,0,1), 0 0 20px rgba(255,140,0,0.8), 2px 2px 4px rgba(0,0,0,0.5)" 
+                        : cell.special === "bomb"
+                          ? "0 0 8px rgba(255,100,0,0.8), 0 0 15px rgba(255,50,0,0.6)"
+                          : undefined
+                    }}
+                  >
                     {SPECIAL_BLOCKS[cell.special]?.icon}
                   </span>
                 )}
@@ -845,18 +867,46 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         {/* Special Blocks Legend */}
         <Card className="p-3 bg-gray-900 border-gray-700">
           <p className="text-gray-400 text-xs mb-2 font-medium">Special Blocks</p>
-          <div className="space-y-1.5 text-xs">
+          <div className="space-y-2 text-xs">
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-gray-600 flex items-center justify-center text-white font-bold text-[10px]">B</div>
-              <span className="text-gray-400">Bomb - Clears 3x3 area</span>
+              <div 
+                className="w-6 h-6 rounded-full flex items-center justify-center text-sm"
+                style={{ 
+                  background: "radial-gradient(circle at 30% 30%, #4a4a4a 0%, #1f1f1f 50%, #0a0a0a 100%)",
+                  border: "2px solid #ff4500",
+                  boxShadow: "0 0 8px rgba(255,100,0,0.5)"
+                }}
+              >
+                💣
+              </div>
+              <span className="text-gray-400">Bomb - Explodes 3x3 area</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded flex items-center justify-center text-white font-bold text-[10px]" style={{ background: "linear-gradient(45deg, #ef4444, #eab308, #22c55e, #3b82f6)" }}>R</div>
-              <span className="text-gray-400">Rainbow - Matches any color</span>
+              <div 
+                className="w-6 h-6 rounded flex items-center justify-center text-sm animate-spin-slow"
+                style={{ 
+                  background: "linear-gradient(45deg, #ef4444, #eab308, #22c55e, #3b82f6)",
+                  border: "2px solid rgba(255,255,255,0.6)",
+                  boxShadow: "0 0 10px rgba(255,100,100,0.5)"
+                }}
+              >
+                🌈
+              </div>
+              <span className="text-gray-400">Rainbow - Matches any</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-yellow-500 flex items-center justify-center text-white font-bold text-[10px]">2x</div>
-              <span className="text-gray-400">Multiplier - Double points</span>
+              <div 
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-black text-white"
+                style={{ 
+                  background: "linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ffd700 100%)",
+                  border: "2px solid #ffd700",
+                  boxShadow: "0 0 12px rgba(255,215,0,0.6)",
+                  textShadow: "0 0 5px rgba(255,255,255,0.8)"
+                }}
+              >
+                2X
+              </div>
+              <span className="text-gray-400">Multiplier - 2x points</span>
             </div>
           </div>
         </Card>

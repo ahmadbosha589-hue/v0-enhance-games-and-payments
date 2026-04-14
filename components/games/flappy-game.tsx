@@ -9,11 +9,13 @@ const CANVAS_WIDTH = 280
 const CANVAS_HEIGHT = 400
 const BIRD_SIZE = 24
 const PIPE_WIDTH = 45
-const PIPE_GAP = 130
-const GRAVITY = 0.28 // Lower gravity for floatier, smoother feel
-const JUMP_STRENGTH = -5.8 // Gentler jump for better control
-const PIPE_SPEED = 2.0 // Slower pipes for better playability
-const MAX_VELOCITY = 8 // Cap falling velocity for smoother feel
+const PIPE_GAP = 140 // Slightly larger gap for smoother gameplay
+const GRAVITY = 0.22 // Much lower gravity for ultra-smooth floaty feel
+const JUMP_STRENGTH = -5.2 // Gentler jump for precise control
+const PIPE_SPEED = 1.8 // Slower pipes for better playability
+const MAX_VELOCITY = 6 // Lower cap for smoother falling
+const TARGET_FPS = 60
+const FRAME_TIME = 1000 / TARGET_FPS
 
 // Coin types with different point values
 const COIN_TYPES = {
@@ -53,6 +55,8 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
   const containerRef = useRef<HTMLDivElement>(null)
   const gameLoopRef = useRef<number | null>(null)
   const frameCountRef = useRef(0)
+  const lastFrameTimeRef = useRef(0)
+  const accumulatedTimeRef = useRef(0)
 
   const [hasWon, setHasWon] = useState(false)
   const [birdY, setBirdY] = useState(CANVAS_HEIGHT / 2)
@@ -187,20 +191,38 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    const currentPipeSpeed = PIPE_SPEED + (difficultyRef.current - 1) * 0.3
-    const currentPipeGap = Math.max(100, PIPE_GAP - difficultyRef.current * 3)
+    const currentPipeSpeed = PIPE_SPEED + (difficultyRef.current - 1) * 0.25
+    const currentPipeGap = Math.max(110, PIPE_GAP - difficultyRef.current * 2)
 
-    const gameLoop = () => {
+    const gameLoop = (timestamp: number) => {
       if (gameOverRef.current) return
 
-      frameCountRef.current++
+      // Frame timing for consistent 60fps physics
+      if (lastFrameTimeRef.current === 0) {
+        lastFrameTimeRef.current = timestamp
+      }
+      const deltaTime = timestamp - lastFrameTimeRef.current
+      lastFrameTimeRef.current = timestamp
+      accumulatedTimeRef.current += deltaTime
+
+      // Only update physics at fixed intervals for smoothness
+      while (accumulatedTimeRef.current >= FRAME_TIME) {
+        accumulatedTimeRef.current -= FRAME_TIME
+        frameCountRef.current++
+      }
+      
       const frameCount = frameCountRef.current
 
-      // Update physics with velocity capping for smoother feel
-      const currentGravity = powerUpRef.current === "slow" ? GRAVITY * 0.6 : GRAVITY
-      const rawVelocity = velocityRef.current + currentGravity
-      const newVelocity = Math.min(rawVelocity, MAX_VELOCITY) // Cap falling speed for smoother feel
-      const newBirdY = Math.min(Math.max(birdYRef.current + newVelocity, 0), CANVAS_HEIGHT - BIRD_SIZE - 20)
+      // Update physics with smooth interpolation
+      const currentGravity = powerUpRef.current === "slow" ? GRAVITY * 0.5 : GRAVITY
+      // Apply gravity smoothly with delta time consideration
+      const gravityStep = currentGravity * Math.min(deltaTime / 16.67, 2) // Cap to prevent jumps on lag
+      const rawVelocity = velocityRef.current + gravityStep
+      const newVelocity = Math.min(rawVelocity, MAX_VELOCITY) // Smooth velocity cap
+      
+      // Smooth position update with interpolation
+      const positionDelta = newVelocity * Math.min(deltaTime / 16.67, 2)
+      const newBirdY = Math.min(Math.max(birdYRef.current + positionDelta, 0), CANVAS_HEIGHT - BIRD_SIZE - 20)
 
       setBirdVelocity(newVelocity)
       velocityRef.current = newVelocity // Update ref immediately

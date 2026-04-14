@@ -201,17 +201,54 @@
 }
 
 @keyframes glow-pulse {
-
-  0%,
-  100% {
+  0%, 100% {
     opacity: 1;
     transform: scale(1);
   }
-
   50% {
     opacity: 0.8;
     transform: scale(1.05);
   }
+}
+
+/* Game special block animations */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-fast {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: 0 0 15px rgba(255,100,0,0.6), 0 0 25px rgba(255,50,0,0.4);
+  }
+  50% { 
+    transform: scale(1.08);
+    box-shadow: 0 0 25px rgba(255,100,0,0.9), 0 0 40px rgba(255,50,0,0.6);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes rainbowShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 4s linear infinite;
+}
+
+.animate-pulse-fast {
+  animation: pulse-fast 0.8s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 1.2s ease-in-out infinite;
 }
 
 @keyframes float {
