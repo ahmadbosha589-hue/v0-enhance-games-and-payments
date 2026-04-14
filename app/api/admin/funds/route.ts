@@ -85,7 +85,10 @@ export async function GET(request: Request) {
 
     const adminSupabase = createAdminClient()
     if (!adminSupabase) {
-      return NextResponse.json({ error: "Database connection failed" }, { status: 503 })
+      return NextResponse.json({
+        error: "Database not configured. Please ensure Supabase environment variables are set.",
+        users: [] // Return empty array so UI doesn't break
+      }, { status: 503 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -172,9 +175,12 @@ export async function GET(request: Request) {
 
       const { data: users, error } = await query
 
-      if (error) throw error
+      if (error) {
+        log.error("Failed to fetch users for funds management", { error })
+        return NextResponse.json({ error: "Failed to fetch users", details: error.message }, { status: 500 })
+      }
 
-      return NextResponse.json({ users })
+      return NextResponse.json({ users: users || [] })
     }
 
     // Get pending manual crypto payments

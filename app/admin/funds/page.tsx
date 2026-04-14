@@ -56,7 +56,14 @@ import { toast } from "sonner"
 import useSWR from "swr"
 import { cn } from "@/lib/utils"
 
-const fetcher = (url: string) => fetch(url).then(res => res.json())
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data.error || "API request failed")
+  }
+  return data
+}
 
 const BOOSTER_TIERS = [
   { id: "basic", name: "Basic", icon: Zap, color: "text-blue-500" },
@@ -97,7 +104,7 @@ export default function AdminFundsPage() {
     { refreshInterval: 30000 }
   )
 
-  const { data: usersData, mutate: refreshUsers } = useSWR(
+  const { data: usersData, error: usersError, isLoading: usersLoading, mutate: refreshUsers } = useSWR(
     `/api/admin/funds?action=users&search=${searchQuery}`,
     fetcher,
     { refreshInterval: 60000 }
@@ -422,10 +429,28 @@ export default function AdminFundsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.length === 0 ? (
+                  {usersLoading ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        {searchQuery ? "No users found matching your search" : "Loading users..."}
+                        <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                        Loading users...
+                      </TableCell>
+                    </TableRow>
+                  ) : usersError ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="text-red-500 mb-2">Failed to load users</div>
+                        <p className="text-xs text-muted-foreground">{usersError.message}</p>
+                        <Button variant="outline" size="sm" className="mt-2" onClick={() => refreshUsers()}>
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                          Retry
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : users.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        {searchQuery ? "No users found matching your search" : "No users in the database yet"}
                       </TableCell>
                     </TableRow>
                   ) : (
