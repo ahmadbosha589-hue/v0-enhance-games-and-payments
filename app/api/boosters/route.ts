@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
-    
+
     if (!supabase || !adminSupabase) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
@@ -86,10 +86,10 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error("Boosters API error:", error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: "Internal server error",
       tiers: getDefaultTiers(),
-      activeBooster: null 
+      activeBooster: null
     }, { status: 500 })
   }
 }
@@ -159,12 +159,13 @@ function getDefaultTiers() {
   ]
 }
 
-// POST - Purchase a booster
+// POST - Initiate a booster purchase (creates pending order, does NOT activate booster)
+// Booster is only activated when payment is verified via webhook
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const adminSupabase = createAdminClient()
-    
+
     if (!supabase || !adminSupabase) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })
     }
@@ -175,7 +176,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { tierId, paymentMethod, paymentReference, transactionHash } = body
+    const { tierId, paymentMethod } = body
 
     if (!tierId || !paymentMethod) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -190,89 +191,187 @@ export async function POST(request: Request) {
       .single()
 
     if (tierError || !tier) {
+      // Try to find from default tiers
+      const defaultTiers = getDefaultTiers()
+      const defaultTier = defaultTiers.find(t => t.id === tierId)
+      if (!defaultTier) {
+        return NextResponse.json({ error: "Invalid booster tier" }, { status: 400 })
+      }
+      // Use default tier data
+      Object.assign(tier || {}, defaultTier)
+    }
+
+    const tierData = tier || getDefaultTiers().find(t => t.id === tierId)
+    if (!tierData) {
       return NextResponse.json({ error: "Invalid booster tier" }, { status: 400 })
     }
 
-    // Check if user already has an active booster
-    const { data: existingBooster } = await adminSupabase
-      .from("user_boosters")
-      .select("id, expires_at")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .gt("expires_at", new Date().toISOString())
-      .single()
-
-    // Calculate new expiry date (extend if existing)
-    let expiresAt: Date
-    if (existingBooster) {
-      expiresAt = new Date(existingBooster.expires_at)
-      expiresAt.setDate(expiresAt.getDate() + tier.duration_days)
-    } else {
-      expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + tier.duration_days)
+    // Handle different payment methods
+    let paymentInfo: {
+      paymentUrl?: string
+      paymentAddress?: string
+      orderId: string
+      status: string
+      expiresAt?: string
     }
 
-    // Create purchase record
-    const { data: purchase, error: purchaseError } = await adminSupabase
-      .from("booster_purchases")
-      .insert({
-        user_id: user.id,
-        booster_tier_id: tier.id,
-        payment_method: paymentMethod,
-        payment_status: "completed",
-        payment_reference: paymentReference,
-        amount_usd: tier.price_usd,
-        amount_satoshis: tier.price_satoshis,
-        transaction_hash: transactionHash,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
+    const orderId = `booster_${Date.now()}_${Math.random().toString(36).substring(7)}`
 
-    if (purchaseError) {
-      console.error("Purchase error:", purchaseError)
-      return NextResponse.json({ error: "Failed to create purchase record" }, { status: 500 })
+    switch (paymentMethod) {
+      case "faucetpay": {
+        // FaucetPay payment - requires user's satoshi balance
+        const { data: profile } = await adminSupabase
+          .from("profiles")
+          .select("balance_satoshis")
+          .eq("id", user.id)
+          .single()
+
+        const requiredSatoshis = tierData.price_satoshis
+        const currentBalance = Number(profile?.balance_satoshis || 0)
+
+        if (currentBalance < requiredSatoshis) {
+          return NextResponse.json({
+            error: "Insufficient balance",
+            required: requiredSatoshis,
+            available: currentBalance,
+            message: `You need ${requiredSatoshis.toLocaleString()} satoshis but only have ${currentBalance.toLocaleString()}`
+          }, { status: 400 })
+        }
+
+        // Deduct satoshis from user balance
+        const newBalance = currentBalance - requiredSatoshis
+        await adminSupabase
+          .from("profiles")
+          .update({ balance_satoshis: newBalance })
+          .eq("id", user.id)
+
+        // Create transaction record
+        await adminSupabase.from("transactions").insert({
+          user_id: user.id,
+          type: "booster_purchase",
+          amount: -requiredSatoshis,
+          status: "completed",
+          description: `Purchased ${tierData.name} Booster with satoshis`
+        })
+
+        // Create purchase record as completed (satoshi payment is instant)
+        const { data: purchase } = await adminSupabase
+          .from("booster_purchases")
+          .insert({
+            user_id: user.id,
+            booster_tier_id: tierData.id,
+            payment_method: paymentMethod,
+            payment_status: "completed",
+            payment_reference: orderId,
+            amount_usd: tierData.price_usd,
+            amount_satoshis: tierData.price_satoshis,
+            completed_at: new Date().toISOString(),
+          })
+          .select()
+          .single()
+
+        // Activate the booster immediately for satoshi payments
+        const { data: existingBooster } = await adminSupabase
+          .from("user_boosters")
+          .select("id, expires_at")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .gt("expires_at", new Date().toISOString())
+          .single()
+
+        let expiresAt: Date
+        if (existingBooster) {
+          expiresAt = new Date(existingBooster.expires_at)
+          expiresAt.setDate(expiresAt.getDate() + tierData.duration_days)
+          await adminSupabase
+            .from("user_boosters")
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq("id", existingBooster.id)
+        } else {
+          expiresAt = new Date()
+          expiresAt.setDate(expiresAt.getDate() + tierData.duration_days)
+        }
+
+        await adminSupabase
+          .from("user_boosters")
+          .insert({
+            user_id: user.id,
+            booster_tier_id: tierData.id,
+            expires_at: expiresAt.toISOString(),
+            is_active: true,
+            payment_method: paymentMethod,
+            payment_reference: orderId,
+            amount_paid_usd: tierData.price_usd,
+            amount_paid_satoshis: tierData.price_satoshis,
+          })
+
+        return NextResponse.json({
+          success: true,
+          paymentCompleted: true,
+          booster: {
+            tier: tierData.name,
+            expiresAt: expiresAt.toISOString(),
+            faucetBonus: tierData.faucet_bonus_percentage,
+            offerwallBonus: tierData.offerwall_bonus_percentage,
+          },
+          newBalance,
+          message: `${tierData.name} Booster activated! ${requiredSatoshis.toLocaleString()} satoshis deducted.`
+        })
+      }
+
+      case "ccpayment":
+      case "cwallet":
+      case "wallet_connect": {
+        // Crypto payment - create pending order and redirect to payment
+        // In production, this would call CCPayment API to create order
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 1) // 1 hour to complete payment
+
+        // Create pending purchase record
+        await adminSupabase
+          .from("booster_purchases")
+          .insert({
+            user_id: user.id,
+            booster_tier_id: tierData.id,
+            payment_method: paymentMethod,
+            payment_status: "pending",
+            payment_reference: orderId,
+            amount_usd: tierData.price_usd,
+            amount_satoshis: tierData.price_satoshis,
+          })
+
+        // Generate mock payment address (in production, call CCPayment API)
+        const mockPaymentAddress = `bc1q${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
+
+        paymentInfo = {
+          orderId,
+          status: "pending",
+          paymentAddress: mockPaymentAddress,
+          expiresAt: expiresAt.toISOString(),
+        }
+
+        return NextResponse.json({
+          success: true,
+          paymentCompleted: false,
+          orderId,
+          paymentMethod,
+          paymentAddress: mockPaymentAddress,
+          amountUsd: tierData.price_usd,
+          amountBtc: (tierData.price_usd / 60000).toFixed(8), // Approximate BTC conversion
+          expiresAt: expiresAt.toISOString(),
+          message: `Send $${tierData.price_usd} in crypto to the address to complete your purchase. Payment expires in 1 hour.`,
+          instructions: [
+            "1. Copy the payment address below",
+            "2. Send the exact amount shown",
+            "3. Wait for blockchain confirmation",
+            "4. Your booster will be activated automatically"
+          ]
+        })
+      }
+
+      default:
+        return NextResponse.json({ error: "Invalid payment method" }, { status: 400 })
     }
-
-    // Deactivate existing booster if upgrading
-    if (existingBooster) {
-      await adminSupabase
-        .from("user_boosters")
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .eq("id", existingBooster.id)
-    }
-
-    // Create new user booster
-    const { data: userBooster, error: boosterError } = await adminSupabase
-      .from("user_boosters")
-      .insert({
-        user_id: user.id,
-        booster_tier_id: tier.id,
-        expires_at: expiresAt.toISOString(),
-        is_active: true,
-        payment_method: paymentMethod,
-        payment_reference: paymentReference,
-        amount_paid_usd: tier.price_usd,
-        amount_paid_satoshis: tier.price_satoshis,
-      })
-      .select()
-      .single()
-
-    if (boosterError) {
-      console.error("Booster creation error:", boosterError)
-      return NextResponse.json({ error: "Failed to activate booster" }, { status: 500 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      booster: {
-        id: userBooster.id,
-        tier: tier.name,
-        expiresAt: userBooster.expires_at,
-        faucetBonus: tier.faucet_bonus_percentage,
-        offerwallBonus: tier.offerwall_bonus_percentage,
-      },
-    })
   } catch (error) {
     console.error("Booster purchase error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

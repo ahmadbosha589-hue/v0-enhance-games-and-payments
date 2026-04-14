@@ -220,31 +220,34 @@ export async function POST(req: NextRequest) {
         .eq("id", sessionId)
     } catch { /* ignore session update errors */ }
 
-    // Set cooldown for THIS SPECIFIC GAME TYPE
-    try {
-      const { data: existingCooldown } = await adminSupabase
-        .from("game_cooldowns")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("game_type", gameType)
-        .single()
-
-      if (existingCooldown) {
-        await adminSupabase
+    // Set cooldown for THIS SPECIFIC GAME TYPE - ONLY ON WIN
+    // Players can immediately retry if they lose, but must wait after winning
+    if (isWinner) {
+      try {
+        const { data: existingCooldown } = await adminSupabase
           .from("game_cooldowns")
-          .update({ cooldown_until: cooldownUntil })
+          .select("id")
           .eq("user_id", user.id)
           .eq("game_type", gameType)
-      } else {
-        await adminSupabase
-          .from("game_cooldowns")
-          .insert({
-            user_id: user.id,
-            game_type: gameType,
-            cooldown_until: cooldownUntil
-          })
-      }
-    } catch { /* ignore cooldown errors */ }
+          .single()
+
+        if (existingCooldown) {
+          await adminSupabase
+            .from("game_cooldowns")
+            .update({ cooldown_until: cooldownUntil })
+            .eq("user_id", user.id)
+            .eq("game_type", gameType)
+        } else {
+          await adminSupabase
+            .from("game_cooldowns")
+            .insert({
+              user_id: user.id,
+              game_type: gameType,
+              cooldown_until: cooldownUntil
+            })
+        }
+      } catch { /* ignore cooldown errors */ }
+    }
 
     // Update daily limit
     let gamesPlayedToday = 1
@@ -325,8 +328,9 @@ export async function POST(req: NextRequest) {
       score,
       winThreshold: gameType === "memory" ? 0 : winThreshold,
       newBalance,
-      cooldownMinutes: GAME_COOLDOWN_MINUTES,
-      cooldownUntil,
+      // Only include cooldown if player won - no cooldown on loss
+      cooldownMinutes: isWinner ? GAME_COOLDOWN_MINUTES : 0,
+      cooldownUntil: isWinner ? cooldownUntil : null,
       gamesPlayedToday,
       gamesRemaining: MAX_GAMES_PER_DAY - gamesPlayedToday,
       totalEarnedToday,

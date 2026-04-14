@@ -201,10 +201,13 @@
 }
 
 @keyframes glow-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.8;
     transform: scale(1.05);
@@ -213,30 +216,91 @@
 
 /* Game special block animations */
 @keyframes spin-slow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse-fast {
-  0%, 100% { 
+
+  0%,
+  100% {
     transform: scale(1);
-    box-shadow: 0 0 15px rgba(255,100,0,0.6), 0 0 25px rgba(255,50,0,0.4);
+    box-shadow: 0 0 15px rgba(255, 100, 0, 0.6), 0 0 25px rgba(255, 50, 0, 0.4);
   }
-  50% { 
+
+  50% {
     transform: scale(1.08);
-    box-shadow: 0 0 25px rgba(255,100,0,0.9), 0 0 40px rgba(255,50,0,0.6);
+    box-shadow: 0 0 25px rgba(255, 100, 0, 0.9), 0 0 40px rgba(255, 50, 0, 0.6);
+  }
+}
+
+@keyframes bombPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 12px rgba(255, 80, 0, 0.8), 0 0 24px rgba(255, 40, 0, 0.5);
+    filter: brightness(1);
+  }
+
+  25% {
+    transform: scale(1.03);
+    filter: brightness(1.1);
+  }
+
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 18px rgba(255, 100, 0, 1), 0 0 36px rgba(255, 60, 0, 0.7), 0 0 48px rgba(255, 0, 0, 0.4);
+    filter: brightness(1.2);
+  }
+
+  75% {
+    transform: scale(1.03);
+    filter: brightness(1.1);
+  }
+}
+
+@keyframes multiplierShine {
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.9), 0 0 30px rgba(255, 180, 0, 0.6);
+  }
+
+  50% {
+    background-position: 100% 50%;
+    box-shadow: 0 0 25px rgba(255, 215, 0, 1), 0 0 50px rgba(255, 180, 0, 0.8), 0 0 70px rgba(255, 140, 0, 0.5);
   }
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @keyframes rainbowShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .animate-spin-slow {

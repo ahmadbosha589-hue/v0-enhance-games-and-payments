@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import {
   Zap, Flame, Crown, Star, CheckCircle2, Clock, Coins,
   ArrowRight, Sparkles, Gift, ShoppingCart, AlertCircle,
-  CreditCard, Wallet, Timer, TrendingUp, Shield
+  CreditCard, Wallet, Timer, TrendingUp, Shield, Copy
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -72,7 +72,7 @@ const TIER_GRADIENTS: Record<string, string> = {
 function ActiveBoosterCard({ booster }: { booster: ActiveBooster }) {
   const Icon = TIER_ICONS[booster.badgeIcon] || Zap
   const gradient = TIER_GRADIENTS[booster.slug] || "from-green-500 to-emerald-400"
-  const progressPercent = booster.daysRemaining > 0 
+  const progressPercent = booster.daysRemaining > 0
     ? Math.min(100, (booster.hoursRemaining / (booster.daysRemaining * 24 + booster.hoursRemaining % 24)) * 100)
     : (booster.hoursRemaining / 24) * 100
 
@@ -85,7 +85,7 @@ function ActiveBoosterCard({ booster }: { booster: ActiveBooster }) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
-            <div 
+            <div
               className="p-3 rounded-xl"
               style={{ backgroundColor: `${booster.badgeColor}20` }}
             >
@@ -132,7 +132,7 @@ function ActiveBoosterCard({ booster }: { booster: ActiveBooster }) {
               Time Remaining
             </div>
             <span className="font-semibold">
-              {booster.daysRemaining > 0 
+              {booster.daysRemaining > 0
                 ? `${booster.daysRemaining}d ${booster.hoursRemaining % 24}h`
                 : `${booster.hoursRemaining}h`}
             </span>
@@ -147,12 +147,12 @@ function ActiveBoosterCard({ booster }: { booster: ActiveBooster }) {
   )
 }
 
-function BoosterTierCard({ 
-  tier, 
+function BoosterTierCard({
+  tier,
   isPopular,
   activeBooster,
-  onPurchase 
-}: { 
+  onPurchase
+}: {
   tier: BoosterTier
   isPopular?: boolean
   activeBooster: ActiveBooster | null
@@ -170,7 +170,7 @@ function BoosterTierCard({
     )} style={isCurrentTier ? { borderColor: tier.badge_color, ringColor: tier.badge_color } : {}}>
       {/* Header gradient */}
       <div className={cn("h-2 w-full bg-gradient-to-r", gradient)} />
-      
+
       {/* Popular badge - better positioned */}
       {isPopular && (
         <Badge className="absolute top-3 right-3 bg-primary text-primary-foreground text-[10px] sm:text-xs px-2 py-0.5 shadow-lg z-10">
@@ -180,7 +180,7 @@ function BoosterTierCard({
 
       <CardHeader className="pb-3 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div 
+          <div
             className="p-2.5 sm:p-3 rounded-xl"
             style={{ backgroundColor: `${tier.badge_color}20` }}
           >
@@ -226,8 +226,8 @@ function BoosterTierCard({
       </CardContent>
 
       <CardFooter className="pt-4 flex-shrink-0">
-        <Button 
-          className="w-full gap-2" 
+        <Button
+          className="w-full gap-2"
           size="lg"
           style={!isCurrentTier ? { backgroundColor: tier.badge_color } : {}}
           variant={isCurrentTier ? "outline" : "default"}
@@ -255,12 +255,24 @@ function PurchaseDialog({
   tier,
   open,
   onOpenChange,
-  onConfirm
+  onConfirm,
+  userBalance,
+  pendingPayment,
+  onCancelPendingPayment
 }: {
   tier: BoosterTier | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (paymentMethod: string) => void
+  userBalance: number
+  pendingPayment?: {
+    orderId: string
+    paymentAddress: string
+    amountUsd: number
+    amountBtc: string
+    expiresAt: string
+  } | null
+  onCancelPendingPayment?: () => void
 }) {
   const [paymentMethod, setPaymentMethod] = useState("faucetpay")
   const [isProcessing, setIsProcessing] = useState(false)
@@ -268,11 +280,94 @@ function PurchaseDialog({
   if (!tier) return null
 
   const Icon = TIER_ICONS[tier.badge_icon] || Zap
+  const hasEnoughSatoshis = userBalance >= tier.price_satoshis
 
   const handleConfirm = async () => {
     setIsProcessing(true)
     await onConfirm(paymentMethod)
     setIsProcessing(false)
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success("Copied to clipboard")
+  }
+
+  // Show pending payment screen if we have a pending crypto payment
+  if (pendingPayment) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-amber-500 animate-pulse" />
+              Awaiting Payment
+            </DialogTitle>
+            <DialogDescription>
+              Send the exact amount to complete your {tier.name} Booster purchase.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Amount to pay */}
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
+              <p className="text-sm text-muted-foreground mb-1">Amount to send</p>
+              <p className="text-2xl font-bold text-amber-500">${pendingPayment.amountUsd}</p>
+              <p className="text-sm text-muted-foreground">({pendingPayment.amountBtc} BTC)</p>
+            </div>
+
+            {/* Payment address */}
+            <div className="space-y-2">
+              <Label>Payment Address</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={pendingPayment.paymentAddress}
+                  readOnly
+                  className="font-mono text-xs"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => copyToClipboard(pendingPayment.paymentAddress)}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Expiry warning */}
+            <Alert className="bg-amber-500/10 border-amber-500/30">
+              <Clock className="h-4 w-4 text-amber-500" />
+              <AlertDescription className="text-xs">
+                Payment expires at {new Date(pendingPayment.expiresAt).toLocaleTimeString()}.
+                Your booster will be activated automatically after blockchain confirmation.
+              </AlertDescription>
+            </Alert>
+
+            {/* Instructions */}
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>1. Copy the payment address above</p>
+              <p>2. Send exactly ${pendingPayment.amountUsd} in BTC/crypto</p>
+              <p>3. Wait for blockchain confirmation (10-30 min)</p>
+              <p>4. Your booster activates automatically</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                onCancelPendingPayment?.()
+                onOpenChange(false)
+              }}
+            >
+              Close (I&apos;ve sent the payment)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
@@ -315,57 +410,98 @@ function PurchaseDialog({
           <div className="space-y-3">
             <Label>Payment Method</Label>
             <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid gap-2">
-              <div className="flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
-                <RadioGroupItem value="faucetpay" id="faucetpay" />
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                hasEnoughSatoshis ? "hover:bg-muted/50" : "opacity-50 cursor-not-allowed",
+                paymentMethod === "faucetpay" && hasEnoughSatoshis && "border-primary bg-primary/5"
+              )}>
+                <RadioGroupItem value="faucetpay" id="faucetpay" disabled={!hasEnoughSatoshis} />
                 <Label htmlFor="faucetpay" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-2">
-                    <Wallet className="h-4 w-4" />
-                    <span>FaucetPay</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4" />
+                      <span>Pay with Satoshis</span>
+                    </div>
+                    <span className={cn("text-xs", hasEnoughSatoshis ? "text-green-500" : "text-red-500")}>
+                      Balance: {userBalance.toLocaleString()}
+                    </span>
                   </div>
+                  {!hasEnoughSatoshis && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Insufficient balance (need {tier.price_satoshis.toLocaleString()})
+                    </p>
+                  )}
                 </Label>
               </div>
-              <div className="flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                paymentMethod === "ccpayment" && "border-primary bg-primary/5"
+              )}>
                 <RadioGroupItem value="ccpayment" id="ccpayment" />
                 <Label htmlFor="ccpayment" className="flex-1 cursor-pointer">
                   <div className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4" />
-                    <span>CCPayment (Crypto)</span>
+                    <span>Pay with Crypto (CCPayment)</span>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">BTC, ETH, USDT, and 50+ coins</p>
                 </Label>
               </div>
-              <div className="flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                paymentMethod === "cwallet" && "border-primary bg-primary/5"
+              )}>
                 <RadioGroupItem value="cwallet" id="cwallet" />
                 <Label htmlFor="cwallet" className="flex-1 cursor-pointer">
                   <div className="flex items-center gap-2">
                     <Coins className="h-4 w-4" />
                     <span>CWallet</span>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">Instant crypto payments</p>
                 </Label>
               </div>
-              <div className="flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                paymentMethod === "wallet_connect" && "border-primary bg-primary/5"
+              )}>
                 <RadioGroupItem value="wallet_connect" id="wallet_connect" />
                 <Label htmlFor="wallet_connect" className="flex-1 cursor-pointer">
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
-                    <span>Direct Wallet</span>
+                    <span>Direct Wallet Transfer</span>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">Send to our BTC address</p>
                 </Label>
               </div>
             </RadioGroup>
           </div>
+
+          {/* Payment info for crypto methods */}
+          {paymentMethod !== "faucetpay" && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Crypto payments require blockchain confirmation. Your booster will be activated within 10-30 minutes after payment.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessing}>
             Cancel
           </Button>
-          <Button 
-            onClick={handleConfirm} 
-            disabled={isProcessing}
+          <Button
+            onClick={handleConfirm}
+            disabled={isProcessing || (paymentMethod === "faucetpay" && !hasEnoughSatoshis)}
             style={{ backgroundColor: tier.badge_color }}
           >
             {isProcessing ? (
               <>Processing...</>
+            ) : paymentMethod === "faucetpay" ? (
+              <>
+                <Coins className="h-4 w-4 mr-2" />
+                Pay {tier.price_satoshis.toLocaleString()} sats
+              </>
             ) : (
               <>
                 <ShoppingCart className="h-4 w-4 mr-2" />
@@ -382,54 +518,82 @@ function PurchaseDialog({
 export function BoostersContent({ userId }: BoostersContentProps) {
   const [selectedTier, setSelectedTier] = useState<BoosterTier | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [pendingPayment, setPendingPayment] = useState<{
+    orderId: string
+    paymentAddress: string
+    amountUsd: number
+    amountBtc: string
+    expiresAt: string
+  } | null>(null)
 
   const { data, isLoading, error, mutate } = useSWR(
     `/api/boosters`,
     fetcher,
-    { 
+    {
       refreshInterval: 60000,
       revalidateOnFocus: false,
     }
   )
 
+  // Fetch user balance for satoshi payments
+  const { data: profileData, mutate: mutateProfile } = useSWR(
+    `/api/user/profile`,
+    fetcher,
+    { revalidateOnFocus: true }
+  )
+
+  const userBalance = profileData?.profile?.balance_satoshis || 0
+
   const handlePurchase = (tier: BoosterTier) => {
     setSelectedTier(tier)
     setDialogOpen(true)
+    setPendingPayment(null) // Reset pending payment state
   }
 
   const handleConfirmPurchase = async (paymentMethod: string) => {
     if (!selectedTier) return
 
     try {
-      // In a real implementation, this would redirect to the payment provider
-      // For now, we'll simulate a successful purchase
-      toast.info(`Redirecting to ${paymentMethod} for payment...`)
-      
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      // This would be handled by webhook in production
       const response = await fetch("/api/boosters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tierId: selectedTier.id,
           paymentMethod,
-          paymentReference: `demo_${Date.now()}`,
         }),
       })
 
       const result = await response.json()
 
       if (result.success) {
-        toast.success(`${selectedTier.name} Booster activated!`, {
-          description: `Expires: ${new Date(result.booster.expiresAt).toLocaleDateString()}`
-        })
-        mutate()
+        if (result.paymentCompleted) {
+          // Satoshi payment - instant activation
+          toast.success(`${selectedTier.name} Booster activated!`, {
+            description: result.message
+          })
+          mutate()
+          mutateProfile() // Refresh balance
+          setDialogOpen(false)
+          setSelectedTier(null)
+        } else {
+          // Crypto payment - show payment address
+          setPendingPayment({
+            orderId: result.orderId,
+            paymentAddress: result.paymentAddress,
+            amountUsd: result.amountUsd,
+            amountBtc: result.amountBtc,
+            expiresAt: result.expiresAt
+          })
+          toast.info("Payment address generated", {
+            description: "Send the exact amount to complete your purchase"
+          })
+        }
       } else {
-        toast.error("Purchase failed", { description: result.error })
+        toast.error("Purchase failed", {
+          description: result.message || result.error,
+        })
       }
-    } catch (error) {
+    } catch (err) {
       toast.error("Purchase failed", { description: "Please try again later" })
     }
 
@@ -503,6 +667,9 @@ export function BoostersContent({ userId }: BoostersContentProps) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onConfirm={handleConfirmPurchase}
+        userBalance={userBalance}
+        pendingPayment={pendingPayment}
+        onCancelPendingPayment={() => setPendingPayment(null)}
       />
     </div>
   )

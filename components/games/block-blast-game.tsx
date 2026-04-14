@@ -29,17 +29,17 @@ function adjustColor(color: string, amount: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
-// Base special block spawn rates - REDUCED for harder gameplay
+// Base special block spawn rates - balanced for challenging gameplay
 const BASE_SPECIAL_RATES = {
-  bomb: 0.012, // Reduced from 0.018
-  rainbow: 0.008, // Reduced from 0.012
-  multiplier: 0.010, // Reduced from 0.018
+  bomb: 0.008, // Rare but powerful
+  rainbow: 0.006, // Very rare
+  multiplier: 0.007, // Rare
 }
 
 const SPECIAL_BLOCKS = {
-  bomb: { chance: BASE_SPECIAL_RATES.bomb, icon: "💣", color: "#374151" },
-  rainbow: { chance: BASE_SPECIAL_RATES.rainbow, icon: "🌈", color: "rainbow" },
-  multiplier: { chance: BASE_SPECIAL_RATES.multiplier, icon: "2X", color: "#fbbf24" },
+  bomb: { chance: BASE_SPECIAL_RATES.bomb, icon: "💣", color: "#374151", name: "Bomb" },
+  rainbow: { chance: BASE_SPECIAL_RATES.rainbow, icon: "🌈", color: "rainbow", name: "Rainbow" },
+  multiplier: { chance: BASE_SPECIAL_RATES.multiplier, icon: "×2", color: "#fbbf24", name: "Multiplier" },
 }
 
 // Achievement messages for big blasts
@@ -121,9 +121,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
 
   // Get number of colors based on difficulty - MORE colors = harder to find matches
   const getColorsForDifficulty = useCallback((palette: string[]): string[] => {
-    // Scale colors with difficulty: 6 colors at level 1 (harder start), up to 8 at level 10
-    const baseColors = 6 // Start with more colors for harder gameplay
-    const extraColors = Math.min(2, Math.floor(difficultyLevel / 4)) // Add 1 color every 4 levels
+    // Scale colors with difficulty: 7 colors at level 1 (harder start), up to 8 at level 10
+    const baseColors = 7 // More colors = harder to find matches
+    const extraColors = Math.min(1, Math.floor(difficultyLevel / 5)) // Add 1 color at level 5+
     return palette.slice(0, baseColors + extraColors)
   }, [difficultyLevel])
 
@@ -145,14 +145,14 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
     )
 
     // Clustering scales with difficulty - REDUCED clustering for harder gameplay
-    // Level 1: 18% clustering (harder), Level 10: 5% clustering (very hard)
-    const clusterChance = Math.max(0.05, 0.18 - (difficultyLevel - 1) * 0.015)
+    // Level 1: 12% clustering (challenging), Level 10: 3% clustering (very hard)
+    const clusterChance = Math.max(0.03, 0.12 - (difficultyLevel - 1) * 0.01)
     for (let y = 0; y < BOARD_SIZE; y++) {
       for (let x = 0; x < BOARD_SIZE; x++) {
-        // Cluster blocks near same-colored neighbors
+        // Cluster blocks near same-colored neighbors (less often = harder)
         if (Math.random() < clusterChance && x > 0) {
           newBoard[y][x].color = newBoard[y][x - 1].color
-        } else if (Math.random() < clusterChance && y > 0) {
+        } else if (Math.random() < clusterChance * 0.8 && y > 0) { // Even less vertical clustering
           newBoard[y][x].color = newBoard[y - 1][x].color
         }
       }
@@ -366,9 +366,11 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           let bonusPoints = 0
 
           if (cell.special === "bomb") {
-            // Bomb clears 3x3 area around it
-            for (let dy = -1; dy <= 1; dy++) {
-              for (let dx = -1; dx <= 1; dx++) {
+            // Bomb clears 5x5 area around it for bigger impact
+            for (let dy = -2; dy <= 2; dy++) {
+              for (let dx = -2; dx <= 2; dx++) {
+                // Create circular explosion pattern (skip corners for more natural look)
+                if (Math.abs(dx) === 2 && Math.abs(dy) === 2) continue
                 const nx = x + dx
                 const ny = y + dy
                 if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny]?.[nx]?.color) {
@@ -376,9 +378,9 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                 }
               }
             }
-            bonusPoints = 30
+            bonusPoints = 50 // More bonus for using bomb
             setShakeBoard(true)
-            setTimeout(() => setShakeBoard(false), 300)
+            setTimeout(() => setShakeBoard(false), 400)
           } else if (cell.special === "rainbow") {
             // Rainbow clears all blocks of the most common adjacent color
             const adjacentColors: Record<string, number> = {}
@@ -416,19 +418,22 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
             expandedGroup.add(`${x},${y}`) // Include the rainbow block itself
             bonusPoints = 50
           } else if (cell.special === "multiplier") {
-            // Multiplier activates 2x for 15 seconds and clears itself + adjacent
+            // Multiplier activates 2x for 20 seconds and creates a + pattern clear
             expandedGroup.add(`${x},${y}`)
-            const directions = [[0, -1], [0, 1], [-1, 0], [1, 0]]
-            for (const [dx, dy] of directions) {
-              const nx = x + dx
-              const ny = y + dy
-              if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny]?.[nx]?.color) {
-                expandedGroup.add(`${nx},${ny}`)
+            // Clear entire row and column for dramatic effect
+            for (let i = 0; i < BOARD_SIZE; i++) {
+              // Horizontal line
+              if (board[y]?.[i]?.color) {
+                expandedGroup.add(`${i},${y}`)
+              }
+              // Vertical line
+              if (board[i]?.[x]?.color) {
+                expandedGroup.add(`${x},${i}`)
               }
             }
             setActiveMultiplier(2)
-            setTimeout(() => setActiveMultiplier(1), 15000)
-            bonusPoints = 25
+            setTimeout(() => setActiveMultiplier(1), 20000) // 20 seconds of 2x
+            bonusPoints = 40
           }
 
           return { expandedGroup, bonusPoints }
@@ -529,9 +534,10 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
       if (!cellInGroup) return
 
       if (cellInGroup.special === "bomb") {
-        // Bomb clears 3x3 area
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
+        // Bomb clears 5x5 area (circular pattern)
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            if (Math.abs(dx) === 2 && Math.abs(dy) === 2) continue // Skip corners
             const nx = cellX + dx
             const ny = cellY + dy
             if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
@@ -539,12 +545,19 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
             }
           }
         }
-        bonusPoints += 20
+        bonusPoints += 35
         setShakeBoard(true)
-        setTimeout(() => setShakeBoard(false), 300)
+        setTimeout(() => setShakeBoard(false), 400)
       } else if (cellInGroup.special === "multiplier") {
+        // Multiplier in group: activate 2x and clear cross pattern
         setActiveMultiplier(2)
-        setTimeout(() => setActiveMultiplier(1), 15000)
+        setTimeout(() => setActiveMultiplier(1), 20000)
+        // Add cross pattern clear
+        for (let i = 0; i < BOARD_SIZE; i++) {
+          if (board[cellY]?.[i]?.color) expandedGroup.add(`${i},${cellY}`)
+          if (board[i]?.[cellX]?.color) expandedGroup.add(`${cellX},${i}`)
+        }
+        bonusPoints += 25
       } else if (cellInGroup.special === "rainbow") {
         // Rainbow in a group clears all of the group's color
         const groupColor = board[y]?.[x]?.color
@@ -710,24 +723,26 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                   background: cell.special === "rainbow"
                     ? "linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088, #ff0000)"
                     : cell.special === "bomb"
-                      ? "radial-gradient(circle at 30% 30%, #4a4a4a 0%, #1f1f1f 50%, #0a0a0a 100%)"
+                      ? "radial-gradient(circle at 35% 35%, #5a5a5a 0%, #2d2d2d 40%, #1a1a1a 70%, #0a0a0a 100%)"
                       : cell.special === "multiplier"
-                        ? "linear-gradient(135deg, #ffd700 0%, #ff8c00 25%, #ffd700 50%, #ffed4e 75%, #ffd700 100%)"
+                        ? "linear-gradient(135deg, #ffd700 0%, #ffb347 20%, #ffd700 40%, #fff68f 60%, #ffd700 80%, #ff8c00 100%)"
                         : cell.color && !cell.special
                           ? `linear-gradient(135deg, ${cell.color} 0%, ${adjustColor(cell.color, -30)} 100%)`
                           : undefined,
-                  backgroundSize: cell.special === "rainbow" ? "400% 400%" : cell.special === "multiplier" ? "200% 200%" : undefined,
-                  animation: cell.special === "rainbow" 
-                    ? "rainbowShift 2s ease infinite" 
-                    : cell.special === "multiplier" 
-                      ? "shimmer 1.5s ease-in-out infinite" 
-                      : undefined,
+                  backgroundSize: cell.special === "rainbow" ? "400% 400%" : cell.special === "multiplier" ? "300% 300%" : undefined,
+                  animation: cell.special === "rainbow"
+                    ? "rainbowShift 2s ease infinite"
+                    : cell.special === "multiplier"
+                      ? "shimmer 2s ease-in-out infinite"
+                      : cell.special === "bomb"
+                        ? "bombPulse 1s ease-in-out infinite"
+                        : undefined,
                   boxShadow: cell.special === "rainbow"
                     ? "0 0 15px rgba(255,0,0,0.7), 0 0 25px rgba(255,136,0,0.5), 0 0 35px rgba(0,255,0,0.4), 0 0 45px rgba(0,136,255,0.4), inset 0 0 15px rgba(255,255,255,0.6)"
                     : cell.special === "bomb"
-                      ? "0 0 15px rgba(255,100,0,0.6), 0 0 25px rgba(255,50,0,0.4), inset 0 -4px 8px rgba(0,0,0,0.8), inset 0 4px 8px rgba(100,100,100,0.3)"
+                      ? "0 0 12px rgba(255,80,0,0.8), 0 0 24px rgba(255,40,0,0.5), 0 0 36px rgba(255,0,0,0.3), inset 0 -6px 12px rgba(0,0,0,0.9), inset 0 6px 12px rgba(150,150,150,0.4)"
                       : cell.special === "multiplier"
-                        ? "0 0 20px rgba(255,215,0,0.8), 0 0 35px rgba(255,140,0,0.5), 0 0 50px rgba(255,215,0,0.3), inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.6)"
+                        ? "0 0 15px rgba(255,215,0,0.9), 0 0 30px rgba(255,180,0,0.6), 0 0 45px rgba(255,140,0,0.4), inset 0 -4px 10px rgba(0,0,0,0.5), inset 0 4px 10px rgba(255,255,255,0.7)"
                         : cell.color
                           ? `inset 0 -3px 6px rgba(0,0,0,0.4), inset 0 3px 6px rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.3)${cell.glowing ? `, 0 0 12px ${cell.color}, 0 0 20px ${cell.color}40` : ""}`
                           : "none",
@@ -746,18 +761,21 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
                 }}
               >
                 {cell.special && (
-                  <span 
-                    className={`absolute inset-0 flex items-center justify-center font-bold drop-shadow-lg
-                      ${cell.special === "bomb" ? "text-base" : ""}
+                  <span
+                    className={`absolute inset-0 flex items-center justify-center font-bold drop-shadow-lg select-none
+                      ${cell.special === "bomb" ? "text-lg" : ""}
                       ${cell.special === "rainbow" ? "text-base" : ""}
-                      ${cell.special === "multiplier" ? "text-[11px] font-black text-white" : ""}
+                      ${cell.special === "multiplier" ? "text-[13px] font-black" : ""}
                     `}
                     style={{
-                      textShadow: cell.special === "multiplier" 
-                        ? "0 0 10px rgba(255,215,0,1), 0 0 20px rgba(255,140,0,0.8), 2px 2px 4px rgba(0,0,0,0.5)" 
+                      textShadow: cell.special === "multiplier"
+                        ? "0 0 8px rgba(255,255,255,1), 0 0 16px rgba(255,215,0,0.9), 0 0 24px rgba(255,180,0,0.7), 1px 1px 2px rgba(0,0,0,0.8)"
                         : cell.special === "bomb"
-                          ? "0 0 8px rgba(255,100,0,0.8), 0 0 15px rgba(255,50,0,0.6)"
-                          : undefined
+                          ? "0 0 6px rgba(255,120,0,0.9), 0 0 12px rgba(255,60,0,0.7), 0 0 18px rgba(255,0,0,0.5)"
+                          : undefined,
+                      color: cell.special === "multiplier" ? "#fff" : undefined,
+                      fontWeight: cell.special === "multiplier" ? 900 : undefined,
+                      letterSpacing: cell.special === "multiplier" ? "-0.5px" : undefined,
                     }}
                   >
                     {SPECIAL_BLOCKS[cell.special]?.icon}
@@ -777,10 +795,19 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
           </div>
         )}
 
-        {/* Multiplier Indicator */}
+        {/* Multiplier Indicator - Polished */}
         {activeMultiplier > 1 && !gameOver && (
-          <div className="absolute top-4 right-4 bg-gradient-to-r from-yellow-500 to-amber-500 px-3 py-1 rounded-full shadow-lg z-20">
-            <p className="text-white font-bold text-sm">{activeMultiplier}x</p>
+          <div
+            className="absolute top-4 right-4 px-4 py-1.5 rounded-full shadow-xl z-20 animate-pulse"
+            style={{
+              background: "linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ffd700 100%)",
+              boxShadow: "0 0 20px rgba(255,215,0,0.8), 0 0 40px rgba(255,140,0,0.5), inset 0 2px 4px rgba(255,255,255,0.5)",
+              border: "2px solid rgba(255,255,255,0.6)"
+            }}
+          >
+            <p className="text-white font-black text-base tracking-tight" style={{ textShadow: "0 0 10px rgba(0,0,0,0.5), 1px 1px 2px rgba(0,0,0,0.8)" }}>
+              {activeMultiplier}x ACTIVE
+            </p>
           </div>
         )}
 
@@ -867,24 +894,27 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
         {/* Special Blocks Legend */}
         <Card className="p-3 bg-gray-900 border-gray-700">
           <p className="text-gray-400 text-xs mb-2 font-medium">Special Blocks</p>
-          <div className="space-y-2 text-xs">
+          <div className="space-y-2.5 text-xs">
             <div className="flex items-center gap-2">
-              <div 
-                className="w-6 h-6 rounded-full flex items-center justify-center text-sm"
-                style={{ 
-                  background: "radial-gradient(circle at 30% 30%, #4a4a4a 0%, #1f1f1f 50%, #0a0a0a 100%)",
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-base flex-shrink-0"
+                style={{
+                  background: "radial-gradient(circle at 35% 35%, #5a5a5a 0%, #2d2d2d 40%, #1a1a1a 70%, #0a0a0a 100%)",
                   border: "2px solid #ff4500",
-                  boxShadow: "0 0 8px rgba(255,100,0,0.5)"
+                  boxShadow: "0 0 10px rgba(255,80,0,0.6), inset 0 -3px 6px rgba(0,0,0,0.8)"
                 }}
               >
                 💣
               </div>
-              <span className="text-gray-400">Bomb - Explodes 3x3 area</span>
+              <div className="flex flex-col">
+                <span className="text-gray-300 font-medium">Bomb</span>
+                <span className="text-gray-500 text-[10px]">5x5 explosion</span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <div 
-                className="w-6 h-6 rounded flex items-center justify-center text-sm animate-spin-slow"
-                style={{ 
+              <div
+                className="w-7 h-7 rounded flex items-center justify-center text-base animate-spin-slow flex-shrink-0"
+                style={{
                   background: "linear-gradient(45deg, #ef4444, #eab308, #22c55e, #3b82f6)",
                   border: "2px solid rgba(255,255,255,0.6)",
                   boxShadow: "0 0 10px rgba(255,100,100,0.5)"
@@ -892,21 +922,27 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
               >
                 🌈
               </div>
-              <span className="text-gray-400">Rainbow - Matches any</span>
+              <div className="flex flex-col">
+                <span className="text-gray-300 font-medium">Rainbow</span>
+                <span className="text-gray-500 text-[10px]">Matches any color</span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
-              <div 
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-[9px] font-black text-white"
-                style={{ 
-                  background: "linear-gradient(135deg, #ffd700 0%, #ff8c00 50%, #ffd700 100%)",
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white flex-shrink-0"
+                style={{
+                  background: "linear-gradient(135deg, #ffd700 0%, #ffb347 30%, #ffd700 60%, #ff8c00 100%)",
                   border: "2px solid #ffd700",
-                  boxShadow: "0 0 12px rgba(255,215,0,0.6)",
-                  textShadow: "0 0 5px rgba(255,255,255,0.8)"
+                  boxShadow: "0 0 12px rgba(255,215,0,0.7), inset 0 2px 4px rgba(255,255,255,0.5)",
+                  textShadow: "0 0 6px rgba(255,255,255,0.8), 1px 1px 2px rgba(0,0,0,0.5)"
                 }}
               >
-                2X
+                ×2
               </div>
-              <span className="text-gray-400">Multiplier - 2x points</span>
+              <div className="flex flex-col">
+                <span className="text-gray-300 font-medium">Multiplier</span>
+                <span className="text-gray-500 text-[10px]">2x pts + cross clear</span>
+              </div>
             </div>
           </div>
         </Card>

@@ -9,13 +9,14 @@ const CANVAS_WIDTH = 280
 const CANVAS_HEIGHT = 400
 const BIRD_SIZE = 24
 const PIPE_WIDTH = 45
-const PIPE_GAP = 140 // Slightly larger gap for smoother gameplay
-const GRAVITY = 0.22 // Much lower gravity for ultra-smooth floaty feel
-const JUMP_STRENGTH = -5.2 // Gentler jump for precise control
-const PIPE_SPEED = 1.8 // Slower pipes for better playability
-const MAX_VELOCITY = 6 // Lower cap for smoother falling
+const PIPE_GAP = 135 // Balanced gap
+const GRAVITY = 0.35 // Smooth gravity - feels natural
+const JUMP_STRENGTH = -6.5 // Responsive jump
+const PIPE_SPEED = 2.2 // Good pace
+const MAX_VELOCITY = 8 // Natural falling speed
 const TARGET_FPS = 60
 const FRAME_TIME = 1000 / TARGET_FPS
+const PHYSICS_STEP = 1 / 60 // Fixed physics timestep for consistent behavior
 
 // Coin types with different point values
 const COIN_TYPES = {
@@ -122,11 +123,14 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
 
     if (!gameStartedRef.current) {
       setGameStarted(true)
+      // Reset timing on game start for clean physics
+      lastFrameTimeRef.current = 0
+      accumulatedTimeRef.current = 0
     }
 
-    // Smoother jump - reset velocity to jump strength for consistent feel
+    // Immediate responsive jump - directly set velocity for crisp control
+    velocityRef.current = JUMP_STRENGTH
     setBirdVelocity(JUMP_STRENGTH)
-    velocityRef.current = JUMP_STRENGTH // Update ref immediately for smooth rendering
     setMoves(m => m + 1)
   }, [])
 
@@ -194,35 +198,53 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     const currentPipeSpeed = PIPE_SPEED + (difficultyRef.current - 1) * 0.25
     const currentPipeGap = Math.max(110, PIPE_GAP - difficultyRef.current * 2)
 
+    // Pre-create cached gradients for performance
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT)
+    bgGradient.addColorStop(0, "#87CEEB")
+    bgGradient.addColorStop(1, "#98D8E8")
+
     const gameLoop = (timestamp: number) => {
       if (gameOverRef.current) return
 
-      // Frame timing for consistent 60fps physics
+      // Initialize timing on first frame
       if (lastFrameTimeRef.current === 0) {
         lastFrameTimeRef.current = timestamp
+        accumulatedTimeRef.current = 0
       }
-      const deltaTime = timestamp - lastFrameTimeRef.current
+
+      // Calculate delta time and cap it to prevent spiral of death
+      const rawDelta = timestamp - lastFrameTimeRef.current
+      const deltaTime = Math.min(rawDelta, 50) // Cap at 50ms (20fps min) to prevent huge jumps
       lastFrameTimeRef.current = timestamp
       accumulatedTimeRef.current += deltaTime
 
-      // Only update physics at fixed intervals for smoothness
-      while (accumulatedTimeRef.current >= FRAME_TIME) {
+      // Fixed timestep physics update for consistent behavior
+      let physicsUpdates = 0
+      const maxUpdates = 4 // Prevent too many updates on lag
+
+      while (accumulatedTimeRef.current >= FRAME_TIME && physicsUpdates < maxUpdates) {
         accumulatedTimeRef.current -= FRAME_TIME
         frameCountRef.current++
+        physicsUpdates++
       }
-      
+
+      // Clear excess accumulated time to prevent spiral of death
+      if (accumulatedTimeRef.current > FRAME_TIME * 2) {
+        accumulatedTimeRef.current = 0
+      }
+
       const frameCount = frameCountRef.current
 
-      // Update physics with smooth interpolation
+      // Smooth physics with interpolation factor
+      const alpha = Math.min(accumulatedTimeRef.current / FRAME_TIME, 1)
+
+      // Apply gravity with fixed timestep for consistency
       const currentGravity = powerUpRef.current === "slow" ? GRAVITY * 0.5 : GRAVITY
-      // Apply gravity smoothly with delta time consideration
-      const gravityStep = currentGravity * Math.min(deltaTime / 16.67, 2) // Cap to prevent jumps on lag
-      const rawVelocity = velocityRef.current + gravityStep
-      const newVelocity = Math.min(rawVelocity, MAX_VELOCITY) // Smooth velocity cap
-      
-      // Smooth position update with interpolation
-      const positionDelta = newVelocity * Math.min(deltaTime / 16.67, 2)
-      const newBirdY = Math.min(Math.max(birdYRef.current + positionDelta, 0), CANVAS_HEIGHT - BIRD_SIZE - 20)
+      const newVelocity = Math.min(velocityRef.current + currentGravity, MAX_VELOCITY)
+
+      // Interpolated position for smooth rendering
+      const basePosition = birdYRef.current + newVelocity
+      const newBirdY = Math.min(Math.max(basePosition, 0), CANVAS_HEIGHT - BIRD_SIZE - 20)
 
       setBirdVelocity(newVelocity)
       velocityRef.current = newVelocity // Update ref immediately
@@ -261,11 +283,13 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         }])
       }
 
-      // Update pipes - separate collision detection from state updates to avoid race conditions
+      // Update pipes with smooth movement
       const birdLeft = 50
       const birdRight = 50 + BIRD_SIZE
       const birdTop = newBirdY
       const birdBottom = newBirdY + BIRD_SIZE
+      const birdCenterX = 50 + BIRD_SIZE / 2
+      const birdCenterY = newBirdY + BIRD_SIZE / 2
 
       setPipes(prev => {
         let gameEnded = false
@@ -275,6 +299,7 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
         let newComboValue = comboRef.current
 
         const newPipes = prev.map(pipe => {
+          // Smooth pipe movement - consistent speed regardless of frame rate
           const newX = pipe.x - currentPipeSpeed
           const updatedPipe = { ...pipe, x: newX }
 
@@ -300,8 +325,8 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
             if (pipe.hasCoin && !pipe.coinCollected) {
               const coinY = pipe.topHeight + currentPipeGap / 2
               const coinX = newX + PIPE_WIDTH / 2
-              const dist = Math.sqrt(Math.pow(birdLeft + BIRD_SIZE / 2 - coinX, 2) + Math.pow(birdTop + BIRD_SIZE / 2 - coinY, 2))
-              if (dist < BIRD_SIZE) {
+              const dist = Math.sqrt(Math.pow(birdCenterX - coinX, 2) + Math.pow(birdCenterY - coinY, 2))
+              if (dist < BIRD_SIZE * 0.9) { // Slightly more forgiving coin collection
                 updatedPipe.coinCollected = true
                 coinsToAdd++
                 const coinPoints = COIN_TYPES[pipe.coinType || "bronze"].points
@@ -385,11 +410,8 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
     }
 
     const drawGame = (ctx: CanvasRenderingContext2D, birdYPos: number, velocity: number, currentPipes: Pipe[], pipeGap: number, frameCount: number) => {
-      // Background
-      const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT)
-      gradient.addColorStop(0, "#87CEEB")
-      gradient.addColorStop(1, "#98D8E8")
-      ctx.fillStyle = gradient
+      // Background - use cached gradient for performance
+      ctx.fillStyle = bgGradient
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
 
       // Draw clouds
@@ -460,10 +482,11 @@ export function FlappyGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       ctx.ellipse(0, 0, BIRD_SIZE / 2, BIRD_SIZE / 2.5, 0, 0, Math.PI * 2)
       ctx.fill()
 
-      // Wing
+      // Wing with flap animation - faster when going up
+      const wingFlap = Math.sin(frameCount * (velocity < 0 ? 0.5 : 0.15)) * 3
       ctx.fillStyle = powerUpRef.current === "shield" ? "#3b82f6" : "#f59e0b"
       ctx.beginPath()
-      ctx.ellipse(-2, 4, 8, 5, -0.3, 0, Math.PI * 2)
+      ctx.ellipse(-2, 4 + wingFlap, 8, 5, -0.3 + wingFlap * 0.05, 0, Math.PI * 2)
       ctx.fill()
 
       // Eye
