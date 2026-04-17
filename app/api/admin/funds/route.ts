@@ -187,15 +187,15 @@ export async function GET(request: Request) {
       const limit = Math.min(Number(searchParams.get("limit")) || 50, 100)
       const offset = Number(searchParams.get("offset")) || 0
 
-      // Try with all columns first, fall back to basic columns if ad_balance_usd doesn't exist
+      // Note: email column is in auth.users, not profiles. Only search on profile columns.
       let query = adminSupabase
         .from("profiles")
-        .select("id, username, email, display_name, balance_satoshis, ad_balance_usd, role, created_at")
+        .select("id, username, display_name, balance_satoshis, ad_balance_usd, role, created_at")
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1)
 
       if (search) {
-        query = query.or(`username.ilike.%${search}%,email.ilike.%${search}%,display_name.ilike.%${search}%`)
+        query = query.or(`username.ilike.%${search}%,display_name.ilike.%${search}%`)
       }
 
       let { data: users, error } = await query
@@ -205,12 +205,12 @@ export async function GET(request: Request) {
         log.warn("ad_balance_usd column not found, fetching without it")
         let fallbackQuery = adminSupabase
           .from("profiles")
-          .select("id, username, email, display_name, balance_satoshis, role, created_at")
+          .select("id, username, display_name, balance_satoshis, role, created_at")
           .order("created_at", { ascending: false })
           .range(offset, offset + limit - 1)
 
         if (search) {
-          fallbackQuery = fallbackQuery.or(`username.ilike.%${search}%,email.ilike.%${search}%,display_name.ilike.%${search}%`)
+          fallbackQuery = fallbackQuery.or(`username.ilike.%${search}%,display_name.ilike.%${search}%`)
         }
 
         const fallbackResult = await fallbackQuery
@@ -227,6 +227,18 @@ export async function GET(request: Request) {
         }, { status: 500 })
       }
 
+      // Fetch emails from auth.users to enrich user data
+      if (users && users.length > 0) {
+        const userIds = users.map(u => u.id)
+        const { data: authUsers } = await adminSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
+        const emailMap = new Map(
+          (authUsers?.users || [])
+            .filter(u => userIds.includes(u.id))
+            .map(u => [u.id, u.email])
+        )
+        users = users.map(u => ({ ...u, email: emailMap.get(u.id) || null }))
+      }
+
       return NextResponse.json({ users: users || [] })
     }
 
@@ -236,7 +248,7 @@ export async function GET(request: Request) {
         .from("booster_purchases")
         .select(`
           *,
-          profiles!booster_purchases_user_id_fkey (username, email, display_name),
+          profiles!booster_purchases_user_id_fkey (username, display_name),
           booster_tiers!booster_purchases_booster_tier_id_fkey (name, duration_days)
         `)
         .eq("payment_status", "pending")
@@ -252,7 +264,7 @@ export async function GET(request: Request) {
         .from("booster_purchases")
         .select(`
           *,
-          profiles!booster_purchases_user_id_fkey (username, email, display_name),
+          profiles!booster_purchases_user_id_fkey (username, display_name),
           booster_tiers!booster_purchases_booster_tier_id_fkey (name, duration_days)
         `)
         .eq("payment_status", "completed")
@@ -268,7 +280,7 @@ export async function GET(request: Request) {
         .from("ccpayment_deposits")
         .select(`
           *,
-          profiles!ccpayment_deposits_user_id_fkey (username, email, display_name)
+          profiles!ccpayment_deposits_user_id_fkey (username, display_name)
         `)
         .order("created_at", { ascending: false })
         .limit(100)
