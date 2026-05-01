@@ -267,10 +267,13 @@ function PurchaseDialog({
   userBalance: number
   pendingPayment?: {
     orderId: string
-    paymentAddress: string
+    paymentMethod?: string
+    paymentAddress?: string
+    paymentUrl?: string
     amountUsd: number
-    amountBtc: string
+    amountBtc?: string
     expiresAt: string
+    instructions?: string[]
   } | null
   onCancelPendingPayment?: () => void
 }) {
@@ -313,22 +316,63 @@ function PurchaseDialog({
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
               <p className="text-sm text-muted-foreground mb-1">Amount to send</p>
               <p className="text-2xl font-bold text-amber-500">${pendingPayment.amountUsd}</p>
-              <p className="text-sm text-muted-foreground">({pendingPayment.amountBtc} BTC)</p>
+              {pendingPayment.amountBtc && (
+                <p className="text-sm text-muted-foreground">({pendingPayment.amountBtc} BTC)</p>
+              )}
             </div>
 
-            {/* Payment address */}
+            {/* Hosted checkout URL */}
+            {pendingPayment.paymentUrl && (
+              <div className="space-y-2">
+                <Button
+                  className="w-full bg-amber-600 hover:bg-amber-700"
+                  size="lg"
+                  asChild
+                >
+                  <a href={pendingPayment.paymentUrl} target="_blank" rel="noopener noreferrer">
+                    Open Payment Checkout
+                  </a>
+                </Button>
+                <p className="text-xs text-center text-muted-foreground">
+                  Opens in a new tab - complete the payment there
+                </p>
+              </div>
+            )}
+
+            {/* Payment address (for direct wallet transfer) */}
+            {pendingPayment.paymentAddress && (
+              <div className="space-y-2">
+                <Label>BTC Payment Address</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={pendingPayment.paymentAddress}
+                    readOnly
+                    className="font-mono text-xs"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => copyToClipboard(pendingPayment.paymentAddress!)}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Order ID reference */}
             <div className="space-y-2">
-              <Label>Payment Address</Label>
+              <Label>Order Reference</Label>
               <div className="flex gap-2">
                 <Input
-                  value={pendingPayment.paymentAddress}
+                  value={pendingPayment.orderId}
                   readOnly
                   className="font-mono text-xs"
                 />
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => copyToClipboard(pendingPayment.paymentAddress)}
+                  onClick={() => copyToClipboard(pendingPayment.orderId)}
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
@@ -345,12 +389,19 @@ function PurchaseDialog({
             </Alert>
 
             {/* Instructions */}
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>1. Copy the payment address above</p>
-              <p>2. Send exactly ${pendingPayment.amountUsd} in BTC/crypto</p>
-              <p>3. Wait for blockchain confirmation (10-30 min)</p>
-              <p>4. Your booster activates automatically</p>
-            </div>
+            {pendingPayment.instructions && pendingPayment.instructions.length > 0 ? (
+              <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+                {pendingPayment.instructions.map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
+              </ol>
+            ) : (
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>1. Send exactly ${pendingPayment.amountUsd} in crypto</p>
+                <p>2. Wait for blockchain confirmation (10-30 min)</p>
+                <p>3. Your booster activates automatically</p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -520,10 +571,13 @@ export function BoostersContent({ userId }: BoostersContentProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [pendingPayment, setPendingPayment] = useState<{
     orderId: string
-    paymentAddress: string
+    paymentMethod?: string
+    paymentAddress?: string
+    paymentUrl?: string
     amountUsd: number
-    amountBtc: string
+    amountBtc?: string
     expiresAt: string
+    instructions?: string[]
   } | null>(null)
 
   const { data, isLoading, error, mutate } = useSWR(
@@ -576,16 +630,19 @@ export function BoostersContent({ userId }: BoostersContentProps) {
           setDialogOpen(false)
           setSelectedTier(null)
         } else {
-          // Crypto payment - show payment address
+          // Crypto payment - show payment instructions / hosted checkout / address
           setPendingPayment({
             orderId: result.orderId,
+            paymentMethod: result.paymentMethod,
             paymentAddress: result.paymentAddress,
+            paymentUrl: result.paymentUrl,
             amountUsd: result.amountUsd,
             amountBtc: result.amountBtc,
-            expiresAt: result.expiresAt
+            expiresAt: result.expiresAt,
+            instructions: result.instructions,
           })
-          toast.info("Payment address generated", {
-            description: "Send the exact amount to complete your purchase"
+          toast.info("Payment created", {
+            description: result.message || "Complete the payment to activate your booster",
           })
         }
       } else {

@@ -267,67 +267,69 @@ import { runAllInvisibleProbes, type InvisibleProbeResult } from "../adblock/inv
 // =============================================================================
 
 const CONFIG = {
-  // ===== TIMING CONFIGURATION (optimized for speed + accuracy) =====
+  // ===== TIMING CONFIGURATION (v9.0 - aggressive detection) =====
   /** Initial delay before first detection (ms) - allows page to fully load */
-  INITIAL_DELAY_MS: 5000, // Faster initial check (v6.0)
+  INITIAL_DELAY_MS: 2500, // v9.0 - faster first check (was 5000)
   /** Interval between detection cycles (ms) */
-  CHECK_INTERVAL_MS: 4000, // More frequent checks (v6.0)
+  CHECK_INTERVAL_MS: 3000, // v9.0 - more frequent checks (was 4000)
   /** Time to wait for bait elements to be hidden (ms) */
-  BAIT_ELEMENT_WAIT_MS: 450, // Faster detection (v6.0)
+  BAIT_ELEMENT_WAIT_MS: 600, // v9.0 - more time for AdGuard / DNS blockers to apply rules
   /** Extended wait for slower adblockers (ms) */
-  BAIT_ELEMENT_EXTENDED_WAIT_MS: 700,
+  BAIT_ELEMENT_EXTENDED_WAIT_MS: 1100, // v9.0 - more time for cosmetic filters
   /** Network request timeout (ms) */
-  NETWORK_TIMEOUT_MS: 4500, // Slightly faster (v6.0)
+  NETWORK_TIMEOUT_MS: 4500,
   /** Delay before recheck after user requests (ms) */
-  RECHECK_DELAY_MS: 2500, // Faster recheck (v6.0)
+  RECHECK_DELAY_MS: 2500,
   /** Grace period after user disables adblocker (ms) */
   GRACE_PERIOD_MS: 60000,
   /** Overall detection timeout (ms) */
-  DETECTION_TIMEOUT_MS: 7000, // Faster timeout (v6.0)
+  DETECTION_TIMEOUT_MS: 8000, // v9.0 - allow more time for full sweep
   /** Number of samples needed for baseline calibration */
-  BASELINE_SAMPLES_NEEDED: 6, // More samples for accuracy (v6.0)
+  BASELINE_SAMPLES_NEEDED: 6,
   /** Timeout for baseline calibration requests (ms) */
   BASELINE_TIMEOUT_MS: 5000,
   /** Number of canvas test iterations for farbling detection */
-  CANVAS_TEST_ITERATIONS: 6, // More iterations (v6.0)
+  CANVAS_TEST_ITERATIONS: 6,
   /** Number of audio test iterations for fingerprint detection */
-  AUDIO_TEST_ITERATIONS: 4, // More iterations (v6.0)
+  AUDIO_TEST_ITERATIONS: 4,
   /** WebRTC connection timeout (ms) */
   WEBRTC_TIMEOUT_MS: 4500,
 
-  // ===== v8.0 DETECTION THRESHOLDS - ZERO FALSE POSITIVES =====
-  /** Minimum number of detection methods required (increased for stronger evidence) */
-  MIN_METHODS_REQUIRED: 5, // Up from 4 (v8.0 - stricter)
-  /** Minimum number of different categories required (stricter corroboration) */
-  MIN_CATEGORIES_REQUIRED: 3, // Requires 3 different categories
+  // ===== v9.0 DETECTION THRESHOLDS - MAXIMUM POWER =====
+  // Tuned to detect aggressive blockers like AdGuard, AdGuard Home, AdBlocker Ultimate,
+  // Pi-hole, NextDNS while keeping zero false positives via control elements.
+  /** Minimum number of detection methods required */
+  MIN_METHODS_REQUIRED: 3, // v9.0 - reduced (control elements still guarantee zero FP)
+  /** Minimum number of different categories required */
+  MIN_CATEGORIES_REQUIRED: 2, // v9.0 - reduced (corroboration still required)
   /** Minimum weighted confidence threshold (%) */
-  MIN_CONFIDENCE_THRESHOLD: 65, // Up from 55 (v8.0 - higher bar)
-  /** Minimum consecutive detection cycles (more cycles = fewer FP) */
-  MIN_CONSECUTIVE_DETECTIONS: 4, // Up from 2 (v8.0 - critical for FP reduction)
+  MIN_CONFIDENCE_THRESHOLD: 55, // v9.0 - reduced (with strong bait, high signals suffice)
+  /** Minimum consecutive detection cycles */
+  MIN_CONSECUTIVE_DETECTIONS: 2, // v9.0 - faster lockout for persistent blockers
   /** Minimum number of high-weight methods required */
-  MIN_HIGH_WEIGHT_METHODS: 2, // Requires 2 high-weight signals
+  MIN_HIGH_WEIGHT_METHODS: 1, // v9.0 - one strong signal is sufficient when controls are visible
   /** Minimum Bayesian probability required */
-  MIN_BAYESIAN_PROBABILITY: 0.75, // Up from 0.65 (v8.0 - stricter)
+  MIN_BAYESIAN_PROBABILITY: 0.65, // v9.0 - reduced
   /** Weight threshold for "high weight" methods */
-  HIGH_WEIGHT_THRESHOLD: 80, // Up from 75 (v8.0 - stricter)
+  HIGH_WEIGHT_THRESHOLD: 75, // v9.0 - reduced
 
-  // ===== v8.0 BAIT TEST THRESHOLDS (stricter to reduce FP) =====
+  // ===== v9.0 BAIT TEST THRESHOLDS (more sensitive) =====
   /** Minimum ratio of blocked bait images for detection */
-  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.35, // Stricter (v8.0 - need more blocked)
+  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.20, // v9.0 - 20% of images blocked is suspicious
   /** Minimum ratio of hidden bait elements for detection */
-  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.25, // Stricter (v8.0 - need more hidden)
+  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.15, // v9.0 - AdGuard typically hides 15%+ of generic ad classes
   /** Minimum ratio of blocked fetch requests for detection */
-  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.30, // Stricter (v8.0)
+  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.20,
   /** Minimum ratio of blocked DNS requests for detection */
-  MIN_DNS_BLOCKED_RATIO: 0.40, // Stricter (v8.0)
+  MIN_DNS_BLOCKED_RATIO: 0.25,
 
   // ===== CONTROL TEST CONFIGURATION (critical for zero FP) =====
   /** Minimum number of baits that must be hidden for detection */
-  MIN_BAIT_HIDDEN_FOR_DETECTION: 4, // Up from 3 (v8.0 - stronger evidence required)
+  MIN_BAIT_HIDDEN_FOR_DETECTION: 2, // v9.0 - 2+ hidden baits with control visible = adblocker
   /** Whether control element must be visible (CRITICAL - never disable) */
   CONTROL_MUST_BE_VISIBLE: true,
   /** Number of control elements to use (more controls = better FP protection) */
-  CONTROL_ELEMENT_COUNT: 4, // Up from 3 (v8.0 - more control validation)
+  CONTROL_ELEMENT_COUNT: 4,
 
   // ===== RETRY CONFIGURATION =====
   /** Maximum retries per detection method */
@@ -349,21 +351,21 @@ const CONFIG = {
   /** v6.0 NEW: Weight for behavioral analysis method */
   BEHAVIORAL_ANALYSIS_WEIGHT: 22,
 
-  // ===== v8.0 STATISTICAL THRESHOLDS (stricter for zero FP) =====
+  // ===== v9.0 STATISTICAL THRESHOLDS (more sensitive for aggressive blockers) =====
   /** Maximum coefficient of variation for timing analysis */
-  TIMING_MAX_CV: 0.05, // Stricter (v8.0 - lower variance required)
+  TIMING_MAX_CV: 0.08, // v9.0 - more permissive (network jitter shouldn't suppress detection)
   /** Minimum entropy for timing analysis */
-  TIMING_MIN_ENTROPY: 2.8, // Higher (v8.0 - more entropy required)
+  TIMING_MIN_ENTROPY: 2.4, // v9.0 - lower bar
   /** Minimum memory delta for extension detection (bytes) */
-  MEMORY_MIN_DELTA: 8 * 1024 * 1024, // Higher threshold (v8.0 - 8MB to reduce FP)
+  MEMORY_MIN_DELTA: 4 * 1024 * 1024, // v9.0 - 4MB (modern lightweight blockers)
   /** Cross-session probability threshold for immediate flagging */
-  CROSS_SESSION_PROBABILITY_THRESHOLD: 0.75, // Stricter (v8.0 - higher threshold)
+  CROSS_SESSION_PROBABILITY_THRESHOLD: 0.6, // v9.0 - lower
   /** Minimum confidence for entropy correlation */
-  ENTROPY_MIN_CONFIDENCE: 55, // Stricter (v8.0 - higher confidence required)
+  ENTROPY_MIN_CONFIDENCE: 45, // v9.0 - lower bar
   /** Minimum blocked routes for rotating route detection */
-  ROTATING_ROUTE_MIN_BLOCKED: 6, // Stricter (v8.0 - need more blocked)
-  /** v8.0: Minimum blocked honeypot probes for server detection */
-  MIN_SERVER_HONEYPOT_BLOCKED: 7, // Stricter (v8.0)
+  ROTATING_ROUTE_MIN_BLOCKED: 3, // v9.0 - 3+ blocked rotating routes is high signal
+  /** v9.0: Minimum blocked honeypot probes for server detection */
+  MIN_SERVER_HONEYPOT_BLOCKED: 4, // v9.0
 } as const
 
 // =============================================================================
@@ -772,7 +774,15 @@ const CONTROL_CLASSES = [
 
 /**
  * Classes for bait elements that ARE targeted by adblockers.
- * These mimic real ad container classes.
+ * These mimic real ad container classes that filter lists target.
+ *
+ * Sources covered (v9.0):
+ *  - EasyList / EasyPrivacy (uBlock, AdBlock, AdBlock Plus)
+ *  - AdGuard Base + AdGuard English + AdGuard Annoyances filter lists
+ *  - Adblocker Ultimate (uses combined EasyList + AdGuard rules)
+ *  - Brave built-in shields filters
+ *  - Pi-hole / AdGuard Home / NextDNS hostfile-based blockers
+ *  - Stealth-mode filter lists (AdGuard's "anti-circumvention")
  */
 const BAIT_CLASSES = [
   // Core ad classes - blocked by ALL adblockers
@@ -816,13 +826,101 @@ const BAIT_CLASSES = [
   "pub_300x250",
   "pub_300x250m",
   "pub_728x90",
-  // Classes targeted by Brave's built-in filter
+  // Brave built-in filter
   "ad-slot",
   "ad-zone",
   "ad-frame",
   "adfox-banner",
   "amp-ad",
   "amp-sticky-ad",
+  // ===== v9.0 ADDITIONS =====
+  // AdGuard English / Base list cosmetic filters (very aggressive)
+  "ad-leaderboard",
+  "ad-billboard",
+  "ad-skyscraper",
+  "ad-rectangle",
+  "ad-medium-rectangle",
+  "ad-large-rectangle",
+  "ad-300x600",
+  "ad-160x600",
+  "ad-728x90",
+  "ad-468x60",
+  "ad-320x50",
+  "ad-970x250",
+  "ad-300x100",
+  "ad-300x600",
+  "googleads",
+  "google-ads",
+  "google_ads",
+  "google_ad",
+  "ads-container",
+  "ads_container",
+  "ads-wrapper",
+  "ads_wrapper",
+  "ad-content",
+  "ad_content",
+  "ads-content",
+  "advert-container",
+  "advert_container",
+  "advert-wrapper",
+  "advertorial",
+  "promoted-content",
+  "promoted_content",
+  "promo-banner",
+  "promo_banner",
+  "house-ad",
+  "house_ad",
+  // Adblocker Ultimate / EasyList common cosmetic filter targets
+  "ad-medrec",
+  "ad-mpu",
+  "ad-skin",
+  "ad-takeover",
+  "ad-interstitial",
+  "interstitial-ad",
+  "popup-ad",
+  "popunder",
+  "ad-popunder",
+  "ad-overlay",
+  "overlay-ad",
+  "video-ad",
+  "preroll-ad",
+  "midroll-ad",
+  "postroll-ad",
+  // Native + sponsored content (Adblocker Ultimate, AdGuard)
+  "native-ad",
+  "native_ad",
+  "sponsored-link",
+  "sponsored_link",
+  "sponsored-listing",
+  "partner-content",
+  "branded-content",
+  "promoted-tweet",
+  "promoted-pin",
+  // Additional generic patterns
+  "advertise",
+  "advertorial-content",
+  "native-advert",
+  "ad__banner",
+  "ad__container",
+  "ad__wrapper",
+  "ad__slot",
+  "AdSlot",
+  "AdContainer",
+  "AdBanner",
+  "AdWrapper",
+  // AdGuard / Adblocker Ultimate hide-by-attribute patterns
+  "ezoic-ad",
+  "ezoic-pub-ad-placeholder",
+  "mediavine-ad",
+  "playwire-ad",
+  "vox-ad",
+  "carbon-ad",
+  "carbonads",
+  "buysellads",
+  "bsa-ad",
+  "ad-recommended",
+  "recommended-ads",
+  "recommended-articles-ad",
 ]
 
 // =============================================================================
@@ -1074,8 +1172,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         "width:10px!important;height:10px!important;display:block!important;visibility:visible!important;opacity:1!important;position:relative!important;"
       control.innerHTML = "<span>.</span>"
 
-      // BAIT ELEMENTS - These ARE targeted by adblockers
+      // BAIT ELEMENTS - These ARE targeted by adblockers (v9.0 - expanded for AdGuard, Adblocker Ultimate)
       const baitConfigs = [
+        // EasyList / uBlock / AdBlock Plus universal targets
         { className: "adsbox", id: "adsbox" },
         { className: "ad-banner ad-placement", id: "ad-banner-container" },
         { className: "adsbygoogle", id: "google-ad-slot-1" },
@@ -1091,6 +1190,38 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         { className: "outbrain-widget outbrain-container", id: "outbrain-widget-1" },
         { className: "commercial-unit sponsored-links", id: "commercial-unit-top" },
         { className: "ad-slot ad_slot", id: "ad-slot-sidebar" },
+        // ===== v9.0 - AdGuard / Adblocker Ultimate specific targets =====
+        // AdGuard cosmetic filters target these IDs aggressively
+        { className: "advertisement advert", id: "ad" },
+        { className: "advertising adv", id: "ads" },
+        { className: "ad", id: "advertisement" },
+        { className: "ad", id: "advertising" },
+        { className: "ad-leaderboard", id: "leaderboard-ad" },
+        { className: "ad-rectangle pub_300x250", id: "div-gpt-ad-300x250" },
+        { className: "ad-skyscraper", id: "skyscraper-ad" },
+        { className: "ad-banner pub_728x90", id: "div-gpt-ad-leaderboard" },
+        { className: "google_ads google-ads", id: "google_ads_iframe" },
+        { className: "ad-content ads-content", id: "main-ad-area" },
+        { className: "promo-banner promoted-content", id: "promoted-stories" },
+        { className: "ad__banner ad__container", id: "ad-bem-block" },
+        { className: "AdSlot AdContainer", id: "AdSlot_TopBanner" },
+        { className: "ezoic-ad ezoic-pub-ad-placeholder", id: "ezoic-pub-ad-placeholder-100" },
+        { className: "carbonads carbon-ad", id: "carbonads" },
+        { className: "buysellads bsa-ad", id: "bsap_aplus_default" },
+        { className: "mediavine-ad", id: "mv_slot_target" },
+        { className: "playwire-ad", id: "playwire_video_player" },
+        // Native ad containers (AdGuard "Annoyances" + Adblocker Ultimate)
+        { className: "native-ad sponsored-link", id: "native-ad-1" },
+        { className: "advertorial advertorial-content", id: "advertorial-block" },
+        { className: "branded-content partner-content", id: "branded-content-row" },
+        // ID-based cosmetic filters (very common in AdGuard rules)
+        { className: "anchor-ad", id: "sticky-ad-bottom" },
+        { className: "popunder ad-overlay", id: "popunder_ad" },
+        { className: "interstitial-ad", id: "interstitial" },
+        { className: "video-ad preroll-ad", id: "videoAdContainer" },
+        // Adblocker Ultimate aggressive id patterns
+        { className: "ad-recommended recommended-ads", id: "recommended-ads-block" },
+        { className: "house-ad house_ad", id: "house-ads-slot" },
       ]
 
       const baits: Array<{ name: string; el: HTMLElement }> = []

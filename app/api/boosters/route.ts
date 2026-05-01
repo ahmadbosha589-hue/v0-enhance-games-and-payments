@@ -206,15 +206,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid booster tier" }, { status: 400 })
     }
 
-    // Handle different payment methods
-    let paymentInfo: {
-      paymentUrl?: string
-      paymentAddress?: string
-      orderId: string
-      status: string
-      expiresAt?: string
-    }
-
     const orderId = `booster_${Date.now()}_${Math.random().toString(36).substring(7)}`
 
     switch (paymentMethod) {
@@ -319,18 +310,39 @@ export async function POST(request: Request) {
         })
       }
 
-      case "ccpayment":
-      case "cwallet":
-      case "wallet_connect": {
-        // Crypto payment - create pending order and redirect to payment
-        // In production, this would call CCPayment API to create order
-        const expiresAt = new Date()
-        expiresAt.setHours(expiresAt.getHours() + 1) // 1 hour to complete payment
+      case "ccpayment": {
+        // Real CCPayment integration - create hosted checkout URL
+        const ccAppId = process.env.CCPAYMENT_APP_ID
+        const ccAppSecret = process.env.CCPAYMENT_APP_SECRET
 
-        // Create pending purchase record
-        await adminSupabase
-          .from("booster_purchases")
-          .insert({
+        if (!ccAppId || !ccAppSecret) {
+          return NextResponse.json({
+            success: false,
+            error: "Payment provider not configured",
+            message: "Crypto payments are temporarily unavailable. Please contact support or use Pay with Satoshis.",
+          }, { status: 503 })
+        }
+
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 1)
+
+        try {
+          const { getCCPaymentClient } = await import("@/lib/ccpayment/client")
+          const cc = getCCPaymentClient()
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || ""
+          const order = await cc.createOrder({
+            productPrice: tierData.price_usd.toFixed(2),
+            currency: "USD",
+            merchantOrderId: orderId,
+            denominated: "USDT",
+            notifyUrl: appUrl ? `${appUrl}/api/webhooks/ccpayment` : undefined,
+            returnUrl: appUrl ? `${appUrl}/dashboard/boosters?order=${orderId}` : undefined,
+            productName: `${tierData.name} Booster (${tierData.duration_days} days)`,
+            orderValidPeriod: 3600,
+            customValue: JSON.stringify({ userId: user.id, tierId: tierData.id, kind: "booster" }),
+          })
+
+          await adminSupabase.from("booster_purchases").insert({
             user_id: user.id,
             booster_tier_id: tierData.id,
             payment_method: paymentMethod,
@@ -340,32 +352,134 @@ export async function POST(request: Request) {
             amount_satoshis: tierData.price_satoshis,
           })
 
-        // Generate mock payment address (in production, call CCPayment API)
-        const mockPaymentAddress = `bc1q${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`
-
-        paymentInfo = {
-          orderId,
-          status: "pending",
-          paymentAddress: mockPaymentAddress,
-          expiresAt: expiresAt.toISOString(),
+          return NextResponse.json({
+            success: true,
+            paymentCompleted: false,
+            orderId,
+            paymentMethod,
+            paymentUrl: (order as any).payUrl || (order as any).pay_url || (order as any).paymentUrl,
+            paymentAddress: order.payAddress,
+            amountUsd: tierData.price_usd,
+            expiresAt: expiresAt.toISOString(),
+            message: `Complete your $${tierData.price_usd} payment via CCPayment. Booster activates automatically after blockchain confirmation.`,
+            instructions: [
+              "Click the payment link to open CCPayment checkout",
+              "Choose your preferred cryptocurrency (BTC, ETH, USDT, and 50+ more)",
+              "Send the exact amount shown",
+              "Your booster will be activated automatically once confirmed",
+            ],
+          })
+        } catch (ccErr: any) {
+          console.error("CCPayment order creation failed:", ccErr)
+          return NextResponse.json({
+            success: false,
+            error: "Payment provider error",
+            message: ccErr?.message || "Could not create payment order. Please try again later.",
+          }, { status: 502 })
         }
+      }
+
+      case "cwallet": {
+        // CWallet integration - requires CWALLET_API_KEY for real processing.
+        const cwalletKey = process.env.CWALLET_API_KEY
+        if (!cwalletKey) {
+          return NextResponse.json({
+            success: false,
+            error: "Payment provider not configured",
+            message: "CWallet is temporarily unavailable. Please use CCPayment, Direct Wallet Transfer, or Pay with Satoshis.",
+          }, { status: 503 })
+        }
+
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 1)
+
+        await adminSupabase.from("booster_purchases").insert({
+          user_id: user.id,
+          booster_tier_id: tierData.id,
+          payment_method: paymentMethod,
+          payment_status: "pending",
+          payment_reference: orderId,
+          amount_usd: tierData.price_usd,
+          amount_satoshis: tierData.price_satoshis,
+        })
+
+        // CWallet hosted-checkout URL (uses public API key in URL)
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || ""
+        const cwalletUrl = `https://cwallet.com/checkout?merchant=${encodeURIComponent(cwalletKey)}&order=${encodeURIComponent(orderId)}&amount=${tierData.price_usd}&currency=USD&callback=${encodeURIComponent(appUrl + "/api/webhooks/cwallet")}`
 
         return NextResponse.json({
           success: true,
           paymentCompleted: false,
           orderId,
           paymentMethod,
-          paymentAddress: mockPaymentAddress,
+          paymentUrl: cwalletUrl,
           amountUsd: tierData.price_usd,
-          amountBtc: (tierData.price_usd / 60000).toFixed(8), // Approximate BTC conversion
           expiresAt: expiresAt.toISOString(),
-          message: `Send $${tierData.price_usd} in crypto to the address to complete your purchase. Payment expires in 1 hour.`,
+          message: `Complete your $${tierData.price_usd} payment via CWallet. Booster activates after confirmation.`,
           instructions: [
-            "1. Copy the payment address below",
-            "2. Send the exact amount shown",
-            "3. Wait for blockchain confirmation",
-            "4. Your booster will be activated automatically"
-          ]
+            "Click the payment link to open CWallet checkout",
+            "Sign in or create a CWallet account",
+            "Confirm the payment from your balance",
+            "Your booster will be activated automatically",
+          ],
+        })
+      }
+
+      case "wallet_connect": {
+        // Direct wallet transfer to platform's BTC address (requires admin-configured address).
+        const btcAddress =
+          process.env.BTC_DEPOSIT_ADDRESS ||
+          process.env.NEXT_PUBLIC_BTC_DEPOSIT_ADDRESS ||
+          ""
+
+        if (!btcAddress) {
+          return NextResponse.json({
+            success: false,
+            error: "Direct wallet transfer not configured",
+            message:
+              "The platform's BTC deposit address has not been configured yet. Please use Pay with Satoshis, CCPayment, or contact support.",
+          }, { status: 503 })
+        }
+
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 1)
+
+        await adminSupabase.from("booster_purchases").insert({
+          user_id: user.id,
+          booster_tier_id: tierData.id,
+          payment_method: paymentMethod,
+          payment_status: "pending",
+          payment_reference: orderId,
+          amount_usd: tierData.price_usd,
+          amount_satoshis: tierData.price_satoshis,
+        })
+
+        // Use a real-time BTC price for accuracy
+        let btcPrice = 65000
+        try {
+          const { getBTCPrice } = await import("@/lib/ccpayment/client")
+          btcPrice = await getBTCPrice()
+        } catch {}
+
+        const amountBtc = (tierData.price_usd / btcPrice).toFixed(8)
+
+        return NextResponse.json({
+          success: true,
+          paymentCompleted: false,
+          orderId,
+          paymentMethod,
+          paymentAddress: btcAddress,
+          amountUsd: tierData.price_usd,
+          amountBtc,
+          expiresAt: expiresAt.toISOString(),
+          message: `Send exactly ${amountBtc} BTC ($${tierData.price_usd}) to the address. Include the order ID in your reference if possible.`,
+          instructions: [
+            `Send exactly ${amountBtc} BTC to the address below`,
+            "Use any BTC wallet (Trust, MetaMask BTC, Phantom, hardware wallets, exchanges)",
+            `Reference / memo: ${orderId}`,
+            "After 1-3 confirmations, your booster will be auto-activated",
+            "Payment expires in 1 hour - keep this page open or note your order ID",
+          ],
         })
       }
 

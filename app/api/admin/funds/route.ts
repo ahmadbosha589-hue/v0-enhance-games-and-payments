@@ -227,16 +227,28 @@ export async function GET(request: Request) {
         }, { status: 500 })
       }
 
-      // Fetch emails from auth.users to enrich user data
+      // Fetch emails from auth.users to enrich user data (best-effort, never break the response)
       if (users && users.length > 0) {
-        const userIds = users.map(u => u.id)
-        const { data: authUsers } = await adminSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 })
-        const emailMap = new Map(
-          (authUsers?.users || [])
-            .filter(u => userIds.includes(u.id))
-            .map(u => [u.id, u.email])
-        )
-        users = users.map(u => ({ ...u, email: emailMap.get(u.id) || null }))
+        try {
+          const userIds = new Set(users.map(u => u.id))
+          const { data: authUsers, error: authErr } = await adminSupabase.auth.admin.listUsers({
+            page: 1,
+            perPage: 1000,
+          })
+          if (authErr) {
+            log.warn("Failed to enrich users with auth emails", { error: authErr.message })
+          }
+          const emailMap = new Map<string, string>()
+          ;(authUsers?.users || []).forEach((u) => {
+            if (u.id && userIds.has(u.id) && u.email) {
+              emailMap.set(u.id, u.email)
+            }
+          })
+          users = users.map((u) => ({ ...u, email: emailMap.get(u.id) || null }))
+        } catch (enrichErr) {
+          log.warn("Auth email enrichment threw", { error: String(enrichErr) })
+          users = users.map((u) => ({ ...u, email: null }))
+        }
       }
 
       return NextResponse.json({ users: users || [] })
