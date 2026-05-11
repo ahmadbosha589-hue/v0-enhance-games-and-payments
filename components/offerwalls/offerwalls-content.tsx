@@ -50,28 +50,54 @@ interface PlatformStats {
   active_offerwalls: number
 }
 
-// Offerwall logos and metadata
-const OFFERWALL_LOGOS: Record<string, { logo: string; type: "offerwall" | "survey" }> = {
-  cpx: { logo: "https://www.cpx-research.com/assets/images/logo-cpx-research.svg", type: "survey" },
-  "cpx-research": { logo: "https://www.cpx-research.com/assets/images/logo-cpx-research.svg", type: "survey" },
-  bitlabs: { logo: "https://bitlabs.ai/logo.png", type: "survey" },
-  pollfish: { logo: "https://www.pollfish.com/images/logo.svg", type: "survey" },
-  theoremreach: { logo: "https://theoremreach.com/images/logo.png", type: "survey" },
-  inbrain: { logo: "https://www.inbrain.ai/images/logo.svg", type: "survey" },
-  offertoro: { logo: "https://www.offertoro.com/images/logo.png", type: "offerwall" },
-  adgate: { logo: "https://adgatemedia.com/images/logo.png", type: "offerwall" },
-  adgem: { logo: "https://adgem.com/wp-content/uploads/2021/06/AdGem-Logo.png", type: "offerwall" },
-  lootably: { logo: "https://lootably.com/assets/images/logo.png", type: "offerwall" },
-  torox: { logo: "https://torox.io/images/logo.png", type: "offerwall" },
-  ayet: { logo: "https://www.ayetstudios.com/images/logo.png", type: "offerwall" },
-  timewall: { logo: "https://timewall.io/images/logo.png", type: "offerwall" },
-  wannads: { logo: "https://wannads.com/images/logo.png", type: "offerwall" },
-  monlix: { logo: "https://monlix.com/images/logo.png", type: "offerwall" },
-  notik: { logo: "https://notik.me/images/logo.png", type: "offerwall" },
-  revenue: { logo: "https://revenuewall.com/images/logo.png", type: "offerwall" },
-  mmwall: { logo: "https://mmwall.com/images/logo.png", type: "offerwall" },
-  kiwi: { logo: "https://kiwiwall.com/images/logo.png", type: "offerwall" },
-  hang: { logo: "https://hang.my/images/logo.png", type: "offerwall" },
+// Offerwall metadata — type classification only.
+// Logos are loaded from each provider's `logo` field returned by the API,
+// with a polished gradient-letter fallback rendered when missing/broken.
+const OFFERWALL_META: Record<string, { type: "offerwall" | "survey" }> = {
+  ccxua: { type: "offerwall" },
+  cpx: { type: "survey" },
+  "cpx-research": { type: "survey" },
+  bitlabs: { type: "survey" },
+  pollfish: { type: "survey" },
+  theoremreach: { type: "survey" },
+  inbrain: { type: "survey" },
+  offertoro: { type: "offerwall" },
+  adgate: { type: "offerwall" },
+  adgatemedia: { type: "offerwall" },
+  adgem: { type: "offerwall" },
+  lootably: { type: "offerwall" },
+  torox: { type: "offerwall" },
+  ayet: { type: "offerwall" },
+  "ayet-studios": { type: "offerwall" },
+  timewall: { type: "offerwall" },
+  wannads: { type: "offerwall" },
+  monlix: { type: "offerwall" },
+  notik: { type: "offerwall" },
+  revu: { type: "offerwall" },
+  revenue: { type: "offerwall" },
+  "mm-wall": { type: "offerwall" },
+  mmwall: { type: "offerwall" },
+  kiwi: { type: "offerwall" },
+  hang: { type: "offerwall" },
+  hangmyads: { type: "offerwall" },
+  "hang-my-ads": { type: "offerwall" },
+  "offerwall-me": { type: "offerwall" },
+  offerwallme: { type: "offerwall" },
+  bicotasks: { type: "offerwall" },
+  adscend: { type: "offerwall" },
+  cpalead: { type: "offerwall" },
+  minutestaff: { type: "offerwall" },
+}
+
+// Generate beautiful brand initials for fallback logo rendering
+function getBrandInitials(name: string): string {
+  // For dotted brands (e.g. "c.cx.ua"), keep the form
+  if (name.includes(".") && name.length <= 10) return name
+  const parts = name.split(/[\s\-_]+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }
+  return name.slice(0, 2).toUpperCase()
 }
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -149,6 +175,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
   const getOfferwallUrl = () => {
     return offerwall.url
       .replace("{user_id}", userId)
+      .replace("{ccxua_api_key}", process.env.NEXT_PUBLIC_CCXUA_API_KEY || "")
       .replace("{app_id}", process.env.NEXT_PUBLIC_CPX_APP_ID || "")
       .replace("{pub_id}", process.env.NEXT_PUBLIC_TOROX_PUB_ID || "")
       .replace("{wall_code}", process.env.NEXT_PUBLIC_ADGATE_WALL_CODE || "")
@@ -157,6 +184,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
       .replace("{api_key}", process.env.NEXT_PUBLIC_TIMEWALL_KEY || "")
       .replace("{adslot_id}", process.env.NEXT_PUBLIC_AYET_ADSLOT || "")
       .replace("{player_id}", process.env.NEXT_PUBLIC_ADGEM_PLAYER_ID || "")
+      .replace("{gateway_id}", process.env.NEXT_PUBLIC_CPALEAD_GATEWAY || "")
   }
 
   const totalPaid = offerwall.stats?.total_paid || 0
@@ -165,10 +193,15 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
   const isPopular = totalPaid > 50000 || completions > 100
   const isHot = totalPaid > 100000
   const isSurvey = offerwall.type === "survey"
+  const isNew = offerwall.priority === 0
+  const isFeatured = isNew || variant === "featured"
 
-  // Get logo from our mapping or use the one from API
-  const logoInfo = OFFERWALL_LOGOS[offerwall.slug.toLowerCase()]
-  const logoUrl = offerwall.logo || logoInfo?.logo
+  // Logo: prefer the API-supplied logo, then a local /images path; track load errors
+  // so we can swap to the polished gradient-initials fallback.
+  const logoUrl = offerwall.logo
+  const initials = getBrandInitials(offerwall.name)
+  const [logoError, setLogoError] = useState(false)
+  const showLogo = !!logoUrl && !logoError
 
   if (variant === "compact") {
     return (
@@ -181,32 +214,32 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
         <Card className={cn(
           "relative overflow-hidden transition-all duration-300",
           "hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30",
-          "cursor-pointer"
+          "cursor-pointer",
+          isNew && "border-cyan-500/40"
         )}>
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-3">
               {/* Logo */}
               <div
-                className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-xl overflow-hidden bg-gradient-to-br shrink-0 flex items-center justify-center"
-                style={{ background: `linear-gradient(135deg, ${offerwall.color}20 0%, ${offerwall.color}05 100%)` }}
+                className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center ring-1 ring-border/40"
+                style={{ background: `linear-gradient(135deg, ${offerwall.color}25 0%, ${offerwall.color}05 100%)` }}
               >
-                {logoUrl ? (
+                {showLogo ? (
                   <Image
                     src={logoUrl}
                     alt={offerwall.name}
-                    width={40}
-                    height={40}
-                    className="object-contain p-1"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                    }}
+                    width={48}
+                    height={48}
+                    className="object-contain p-1.5"
+                    onError={() => setLogoError(true)}
+                    unoptimized
                   />
                 ) : (
                   <span
-                    className="text-lg font-bold"
+                    className="text-base font-bold tracking-tight"
                     style={{ color: offerwall.color }}
                   >
-                    {offerwall.name.charAt(0)}
+                    {initials}
                   </span>
                 )}
               </div>
@@ -216,6 +249,9 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
                   <h3 className="font-semibold text-sm truncate">{offerwall.name}</h3>
                   {isHot && (
                     <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                  )}
+                  {isNew && (
+                    <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{offerwall.description}</p>
@@ -244,42 +280,57 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
       className={cn(
         "group relative overflow-hidden transition-all duration-300 flex flex-col h-full",
         "hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1",
-        variant === "featured" && "border-2 border-primary/30"
+        isFeatured && "border-2 border-primary/30",
+        isNew && "border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/5"
       )}
     >
+      {/* "NEW" ribbon for newest providers */}
+      {isNew && (
+        <div className="absolute top-3 -right-8 z-10 rotate-45 bg-gradient-to-r from-cyan-500 to-teal-500 px-10 py-0.5 text-[10px] font-bold text-white shadow-md">
+          NEW
+        </div>
+      )}
+
       {/* Header with Logo */}
       <div
         className="relative h-28 sm:h-32 w-full overflow-hidden"
         style={{
-          background: `linear-gradient(135deg, ${offerwall.color}30 0%, ${offerwall.color}10 50%, transparent 100%)`
+          background: `linear-gradient(135deg, ${offerwall.color}35 0%, ${offerwall.color}12 50%, transparent 100%)`
         }}
       >
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-2 right-2 w-20 h-20 rounded-full bg-white/20" />
-          <div className="absolute bottom-0 left-0 w-32 h-16 rounded-tr-full bg-white/10" />
+          <div className="absolute top-2 right-2 w-20 h-20 rounded-full bg-foreground/20" />
+          <div className="absolute bottom-0 left-0 w-32 h-16 rounded-tr-full bg-foreground/10" />
         </div>
 
         {/* Logo */}
         <div className="absolute inset-0 flex items-center justify-center p-4">
-          {logoUrl ? (
+          {showLogo ? (
             <div className="relative h-16 w-32 sm:h-20 sm:w-40">
               <Image
                 src={logoUrl}
                 alt={offerwall.name}
                 fill
+                sizes="160px"
                 className="object-contain drop-shadow-lg"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                }}
+                onError={() => setLogoError(true)}
+                unoptimized
               />
             </div>
           ) : (
             <div
-              className="text-2xl sm:text-3xl font-bold px-4 py-2 rounded-lg bg-white/90 shadow-lg"
-              style={{ color: offerwall.color }}
+              className="flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl bg-background/95 shadow-lg backdrop-blur-sm ring-1 ring-border/50"
             >
-              {offerwall.name}
+              <span
+                className="text-2xl sm:text-3xl font-bold tracking-tight leading-none"
+                style={{ color: offerwall.color }}
+              >
+                {initials}
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground leading-none">
+                {offerwall.name}
+              </span>
             </div>
           )}
         </div>
@@ -597,13 +648,22 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
     )
   }
 
-  const offerwalls: OfferwallData[] = (data?.offerwalls || []).map((o: any) => ({
-    ...o,
-    type: OFFERWALL_LOGOS[o.slug?.toLowerCase()]?.type ||
-      (o.name?.toLowerCase().includes("survey") || o.slug?.toLowerCase().includes("cpx") || o.slug?.toLowerCase().includes("bitlabs") || o.slug?.toLowerCase().includes("pollfish"))
-      ? "survey"
-      : "offerwall"
-  }))
+  const offerwalls: OfferwallData[] = (data?.offerwalls || []).map((o: any) => {
+    const slug = o.slug?.toLowerCase() ?? ""
+    const name = o.name?.toLowerCase() ?? ""
+    const metaType = OFFERWALL_META[slug]?.type
+    const heuristicSurvey =
+      name.includes("survey") ||
+      slug.includes("cpx") ||
+      slug.includes("bitlabs") ||
+      slug.includes("pollfish") ||
+      slug.includes("theoremreach") ||
+      slug.includes("inbrain")
+    return {
+      ...o,
+      type: metaType ?? (heuristicSurvey ? "survey" : "offerwall"),
+    }
+  })
 
   const platformStats: PlatformStats = data?.platformStats || {
     total_paid_all_offerwalls: 0,
@@ -655,8 +715,28 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
         </TabsList>
 
         <TabsContent value="all" className="mt-4 sm:mt-5 space-y-6">
+          {/* New Partner — c.cx.ua and any priority-0 wall */}
+          {offerwalls.filter(o => o.priority === 0).length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-cyan-500" />
+                <h2 className="text-lg font-semibold">New Partner</h2>
+                <Badge className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white border-0 text-[10px]">
+                  Just Added
+                </Badge>
+              </div>
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {offerwalls
+                  .filter(o => o.priority === 0)
+                  .map((offerwall) => (
+                    <OfferwallCard key={offerwall.id} offerwall={offerwall} userId={userId} variant="featured" />
+                  ))}
+              </div>
+            </div>
+          )}
+
           {/* Featured Section - Hot Offerwalls */}
-          {offerwalls.filter(o => o.stats && o.stats.total_paid > 100000).length > 0 && (
+          {offerwalls.filter(o => o.priority !== 0 && o.stats && o.stats.total_paid > 100000).length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Flame className="h-5 w-5 text-orange-500" />
@@ -664,7 +744,7 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
               </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {offerwalls
-                  .filter(o => o.stats && o.stats.total_paid > 100000)
+                  .filter(o => o.priority !== 0 && o.stats && o.stats.total_paid > 100000)
                   .slice(0, 3)
                   .map((offerwall) => (
                     <OfferwallCard key={offerwall.id} offerwall={offerwall} userId={userId} variant="featured" />

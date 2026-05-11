@@ -13,6 +13,7 @@ interface PostbackParams {
 }
 
 const PROVIDER_SECRETS: Record<string, string> = {
+  ccxua: process.env.CCXUA_SECRET_KEY || "",
   "cpx-research": process.env.CPX_SECRET_KEY || "",
   torox: process.env.TOROX_SECRET_KEY || "",
   lootably: process.env.LOOTABLY_SECRET_KEY || "",
@@ -29,6 +30,7 @@ const PROVIDER_SECRETS: Record<string, string> = {
 }
 
 const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
+  ccxua: [],
   "cpx-research": [],
   torox: [],
   lootably: [],
@@ -42,6 +44,15 @@ const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
   "ayet-studios": [],
   "hang-my-ads": [],
   notik: [],
+}
+
+// Providers that expect a specific plain-text response body
+const PROVIDER_OK_RESPONSE: Record<string, string> = {
+  ccxua: "ok",
+}
+
+const PROVIDER_DUPLICATE_RESPONSE: Record<string, string> = {
+  ccxua: "DUP",
 }
 
 function getSupabaseAdmin() {
@@ -60,6 +71,14 @@ function validateSignature(provider: string, params: Record<string, string>, sig
 
   try {
     switch (provider) {
+      case "ccxua": {
+        // c.cx.ua uses MD5: md5(subId + transId + reward + secret)
+        const expectedSig = createHash("md5")
+          .update(`${params.subId}${params.transId}${params.reward}${secret}`)
+          .digest("hex")
+        return signature.toLowerCase() === expectedSig.toLowerCase()
+      }
+
       case "cpx-research": {
         // CPX Research uses MD5: md5(transId-usrId-amountUSD-secretKey)
         const expectedSig = createHash("md5")
@@ -188,6 +207,19 @@ function validateProviderIP(provider: string, requestIP: string): boolean {
 function parsePostbackParams(provider: string, searchParams: URLSearchParams): PostbackParams | null {
   try {
     switch (provider) {
+      case "ccxua":
+        return {
+          userId: searchParams.get("subId") || "",
+          offerId: searchParams.get("transId") || "",
+          offerName: "c.cx.ua Offer",
+          // c.cx.ua sends `payout` (USD) and `reward` (in your configured currency).
+          // We use payout (USD) * 100 to get cents-equivalent credits, then apply
+          // the provider's conversion_rate from the DB to compute satoshi payout.
+          credits: Number.parseFloat(searchParams.get("payout") || "0") * 100,
+          transactionId: searchParams.get("transId") || "",
+          ip: searchParams.get("userIp") || "",
+        }
+
       case "cpx-research":
         return {
           userId: searchParams.get("user_id") || searchParams.get("ext_user_id") || "",
@@ -370,6 +402,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Validate provider
     const validProviders = [
+      "ccxua",
       "cpx-research",
       "torox",
       "lootably",
@@ -413,6 +446,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         hasTransactionId: !!postbackParams?.transactionId,
       })
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 })
+    }
+
+    // c.cx.ua sends status=2 for chargebacks (offer reversal).
+    // We log the chargeback for review but acknowledge it so it isn't retried.
+    if (provider === "ccxua" && searchParams.get("status") === "2") {
+      console.warn(
+        `[Postback] ccxua chargeback received - user: ${postbackParams.userId}, tx: ${postbackParams.transactionId}, reward: ${searchParams.get("reward")}`,
+      )
+      try {
+        await supabaseAdmin.from("offerwall_conversions").insert({
+          user_id: postbackParams.userId,
+          provider_id: null,
+          offer_id: postbackParams.offerId,
+          offer_name: `${postbackParams.offerName} (CHARGEBACK)`,
+          payout_credits: -Math.abs(postbackParams.credits),
+          payout_satoshis: 0,
+          transaction_id: `cb_${postbackParams.transactionId}`,
+          ip_address: postbackParams.ip || requestIP,
+          status: "chargeback",
+          processed_at: new Date().toISOString(),
+          metadata: { request_ip: requestIP, raw_params: paramsObj, chargeback: true },
+        })
+      } catch (cbErr) {
+        console.error("[Postback] Chargeback logging error:", cbErr)
+      }
+      return new NextResponse("ok", { status: 200, headers: { "Content-Type": "text/plain" } })
     }
 
     // This prevents race conditions between SELECT and INSERT
@@ -481,6 +540,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       if (existing) {
         console.log(`[Postback] Duplicate transaction ignored: ${postbackParams.transactionId}`)
+        const dupText = PROVIDER_DUPLICATE_RESPONSE[provider]
+        if (dupText) {
+          return new NextResponse(dupText, { status: 200, headers: { "Content-Type": "text/plain" } })
+        }
         return NextResponse.json({ status: "duplicate" }, { status: 200 })
       }
     }
@@ -489,6 +552,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Handle unique constraint violation (duplicate)
       if (conversionError.code === "23505") {
         console.log(`[Postback] Duplicate transaction: ${postbackParams.transactionId}`)
+        const dupText = PROVIDER_DUPLICATE_RESPONSE[provider]
+        if (dupText) {
+          return new NextResponse(dupText, { status: 200, headers: { "Content-Type": "text/plain" } })
+        }
         return NextResponse.json({ status: "duplicate" }, { status: 200 })
       }
       console.error("[Postback] Conversion error:", conversionError)
@@ -576,8 +643,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     console.log(`[Postback] Success: ${provider} - User: ${postbackParams.userId} - Amount: ${payoutSatoshis} sats`)
 
-    // Return success (most providers expect "1" or specific response)
-    return new NextResponse("1", { status: 200 })
+    // Return success — providers expect different plain-text bodies
+    const okText = PROVIDER_OK_RESPONSE[provider] || "1"
+    return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
   } catch (error) {
     console.error("[Postback] Unexpected error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

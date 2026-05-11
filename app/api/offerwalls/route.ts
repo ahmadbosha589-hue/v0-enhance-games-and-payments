@@ -22,10 +22,25 @@ interface OfferwallConfig {
 
 const OFFERWALLS: OfferwallConfig[] = [
   {
+    id: "ccxua",
+    name: "c.cx.ua",
+    slug: "ccxua",
+    description: "Premium auto-translated offers worldwide. New partner with high-converting CPA offers, surveys, and app installs.",
+    logo: "/images/offerwalls/ccxua.jpg",
+    color: "#06B6D4",
+    bgGradient: "from-cyan-500/20 to-teal-600/10",
+    minPayout: 0,
+    conversionRate: 1000,
+    features: ["Auto-translated", "Global offers", "Fast crediting", "New"],
+    url: "https://c.cx.ua/offerwall/{ccxua_api_key}/{user_id}",
+    active: true,
+    priority: 0,
+  },
+  {
     id: "cpx",
     name: "CPX Research",
     slug: "cpx-research",
-    description: "Complete surveys and earn rewards instantly",
+    description: "Complete high-paying surveys from trusted research companies. Average payout: 50-200 sats per survey.",
     logo: "/images/offerwalls/cpx.png",
     color: "#00C853",
     bgGradient: "from-green-500/20 to-green-600/10",
