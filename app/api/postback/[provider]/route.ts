@@ -29,8 +29,16 @@ const PROVIDER_SECRETS: Record<string, string> = {
   notik: process.env.NOTIK_SECRET_KEY || "",
 }
 
+// c.cx.ua sends postbacks from these IPs (see https://c.cx.ua/docs/ → "IPs to whitelist").
+// Whitelist enforcement is disabled when the env var is unset so testing isn't blocked.
+const CCXUA_DEFAULT_IPS = [
+  "37.27.143.21",
+  "2a01:4f9:3100:1721::1",
+  "2a01:4f9:3100:1721:0:0:0:1",
+]
+
 const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
-  ccxua: [],
+  ccxua: process.env.CCXUA_ENFORCE_IP_WHITELIST === "true" ? CCXUA_DEFAULT_IPS : [],
   "cpx-research": [],
   torox: [],
   lootably: [],
@@ -211,11 +219,12 @@ function parsePostbackParams(provider: string, searchParams: URLSearchParams): P
         return {
           userId: searchParams.get("subId") || "",
           offerId: searchParams.get("transId") || "",
-          offerName: "c.cx.ua Offer",
-          // c.cx.ua sends `payout` (USD) and `reward` (in your configured currency).
-          // We use payout (USD) * 100 to get cents-equivalent credits, then apply
-          // the provider's conversion_rate from the DB to compute satoshi payout.
-          credits: Number.parseFloat(searchParams.get("payout") || "0") * 100,
+          offerName: searchParams.get("offer_name") || "c.cx.ua Offer",
+          // c.cx.ua sends `reward` already converted into your virtual currency
+          // using the Exchange Rate set in your c.cx.ua dashboard
+          // (recommend setting it to 100000 = sats per 1 USD).
+          // We use that reward directly and keep conversion_rate=1.0 in the DB.
+          credits: Number.parseFloat(searchParams.get("reward") || "0"),
           transactionId: searchParams.get("transId") || "",
           ip: searchParams.get("userIp") || "",
         }

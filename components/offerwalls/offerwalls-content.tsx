@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import useSWR from "swr"
 import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,10 +10,26 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import {
-  Gift, ExternalLink, TrendingUp, Clock, Coins, CheckCircle2,
-  AlertCircle, Star, Users, Zap, Sparkles, Trophy, Target,
-  ArrowRight, Flame, Award, ClipboardList, Search, Filter,
-  Play, DollarSign, BarChart3, Wallet
+  Gift,
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Users,
+  Zap,
+  Sparkles,
+  Target,
+  ArrowRight,
+  Flame,
+  Award,
+  ClipboardList,
+  Search,
+  Play,
+  DollarSign,
+  BarChart3,
+  Wallet,
+  Lock,
+  Crown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -35,7 +51,8 @@ interface OfferwallData {
   url: string
   active: boolean
   priority: number
-  type: "offerwall" | "survey" // Type to distinguish between offerwalls and surveys
+  configured?: boolean
+  type: "offerwall" | "survey"
   stats: {
     total_paid: number
     completion_count: number
@@ -51,8 +68,6 @@ interface PlatformStats {
 }
 
 // Offerwall metadata — type classification only.
-// Logos are loaded from each provider's `logo` field returned by the API,
-// with a polished gradient-letter fallback rendered when missing/broken.
 const OFFERWALL_META: Record<string, { type: "offerwall" | "survey" }> = {
   ccxua: { type: "offerwall" },
   cpx: { type: "survey" },
@@ -100,9 +115,16 @@ function getBrandInitials(name: string): string {
   return name.slice(0, 2).toUpperCase()
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json())
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Failed to load offerwalls")
+    return res.json()
+  })
 
-function StatsCards({ platformStats, userStats }: {
+function StatsCards({
+  platformStats,
+  userStats,
+}: {
   platformStats: PlatformStats | null
   userStats: { total_earned: number; total_completions: number }
 }) {
@@ -114,7 +136,7 @@ function StatsCards({ platformStats, userStats }: {
       icon: Wallet,
       color: "text-green-500",
       bgColor: "bg-green-500/10",
-      borderColor: "border-green-500/20"
+      borderColor: "border-green-500/20",
     },
     {
       label: "Completions",
@@ -123,7 +145,7 @@ function StatsCards({ platformStats, userStats }: {
       icon: CheckCircle2,
       color: "text-blue-500",
       bgColor: "bg-blue-500/10",
-      borderColor: "border-blue-500/20"
+      borderColor: "border-blue-500/20",
     },
     {
       label: "Total Paid Out",
@@ -132,7 +154,7 @@ function StatsCards({ platformStats, userStats }: {
       icon: BarChart3,
       color: "text-amber-500",
       bgColor: "bg-amber-500/10",
-      borderColor: "border-amber-500/20"
+      borderColor: "border-amber-500/20",
     },
     {
       label: "Active Partners",
@@ -141,14 +163,20 @@ function StatsCards({ platformStats, userStats }: {
       icon: Gift,
       color: "text-purple-500",
       bgColor: "bg-purple-500/10",
-      borderColor: "border-purple-500/20"
+      borderColor: "border-purple-500/20",
     },
   ]
 
   return (
     <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
       {stats.map((stat) => (
-        <Card key={stat.label} className={cn("border-border/50 hover:shadow-md transition-all duration-200", stat.borderColor)}>
+        <Card
+          key={stat.label}
+          className={cn(
+            "border-border/50 hover:shadow-md transition-all duration-200",
+            stat.borderColor,
+          )}
+        >
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-2.5 sm:gap-3">
               <div className={cn("p-2 sm:p-2.5 rounded-xl shrink-0", stat.bgColor)}>
@@ -166,27 +194,183 @@ function StatsCards({ platformStats, userStats }: {
   )
 }
 
+// Hero card for c.cx.ua and other featured "NEW" partners
+function FeaturedHeroCard({ offerwall }: { offerwall: OfferwallData }) {
+  const userEarnings = offerwall.stats?.user_earnings || 0
+  const totalPaid = offerwall.stats?.total_paid || 0
+  const completions = offerwall.stats?.completion_count || 0
+  const logoUrl = offerwall.logo
+  const initials = getBrandInitials(offerwall.name)
+  const [logoError, setLogoError] = useState(false)
+  const showLogo = !!logoUrl && !logoError
+  const isConfigured = offerwall.configured !== false
+
+  return (
+    <Card
+      className={cn(
+        "relative overflow-hidden border-2 transition-all duration-300",
+        "hover:shadow-2xl hover:shadow-cyan-500/10",
+        "border-cyan-500/40 bg-gradient-to-br from-cyan-500/5 via-teal-500/5 to-transparent",
+      )}
+    >
+      {/* Decorative background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-cyan-500/10 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-64 h-64 rounded-full bg-teal-500/10 blur-3xl" />
+      </div>
+
+      {/* "FEATURED" ribbon */}
+      <div className="absolute top-4 -right-12 z-10 rotate-45 bg-gradient-to-r from-cyan-500 to-teal-500 px-14 py-1 text-[10px] font-bold tracking-wider text-white shadow-lg">
+        FEATURED
+      </div>
+
+      <CardContent className="relative p-5 sm:p-6 lg:p-8">
+        <div className="grid gap-5 lg:gap-8 lg:grid-cols-[auto_1fr_auto] items-center">
+          {/* Logo block */}
+          <div className="flex items-center gap-4">
+            <div
+              className="relative h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center ring-2 ring-cyan-500/20 bg-background shadow-lg"
+              style={{
+                background: `linear-gradient(135deg, ${offerwall.color}25 0%, ${offerwall.color}05 100%)`,
+              }}
+            >
+              {showLogo ? (
+                <Image
+                  src={logoUrl || "/placeholder.svg"}
+                  alt={offerwall.name}
+                  width={96}
+                  height={96}
+                  className="object-contain p-2"
+                  onError={() => setLogoError(true)}
+                  unoptimized
+                />
+              ) : (
+                <span
+                  className="text-xl font-bold tracking-tight text-center"
+                  style={{ color: offerwall.color }}
+                >
+                  {initials}
+                </span>
+              )}
+            </div>
+
+            <div className="lg:hidden">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Crown className="h-4 w-4 text-cyan-500" />
+                <Badge className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white border-0 text-[10px]">
+                  NEW PARTNER
+                </Badge>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold mt-1">{offerwall.name}</h2>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="space-y-3 min-w-0">
+            <div className="hidden lg:block">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Crown className="h-4 w-4 text-cyan-500" />
+                <Badge className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white border-0 text-[10px]">
+                  NEW PARTNER
+                </Badge>
+                <Badge variant="outline" className="text-[10px]">
+                  Just Added
+                </Badge>
+              </div>
+              <h2 className="text-2xl xl:text-3xl font-bold mt-1.5">{offerwall.name}</h2>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed text-pretty">
+              {offerwall.description}
+            </p>
+
+            <div className="flex flex-wrap gap-1.5">
+              {offerwall.features.map((feature) => (
+                <Badge
+                  key={feature}
+                  variant="secondary"
+                  className="text-[10px] px-2 py-0.5 font-normal bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/20"
+                >
+                  {feature}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* CTA / Stats */}
+          <div className="space-y-3 lg:min-w-[200px]">
+            {(totalPaid > 0 || completions > 0) && (
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+                <div className="rounded-lg bg-background/60 backdrop-blur-sm border border-border/50 p-2.5">
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <DollarSign className="h-2.5 w-2.5" />
+                    Total Paid
+                  </p>
+                  <p className="text-sm font-bold text-green-500">
+                    {totalPaid >= 1000 ? `${(totalPaid / 1000).toFixed(1)}k` : totalPaid} sats
+                  </p>
+                </div>
+                <div className="rounded-lg bg-background/60 backdrop-blur-sm border border-border/50 p-2.5">
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Users className="h-2.5 w-2.5" />
+                    Completions
+                  </p>
+                  <p className="text-sm font-bold">{completions.toLocaleString()}</p>
+                </div>
+              </div>
+            )}
+
+            {userEarnings > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-green-500/15 to-emerald-500/5 border border-green-500/20 px-3 py-2">
+                <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <Award className="h-3.5 w-3.5" />
+                  You earned
+                </span>
+                <span className="text-sm font-bold text-green-500">
+                  {userEarnings.toLocaleString()} sats
+                </span>
+              </div>
+            )}
+
+            <Button
+              className="w-full gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white border-0 shadow-lg shadow-cyan-500/20"
+              size="lg"
+              disabled={!isConfigured}
+              asChild={isConfigured}
+            >
+              {isConfigured ? (
+                <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
+                  <Play className="h-4 w-4" />
+                  <span>Open Offerwall</span>
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              ) : (
+                <span>
+                  <Lock className="h-4 w-4" />
+                  Setup Required
+                </span>
+              )}
+            </Button>
+            {!isConfigured && (
+              <p className="text-[10px] text-muted-foreground text-center">
+                Admin: set <code className="font-mono">CCXUA_API_KEY</code>
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // Enhanced Offerwall Card with Logo Image
-function OfferwallCard({ offerwall, userId, variant = "default" }: {
+function OfferwallCard({
+  offerwall,
+  variant = "default",
+}: {
   offerwall: OfferwallData
-  userId: string
   variant?: "default" | "featured" | "compact"
 }) {
-  const getOfferwallUrl = () => {
-    return offerwall.url
-      .replace("{user_id}", userId)
-      .replace("{ccxua_api_key}", process.env.NEXT_PUBLIC_CCXUA_API_KEY || "")
-      .replace("{app_id}", process.env.NEXT_PUBLIC_CPX_APP_ID || "")
-      .replace("{pub_id}", process.env.NEXT_PUBLIC_TOROX_PUB_ID || "")
-      .replace("{wall_code}", process.env.NEXT_PUBLIC_ADGATE_WALL_CODE || "")
-      .replace("{placement_id}", process.env.NEXT_PUBLIC_LOOTABLY_PLACEMENT_ID || "")
-      .replace("{api_token}", process.env.NEXT_PUBLIC_BITLABS_TOKEN || "")
-      .replace("{api_key}", process.env.NEXT_PUBLIC_TIMEWALL_KEY || "")
-      .replace("{adslot_id}", process.env.NEXT_PUBLIC_AYET_ADSLOT || "")
-      .replace("{player_id}", process.env.NEXT_PUBLIC_ADGEM_PLAYER_ID || "")
-      .replace("{gateway_id}", process.env.NEXT_PUBLIC_CPALEAD_GATEWAY || "")
-  }
-
   const totalPaid = offerwall.stats?.total_paid || 0
   const userEarnings = offerwall.stats?.user_earnings || 0
   const completions = offerwall.stats?.completion_count || 0
@@ -195,41 +379,46 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
   const isSurvey = offerwall.type === "survey"
   const isNew = offerwall.priority === 0
   const isFeatured = isNew || variant === "featured"
+  const isConfigured = offerwall.configured !== false
 
-  // Logo: prefer the API-supplied logo, then a local /images path; track load errors
-  // so we can swap to the polished gradient-initials fallback.
+  // Logo: prefer the API-supplied logo, fall back to polished initials on error
   const logoUrl = offerwall.logo
   const initials = getBrandInitials(offerwall.name)
   const [logoError, setLogoError] = useState(false)
   const showLogo = !!logoUrl && !logoError
 
+  const buttonLabel = isSurvey ? "Take Surveys" : "View Offers"
+
   if (variant === "compact") {
+    const Wrapper: any = isConfigured ? "a" : "div"
     return (
-      <a
-        href={getOfferwallUrl()}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block group"
+      <Wrapper
+        {...(isConfigured
+          ? { href: offerwall.url, target: "_blank", rel: "noopener noreferrer" }
+          : {})}
+        className={cn("block group", !isConfigured && "cursor-not-allowed opacity-70")}
       >
-        <Card className={cn(
-          "relative overflow-hidden transition-all duration-300",
-          "hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30",
-          "cursor-pointer",
-          isNew && "border-cyan-500/40"
-        )}>
+        <Card
+          className={cn(
+            "relative overflow-hidden transition-all duration-300",
+            isConfigured && "hover:shadow-lg hover:-translate-y-0.5 hover:border-primary/30 cursor-pointer",
+            isNew && "border-cyan-500/40",
+          )}
+        >
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center gap-3">
-              {/* Logo */}
               <div
                 className="relative h-12 w-12 sm:h-14 sm:w-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center ring-1 ring-border/40"
-                style={{ background: `linear-gradient(135deg, ${offerwall.color}25 0%, ${offerwall.color}05 100%)` }}
+                style={{
+                  background: `linear-gradient(135deg, ${offerwall.color}25 0%, ${offerwall.color}05 100%)`,
+                }}
               >
                 {showLogo ? (
                   <Image
-                    src={logoUrl}
+                    src={logoUrl || "/placeholder.svg"}
                     alt={offerwall.name}
-                    width={48}
-                    height={48}
+                    width={56}
+                    height={56}
                     className="object-contain p-1.5"
                     onError={() => setLogoError(true)}
                     unoptimized
@@ -247,18 +436,23 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-sm truncate">{offerwall.name}</h3>
-                  {isHot && (
-                    <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                  )}
-                  {isNew && (
-                    <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
-                  )}
+                  {isHot && <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />}
+                  {isNew && <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{offerwall.description}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
                     {isSurvey ? "Survey" : "Offers"}
                   </Badge>
+                  {!isConfigured && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 h-4 border-amber-500/40 text-amber-600"
+                    >
+                      <Lock className="h-2.5 w-2.5 mr-0.5" />
+                      Setup
+                    </Badge>
+                  )}
                   {userEarnings > 0 && (
                     <span className="text-[10px] text-green-500 font-medium">
                       +{userEarnings.toLocaleString()} sats
@@ -271,7 +465,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
             </div>
           </CardContent>
         </Card>
-      </a>
+      </Wrapper>
     )
   }
 
@@ -281,7 +475,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
         "group relative overflow-hidden transition-all duration-300 flex flex-col h-full",
         "hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1",
         isFeatured && "border-2 border-primary/30",
-        isNew && "border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/5"
+        isNew && "border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/5",
       )}
     >
       {/* "NEW" ribbon for newest providers */}
@@ -295,7 +489,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
       <div
         className="relative h-28 sm:h-32 w-full overflow-hidden"
         style={{
-          background: `linear-gradient(135deg, ${offerwall.color}35 0%, ${offerwall.color}12 50%, transparent 100%)`
+          background: `linear-gradient(135deg, ${offerwall.color}35 0%, ${offerwall.color}12 50%, transparent 100%)`,
         }}
       >
         {/* Background Pattern */}
@@ -309,7 +503,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
           {showLogo ? (
             <div className="relative h-16 w-32 sm:h-20 sm:w-40">
               <Image
-                src={logoUrl}
+                src={logoUrl || "/placeholder.svg"}
                 alt={offerwall.name}
                 fill
                 sizes="160px"
@@ -319,9 +513,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
               />
             </div>
           ) : (
-            <div
-              className="flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl bg-background/95 shadow-lg backdrop-blur-sm ring-1 ring-border/50"
-            >
+            <div className="flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl bg-background/95 shadow-lg backdrop-blur-sm ring-1 ring-border/50">
               <span
                 className="text-2xl sm:text-3xl font-bold tracking-tight leading-none"
                 style={{ color: offerwall.color }}
@@ -357,7 +549,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
             variant="outline"
             className={cn(
               "text-[10px] gap-1 bg-background/90 backdrop-blur-sm shadow-sm",
-              isSurvey ? "border-blue-500/30 text-blue-600" : "border-green-500/30 text-green-600"
+              isSurvey ? "border-blue-500/30 text-blue-600" : "border-green-500/30 text-green-600",
             )}
           >
             {isSurvey ? (
@@ -379,9 +571,7 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
         {/* Title and Description */}
         <div>
           <h3 className="font-semibold text-base">{offerwall.name}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-            {offerwall.description}
-          </p>
+          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{offerwall.description}</p>
         </div>
 
         {/* Features */}
@@ -436,32 +626,47 @@ function OfferwallCard({ offerwall, userId, variant = "default" }: {
         <div className="flex-1" />
 
         {/* CTA Button */}
-        <Button
-          className="w-full gap-2 group/btn transition-all"
-          size="default"
-          asChild
-        >
-          <a href={getOfferwallUrl()} target="_blank" rel="noopener noreferrer">
-            <Play className="h-4 w-4" />
-            <span>{isSurvey ? "Take Surveys" : "View Offers"}</span>
-            <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
-          </a>
-        </Button>
+        {isConfigured ? (
+          <Button className="w-full gap-2 group/btn transition-all" size="default" asChild>
+            <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
+              <Play className="h-4 w-4" />
+              <span>{buttonLabel}</span>
+              <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
+            </a>
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            className="w-full gap-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700 bg-transparent"
+            size="default"
+            disabled
+          >
+            <Lock className="h-4 w-4" />
+            <span>Setup Required</span>
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-function OfferwallsGrid({ offerwalls, userId, variant = "default" }: {
+function OfferwallsGrid({
+  offerwalls,
+  variant = "default",
+}: {
   offerwalls: OfferwallData[]
-  userId: string
   variant?: "default" | "compact"
 }) {
   const [searchQuery, setSearchQuery] = useState("")
 
-  const filteredOfferwalls = offerwalls.filter(o =>
-    o.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredOfferwalls = useMemo(
+    () =>
+      offerwalls.filter(
+        (o) =>
+          o.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          o.description.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [offerwalls, searchQuery],
   )
 
   if (!offerwalls || offerwalls.length === 0) {
@@ -496,26 +701,34 @@ function OfferwallsGrid({ offerwalls, userId, variant = "default" }: {
       {variant === "compact" ? (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
           {filteredOfferwalls.map((offerwall) => (
-            <OfferwallCard key={offerwall.id} offerwall={offerwall} userId={userId} variant="compact" />
+            <OfferwallCard key={offerwall.id} offerwall={offerwall} variant="compact" />
           ))}
         </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredOfferwalls.map((offerwall) => (
-            <OfferwallCard key={offerwall.id} offerwall={offerwall} userId={userId} />
+            <OfferwallCard key={offerwall.id} offerwall={offerwall} />
           ))}
         </div>
+      )}
+
+      {filteredOfferwalls.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-10">
+            <Search className="h-8 w-8 text-muted-foreground/50 mb-2" />
+            <p className="text-sm font-medium">No matches</p>
+            <p className="text-xs text-muted-foreground">Try a different search term</p>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
 }
 
-function RecentCompletions({ userId }: { userId: string }) {
-  const { data, isLoading } = useSWR(
-    `/api/transactions?type=offerwall&limit=5`,
-    fetcher,
-    { refreshInterval: 60000 }
-  )
+function RecentCompletions() {
+  const { data, isLoading } = useSWR(`/api/transactions?type=offerwall&limit=5`, fetcher, {
+    refreshInterval: 60000,
+  })
 
   if (isLoading) {
     return (
@@ -555,7 +768,9 @@ function RecentCompletions({ userId }: { userId: string }) {
               <CheckCircle2 className="h-4 w-4 text-green-500" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium truncate">{completion.description || "Offer Completed"}</p>
+              <p className="text-sm font-medium truncate">
+                {completion.description || "Offer Completed"}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {new Date(completion.created_at).toLocaleDateString()}
               </p>
@@ -601,15 +816,11 @@ function LaunchBonusBanner() {
 export function OfferwallsContent({ userId }: OfferwallsContentProps) {
   const [activeTab, setActiveTab] = useState("all")
 
-  const { data, isLoading, error } = useSWR(
-    `/api/offerwalls?stats=true`,
-    fetcher,
-    {
-      refreshInterval: 60000,
-      revalidateOnFocus: false,
-      dedupingInterval: 30000
-    }
-  )
+  const { data, isLoading, error, mutate } = useSWR(`/api/offerwalls?stats=true`, fetcher, {
+    refreshInterval: 60000,
+    revalidateOnFocus: false,
+    dedupingInterval: 30000,
+  })
 
   if (isLoading) {
     return (
@@ -619,7 +830,7 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
             <Skeleton key={i} className="h-20 sm:h-24" />
           ))}
         </div>
-        <Skeleton className="h-24" />
+        <Skeleton className="h-44 rounded-xl" />
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(8)].map((_, i) => (
             <Skeleton key={i} className="h-80" />
@@ -640,7 +851,7 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
           <p className="text-xs sm:text-sm text-muted-foreground text-center mb-4">
             There was an error loading offerwalls. Please try again.
           </p>
-          <Button onClick={() => window.location.reload()} variant="outline" size="sm">
+          <Button onClick={() => mutate()} variant="outline" size="sm">
             Retry
           </Button>
         </CardContent>
@@ -671,8 +882,19 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
     active_offerwalls: 0,
   }
 
-  const surveys = offerwalls.filter(o => o.type === "survey")
-  const offerwallsOnly = offerwalls.filter(o => o.type === "offerwall")
+  // Ensure c.cx.ua is always first
+  offerwalls.sort((a, b) => {
+    if (a.id === "ccxua") return -1
+    if (b.id === "ccxua") return 1
+    return (a.priority || 0) - (b.priority || 0)
+  })
+
+  // Featured = ccxua (priority 0). Show as hero card up top.
+  const featured = offerwalls.find((o) => o.id === "ccxua" || o.priority === 0)
+  const restOfOfferwalls = offerwalls.filter((o) => o.id !== featured?.id)
+
+  const surveys = offerwalls.filter((o) => o.type === "survey")
+  const offerwallsOnly = offerwalls.filter((o) => o.type === "offerwall")
 
   const userStats = {
     total_earned: offerwalls.reduce((sum, o) => sum + (o.stats?.user_earnings || 0), 0),
@@ -687,7 +909,7 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
       {/* Launch Bonus Banner */}
       <LaunchBonusBanner />
 
-      {/* Tabs - Split between All, Surveys, Offerwalls, History */}
+      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-5">
         <TabsList className="grid w-full grid-cols-4 max-w-lg h-10 sm:h-11">
           <TabsTrigger value="all" className="text-xs sm:text-sm gap-1.5">
@@ -715,51 +937,37 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
         </TabsList>
 
         <TabsContent value="all" className="mt-4 sm:mt-5 space-y-6">
-          {/* New Partner — c.cx.ua and any priority-0 wall */}
-          {offerwalls.filter(o => o.priority === 0).length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-cyan-500" />
-                <h2 className="text-lg font-semibold">New Partner</h2>
-                <Badge className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white border-0 text-[10px]">
-                  Just Added
-                </Badge>
-              </div>
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {offerwalls
-                  .filter(o => o.priority === 0)
-                  .map((offerwall) => (
-                    <OfferwallCard key={offerwall.id} offerwall={offerwall} userId={userId} variant="featured" />
-                  ))}
-              </div>
-            </div>
-          )}
+          {/* Featured Hero — c.cx.ua */}
+          {featured && <FeaturedHeroCard offerwall={featured} />}
 
-          {/* Featured Section - Hot Offerwalls */}
-          {offerwalls.filter(o => o.priority !== 0 && o.stats && o.stats.total_paid > 100000).length > 0 && (
+          {/* Hot Right Now */}
+          {restOfOfferwalls.filter((o) => o.stats && o.stats.total_paid > 100000).length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Flame className="h-5 w-5 text-orange-500" />
                 <h2 className="text-lg font-semibold">Hot Right Now</h2>
               </div>
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {offerwalls
-                  .filter(o => o.priority !== 0 && o.stats && o.stats.total_paid > 100000)
+                {restOfOfferwalls
+                  .filter((o) => o.stats && o.stats.total_paid > 100000)
                   .slice(0, 3)
                   .map((offerwall) => (
-                    <OfferwallCard key={offerwall.id} offerwall={offerwall} userId={userId} variant="featured" />
+                    <OfferwallCard key={offerwall.id} offerwall={offerwall} variant="featured" />
                   ))}
               </div>
             </div>
           )}
 
-          {/* All Offerwalls */}
+          {/* All Partners — ordered so c.cx.ua is first */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Target className="h-5 w-5 text-muted-foreground" />
               <h2 className="text-lg font-semibold">All Partners</h2>
+              <Badge variant="secondary" className="ml-1">
+                {offerwalls.length}
+              </Badge>
             </div>
-            <OfferwallsGrid offerwalls={offerwalls} userId={userId} />
+            <OfferwallsGrid offerwalls={offerwalls} />
           </div>
         </TabsContent>
 
@@ -770,12 +978,13 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
               <div>
                 <p className="font-medium text-sm">Survey Tips</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Complete your profile honestly for better survey matching. Take your time and answer questions carefully to avoid disqualification.
+                  Complete your profile honestly for better survey matching. Take your time and answer
+                  questions carefully to avoid disqualification.
                 </p>
               </div>
             </CardContent>
           </Card>
-          <OfferwallsGrid offerwalls={surveys} userId={userId} />
+          <OfferwallsGrid offerwalls={surveys} />
         </TabsContent>
 
         <TabsContent value="offerwalls" className="mt-4 sm:mt-5 space-y-4">
@@ -785,12 +994,13 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
               <div>
                 <p className="font-medium text-sm">Offerwall Tips</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Look for high-paying app install offers. Game offers that require reaching certain levels can be very rewarding!
+                  Look for high-paying app install offers. Game offers that require reaching certain levels
+                  can be very rewarding!
                 </p>
               </div>
             </CardContent>
           </Card>
-          <OfferwallsGrid offerwalls={offerwallsOnly} userId={userId} />
+          <OfferwallsGrid offerwalls={offerwallsOnly} />
         </TabsContent>
 
         <TabsContent value="history" className="mt-4 sm:mt-5">
@@ -805,7 +1015,7 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <RecentCompletions userId={userId} />
+              <RecentCompletions />
             </CardContent>
           </Card>
         </TabsContent>
