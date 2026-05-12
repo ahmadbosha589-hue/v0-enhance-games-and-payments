@@ -676,6 +676,40 @@ export const KNOWN_BLOCKERS = {
     { name: "Total Adblock", signatures: ["totaladblock", "TotalAdblock"] },
     { name: "Adblocker Ultimate", signatures: ["adblockerultimate", "AdblockerUltimate"] },
     { name: "Ka-Block!", signatures: ["kablock", "Ka-Block"] },
+    // v12.0 NEW: less-common but real blockers seen in 2024-2026
+    { name: "AdBlocker Genesis", signatures: ["adblockergenesis", "AdBlockerGenesis"] },
+    { name: "Trustnav AdBlocker", signatures: ["trustnav", "TrustnavAdBlocker"] },
+    { name: "Super Adblocker", signatures: ["superadblocker", "SuperAdblocker"] },
+    { name: "Hyperblock", signatures: ["hyperblock", "Hyperblock"] },
+    { name: "Stop All Ads", signatures: ["stopallads", "StopAllAds"] },
+    { name: "Easy Ad Blocker", signatures: ["easyadblocker", "EasyAdBlocker"] },
+    { name: "uBlock", signatures: ["ublock-extension"] }, // pre-uBO fork
+    { name: "AdBlock Master", signatures: ["adblockmaster"] },
+    { name: "AdGuard MV3", signatures: ["adguard-mv3", "adguard_mv3"] },
+    { name: "uBlock Origin Lite", signatures: ["ubol", "uBOLite", "ublock-lite"] }, // MV3 variant
+    { name: "uBlock Origin Dev", signatures: ["ubo-dev", "uBO-dev"] },
+    { name: "AdBlocker for YouTube", signatures: ["adblockyoutube", "AdBlockerForYouTube"] },
+    { name: "AdBlocker for Chrome", signatures: ["adblockforchrome", "AdBlockerForChrome"] },
+    { name: "Aloha Ad Blocker", signatures: ["aloha-adblock", "AlohaAdBlocker"] },
+    { name: "Magic Lasso AdBlock", signatures: ["magic-lasso", "magiclasso", "MagicLasso"] },
+    { name: "Vinegar (YouTube)", signatures: ["vinegar-yt", "Vinegar"] },
+    { name: "uMatrix", signatures: ["uMatrix", "umatrix"] },
+    { name: "AdBlock Browser", signatures: ["adblockbrowser", "AdBlockBrowser"] },
+    { name: "AdBlock Pro", signatures: ["adblockpro", "AdBlockPro"] },
+    { name: "AdBlock for Firefox", signatures: ["adblockfirefox", "ABFox"] },
+    { name: "Mercury AdBlock", signatures: ["mercury-adblock", "MercuryAdBlock"] },
+    { name: "PowerBlocker", signatures: ["powerblocker", "PowerBlocker"] },
+    { name: "Adblock Suite", signatures: ["adblock-suite", "AdblockSuite"] },
+    { name: "AdRemover", signatures: ["adremover", "AdRemover"] },
+    { name: "BehindTheOverlay", signatures: ["behindtheoverlay", "BTO"] },
+    { name: "AdBlocker Stands", signatures: ["adblockerstands", "AdBlockerStands"] },
+    { name: "Privacy Possum", signatures: ["privacypossum", "PrivacyPossum"] },
+    { name: "Cookie AutoDelete", signatures: ["cookie-autodelete", "CookieAutoDelete"] },
+    { name: "Don't Care About Cookies", signatures: ["dont-care-about-cookies", "IDCAC"] },
+    { name: "I Don't Care About Cookies", signatures: ["i-dont-care-about-cookies", "IDCAC"] },
+    { name: "Consent-O-Matic", signatures: ["consent-o-matic", "ConsentOMatic"] },
+    { name: "uMute", signatures: ["umute"] },
+    { name: "Rebox", signatures: ["rebox", "Rebox"] },
   ],
 
   dns: [
@@ -683,14 +717,32 @@ export const KNOWN_BLOCKERS = {
     { name: "AdGuard Home", domains: ["adguard.com", "adguard-dns.com"] },
     { name: "NextDNS", domains: ["nextdns.io"] },
     { name: "Cloudflare Gateway", domains: ["cloudflare-gateway.com"] },
+    { name: "Cloudflare for Families", domains: ["1.1.1.2", "1.1.1.3", "families.cloudflare-dns.com"] },
     { name: "Control D", domains: ["controld.com"] },
     { name: "Quad9", domains: ["quad9.net"] },
+    { name: "Quad9 Secure", domains: ["dns.quad9.net"] },
     { name: "CleanBrowsing", domains: ["cleanbrowsing.org"] },
     { name: "OpenDNS", domains: ["opendns.com"] },
+    { name: "OpenDNS FamilyShield", domains: ["familyshield.opendns.com"] },
     { name: "Adhole", domains: ["adhole.org"] },
     { name: "Technitium", domains: ["technitium.com"] },
     { name: "Blocky", domains: ["github.com/0xERR0R/blocky"] },
     { name: "dnscrypt-proxy", domains: ["dnscrypt.info"] },
+    // v12.0 NEW
+    { name: "Mullvad DNS", domains: ["dns.mullvad.net", "adblock.dns.mullvad.net", "base.dns.mullvad.net"] },
+    { name: "DNS0.eu", domains: ["dns0.eu", "zero.dns0.eu", "kids.dns0.eu"] },
+    { name: "LibreDNS", domains: ["libredns.gr"] },
+    { name: "AhaDNS", domains: ["ahadns.com"] },
+    { name: "Comss.one", domains: ["comss.one"] },
+    { name: "Surfshark DNS", domains: ["surfshark.com/dns"] },
+    { name: "NordVPN CyberSec DNS", domains: ["nord-dns.com"] },
+    { name: "Yandex.DNS Safe", domains: ["dns.yandex.ru"] },
+    { name: "RethinkDNS", domains: ["rethinkdns.com", "sky.rethinkdns.com"] },
+    { name: "AhaDNS Blitz", domains: ["blitz.ahadns.com"] },
+    { name: "FoolDNS", domains: ["fooldns.com"] },
+    { name: "Personal DNS Filter", domains: ["personaldnsfilter.com"] },
+    { name: "Diversion (Asus router)", domains: ["diversion.ch"] },
+    { name: "TrkrPunisher", domains: ["trkrpunisher.com"] },
   ],
 
   browsers: [
@@ -893,6 +945,75 @@ export const BAIT_PATTERNS = {
     "/api/ads/in-feed-ad.js",
     "/api/ads/in-article-ad.js",
   ],
+
+  // v12.0 NEW: Adult / popunder / push-notification ad networks (heavily blocked
+  // by all major lists — EasyList, EasyPrivacy, AdGuard Base, uBO Filters)
+  popunder: [
+    "/api/ads/adsterra.js",
+    "/api/ads/propellerads.js",
+    "/api/ads/propeller-ads.js",
+    "/api/ads/popads.js",
+    "/api/ads/popcash.js",
+    "/api/ads/hilltopads.js",
+    "/api/ads/clickadu.js",
+    "/api/ads/clickaine.js",
+    "/api/ads/exoclick.js",
+    "/api/ads/exoclick-banner.js",
+    "/api/ads/trafficjunky.js",
+    "/api/ads/trafficstars.js",
+    "/api/ads/juicyads.js",
+    "/api/ads/eroadvertising.js",
+    "/api/ads/plugrush.js",
+    "/api/ads/adcash.js",
+    "/api/ads/adnium.js",
+    "/api/ads/admaven.js",
+    "/api/ads/galaksion.js",
+    "/api/ads/yllix.js",
+    "/api/ads/revenuehits.js",
+    "/api/ads/mellowads.js",
+  ],
+
+  // v12.0 NEW: Crypto / mining / faucet ad networks
+  crypto: [
+    "/api/ads/coinhive.js",
+    "/api/ads/coin-hive.js",
+    "/api/ads/cryptoloot.js",
+    "/api/ads/jsecoin.js",
+    "/api/ads/webminer.js",
+    "/api/ads/minero.js",
+    "/api/ads/coinimp.js",
+    "/api/ads/cryptotabbrowser.js",
+    "/api/ads/cointraffic.js",
+    "/api/ads/coinad.js",
+    "/api/ads/cryptoads.js",
+  ],
+
+  // v12.0 NEW: CDN / 3rd-party domains that filter lists block by hostname
+  cdn: [
+    "/api/ads/cdn/static.doubleclick.net.js",
+    "/api/ads/cdn/pagead2.googlesyndication.com.js",
+    "/api/ads/cdn/securepubads.g.doubleclick.net.js",
+    "/api/ads/cdn/adservice.google.com.js",
+    "/api/ads/cdn/connect.facebook.net.js",
+    "/api/ads/cdn/static.ads-twitter.com.js",
+    "/api/ads/cdn/analytics.tiktok.com.js",
+    "/api/ads/cdn/static.criteo.net.js",
+    "/api/ads/cdn/cdn.taboola.com.js",
+    "/api/ads/cdn/widgets.outbrain.com.js",
+  ],
+
+  // v12.0 NEW: Filter-list "scriptlet" hooks (uBO/AdGuard inject these names
+  // when they substitute decoy implementations into ad scripts)
+  scriptlet: [
+    "/api/ads/scriptlet/adsbygoogle.js",
+    "/api/ads/scriptlet/google-tag-manager.js",
+    "/api/ads/scriptlet/google-analytics.js",
+    "/api/ads/scriptlet/gtm.js",
+    "/api/ads/scriptlet/adsense.js",
+    "/api/ads/scriptlet/_gaq.js",
+    "/api/ads/scriptlet/ga.js",
+    "/api/ads/scriptlet/__google_ad__.js",
+  ],
 }
 
 // =============================================================================
@@ -930,6 +1051,12 @@ export function getAllBaitUrls(): string[] {
     ...BAIT_PATTERNS.social,
     ...BAIT_PATTERNS.images,
     ...BAIT_PATTERNS.native,
+    // v12.0: include the new bait categories so the rotating-route picker
+    // and entropy-correlation engine probe a much wider footprint.
+    ...BAIT_PATTERNS.popunder,
+    ...BAIT_PATTERNS.crypto,
+    ...BAIT_PATTERNS.cdn,
+    ...BAIT_PATTERNS.scriptlet,
   ]
 }
 

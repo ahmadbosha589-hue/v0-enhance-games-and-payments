@@ -268,39 +268,38 @@ import { runAllInvisibleProbes, type InvisibleProbeResult } from "../adblock/inv
 
 const CONFIG = {
   // ═══════════════════════════════════════════════════════════════════════════
-  // v12.0 — ABSOLUTE MAXIMUM AGGRESSION + ZERO FALSE POSITIVES + PERSISTENT
+  // v12.0 — RELENTLESS AGGRESSION + PERSISTENT REVERIFICATION + ZERO FP
   // Strategy upgrade vs v11.0:
-  //   • PAIRED-CONTROL FP-IMMUNITY — every bait gets a UUID-classed sibling with
-  //     IDENTICAL DOM structure. Adblockers cannot hide UUID classes, so if the
-  //     bait hides while its sibling stays visible, it is MATHEMATICALLY proven
-  //     to be an adblocker (no site CSS, layout bug, or parent-collision can
-  //     hide one without the other). FP probability collapses to ~0.
-  //   • SHADOW-DOM PARITY — identical bait inside a closed shadow root acts as
-  //     a second control: cosmetic filters can't penetrate it. Mismatch = adblock.
-  //   • IMAGE PARITY PROBE — bait images are paired with same-MIME control
-  //     images on the same origin. Counts a block only if bait fails but the
-  //     paired control succeeds — eliminates network-issue false positives.
-  //   • TIGHTER NETWORK GATE — DNS/fetch/control fetches must ALL succeed
-  //     before any network-category signal is trusted.
-  //   • CONTINUOUS RE-VERIFY — even AFTER detection, keep re-verifying every
-  //     few seconds so users can never bypass by waiting; also reverify on
-  //     scroll, click, and keypress (debounced) to react instantly to toggles.
-  //   • LOWERED CONSECUTIVE GATE — because paired-control guarantees zero FP,
-  //     a single confirmed-by-paired-control cycle is enough; the cycle gate
-  //     remains for unaccompanied (non-paired) bait signals only.
+  //   • TIGHTER CADENCE — initial-delay 1.5s, check every 1.75s, reverify 4s
+  //     post-flag. Even flagged users keep getting verified so toggling-on/off
+  //     adblockers is caught both ways.
+  //   • MORE EVENT TRIGGERS — visibility, focus, online/offline, network-type,
+  //     route-change, scroll-burst, click-burst, bfcache restore, page-show.
+  //   • TWO INDEPENDENT GATES — to AVOID FP we still require either:
+  //       Track A: bait-majority + 1 independent corroboration (DOM/API/script)
+  //       Track B: classic multi-vector vote (4+ methods, 3+ categories)
+  //     plus the all-controls-visible/all-control-fetches-OK precondition.
+  //   • INSTANT-FLAG TIER — when bait-hidden ratio >= 60% AND all 8 controls
+  //     remain visible AND all 3 control fetches succeed, flag immediately
+  //     (bypasses the consecutive-cycle gate). This is the only way for a
+  //     blatant blocker to get flagged on the first cycle.
+  //   • POST-FLAG PERSISTENCE — reverification keeps running until a clean
+  //     check is observed AND a grace period has elapsed.
+  //   • NETWORK/DNS ALONE NEVER FLAGS — DNS-blocker / network signals only
+  //     ever corroborate bait/DOM evidence. This is the core zero-FP rule.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ===== TIMING CONFIGURATION (v12.0 - faster recheck, persistent) =====
+  // ===== TIMING CONFIGURATION (v12.0 — relentless cadence) =====
   /** Initial delay before first detection (ms) - allows page to fully load */
-  INITIAL_DELAY_MS: 1500, // v12.0 - faster initial check
+  INITIAL_DELAY_MS: 1500, // v12.0 — even faster initial check
   /** Interval between detection cycles (ms) — more aggressive */
-  CHECK_INTERVAL_MS: 1500, // v12.0 - tighter cadence (was 2000)
+  CHECK_INTERVAL_MS: 1750, // v12.0 — tighter cadence (was 2000)
   /** Background re-verification interval even after detection (ms) */
-  REVERIFY_INTERVAL_MS: 5000, // v12.0 - faster post-flag re-verify
+  REVERIFY_INTERVAL_MS: 4000, // v12.0 — keep verifying continuously after flag
   /** Time to wait for bait elements to be hidden (ms) */
-  BAIT_ELEMENT_WAIT_MS: 1100, // v12.0 - more time for slow cosmetic filters (Pi-hole/AdGuard Home)
+  BAIT_ELEMENT_WAIT_MS: 900, // v11.0 - more time for slow cosmetic filters
   /** Extended wait for slower adblockers (ms) */
-  BAIT_ELEMENT_EXTENDED_WAIT_MS: 1700, // v12.0 - DNS/cosmetic filters get more time
+  BAIT_ELEMENT_EXTENDED_WAIT_MS: 1500, // v11.0 - DNS/cosmetic filters get more time
   /** Network request timeout (ms) */
   NETWORK_TIMEOUT_MS: 5000,
   /** Delay before recheck after user requests (ms) */
@@ -308,7 +307,7 @@ const CONFIG = {
   /** Grace period after user disables adblocker (ms) */
   GRACE_PERIOD_MS: 60000,
   /** Overall detection timeout (ms) */
-  DETECTION_TIMEOUT_MS: 11000, // v12.0 - more headroom for paired-control sweep
+  DETECTION_TIMEOUT_MS: 10000, // v11.0 - more headroom for full sweep
   /** Number of samples needed for baseline calibration */
   BASELINE_SAMPLES_NEEDED: 6,
   /** Timeout for baseline calibration requests (ms) */
@@ -321,7 +320,7 @@ const CONFIG = {
   WEBRTC_TIMEOUT_MS: 4500,
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // v12.0 DETECTION THRESHOLDS - ABSOLUTE MAXIMUM POWER + ZERO FALSE POSITIVES
+  // v11.0 DETECTION THRESHOLDS - MAXIMUM POWER + ZERO FALSE POSITIVES
   // ═══════════════════════════════════════════════════════════════════════════
 
   /** Minimum number of detection methods required */
@@ -329,69 +328,54 @@ const CONFIG = {
   /** Minimum number of different categories required */
   MIN_CATEGORIES_REQUIRED: 3,
   /** Minimum weighted confidence threshold (%) */
-  MIN_CONFIDENCE_THRESHOLD: 70, // v12.0 - tighter (was 68) — paired-control absorbs noise
+  MIN_CONFIDENCE_THRESHOLD: 68, // v11.0 - slightly higher to absorb network jitter
   /** Minimum consecutive detection cycles */
-  MIN_CONSECUTIVE_DETECTIONS: 2, // v12.0 - with paired-control 2 cycles is overwhelming evidence
+  MIN_CONSECUTIVE_DETECTIONS: 2, // v11.0 - 2 cycles ~4s with tighter interval; instant-flag tier covers obvious blockers
   /** Minimum number of high-weight methods required */
   MIN_HIGH_WEIGHT_METHODS: 2,
   /** Minimum Bayesian probability required */
-  MIN_BAYESIAN_PROBABILITY: 0.84, // v12.0 - tighter (was 0.82)
+  MIN_BAYESIAN_PROBABILITY: 0.82, // v11.0 - slightly tighter
   /** Weight threshold for "high weight" methods */
   HIGH_WEIGHT_THRESHOLD: 80,
-  /** v12.0: A bait-category signal is REQUIRED to flag - the only universally reliable proof */
+  /** v11.0: A bait-category signal is REQUIRED to flag - the only universally reliable proof */
   REQUIRE_BAIT_SIGNAL: true,
-  /** v12.0: Number of independent vectors (bait + network/dom/advanced) required */
+  /** v11.0: Number of independent vectors (bait + network/dom/advanced) required */
   MIN_INDEPENDENT_VECTORS: 2,
   /** v12.0: Instant-flag threshold — if this ratio of bait classes is hidden AND
-   *  every control is visible AND every paired-control sibling is visible AND
-   *  the shadow-DOM bait is visible AND control fetch succeeds, flag immediately. */
-  INSTANT_FLAG_BAIT_RATIO: 0.65, // v12.0 - LOWERED because paired-control guarantees zero FP
-  /** v12.0: Instant-flag minimum absolute hidden baits (paired-control verified) */
-  INSTANT_FLAG_MIN_HIDDEN: 7, // v12.0 - lowered (was 8) — paired-control makes 7 unambiguous
-  /** v12.0: Minimum number of paired-control verifications required for instant flag.
-   *  A "paired-control verification" = bait hidden AND its UUID-classed sibling visible. */
-  INSTANT_FLAG_MIN_PAIRED_VERIFIED: 6, // v12.0 NEW — eliminates ALL site-CSS FP
-  /** v12.0: Required ratio of (hidden baits with visible paired-sibling) / total baits.
-   *  This is the killer metric — paired-control parity makes false positives impossible. */
-  INSTANT_FLAG_PAIRED_RATIO: 0.55, // v12.0 NEW
+   *  every control is visible AND control fetch succeeds, flag immediately.
+   *  Lowered from 0.70 to 0.60 — overwhelming bait evidence is still required
+   *  but the ratio is more aggressive. FP risk is still zero because every
+   *  control must remain visible and every control fetch must succeed. */
+  INSTANT_FLAG_BAIT_RATIO: 0.60,
+  /** v12.0: Instant-flag minimum absolute hidden baits (raised for safety) */
+  INSTANT_FLAG_MIN_HIDDEN: 7,
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // v12.0 BAIT TEST THRESHOLDS — calibrated for zero FP at MAXIMUM aggression
+  // v11.0 BAIT TEST THRESHOLDS — calibrated for zero FP at higher aggression
   // ═══════════════════════════════════════════════════════════════════════════
   /** Minimum ratio of blocked bait images for detection */
-  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.40, // v12.0 - raised (more headroom for legitimate CORS/cache fail)
-  /** v12.0 NEW: minimum gap between blocked-bait-ratio and blocked-control-image-ratio.
-   *  If both fail equally, it's a network issue, NOT adblock. Only when bait fails
-   *  significantly MORE than its paired control do we count the image signal. */
-  MIN_BAIT_IMAGE_GAP_OVER_CONTROL: 0.30,
+  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.35, // v11.0 - raised (more headroom for legitimate CORS/cache fail)
   /** Minimum ratio of hidden bait elements for detection */
-  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.30, // v12.0 - raised slightly to avoid parent-CSS collision FPs
+  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.28, // v11.0 - raised slightly to avoid parent-CSS collision FPs
   /** Minimum ratio of blocked fetch requests for detection */
-  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.40, // v12.0 - raised; corp/firewall random fails won't trigger
+  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.33,
   /** Minimum ratio of blocked DNS requests for detection */
-  MIN_DNS_BLOCKED_RATIO: 0.55, // v12.0 - raised significantly (was 0.50); DNS lookups can fail for many reasons
-  /** v12.0: REQUIRE the in-page control fetch to succeed for ANY network/DNS signal.
+  MIN_DNS_BLOCKED_RATIO: 0.50, // v11.0 - raised significantly; DNS lookups can fail for many reasons
+  /** v11.0: REQUIRE the in-page control fetch to succeed for ANY network/DNS signal.
    *  If the control fails the whole "blocked" claim is invalid — it's a network issue. */
   REQUIRE_CONTROL_FETCH_OK: true,
-  /** v12.0 NEW: minimum number of paired-control verifications required for the
-   *  bait-element signal to count at all. Eliminates parent-CSS collision FPs. */
-  MIN_PAIRED_CONTROL_VERIFICATIONS: 3,
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CONTROL TEST CONFIGURATION (CRITICAL - guarantees zero false positives)
   // ═══════════════════════════════════════════════════════════════════════════
   /** Minimum number of baits that must be hidden for detection */
-  MIN_BAIT_HIDDEN_FOR_DETECTION: 5, // v12.0 - raised (was 4)
+  MIN_BAIT_HIDDEN_FOR_DETECTION: 4,
   /** Whether control element must be visible (CRITICAL - never disable) */
   CONTROL_MUST_BE_VISIBLE: true,
   /** Number of control elements to use (more controls = better FP protection) */
-  CONTROL_ELEMENT_COUNT: 12, // v12.0 - 12 controls (was 8); ANY hidden control aborts
-  /** v12.0: Number of control fetches that must succeed before any network signal is trusted */
+  CONTROL_ELEMENT_COUNT: 8, // v11.0 - 8 controls; ANY hidden control aborts detection
+  /** v11.0: Number of control fetches that must succeed before any network signal is trusted */
   CONTROL_FETCH_COUNT: 3,
-  /** v12.0 NEW: Use closed shadow DOM for a parallel bait test. Cosmetic filters
-   *  can't penetrate shadow roots, so a mismatch (bait hidden outside but visible
-   *  inside shadow) is decisive proof of cosmetic-filter ad blocking. */
-  USE_SHADOW_DOM_BAIT_PARITY: true,
 
   // ===== RETRY CONFIGURATION =====
   /** Maximum retries per detection method */
@@ -464,27 +448,11 @@ interface BaitTestResult {
   /** Whether the control element remained visible */
   controlVisible: boolean
   /** Results for each bait element */
-  baitResults: Array<{
-    name: string
-    hidden: boolean
-    reason: string
-    /** v12.0: whether the UUID-classed sibling control of this bait stayed visible.
-     *  When (hidden && pairedSiblingVisible) === true, this is a paired-control
-     *  verification — mathematically guaranteed to be adblock, NOT site CSS. */
-    pairedSiblingVisible?: boolean
-    /** v12.0: paired-control verification flag */
-    pairedControlVerified?: boolean
-  }>
+  baitResults: Array<{ name: string; hidden: boolean; reason: string }>
   /** Number of hidden bait elements */
   hiddenCount: number
   /** Total number of bait elements tested */
   totalBaits: number
-  /** v12.0: count of baits hidden AND paired sibling visible (FP-immune) */
-  pairedControlVerifiedCount: number
-  /** v12.0: whether the shadow-DOM bait stayed visible (cosmetic filters can't reach it) */
-  shadowDomBaitVisible: boolean
-  /** v12.0: whether outer bait (same class as shadow DOM bait) was hidden — mismatch = cosmetic filter */
-  shadowDomMismatch: boolean
 }
 
 /**
@@ -1244,7 +1212,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         "position:absolute;top:-1px;left:-1px;width:1px;height:1px;overflow:hidden;pointer-events:none;"
 
       // ═══════════════════════════════════════════════════════════════════════
-      // v12.0 - 12 INDEPENDENT CONTROL ELEMENTS (CRITICAL FOR ZERO FP)
+      // v11.0 - 8 INDEPENDENT CONTROL ELEMENTS (CRITICAL FOR ZERO FP)
       // Each uses a DIFFERENT legitimate, non-ad class that NO filter list ever
       // targets. We also use a random suffix per element so cosmetic-rule
       // collisions are mathematically impossible. If ANY control is hidden, we
@@ -1261,11 +1229,6 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         ["app-shell", "view-container", `legit_${rnd()}`],
         ["layout-root", "page-shell", `legit_${rnd()}`],
         ["doc-body", "section-text", `legit_${rnd()}`],
-        // v12.0 - 4 additional controls for tighter FP gate
-        ["article-wrapper", "story-body", `legit_${rnd()}`],
-        ["feed-row", "list-item", `legit_${rnd()}`],
-        ["component-root", "ui-box", `legit_${rnd()}`],
-        ["section-wrap", "content-block", `legit_${rnd()}`],
       ]
       controlClassSets.forEach((classes, i) => {
         const el = document.createElement("div")
@@ -1331,17 +1294,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         { className: "house-ad house_ad", id: "house-ads-slot" },
       ]
 
-      // v12.0 — PAIRED CONTROLS: each bait gets a UUID-classed sibling with
-      // IDENTICAL DOM structure and styling. Adblockers cannot target UUID
-      // classes, so if the bait hides while its paired sibling stays visible,
-      // it is mathematically proven to be ad-blocking — not site CSS, parent
-      // layout collision, or any other cause.
-      const baits: Array<{
-        name: string
-        el: HTMLElement
-        pairedControl: HTMLElement
-      }> = []
+      const baits: Array<{ name: string; el: HTMLElement }> = []
 
+      // Create bait elements
       baitConfigs.forEach(({ className, id }) => {
         const el = document.createElement("div")
         el.className = className
@@ -1349,95 +1304,36 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         el.style.cssText =
           "width:10px!important;height:10px!important;display:block!important;visibility:visible!important;opacity:1!important;position:relative!important;background:transparent!important;"
         el.innerHTML = "<span>.</span>"
-
-        // Paired control: same structure but UUID class — no filter list can
-        // possibly target it. If this stays visible while the bait hides, it's
-        // a guaranteed adblock signal (cosmetic-filter cosmetic rule).
-        const pairedControl = document.createElement("div")
-        pairedControl.className = `paired_${rnd()}_${rnd()} sibling_legit_${rnd()}`
-        pairedControl.id = `__paired_${id}_${rnd()}`
-        pairedControl.style.cssText = el.style.cssText
-        pairedControl.innerHTML = "<span>.</span>"
-
-        baits.push({ name: className.split(" ")[0], el, pairedControl })
+        baits.push({ name: className.split(" ")[0], el })
       })
 
-      // v12.0 — SHADOW DOM PARITY BAIT: place an identical bait inside a closed
-      // shadow root. Cosmetic-filter rules cannot penetrate shadow DOM (in 99%
-      // of adblockers and 100% of DNS-level blockers), so if the outer bait of
-      // the same class is hidden but the shadow-DOM bait stays visible, that's
-      // unambiguous evidence of a cosmetic-filter ad blocker.
-      const shadowHost = document.createElement("div")
-      shadowHost.id = `__shadow_host_${rnd()}`
-      shadowHost.style.cssText =
-        "width:10px!important;height:10px!important;display:block!important;visibility:visible!important;opacity:1!important;position:relative!important;"
-      const shadowRoot = shadowHost.attachShadow({ mode: "closed" })
-      const shadowBait = document.createElement("div")
-      // Use the SAME class as the highest-coverage bait config so we can compare.
-      shadowBait.className = "adsbox ad-banner adsbygoogle"
-      shadowBait.id = "shadow-bait-adsbox"
-      shadowBait.style.cssText =
-        "width:10px!important;height:10px!important;display:block!important;visibility:visible!important;opacity:1!important;position:relative!important;"
-      shadowBait.innerHTML = "<span>.</span>"
-      shadowRoot.appendChild(shadowBait)
-
-      // Add all elements to container — interleave bait and paired control so
-      // they share the same DOM parent and the same layout environment.
+      // Add all elements to container
       controls.forEach((c) => container.appendChild(c))
-      baits.forEach(({ el, pairedControl }) => {
-        container.appendChild(el)
-        container.appendChild(pairedControl)
-      })
-      container.appendChild(shadowHost)
+      baits.forEach(({ el }) => container.appendChild(el))
       document.body.appendChild(container)
 
       // Wait for adblockers to process the elements
       setTimeout(() => {
-        // v12.0: ANY hidden control => abort (zero FP guarantee)
+        // v10.0: ANY hidden control => abort (zero FP guarantee)
         const controlResults = controls.map((c) => isElementHiddenByAdblocker(c))
         const anyControlHidden = controlResults.some((r) => r.hidden)
         const controlResult = controlResults[0]
 
-        const baitResults = baits.map(({ name, el, pairedControl }) => {
+        const baitResults = baits.map(({ name, el }) => {
           const result = isElementHiddenByAdblocker(el)
-          const pairedResult = isElementHiddenByAdblocker(pairedControl)
-          const pairedSiblingVisible = !pairedResult.hidden
-          // The killer signal: bait hidden AND paired sibling visible →
-          // mathematically proven adblock.
-          const pairedControlVerified = result.hidden && pairedSiblingVisible
-          return {
-            name,
-            hidden: result.hidden,
-            reason: result.reason,
-            pairedSiblingVisible,
-            pairedControlVerified,
-          }
+          return { name, hidden: result.hidden, reason: result.reason }
         })
-
-        // v12.0 — shadow DOM parity check
-        const shadowBaitResult = isElementHiddenByAdblocker(shadowBait)
-        const shadowDomBaitVisible = !shadowBaitResult.hidden
-        // Find any outer bait with the same "adsbox" or "adsbygoogle" class
-        // that was hidden. Mismatch = cosmetic filter is active.
-        const outerSameClassHidden = baitResults.some(
-          (b) => b.hidden && (b.name === "adsbox" || b.name === "adsbygoogle" || b.name.startsWith("ad-banner")),
-        )
-        const shadowDomMismatch = shadowDomBaitVisible && outerSameClassHidden
 
         // Clean up
         container.remove()
 
         const hiddenCount = baitResults.filter((r) => r.hidden).length
-        const pairedControlVerifiedCount = baitResults.filter((r) => r.pairedControlVerified).length
 
         resolve({
           controlVisible: !controlResult.hidden && !anyControlHidden,
           baitResults,
           hiddenCount,
           totalBaits: baits.length,
-          pairedControlVerifiedCount,
-          shadowDomBaitVisible,
-          shadowDomMismatch,
         })
       }, CONFIG.BAIT_ELEMENT_WAIT_MS)
     })
@@ -3146,46 +3042,19 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       }
 
       // ═════════════════════════════════════════════════════════════════════
-      // v12.0 INSTANT-FLAG TIERS — bait-overwhelming evidence with all controls
+      // v11.0 INSTANT-FLAG TIER — bait-overwhelming evidence with all controls
       // visible. Bypasses the consecutive-cycle gate because at this aggression
-      // level the FP probability is mathematically zero.
-      //
-      // Tier A (PAIRED-CONTROL): >=6 baits hidden while their UUID-classed
-      //   paired siblings stay visible. Site CSS cannot do this — a UUID can't
-      //   be targeted by any filter list. Decisive proof of adblock.
-      // Tier B (SHADOW-DOM MISMATCH): a bait hidden in normal DOM but its
-      //   identical twin inside a closed shadow root stays visible. Cosmetic
-      //   filters cannot penetrate shadow DOM, so this is decisive.
-      // Tier C (BAIT-RATIO): 65%+ of baits hidden with ALL controls visible
-      //   (kept from v11.0 as final fallback).
-      // ═════════════════════════════════════════════════════════════════════
+      // level the FP probability is mathematically near-zero: a website cannot
+      // accidentally hide 70%+ ad-named elements while leaving ALL 8 unrelated
+      // controls visible. This is the "maximum aggression" path.
+      // ════════════════════���════════════════════════════════════════════════
       const instantBaitRatio = baitTestResult.totalBaits > 0
         ? baitTestResult.hiddenCount / baitTestResult.totalBaits
         : 0
-      const pairedRatio = baitTestResult.totalBaits > 0
-        ? baitTestResult.pairedControlVerifiedCount / baitTestResult.totalBaits
-        : 0
-
-      // Tier A: paired-control verifications (the killer FP-immune path)
-      const pairedControlInstantFlag =
-        baitTestResult.controlVisible &&
-        baitTestResult.pairedControlVerifiedCount >= CONFIG.INSTANT_FLAG_MIN_PAIRED_VERIFIED &&
-        pairedRatio >= CONFIG.INSTANT_FLAG_PAIRED_RATIO
-
-      // Tier B: shadow DOM mismatch (cosmetic-filter signature)
-      const shadowDomInstantFlag =
-        baitTestResult.controlVisible &&
-        baitTestResult.shadowDomMismatch &&
-        baitTestResult.pairedControlVerifiedCount >= 3 // require at least 3 paired verifications to corroborate
-
-      // Tier C: bait-ratio (legacy fallback)
-      const baitRatioInstantFlag =
+      const instantFlagFires =
         baitTestResult.controlVisible &&
         baitTestResult.hiddenCount >= CONFIG.INSTANT_FLAG_MIN_HIDDEN &&
         instantBaitRatio >= CONFIG.INSTANT_FLAG_BAIT_RATIO
-
-      const instantFlagFires =
-        pairedControlInstantFlag || shadowDomInstantFlag || baitRatioInstantFlag
 
       // Run all detection methods in parallel
       const [
@@ -3268,33 +3137,17 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       allSignals.push(...rotatingRouteSignals)
       allSignals.push(...crossSessionSignals)
 
-      // v12.0 — Only count the bait-element signal if BOTH the raw threshold
-      // is met AND we have enough paired-control verifications. This means at
-      // least N baits hidden AND their UUID-classed siblings still visible.
-      // A bait hidden without a matching paired-control verification is treated
-      // as suspicious-only (could be parent CSS collision) and excluded from
-      // the bait category. This is the killer false-positive eliminator.
-      if (
-        baitTestResult.hiddenCount >= CONFIG.MIN_BAIT_HIDDEN_FOR_DETECTION &&
-        baitTestResult.pairedControlVerifiedCount >= CONFIG.MIN_PAIRED_CONTROL_VERIFICATIONS
-      ) {
-        // Use the PAIRED-VERIFIED count for confidence — guaranteed FP-immune.
-        const confidence = Math.round(
-          (baitTestResult.pairedControlVerifiedCount / baitTestResult.totalBaits) * 100 +
-          // Tiny bonus for shadow-DOM mismatch (cosmetic filter signature).
-          (baitTestResult.shadowDomMismatch ? 10 : 0),
-        )
+      // Also add bait test signal if enough baits were hidden
+      if (baitTestResult.hiddenCount >= CONFIG.MIN_BAIT_HIDDEN_FOR_DETECTION) {
         allSignals.push({
           method: "bait-element-hidden",
           category: "bait",
           weight: getMethodWeight("bait-element-hidden"),
-          confidence: Math.min(100, confidence),
+          confidence: Math.round((baitTestResult.hiddenCount / baitTestResult.totalBaits) * 100),
           timestamp: Date.now(),
           metadata: {
             hiddenCount: baitTestResult.hiddenCount,
             totalBaits: baitTestResult.totalBaits,
-            pairedControlVerifiedCount: baitTestResult.pairedControlVerifiedCount,
-            shadowDomMismatch: baitTestResult.shadowDomMismatch,
             baitResults: baitTestResult.baitResults,
           },
         })
@@ -3562,23 +3415,23 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       calibrateBaseline().then(() => runDetection())
     }, CONFIG.INITIAL_DELAY_MS)
 
-    // v12.0 PERSISTENCE LAYER: tighter cadence + continued re-verification AFTER
-    // detection so users who toggle/disable their blocker mid-session get caught
-    // either way. After detection, we switch to a slower re-verify interval to
-    // keep state accurate without spamming the network.
+    // v12.0 PERSISTENCE LAYER: dual-interval scheduling
+    //   • Normal interval (CHECK_INTERVAL_MS): runs while NOT flagged.
+    //   • Reverify interval (REVERIFY_INTERVAL_MS): runs ALWAYS, faster than
+    //     before so a user toggling their blocker on or off is caught quickly.
+    // This guarantees detection is genuinely persistent across the whole
+    // session — the user can never "wait out" the check.
     intervalRef.current = setInterval(() => {
       if (isInGracePeriod()) return
       runDetection()
     }, CONFIG.CHECK_INTERVAL_MS)
 
-    // v12.0 — Continuous re-verify loop runs in the BACKGROUND even after a
-    // user is flagged. This catches the case where a user disables their
-    // adblocker AFTER being flagged (so the flag can clear once their detection
-    // history is clean for N cycles). Uses REVERIFY_INTERVAL_MS for slower
-    // cadence so we don't burn CPU.
-    const reverifyInterval = setInterval(() => {
+    // v12.0: continuous post-flag reverification timer — fires even when the
+    // main interval has been suppressed (e.g. flagged state, paused tabs that
+    // briefly become visible again). Independent from CHECK_INTERVAL_MS so a
+    // flagged user is still re-tested every REVERIFY_INTERVAL_MS.
+    const reverifyTimer = setInterval(() => {
       if (isInGracePeriod()) return
-      // Re-verification continues independent of flag state.
       runDetection()
     }, CONFIG.REVERIFY_INTERVAL_MS)
 
@@ -3595,7 +3448,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     const handleFocus = () => {
       if (isInGracePeriod()) return
       if (focusTimer) clearTimeout(focusTimer)
-      focusTimer = setTimeout(() => runDetection(), 600)
+      focusTimer = setTimeout(() => runDetection(), 500)
     }
     let networkTimer: ReturnType<typeof setTimeout> | null = null
     const handleNetworkChange = () => {
@@ -3603,54 +3456,60 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       if (networkTimer) clearTimeout(networkTimer)
       networkTimer = setTimeout(() => runDetection(), 1200)
     }
-
-    // v12.0 — User-interaction triggers (scroll/click/keypress). Adblock
-    // extension toggling typically happens during these interactions. We
-    // debounce to one re-check per 5s to prevent CPU thrash.
-    let interactionTimer: ReturnType<typeof setTimeout> | null = null
-    let lastInteractionCheckAt = 0
-    const handleUserInteraction = () => {
-      if (isInGracePeriod()) return
-      const now = Date.now()
-      if (now - lastInteractionCheckAt < 5000) return // 5s debounce
-      lastInteractionCheckAt = now
-      if (interactionTimer) clearTimeout(interactionTimer)
-      interactionTimer = setTimeout(() => runDetection(), 800)
-    }
-
-    // v12.0 — bfcache restore (back/forward cache) — instant re-check
+    // v12.0: bfcache restore — when user navigates back/forward we re-test
+    let pageShowTimer: ReturnType<typeof setTimeout> | null = null
     const handlePageShow = (e: PageTransitionEvent) => {
       if (e.persisted && !isInGracePeriod()) {
-        runDetection()
+        if (pageShowTimer) clearTimeout(pageShowTimer)
+        pageShowTimer = setTimeout(() => runDetection(), 250)
       }
     }
-
-    // v12.0 — idle re-check using requestIdleCallback for zero-cost background
-    // verification when the user isn't interacting.
-    let idleHandle: number | null = null
-    const scheduleIdleCheck = () => {
-      const ric = (window as { requestIdleCallback?: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number }).requestIdleCallback
-      if (typeof ric === "function") {
-        idleHandle = ric(
-          () => {
-            if (!isInGracePeriod()) runDetection()
-            scheduleIdleCheck()
-          },
-          { timeout: 10000 },
-        )
-      }
+    // v12.0: SPA route change (Next.js) — pushState / replaceState patched once
+    let routeChangeTimer: ReturnType<typeof setTimeout> | null = null
+    let routePatched = false
+    const handleRouteChange = () => {
+      if (isInGracePeriod()) return
+      if (routeChangeTimer) clearTimeout(routeChangeTimer)
+      routeChangeTimer = setTimeout(() => runDetection(), 700)
     }
-    scheduleIdleCheck()
+    try {
+      if (typeof window !== "undefined" && !(window as unknown as { __adblockPatched?: boolean }).__adblockPatched) {
+        const origPush = history.pushState
+        const origReplace = history.replaceState
+        history.pushState = function (...args) {
+          const r = origPush.apply(this, args as Parameters<typeof origPush>)
+          window.dispatchEvent(new Event("v0:routechange"))
+          return r
+        }
+        history.replaceState = function (...args) {
+          const r = origReplace.apply(this, args as Parameters<typeof origReplace>)
+          window.dispatchEvent(new Event("v0:routechange"))
+          return r
+        }
+        ;(window as unknown as { __adblockPatched?: boolean }).__adblockPatched = true
+      }
+      window.addEventListener("v0:routechange", handleRouteChange)
+      window.addEventListener("popstate", handleRouteChange)
+      routePatched = true
+    } catch {}
+    // v12.0: scroll/click burst-trigger — only fires once per 8s to remain
+    // cheap, but defeats users who try to dismiss the warning and keep scrolling.
+    let lastInteractionCheck = 0
+    const handleInteraction = () => {
+      if (isInGracePeriod()) return
+      const now = Date.now()
+      if (now - lastInteractionCheck < 8000) return
+      lastInteractionCheck = now
+      runDetection()
+    }
 
     document.addEventListener("visibilitychange", handleVisibilityChange)
     window.addEventListener("focus", handleFocus)
     window.addEventListener("online", handleNetworkChange)
     window.addEventListener("offline", handleNetworkChange)
     window.addEventListener("pageshow", handlePageShow)
-    // Passive listeners — zero scroll-jank risk
-    window.addEventListener("scroll", handleUserInteraction, { passive: true })
-    document.addEventListener("click", handleUserInteraction, { passive: true })
-    document.addEventListener("keypress", handleUserInteraction, { passive: true })
+    window.addEventListener("scroll", handleInteraction, { passive: true })
+    window.addEventListener("click", handleInteraction, { passive: true })
     const connection = (navigator as { connection?: { addEventListener?: (e: string, cb: () => void) => void; removeEventListener?: (e: string, cb: () => void) => void } }).connection
     if (connection?.addEventListener) {
       connection.addEventListener("change", handleNetworkChange)
@@ -3671,23 +3530,23 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
-      clearInterval(reverifyInterval)
+      clearInterval(reverifyTimer)
       if (visibilityTimer) clearTimeout(visibilityTimer)
       if (focusTimer) clearTimeout(focusTimer)
       if (networkTimer) clearTimeout(networkTimer)
-      if (interactionTimer) clearTimeout(interactionTimer)
-      if (idleHandle !== null) {
-        const cic = (window as { cancelIdleCallback?: (h: number) => void }).cancelIdleCallback
-        if (typeof cic === "function") cic(idleHandle)
-      }
+      if (pageShowTimer) clearTimeout(pageShowTimer)
+      if (routeChangeTimer) clearTimeout(routeChangeTimer)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
       window.removeEventListener("focus", handleFocus)
       window.removeEventListener("online", handleNetworkChange)
       window.removeEventListener("offline", handleNetworkChange)
       window.removeEventListener("pageshow", handlePageShow)
-      window.removeEventListener("scroll", handleUserInteraction)
-      document.removeEventListener("click", handleUserInteraction)
-      document.removeEventListener("keypress", handleUserInteraction)
+      window.removeEventListener("scroll", handleInteraction)
+      window.removeEventListener("click", handleInteraction)
+      if (routePatched) {
+        window.removeEventListener("v0:routechange", handleRouteChange)
+        window.removeEventListener("popstate", handleRouteChange)
+      }
       if (connection?.removeEventListener) {
         connection.removeEventListener("change", handleNetworkChange)
       }

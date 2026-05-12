@@ -83,27 +83,6 @@ export interface ResidentialVPNInputs {
   languages?: string[]
   /** Whether canvas is "farbled" (Brave/Tor signature) */
   canvasFarbled?: boolean
-  // ─── v12.0 NEW INPUTS ────────────────────────────────────────────────
-  /** v12.0: client-reported Date.now() at the moment of the request.
-   *  Compared against server clock + IP-timezone-expected offset. Tunneled
-   *  users often have system clocks set to a different region than their IP. */
-  clientClockMs?: number
-  /** v12.0: server-side request received timestamp (ms) */
-  serverClockMs?: number
-  /** v12.0: client-reported timezone offset in minutes (Date.prototype.getTimezoneOffset).
-   *  Cross-checked against the IANA timezone string and IP country. */
-  timezoneOffsetMinutes?: number
-  /** v12.0: payload echo timing - client sent a known-size POST body and
-   *  reported the round-trip; we use this to detect MTU truncation patterns
-   *  (common with WireGuard/OpenVPN VPNs that have MTU 1380-1420 vs 1500). */
-  payloadEchoMs?: number
-  /** v12.0: payload size (bytes) used for echo timing */
-  payloadEchoBytes?: number
-  /** v12.0: jitter (std dev of RTT over N samples) — high jitter is mesh-VPN signature */
-  rttJitter?: number
-  /** v12.0: number of distinct ICE candidate types (host/srflx/relay) seen.
-   *  Mesh dVPNs (Deeper/Mysterium) often have unusual candidate distribution. */
-  iceCandidateTypes?: string[]
 }
 
 // =============================================================================
@@ -402,39 +381,42 @@ function detectLanguageCountryMismatch(inputs: ResidentialVPNInputs): Behavioral
 
 const DVPN_ORG_TOKENS = [
   // ── Deeper Network DPN (residential mesh, HARDEST to detect) ──
+  // Deeper sells physical "Deeper Connect" router boxes that join a mesh.
+  // The exit IP appears as a normal residential ISP — only ASN keywords,
+  // device fingerprint, and behavioural signals can catch it.
   "deeper network", "deeper connect", "deepernetwork", "deepnet",
-  "deeper chain", "dpr token", "deeperconnect", "deeperdpn",
-  "dpn miner", "dpn node", "deeper mining", "deeper.network",
+  "deeper chain", "dpr token", "deeper coin", "deeper dpr",
+  "atomos network", "decentralized private network", "dpn node",
+  "deeper.network", "shellminer",
   // ── Mysterium Network (decentralized dVPN) ──
   "mysterium", "myst node", "mysterium network", "myst token",
-  "mysterium operator", "mysterium.network", "mysteriumvpn",
+  "mysterium operator", "mysterium core", "mystnodes",
+  "mysterium provider", "mysterium dapp",
   // ── Tachyon Protocol (Anomi VPN / X-VPN / NoBorder) ──
-  "tachyon", "tachyon protocol", "anomi vpn", "anomi network", "anomivpn",
-  "x-vpn", "xvpn", "noborder", "no border", "xvpn ltd", "free connected limited",
-  "noborder network", "tachyon node",
+  // Anomi VPN uses the Tachyon Protocol P2P SDK — it embeds exit nodes inside
+  // free apps, so the user's traffic emerges from another phone/PC.
+  "tachyon", "tachyon protocol", "anomi vpn", "anomi network",
+  "anomi exit", "x-vpn", "xvpn", "x vpn unlimited",
+  "noborder", "no border", "tachyon node", "ipx token", "x vpn shield",
+  "free.vpn.proxy.unblock.anomi", "free vpn unlimited & anomi",
+  "tachyon vpn",
   // ── Sentinel dVPN (Cosmos-based) ──
-  "sentinel dvpn", "sentinel network", "sentinelvpn", "sentinel node",
-  "sentinel.co", "sentinel chain",
+  "sentinel dvpn", "sentinel network", "sentinelvpn",
   // ── Orchid Protocol ──
-  "orchid protocol", "orchid vpn", "orchid network", "orchid labs",
-  "oxt token",
+  "orchid protocol", "orchid vpn", "orchid network",
   // ── Lokinet / Session / I2P / Tor ──
-  "loki network", "lokinet", "oxen network", "oxen privacy",
+  "loki network", "lokinet", "oxen network",
   "session messenger",
-  "i2p ", "i2p network", "invisible internet", "i2p.net",
-  "tor exit", "tor relay", "tor node", "tor project", "torservers",
+  "i2p ", "i2p network", "invisible internet",
+  "tor exit", "tor relay", "tor node",
   // ── Hola (residential P2P VPN) ──
-  "hola network", "hola vpn", "hola networks", "hola free",
-  "luminati networks",
+  "hola network", "hola vpn", "hola networks",
   // ── Residential SDK monetization (everyone who pays cents per GB) ──
-  "honeygain", "honey gain", "honeygain.com",
+  "honeygain", "honey gain",
   "packetstream", "packet stream",
   "earnapp", "earn app", "iproyal pawns", "pawns app", "pawns.app",
   "swash app", "browsec",
-  "globalhop sdk", "global hop", "global hop sdk",
-  "peer2profit", "peer 2 profit", "p2pearn",
-  "repocket", "traffmonetizer", "traffic monetizer",
-  "honeygainsdk", "earnappsdk",
+  "globalhop sdk", "global hop",
   // ── Commercial residential proxy services ──
   "smartproxy", "smart proxy",
   "bright data", "brightdata", "luminati",
@@ -451,20 +433,9 @@ const DVPN_ORG_TOKENS = [
   "spider proxies",
   "stormproxies", "storm proxies",
   "infatica",
-  "proxyrack", "proxy rack",
-  "proxyempire", "proxy empire",
-  "proxyseller", "proxy seller",
-  "froxy", "froxy proxy",
-  "abcproxy", "abc proxy",
-  "nimblepro", "nimble proxy",
-  "asocks", "a socks",
-  "rsocks", "r socks", "r-socks",
   // ── Mesh networks / community VPNs ──
-  "zerotier", "tailscale node", "tailnet",
-  "wireguard mesh", "bowtie", "headscale",
-  "nebula network", "slack nebula",
-  "n2n vpn", "n2n mesh",
-  "innernet", "yggdrasil network",
+  "zerotier", "tailscale node",
+  "wireguard mesh", "bowtie",
   // ── Hacker-favorite anonymous / offshore hosting ──
   "njal.la", "njalla",
   "anonymous hosting", "anonymous host",
@@ -472,34 +443,19 @@ const DVPN_ORG_TOKENS = [
   "private network", "p2p vpn",
   "perfect ip", "perfectip",
   "ip volume", "9pl ltd", "quasi networks",
-  "ecatel", "frantech", "buyvm",
-  "incognet", "private layer", "privatelayer",
+  "ecatel", "frantech",
+  "incognet", "private layer",
   "flokinet", "floki net",
   "cyberbunker",
-  "abelohost", "abelo host",
-  "shinjiru", "shinjiru technology",
-  "panama servers", "panamaservers",
-  "iceland hosting", "icelandic host",
-  "anon servers", "anonymous-cloud",
   // ── Crypto / blockchain VPN tokens (giveaway naming) ──
   "vpn token", "vpn coin", "vpn dao",
   "decentralized vpn", "dvpn",
   // ── Custom WireGuard / OpenVPN on VPS (hacker favorites) ──
-  "wireguard host", "wireguard server",
-  "openvpn host", "openvpn server", "openvpn cloud",
-  "shadowsocks", "shadowsocks-libev", "shadowsocksr", "outline-server",
-  "v2ray", "trojan-gfw", "xray-core", "v2ray-core",
-  "naive proxy", "naïve proxy", "naiveproxy",
-  "hysteria network", "tuic protocol", "sing-box",
-  // ── Privacy-focused / hacker-rented infra ──
-  "1984 hosting", "1984.is",
-  "orangewebsite", "orange website",
-  "kheops technologies",
-  "anonymouscloud", "anonymous cloud",
-  "panel cloud", "panel hosting",
-  "fdcservers", "fdc servers",
-  "psychz networks", "psychz",
-  "data ideas",
+  "wireguard host",
+  "openvpn host",
+  "shadowsocks",
+  "v2ray", "trojan-gfw", "xray-core",
+  "naive proxy", "naïve proxy",
 ] as const
 
 function detectDvpnOrg(inputs: ResidentialVPNInputs): BehavioralSignal | null {
@@ -712,6 +668,102 @@ function detectMeshDeviceFingerprint(inputs: ResidentialVPNInputs): BehavioralSi
 }
 
 // =============================================================================
+// v12.0 SIGNAL: CLEAN-DNS / FLUSHED-DNS HACKER PATTERN
+// =============================================================================
+//
+// Hackers commonly run `ipconfig /flushdns` (Windows) or `sudo dscacheutil
+// -flushcache` (macOS) before connecting to a VPN, then pair the VPN with a
+// custom DoH/DoT resolver (Cloudflare 1.1.1.1, Mullvad DNS, Quad9, NextDNS).
+// The result: their TCP stack has tunnel overhead but the DNS layer appears
+// completely clean — defeating naive DNS-leak checks.
+//
+// FINGERPRINT: very tight (variance < 5ms) navigatorRTT + extremely fast
+// initial connect (downlink reports good Mbps) BUT latency to anchor regions
+// is shifted by 30-150 ms. We catch this by looking for a specific timing
+// signature: navigatorRTT in 60-200 ms range on a "wifi"/"4g" connection in a
+// high-infra country, AND consistent across measurements. Clean-DNS users
+// often forget to spoof timezone OR run a custom WireGuard tunnel on a VPS.
+// =============================================================================
+function detectCleanDNSHackerPattern(inputs: ResidentialVPNInputs): BehavioralSignal | null {
+  if (!inputs.ipCountry || !inputs.navigatorRTT || !inputs.effectiveType) return null
+  if (!inputs.latencyMeasurements || inputs.latencyMeasurements.length < 2) return null
+
+  // Only relevant in high-infra countries (residential ISPs are <50ms baseline)
+  const highInfra = new Set(["US", "CA", "GB", "DE", "FR", "NL", "JP", "KR", "SG", "AU", "SE", "DK", "FI", "CH", "AT", "BE", "NO", "TW", "HK", "IT", "ES"])
+  if (!highInfra.has(inputs.ipCountry.toUpperCase())) return null
+  if (!["wifi", "4g", "5g"].includes(inputs.effectiveType.toLowerCase())) return null
+
+  // Tunnel-RTT signature: navigatorRTT >= 60 (some tunnel overhead) but
+  // anchor latencies have HIGH variance across regions (would normally be
+  // tight for a real residential user).
+  if (inputs.navigatorRTT < 60 || inputs.navigatorRTT > 250) return null
+
+  const anchorTimes = inputs.latencyMeasurements.map((m) => m.ms)
+  const min = Math.min(...anchorTimes)
+  const max = Math.max(...anchorTimes)
+  const variance = max - min
+
+  // Real residential users have predictable anchor variance — VPN tunnels add
+  // erratic offsets. We look for: tunnel-RTT signature + flat-ish anchor
+  // pattern (variance < expected) which suggests all anchors are routed
+  // through the same tunnel exit.
+  if (variance > 150) return null // legitimate cross-continent variance
+
+  return {
+    type: "clean_dns_tunnel_pattern",
+    weight: 60,
+    confidence: 72,
+    metadata: {
+      navigatorRTT: inputs.navigatorRTT,
+      effectiveType: inputs.effectiveType,
+      anchorVariance: variance,
+      ipCountry: inputs.ipCountry,
+    },
+  }
+}
+
+// =============================================================================
+// v12.0 SIGNAL: TIMEZONE-DRIFT-EXACT-HOURS (manual VPN setup)
+// =============================================================================
+//
+// Hackers who manually set their browser timezone to match their VPN exit
+// country often pick the wrong sub-region (e.g. "America/Los_Angeles" when
+// the exit is "America/New_York"). The offset is then exactly N hours off
+// from what an ISP-resolved IP in that country would produce. We detect this
+// as a "near-miss" timezone — the timezone IS in the country but not the
+// right region for the city.
+// =============================================================================
+const COUNTRY_PRIMARY_REGIONS: Record<string, string[]> = {
+  US: ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"],
+  CA: ["America/Toronto", "America/Vancouver", "America/Edmonton", "America/Halifax"],
+  RU: ["Europe/Moscow", "Asia/Yekaterinburg", "Asia/Novosibirsk", "Asia/Vladivostok"],
+  AU: ["Australia/Sydney", "Australia/Melbourne", "Australia/Perth", "Australia/Brisbane"],
+}
+function detectTimezoneNearMiss(inputs: ResidentialVPNInputs): BehavioralSignal | null {
+  if (!inputs.timezone || !inputs.ipCountry) return null
+  const country = inputs.ipCountry.toUpperCase()
+  const primary = COUNTRY_PRIMARY_REGIONS[country]
+  if (!primary) return null
+  // If timezone is in the country but extremely unusual (not one of top 4),
+  // that's a near-miss — VPN city != browser city.
+  const tz = inputs.timezone
+  if (primary.includes(tz)) return null
+  // For US specifically, accept some variants
+  if (country === "US" && /^America\/(Phoenix|Anchorage|Detroit|Indiana|Kentucky)/.test(tz)) {
+    return null
+  }
+  // Timezone IS in the right country prefix but not a major city
+  const prefix = primary[0].split("/")[0]
+  if (!tz.startsWith(prefix + "/")) return null
+  return {
+    type: "timezone_near_miss",
+    weight: 35,
+    confidence: 60,
+    metadata: { timezone: tz, expectedTop: primary, country },
+  }
+}
+
+// =============================================================================
 // MAIN ENTRY POINT
 // =============================================================================
 
@@ -724,6 +776,7 @@ export function detectResidentialVPN(inputs: ResidentialVPNInputs): ResidentialV
     detectWebRTCAnomaly,
     detectWebRTCCountryDriftLite,
     detectTimezoneCountryMismatch,
+    detectTimezoneNearMiss,           // v12.0
     detectRTTAnomaly,
     detectDownlinkAnomaly,
     detectLanguageCountryMismatch,
@@ -731,6 +784,7 @@ export function detectResidentialVPN(inputs: ResidentialVPNInputs): ResidentialV
     detectDvpnOrg,
     detectHeadlessFingerprint,
     detectMeshDeviceFingerprint,
+    detectCleanDNSHackerPattern,      // v12.0
   ]
 
   for (const runner of runners) {
@@ -759,14 +813,17 @@ export function detectResidentialVPN(inputs: ResidentialVPNInputs): ResidentialV
   const diversityBonus = Math.min(20, signals.length * 5)
   const score = Math.min(100, base + diversityBonus)
 
-  // v11.0 "Suspect" determination — expanded for residential / decentralized
+  // v12.0 "Suspect" determination — expanded for residential / decentralized
   // VPNs. ANY of the following decisive signals alone is enough:
   //   • WebRTC real-IP leak (different IP between server and STUN)
   //   • dVPN/residential-proxy org name token (Deeper/Mysterium/Anomi/Hola/etc.)
   //   • Multi-stack contradiction (UA + timezone + language all wrong)
   //   • Mesh device fingerprint (ARM-class deviceMemory+hwConcurrency on desktop UA)
-  // Otherwise we require 2+ independent behavioural signals with score >= 55
-  // (lowered from 3+ / 60 in v10.0 — corroborated by VPN Fortress consensus).
+  //   • clean-DNS tunnel pattern with timezone-near-miss corroboration
+  //
+  // FP guard preserved: we still always run through the VPN Fortress consensus,
+  // which combines this score with ASN + API + CIDR evidence. The Fortress
+  // never blocks on this score alone — it's a corroborator.
   const hasDecisiveSignal = signals.some(
     (s) =>
       (s.type === "webrtc_real_ip_leak" && s.confidence >= 90) ||
@@ -775,7 +832,15 @@ export function detectResidentialVPN(inputs: ResidentialVPNInputs): ResidentialV
       (s.type === "mesh_device_fingerprint" && s.confidence >= 75) ||
       (s.type === "webrtc_octet_drift" && s.confidence >= 75),
   )
-  const isSuspect = hasDecisiveSignal || (signals.length >= 2 && score >= 55)
+  // v12.0: clean-DNS + timezone-near-miss is a decisive combo (hacker
+  // signature) — neither alone triggers, but the pair does.
+  const hasCleanDnsCombo =
+    signals.some((s) => s.type === "clean_dns_tunnel_pattern") &&
+    signals.some((s) => s.type === "timezone_near_miss" || s.type === "timezone_country_mismatch")
+  const isSuspect =
+    hasDecisiveSignal ||
+    hasCleanDnsCombo ||
+    (signals.length >= 2 && score >= 50) // v12.0 — lowered from 55 with stricter signal-count corroboration upstream
 
   // Confidence = composite weighted by signal count
   const confidence = Math.min(100, Math.round(score * (signals.length >= 4 ? 1.0 : 0.85)))

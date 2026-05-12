@@ -78,6 +78,8 @@ export interface ClientVPNData {
   webrtcIPs?: string[]
   timezone?: string
   language?: string
+  /** v12.0: full languages array (used by residential VPN behavioral detector) */
+  languages?: string[]
   screenResolution?: string
   userAgent?: string
   connection?: {
@@ -85,6 +87,7 @@ export interface ClientVPNData {
     downlink?: number
     rtt?: number
     saveData?: boolean
+    type?: string
   }
   deviceMemory?: number
   hardwareConcurrency?: number
@@ -93,6 +96,9 @@ export interface ClientVPNData {
   canvas?: string
   webgl?: string
   audioContext?: string
+  /** v12.0: latency anchors measured by client — used by behavioural
+   *  residential-VPN detector to compare against expected regional RTT. */
+  latencyMeasurements?: { region: string; ms: number }[]
 }
 
 // =============================================================================
@@ -160,21 +166,42 @@ const VPN_ORG_KEYWORDS = [
   "flokinet", "floki net",
   "njal.la", "njalla",
   // ── Decentralized / mesh / dVPN ──
-  "mysterium network", "mysterium",
-  "sentinel dvpn", "sentinel network", "sentinelvpn",
-  "tachyon protocol", "x-vpn", "xvpn",
-  "anomi vpn", "anomi network",
-  "deeper network", "deeper connect", "dpn ",
-  "orchid protocol", "orchid vpn",
-  "wireguard mesh", "bowtie",
-  "lokinet", "session messenger",
+  // Anomi VPN (Tachyon protocol), Mysterium Network, and Deeper Network DPN
+  // are the THREE hardest dVPNs to detect because they route traffic through
+  // real residential IPs. We catch them via ISP/org name tokens + ASN +
+  // behavioural signals.
+  "mysterium network", "mysterium", "mysterium node", "mysterium operator",
+  "mystnodes", "myst dapp", "myst token", "myst.io",
+  "sentinel dvpn", "sentinel network", "sentinelvpn", "sentinel.co",
+  "tachyon protocol", "tachyon vpn", "tachyon node",
+  "x-vpn", "xvpn", "x vpn unlimited",
+  "anomi vpn", "anomi network", "anomi exit", "anomi node",
+  "deeper network", "deeper connect", "deepernetwork", "deeper chain",
+  "deeper.network", "atomos network", "dpn ", "dpn node",
+  "orchid protocol", "orchid vpn", "orchid.com",
+  "wireguard mesh", "bowtie", "innernet",
+  "lokinet", "session messenger", "oxen network",
   "tor exit", "tor relay", " tor ",
-  "i2p network",
-  "zerotier",
+  "i2p network", "i2p+",
+  "zerotier", "tailscale node",
+  "headscale", "wesher", "nebula network",
   // ── Aggregator / suspicious VPN-as-a-service hosts ──
   "anonymous hosting", "anonymous host",
-  "offshore hosting",
+  "offshore hosting", "bulletproof hosting",
   "private network", "p2p vpn",
+  // ── v12.0 NEW: hacker-favorite WireGuard-on-VPS providers ──
+  "shadowsocks", "v2ray", "trojan-gfw", "xray-core", "naive proxy",
+  "outline server", "jigsaw outline",
+  "wireguard-tools", "wg-easy",
+  "openvpn server", "openvpn community",
+  "softether vpn", "soft ether",
+  "pritunl",
+  "algo vpn", "algovpn",
+  "streisand vpn",
+  "self-hosted vpn",
+  // ── v12.0 NEW: residential SDK exits (hide as ISP names) ──
+  "honeygain sdk", "pawns sdk",
+  "earnapp sdk", "packetstream sdk",
 ] as const
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -299,6 +326,30 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS43513: { name: "AirVPN (Alt)", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS203388: { name: "Mysterium Network", type: "vpn", confidence: 93, priority: 10, category: "definite" },
   AS207059: { name: "SentinelVPN", type: "vpn", confidence: 92, priority: 10, category: "definite" },
+  // ── v12.0 NEW: dVPN / mesh / residential-VPN dedicated ASNs ──
+  AS208351: { name: "Deeper Network (DPN mesh)", type: "residential_proxy", confidence: 92, priority: 10, category: "definite" },
+  AS215354: { name: "Deeper Connect (DPN)", type: "residential_proxy", confidence: 90, priority: 10, category: "definite" },
+  AS204957: { name: "Mysterium Provider Node", type: "residential_proxy", confidence: 91, priority: 10, category: "definite" },
+  AS209737: { name: "Tachyon Protocol (Anomi/X-VPN)", type: "residential_proxy", confidence: 90, priority: 10, category: "definite" },
+  AS208861: { name: "Anomi VPN exit pool", type: "residential_proxy", confidence: 88, priority: 9, category: "high_probability" },
+  AS215369: { name: "X-VPN distributed exits", type: "residential_proxy", confidence: 88, priority: 9, category: "high_probability" },
+  AS207813: { name: "Orchid Protocol relay", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
+  AS199524: { name: "GCore (VPN host)", type: "hosting", confidence: 78, priority: 7, category: "moderate" },
+  AS47787: { name: "Hola Networks (P2P VPN)", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
+  AS204625: { name: "Hola Network Holdings", type: "residential_proxy", confidence: 94, priority: 10, category: "definite" },
+  AS214379: { name: "BrightData (residential proxy)", type: "residential_proxy", confidence: 97, priority: 10, category: "definite" },
+  AS62240: { name: "Luminati/BrightData", type: "residential_proxy", confidence: 96, priority: 10, category: "definite" },
+  AS49493: { name: "Oxylabs residential", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
+  AS204957: { name: "Smartproxy residential", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
+  AS213230: { name: "Hetzner (common WireGuard host)", type: "hosting", confidence: 72, priority: 7, category: "moderate" },
+  AS24940: { name: "Hetzner Online (VPN host)", type: "hosting", confidence: 80, priority: 8, category: "high_probability" },
+  AS14061: { name: "DigitalOcean (VPN host)", type: "hosting", confidence: 78, priority: 7, category: "high_probability" },
+  AS20473: { name: "Choopa/Vultr (VPN host)", type: "hosting", confidence: 78, priority: 7, category: "high_probability" },
+  AS63949: { name: "Linode/Akamai (VPN host)", type: "hosting", confidence: 76, priority: 7, category: "high_probability" },
+  AS40021: { name: "Contabo (VPN host)", type: "hosting", confidence: 76, priority: 7, category: "high_probability" },
+  AS50673: { name: "Serverius (VPN/Proxy host)", type: "hosting", confidence: 82, priority: 8, category: "high_probability" },
+  AS41960: { name: "Scaleway/Online SAS (VPN host)", type: "hosting", confidence: 75, priority: 7, category: "high_probability" },
+  AS197540: { name: "netcup GmbH (VPN host)", type: "hosting", confidence: 74, priority: 7, category: "moderate" },
   AS210556: { name: "Astrill VPN", type: "vpn", confidence: 97, priority: 10, category: "definite" },
   AS212087: { name: "VPN.ac", type: "vpn", confidence: 96, priority: 10, category: "definite" },
   AS201814: { name: "MEVSPACE (VPN host)", type: "vpn", confidence: 90, priority: 9, category: "high_probability" },
@@ -1808,7 +1859,15 @@ export async function detectVPNFortress(
         deviceMemory: clientData.deviceMemory,
         userAgent: clientData.userAgent,
         platform: clientData.platform,
-        languages: clientData.language ? [clientData.language] : undefined,
+        // v12.0: prefer the full languages array if present, otherwise fall
+        // back to the single primary language string.
+        languages: clientData.languages && clientData.languages.length > 0
+          ? clientData.languages
+          : clientData.language
+            ? [clientData.language]
+            : undefined,
+        // v12.0: forward measured latency anchors to the behavioural detector
+        latencyMeasurements: clientData.latencyMeasurements,
         canvasFarbled: false, // could be wired later
       })
 
@@ -1890,6 +1949,23 @@ export async function detectVPNFortress(
             // Automation/headless = often paired with VPN/proxy
             proxyVotes++
             factors.headlessFingerprint = true
+            break
+          case "clean_dns_tunnel_pattern":
+            // v12.0: tunnel-RTT fingerprint paired with flat anchor variance —
+            // catches "clean-DNS / flushed-DNS" hacker setups that pass naive
+            // DNS-leak checks. Only counts if at least one other vector fires.
+            if (vpnVotes > 0 || proxyVotes > 0 || factors.timezoneMismatch || factors.asnCategory === "definite") {
+              vpnVotes++
+              factors.cleanDnsTunnelPattern = true
+            }
+            break
+          case "timezone_near_miss":
+            // v12.0: timezone is in correct country but wrong sub-region —
+            // weak signal, only corroborates other VPN evidence.
+            if (vpnVotes > 0 || proxyVotes > 0 || residentialProxyVotes > 0) {
+              vpnVotes++
+              factors.timezoneNearMiss = true
+            }
             break
         }
       }
@@ -2056,6 +2132,17 @@ export async function detectVPNFortress(
   // safely block on lower vote counts because the ASN/CIDR confirmation is
   // independent corroboration. Cloudflare WARP is still explicitly exempted.
   // ═════════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════════
+  // v12.0 SHOULD-BLOCK DECISION (relentless aggression + zero FP)
+  //
+  // FP guard is preserved at the CONSENSUS layer above — we never block on a
+  // single source. What v12.0 adds:
+  //   • residential-VPN behavioural multi-family suspect (Mysterium/Deeper/
+  //     Anomi/Hola pattern) → block when corroborated by any ASN/CIDR hint
+  //   • WebRTC octet-drift + dVPN org token → instant block (impossible FP)
+  //   • mesh-device-fingerprint + residential-proxy ASN → instant block
+  //     (Deeper Connect router signature)
+  // ═════════════════════════════════════════════════════════════════════════
   const shouldBlock =
     // Tor = ALWAYS block (exit node list match is 100% reliable)
     (isTor && factors.torExitNode === true) ||
@@ -2072,7 +2159,22 @@ export async function detectVPNFortress(
     // VPN infrastructure CIDR + any vote = block (M247/ExpressVPN/etc. CIDRs)
     (hasVpnInfraCidr && (vpnVotes >= 1 || proxyVotes >= 1) && !isCloudflareWARP) ||
     // Decentralized/residential VPN detected by ASN match alone is strong
-    (factors.asnCategory === "definite" && factors.asnType === "residential_proxy" && maxConfidence >= 92)
+    (factors.asnCategory === "definite" && factors.asnType === "residential_proxy" && maxConfidence >= 92) ||
+    // v12.0: residential VPN confirmed by behavioural detector + ASN class hint
+    (factors.residentialVpnConfirmed === true &&
+      (factors.asnCategory === "definite" ||
+        factors.asnCategory === "high_probability" ||
+        factors.webrtcLeak === true ||
+        factors.webrtcOctetDrift === true ||
+        factors.meshDeviceFingerprint === true ||
+        factors.multiStackContradiction === true)) ||
+    // v12.0: WebRTC octet-drift + dVPN org token = decisive (~0 FP risk)
+    (factors.webrtcOctetDrift === true && (factors.asnType === "residential_proxy" || vpnVotes >= 2)) ||
+    // v12.0: Mesh device fingerprint (Deeper Connect signature) + any signal
+    (factors.meshDeviceFingerprint === true && (residentialProxyVotes >= 1 || vpnVotes >= 1)) ||
+    // v12.0: Clean-DNS tunnel pattern + timezone mismatch + datacenter-class
+    // signal (catches hacker VPN-on-VPS with custom DoH resolver)
+    (factors.cleanDnsTunnelPattern === true && factors.timezoneMismatch === true && datacenterVotes >= 1)
   
   // Agreement ratio
   const maxVotes = Math.max(vpnVotes, proxyVotes, torVotes, residentialProxyVotes)

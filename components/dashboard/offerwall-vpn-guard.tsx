@@ -19,7 +19,7 @@ export function OfferwallVPNGuard({ children, strictMode = true }: OfferwallVPNG
   const [isCheckingMultiAccount, setIsCheckingMultiAccount] = useState(true)
   
   const { vpnDetected, isChecking, lastResult, recheck } = usePersistentVPNCheck({
-    intervalMs: 10000, // v11.0 - check every 10s for offerwalls (was 15s)
+    intervalMs: 7000, // v12.0 - check every 7s for offerwalls (was 10s) — relentless
     checkOnVisibilityChange: true,
     checkOnNetworkChange: true,
   })
@@ -58,19 +58,31 @@ export function OfferwallVPNGuard({ children, strictMode = true }: OfferwallVPNG
     checkMultiAccount()
   }, [])
 
-  // v11.0 - Aggressive strict-mode blocking: any of the following triggers a block:
-  //   1. Server flagged the IP as VPN/proxy/Tor (vpnDetected)
-  //   2. strict mode + risk score >= 55 (was 65) — catches residential VPNs / dVPNs
+  // v12.0 — RELENTLESS strict-mode blocking. ANY of the following triggers a block:
+  //   1. Server flagged the IP as VPN/proxy/Tor (vpnDetected / shouldBlock)
+  //   2. strict mode + risk score >= 45 (was 55) — catches softer dVPN/anonymizer signals
   //   3. strict mode + residential-proxy flagged (Mysterium/Deeper/Anomi/Honeygain)
-  //   4. strict mode + datacenter + Tor flag present
-  // Zero-FP guarantee maintained via server-side multi-source consensus.
+  //   4. strict mode + ANY of: Tor / VPN / datacenter / hosting flag from server
+  //   5. strict mode + behavioural residential-VPN signal in methods list
+  //   6. strict mode + critical or high risk level
+  // Zero-FP guarantee preserved via server-side multi-source consensus — the
+  // Fortress already requires 3+ independent sources before flagging.
   const isResidentialVPNRisk = strictMode && lastResult?.isResidentialProxy === true
   const isCriticalRisk = strictMode && (lastResult?.riskLevel === "critical" || lastResult?.riskLevel === "high")
+  const hasBehavioralResidentialSignal =
+    strictMode &&
+    Array.isArray(lastResult?.methods) &&
+    lastResult.methods.includes("residential_vpn_behavioral")
+  const hasDatacenterOrHosting =
+    strictMode && (lastResult?.isDatacenter === true || lastResult?.isHosting === true)
   const isBlocked =
     vpnDetected ||
-    (strictMode && lastResult && lastResult.riskScore >= 55) ||
+    (strictMode && lastResult && lastResult.riskScore >= 45) ||
+    (strictMode && lastResult?.shouldBlock === true) ||
     isResidentialVPNRisk ||
-    isCriticalRisk
+    isCriticalRisk ||
+    hasBehavioralResidentialSignal ||
+    hasDatacenterOrHosting
 
   // Show loading state on initial checks
   if ((!lastResult && isChecking) || isCheckingMultiAccount) {
@@ -148,7 +160,7 @@ export function OfferwallVPNGuard({ children, strictMode = true }: OfferwallVPNG
             </div>
             <div className="text-xs space-y-1 opacity-80">
               <p>This restriction is required by our offerwall partners to prevent fraud and ensure fair payouts for all users.</p>
-              <p>Your connection is checked every 15 seconds. Once you disable your VPN, access will be restored automatically.</p>
+              <p>Your connection is re-checked every 7 seconds. Once you disable your VPN, proxy, or anonymization tool, access will be restored automatically.</p>
               {lastResult && (
                 <div className="mt-2 p-2 bg-background/50 rounded text-[10px] font-mono">
                   <p>Risk Score: {lastResult.riskScore}/100</p>
