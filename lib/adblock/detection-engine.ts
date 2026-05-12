@@ -445,38 +445,38 @@ export interface ThresholdConfig {
 }
 
 export const THRESHOLD_CONFIGS: Record<string, ThresholdConfig> = {
-  // Standard - Very strict, zero false positives
+  // Standard - Strict, zero false positives (v10.0 tightened)
   standard: {
-    minMethods: 3,
-    minCategories: 2,
-    minConfidence: 50,
-    minConsecutive: 5,
-    minHighWeight: 1,
-    minBayesian: 0.7,
+    minMethods: 4, // v10.0 - was 3
+    minCategories: 3, // v10.0 - was 2 (bait + network + at least one other)
+    minConfidence: 65, // v10.0 - was 50
+    minConsecutive: 3, // v10.0 - was 5; relies on bait+control gate
+    minHighWeight: 2, // v10.0 - was 1
+    minBayesian: 0.8, // v10.0 - was 0.7
     requireServerVerification: true,
-    requireBaitSignal: true,
+    requireBaitSignal: true, // bait is the only universally reliable proof
     requireNetworkSignal: false,
   },
-  // Ultra - Maximum strictness
+  // Ultra - Maximum strictness (v10.0 tightened)
   ultra: {
-    minMethods: 5,
-    minCategories: 3,
-    minConfidence: 70,
-    minConsecutive: 7,
-    minHighWeight: 2,
-    minBayesian: 0.85,
+    minMethods: 6, // v10.0 - was 5
+    minCategories: 4, // v10.0 - was 3
+    minConfidence: 78, // v10.0 - was 70
+    minConsecutive: 5, // v10.0 - was 7
+    minHighWeight: 3, // v10.0 - was 2
+    minBayesian: 0.9, // v10.0 - was 0.85
     requireServerVerification: true,
     requireBaitSignal: true,
     requireNetworkSignal: true,
   },
-  // Maximum - Absolute certainty required
+  // Maximum - Absolute certainty required (v10.0 tightened)
   maximum: {
-    minMethods: 7,
-    minCategories: 4,
-    minConfidence: 80,
-    minConsecutive: 10,
-    minHighWeight: 3,
-    minBayesian: 0.95,
+    minMethods: 8, // v10.0 - was 7
+    minCategories: 5, // v10.0 - was 4
+    minConfidence: 88, // v10.0 - was 80
+    minConsecutive: 7, // v10.0 - was 10 (with new strict gate, 7 is enough)
+    minHighWeight: 4, // v10.0 - was 3
+    minBayesian: 0.97, // v10.0 - was 0.95
     requireServerVerification: true,
     requireBaitSignal: true,
     requireNetworkSignal: true,

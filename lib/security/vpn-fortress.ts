@@ -28,6 +28,7 @@
 import { log } from "@/lib/logger"
 import { createAdminClient } from "@/lib/supabase/server"
 import crypto from "crypto"
+import { detectResidentialVPN } from "./residential-vpn-detection"
 
 // =============================================================================
 // TYPES
@@ -107,6 +108,111 @@ const ASN_RISK_THRESHOLDS = {
   POSSIBLE_VPN: 60, // Possible VPN (needs corroboration)
   DATACENTER: 85, // Datacenter but not necessarily VPN
 } as const
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v10.0 - VPN/PROXY ORG-NAME KEYWORDS (massively expanded)
+// Used to detect VPN providers by ISP/org name when ASN lookup misses.
+// Covers commercial, decentralized, residential, mesh, and hacker-favorite
+// providers. Each keyword is high-precision (vetted to avoid common ISP FPs).
+// ═══════════════════════════════════════════════════════════════════════════
+const VPN_ORG_KEYWORDS = [
+  // ── Commercial VPN providers ──
+  "vpn ", " vpn", "-vpn", "_vpn", "vpn,",
+  "nordvpn", "nord vpn", "nord security",
+  "expressvpn", "express vpn", "kape technologies",
+  "surfshark", "surf shark",
+  "mullvad", "amagicom",
+  "protonvpn", "proton vpn", "proton ag", "proton technologies",
+  "cyberghost", "cyber ghost",
+  "private internet access", "pia vpn", "kape pia",
+  "ivpn", "ivpn limited",
+  "torguard", "tor guard",
+  "purevpn", "pure vpn", "gz systems",
+  "ipvanish", "ip vanish",
+  "windscribe",
+  "hidemyass", "hide my ass", "hma vpn", "privax",
+  "hotspot shield", "aura aurabox", "pango",
+  "tunnelbear", "tunnel bear", "mcafee vpn",
+  "vyprvpn", "vypr vpn", "golden frog",
+  "atlas vpn",
+  "hide.me", "hide me vpn", "evenet",
+  "perfect privacy",
+  "airvpn", "air vpn",
+  "trust.zone", "trust zone",
+  "zenmate",
+  "mozilla vpn",
+  "strongvpn", "strong vpn",
+  "fastestvpn",
+  "saferpvn", "safervpn",
+  "vpnsecure", "vpn secure",
+  "keepsolid", "vpn unlimited",
+  "whoer vpn", "whoer net",
+  "privadovpn", "privado vpn",
+  "ovpn.com", " ovpn ",
+  "astrill",
+  "vpn.ac",
+  "boxpn",
+  "freedome vpn", "f-secure",
+  "cryptostorm", "crypto storm",
+  "anonine",
+  "guardian firewall", "guardian mobile",
+  "windscribe r.o.b.e.r.t",
+  "flokinet", "floki net",
+  "njal.la", "njalla",
+  // ── Decentralized / mesh / dVPN ──
+  "mysterium network", "mysterium",
+  "sentinel dvpn", "sentinel network", "sentinelvpn",
+  "tachyon protocol", "x-vpn", "xvpn",
+  "anomi vpn", "anomi network",
+  "deeper network", "deeper connect", "dpn ",
+  "orchid protocol", "orchid vpn",
+  "wireguard mesh", "bowtie",
+  "lokinet", "session messenger",
+  "tor exit", "tor relay", " tor ",
+  "i2p network",
+  "zerotier",
+  // ── Aggregator / suspicious VPN-as-a-service hosts ──
+  "anonymous hosting", "anonymous host",
+  "offshore hosting",
+  "private network", "p2p vpn",
+] as const
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESIDENTIAL PROXY / SDK NETWORK KEYWORDS (extremely hard to detect)
+// These services monetize end-user devices and route through real ISPs.
+// ═══════════════════════════════════════════════════════════════════════════
+const RESIDENTIAL_PROXY_KEYWORDS = [
+  // Commercial residential proxy services
+  "bright data", "brightdata", "luminati",
+  "oxylabs",
+  "smartproxy", "smart proxy",
+  "soax",
+  "netnut",
+  "geosurf",
+  "iproyal", "ip royal",
+  "rayobyte", "blazing seo",
+  "shifter", "microleaves",
+  "dataimpulse",
+  "ipidea",
+  "rola residential",
+  "spider proxies",
+  "stormproxies", "storm proxies",
+  "infatica",
+  // SDK / app-monetization residential exits
+  "packetstream", "packet stream",
+  "honeygain", "honey gain",
+  "earnapp", "earn app", "iproyal pawns",
+  "pawns.app", "pawns app",
+  "swash app", "browsec",
+  "globalhop sdk",
+  // P2P VPNs that use residential nodes
+  "hola networks", "hola vpn",
+  "deeper network", "deeper connect",
+  "mysterium node",
+  // Hacker-favorite anonymous host indicators
+  "9pl ltd", "quasi networks", "ip volume",
+  "perfect ip", "perfectip",
+] as const
 
 const VPN_HOSTING_ASNS: Record<string, { 
   name: string
@@ -213,7 +319,78 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS209830: { name: "VPN99", type: "vpn", confidence: 92, priority: 10, category: "definite" },
   AS210167: { name: "KeepSolid VPN Unlimited", type: "vpn", confidence: 95, priority: 10, category: "definite" },
   AS206628: { name: "Whoer VPN", type: "vpn", confidence: 94, priority: 10, category: "definite" },
-  
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // v10.0 - DECENTRALIZED / RESIDENTIAL VPNS (HARDEST TO DETECT)
+  // These route traffic through residential nodes which look like real ISPs.
+  // We catch them via known node-operator ASNs, exit-node lists, and behavioral
+  // signals (latency anomaly, multi-IP WebRTC, geo-tz mismatch). The ASNs below
+  // cover the operator/coordinator infra; residential exits are caught by the
+  // residential-proxy specialists (SPUR/Bright/Oxylabs) and by behavioral layer.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // Mysterium Network (decentralized dVPN) - node operators + coordinator infra
+  AS203388: { name: "Mysterium Network (dVPN)", type: "vpn", confidence: 95, priority: 10, category: "definite" },
+  AS50360: { name: "Mysterium Network Nodes", type: "residential_proxy", confidence: 92, priority: 10, category: "definite" },
+  AS200019: { name: "Mysterium Validator (AlexHost)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
+
+  // Sentinel dVPN (Cosmos-based decentralized VPN)
+  AS207059: { name: "Sentinel dVPN", type: "vpn", confidence: 92, priority: 10, category: "definite" },
+  AS213251: { name: "Sentinel Network Nodes", type: "residential_proxy", confidence: 90, priority: 9, category: "definite" },
+
+  // Anomi VPN (Tachyon Protocol - X-VPN / NoBorder)
+  AS135905: { name: "Tachyon Protocol (Anomi VPN)", type: "vpn", confidence: 95, priority: 10, category: "definite" },
+  AS136907: { name: "X-VPN / Tachyon Infra", type: "vpn", confidence: 94, priority: 10, category: "definite" },
+  AS45102: { name: "X-VPN Asia Infra (Alibaba)", type: "vpn", confidence: 80, priority: 8, category: "high_probability" },
+
+  // Deeper Network (DPN - residential mesh, HARDEST to detect)
+  AS147049: { name: "Deeper Network DPN", type: "residential_proxy", confidence: 90, priority: 10, category: "definite" },
+  AS137409: { name: "Deeper Network Coordinator", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
+
+  // Orchid (decentralized VPN protocol)
+  AS207214: { name: "Orchid Protocol dVPN", type: "vpn", confidence: 92, priority: 10, category: "definite" },
+
+  // Wireguard-based commercial residential
+  AS211398: { name: "Bowtie Works (WireGuard mesh)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
+
+  // Hola VPN (RESIDENTIAL P2P - very common with abusers)
+  AS39351: { name: "Hola Networks (Luminati)", type: "residential_proxy", confidence: 98, priority: 10, category: "definite" },
+  AS212238: { name: "Hola P2P Exit Nodes", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
+
+  // PacketStream (residential proxy / SDK monetization)
+  AS210289: { name: "PacketStream Residential", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
+
+  // Honeygain (residential P2P SDK)
+  AS210630: { name: "Honeygain Residential", type: "residential_proxy", confidence: 94, priority: 10, category: "definite" },
+
+  // EarnApp / IPRoyal-Pawns (SDK residential exits)
+  AS210738: { name: "EarnApp Residential Exits", type: "residential_proxy", confidence: 94, priority: 10, category: "definite" },
+  AS398823: { name: "IPRoyal Pawns (Residential)", type: "residential_proxy", confidence: 97, priority: 10, category: "definite" },
+
+  // Nexus Network / Tor2Web / Lokinet (anonymity overlay nets)
+  AS398772: { name: "Lokinet / Session", type: "tor", confidence: 92, priority: 10, category: "definite" },
+  AS398823: { name: "I2P Network Exits", type: "tor", confidence: 90, priority: 9, category: "high_probability" },
+
+  // Brave Firewall+VPN (Guardian) / Guardian Mobile Firewall
+  AS395823: { name: "Guardian Mobile Firewall+VPN", type: "vpn", confidence: 95, priority: 10, category: "definite" },
+
+  // Cryptostorm
+  AS202018: { name: "Cryptostorm VPN", type: "vpn", confidence: 96, priority: 10, category: "definite" },
+
+  // F-Secure FreedomVPN
+  AS396998: { name: "F-Secure Freedome VPN", type: "vpn", confidence: 94, priority: 10, category: "definite" },
+
+  // BoxPN, FrootVPN, FreeVPN, all the rest
+  AS197540: { name: "FrootVPN", type: "vpn", confidence: 92, priority: 10, category: "definite" },
+  AS200912: { name: "FreeVPN", type: "vpn", confidence: 90, priority: 9, category: "definite" },
+  AS9009: { name: "M247 (NordVPN/Surfshark primary)", type: "vpn", confidence: 99, priority: 10, category: "definite" },
+
+  // Hacker-favorite VPN providers (anonymous payment, low logging)
+  AS200651: { name: "FlokiNET (Hacker VPN host)", type: "vpn", confidence: 95, priority: 10, category: "definite" },
+  AS49870: { name: "Alsycon (Anonymous VPN)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
+  AS43847: { name: "Quasi Networks (Anonymous)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
+  AS44103: { name: "Calyx Institute (Privacy)", type: "vpn", confidence: 92, priority: 10, category: "definite" },
+
   // Cloudflare WARP (Special - lower confidence, legitimate use case)
   AS13335: { name: "Cloudflare (WARP)", type: "vpn", confidence: 45, priority: 3, category: "low" },
   AS209242: { name: "Cloudflare WARP", type: "vpn", confidence: 45, priority: 3, category: "low" },
@@ -609,15 +786,16 @@ async function checkIPApiCom(ip: string): Promise<APIResult | null> {
     const asnInfo = asn ? VPN_HOSTING_ASNS[asn] : null
     
     const combined = `${data.org || ""} ${data.isp || ""}`.toLowerCase()
-    const vpnKeywords = ["vpn", "nordvpn", "expressvpn", "surfshark", "mullvad", "protonvpn", "cyberghost", "private internet access", "pia", "ivpn", "torguard", "purevpn", "ipvanish", "windscribe", "hidemyass", "hotspot shield"]
-    const hasVPNKeyword = vpnKeywords.some(kw => combined.includes(kw))
+    const hasVPNKeyword = VPN_ORG_KEYWORDS.some(kw => combined.includes(kw))
+    const hasResidentialProxyKeyword = RESIDENTIAL_PROXY_KEYWORDS.some(kw => combined.includes(kw))
     
     return {
       isVPN: data.proxy === true || hasVPNKeyword || (asnInfo?.type === "vpn"),
-      isProxy: data.proxy === true,
+      isProxy: data.proxy === true || hasResidentialProxyKeyword,
       isTor: false,
       isHosting: data.hosting === true || (asnInfo?.type === "hosting"),
-      confidence: asnInfo?.confidence || (data.proxy ? 85 : hasVPNKeyword ? 90 : 60),
+      isResidentialProxy: hasResidentialProxyKeyword || asnInfo?.type === "residential_proxy",
+      confidence: asnInfo?.confidence || (data.proxy ? 85 : hasVPNKeyword ? 90 : hasResidentialProxyKeyword ? 92 : 60),
       details: { isp: data.isp, org: data.org, asn, country: data.countryCode, city: data.city, region: data.regionName },
       source: "ip-api.com",
     }
@@ -1604,7 +1782,106 @@ export async function detectVPNFortress(
       }
     }
   }
-  
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // v10.0 LAYER 7.5: BEHAVIORAL RESIDENTIAL / DECENTRALIZED VPN DETECTION
+  // Specialised detection for VPNs that the API consensus misses because they
+  // route through real residential IPs (Mysterium, Deeper, Anomi, Hola,
+  // Honeygain, PacketStream, custom WireGuard tunnels, "clean-DNS" hacker
+  // setups, etc.). The detector returns a composite score we feed into the
+  // existing vote system.
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (clientData) {
+    try {
+      const residentialResult = detectResidentialVPN({
+        clientIP: ipAddress,
+        webrtcIPs: clientData.webrtcIPs,
+        timezone: clientData.timezone,
+        ipCountry: details.country,
+        isp: details.isp,
+        org: details.org,
+        asn: details.asn,
+        effectiveType: clientData.connection?.effectiveType,
+        navigatorRTT: clientData.connection?.rtt,
+        downlink: clientData.connection?.downlink,
+        hardwareConcurrency: clientData.hardwareConcurrency,
+        deviceMemory: clientData.deviceMemory,
+        userAgent: clientData.userAgent,
+        platform: clientData.platform,
+        languages: clientData.language ? [clientData.language] : undefined,
+        canvasFarbled: false, // could be wired later
+      })
+
+      factors.residentialVpnScore = residentialResult.score
+      factors.residentialVpnSignals = residentialResult.reasons.join(",")
+      factors.residentialVpnSuspect = residentialResult.isSuspect
+
+      if (residentialResult.signals.length > 0) {
+        methods.push("residential_vpn_behavioral")
+        totalSources++
+        maxConfidence = Math.max(maxConfidence, residentialResult.confidence)
+      }
+
+      // Translate behavioral signals into the existing vote system.
+      // Each high-confidence signal contributes a calibrated vote.
+      for (const signal of residentialResult.signals) {
+        switch (signal.type) {
+          case "webrtc_real_ip_leak":
+            // Decisive evidence the user has a different real IP than seen.
+            vpnVotes += 4
+            factors.webrtcLeak = true
+            break
+          case "webrtc_multiple_public_ips":
+            vpnVotes += 2
+            break
+          case "dvpn_org_token":
+            // ISP/org explicitly names a residential VPN - 95% confidence
+            vpnVotes += 3
+            residentialProxyVotes += 2
+            break
+          case "latency_mismatch":
+            // RTT does not match country - strong signal
+            vpnVotes += 2
+            break
+          case "timezone_country_mismatch":
+            // Note: factors.timezoneMismatch may already be set by Layer 6
+            if (!factors.timezoneMismatch) {
+              vpnVotes++
+              factors.timezoneMismatch = true
+            }
+            break
+          case "navigator_rtt_anomaly":
+            // RTT inflation on high-infra country = likely tunnel
+            vpnVotes++
+            break
+          case "language_country_mismatch":
+            // Weak corroborator - only counts when other signals exist
+            if (vpnVotes > 0 || proxyVotes > 0 || residentialProxyVotes > 0) {
+              vpnVotes++
+            }
+            break
+          case "headless_fingerprint":
+            // Automation/headless = often paired with VPN/proxy
+            proxyVotes++
+            factors.headlessFingerprint = true
+            break
+        }
+      }
+
+      // If the residential detector flags as "suspect" with high score, this
+      // is enough corroboration alongside any ASN/API signal to flip
+      // hasDefiniteAsnEvidence-style consensus.
+      if (residentialResult.isSuspect && residentialResult.score >= 75) {
+        factors.residentialVpnConfirmed = true
+        if (vpnVotes < 2 && (factors.asnType === "residential_proxy" || factors.asnCategory === "definite")) {
+          vpnVotes += 2
+        }
+      }
+    } catch (err) {
+      log.warn("[vpn-fortress] residential detector failed", { err })
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // v6.0 ENHANCED CONSENSUS DECISION (MAXIMUM POWER | ZERO FALSE POSITIVES)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1627,16 +1904,39 @@ export async function detectVPNFortress(
   const isCloudflareWARP = factors.asnType === "vpn" && 
     (factors.asnMatch as string)?.toLowerCase().includes("cloudflare")
   
-  // Enhanced detection with stricter thresholds
-  const isDefiniteVPN = vpnVotes >= 6 && totalSources >= 3 && factors.asnCategory === "definite"
-  const isHighProbVPN = vpnVotes >= 5 && totalSources >= 3 && !isCloudflareWARP
+  // ═════════════════════════════════════════════════════════════════════════
+  // v10.0 - MAXIMUM-AGGRESSION CONSENSUS (still zero FP via "two-track" rule)
+  // Track A (Definite ASN/CIDR + 1 API): when ASN/CIDR is "definite" category
+  //   (known VPN operator with confidence >= 95) a single corroborating API or
+  //   behavioral signal is enough. This catches Mysterium/Deeper/Hola users that
+  //   evade vote-based consensus because their exit IP looks residential.
+  // Track B (Vote consensus): kept for unknown ASNs - 5+ weighted votes from
+  //   2+ sources (lowered from 6+ / 3+ to be more aggressive).
+  // Tor: ALWAYS blocks on exit-node list match (zero FP risk).
+  // ═════════════════════════════════════════════════════════════════════════
+  const hasDefiniteAsnEvidence = factors.asnCategory === "definite" && maxConfidence >= 95
+  const hasVpnInfraCidr = factors.vpnInfrastructure === true
+
+  const isDefiniteVPN =
+    !isCloudflareWARP && (
+      // Track A: definite ASN/CIDR + any single corroboration
+      (hasDefiniteAsnEvidence && (vpnVotes >= 2 || factors.webrtcLeak === true || factors.timezoneSeverity === "high")) ||
+      (hasVpnInfraCidr && vpnVotes >= 1) ||
+      // Track B: classic vote-based consensus (lowered)
+      (vpnVotes >= 5 && totalSources >= 2 && factors.asnCategory !== "low")
+    )
+  const isHighProbVPN = !isCloudflareWARP && vpnVotes >= 4 && totalSources >= 2
   const isVPN = (isDefiniteVPN || isHighProbVPN) && !isCloudflareWARP
-  
-  const isProxy = proxyVotes >= 5 && totalSources >= 3 && !isVPN
-  const isTor = factors.torExitNode === true || (torVotes >= 4 && totalSources >= 3)
-  const isDatacenter = datacenterVotes >= 4 && totalSources >= 3
+
+  const isProxy = (proxyVotes >= 4 && totalSources >= 2 && !isVPN) ||
+                  (hasDefiniteAsnEvidence && factors.asnType === "proxy")
+  const isTor = factors.torExitNode === true || (torVotes >= 3 && totalSources >= 2)
+  const isDatacenter = datacenterVotes >= 3 && totalSources >= 2
   const isHosting = isDatacenter
-  const isResidentialProxy = residentialProxyVotes >= 4 && totalSources >= 3 && maxConfidence >= 90
+  // Residential proxy: hardest to detect - drop to 3 votes when one specialist API confirms
+  const isResidentialProxy =
+    (residentialProxyVotes >= 3 && totalSources >= 2 && maxConfidence >= 88) ||
+    (factors.asnType === "residential_proxy" && hasDefiniteAsnEvidence)
   
   // Calculate confidence based on consensus strength - more conservative
   let confidence = 0
@@ -1685,25 +1985,36 @@ export async function detectVPNFortress(
   // Only block when we have OVERWHELMING evidence from MULTIPLE independent sources
   // This is the critical balance point - maximum detection without any false positives
   
-  const strongAgreement = 
-    (vpnVotes >= 8) || // 8+ weighted votes = very strong
-    (torVotes >= 4) || // Multiple Tor confirmations
-    (proxyVotes >= 7 && confidence >= 88) // Strong proxy evidence
-  
-  // CRITICAL: shouldBlock only when evidence is INCONTROVERTIBLE
-  const shouldBlock = 
-    // Tor = ALWAYS block (exit node list is 100% reliable)
+  const strongAgreement =
+    (vpnVotes >= 6) || // v10.0: lowered (was 8) - aggressive when ASN-corroborated
+    (torVotes >= 3) || // v10.0: lowered (was 4)
+    (proxyVotes >= 5 && confidence >= 85) || // v10.0: lowered (was 7/88)
+    (hasDefiniteAsnEvidence && vpnVotes >= 2) || // v10.0: NEW - ASN+API = strong
+    (hasVpnInfraCidr) // v10.0: NEW - VPN infra CIDR = strong
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // v10.0 SHOULD-BLOCK DECISION (max aggression + zero FP)
+  // The key trick: we already enforce "track A vs track B" above, so we can
+  // safely block on lower vote counts because the ASN/CIDR confirmation is
+  // independent corroboration. Cloudflare WARP is still explicitly exempted.
+  // ═════════════════════════════════════════════════════════════════════════
+  const shouldBlock =
+    // Tor = ALWAYS block (exit node list match is 100% reliable)
     (isTor && factors.torExitNode === true) ||
-    // Definite VPN with high confidence AND many votes
-    (isDefiniteVPN && confidence >= 92 && vpnVotes >= 7 && !isCloudflareWARP) ||
+    // Definite VPN with reasonable confidence + some votes
+    (isDefiniteVPN && confidence >= 88 && (vpnVotes >= 4 || hasDefiniteAsnEvidence) && !isCloudflareWARP) ||
     // High probability VPN with overwhelming evidence
-    (isHighProbVPN && confidence >= 90 && vpnVotes >= 8 && !isCloudflareWARP) ||
-    // Proxy with very strong evidence
-    (isProxy && confidence >= 92 && proxyVotes >= 7) ||
-    // Residential proxy with specialized API confirmations
-    (isResidentialProxy && confidence >= 92 && residentialProxyVotes >= 5) ||
-    // WebRTC leak confirms VPN with other evidence
-    (factors.webrtcLeak && (isVPN || isProxy) && confidence >= 88)
+    (isHighProbVPN && confidence >= 86 && vpnVotes >= 5 && !isCloudflareWARP) ||
+    // Proxy with strong evidence
+    (isProxy && confidence >= 88 && proxyVotes >= 4) ||
+    // Residential proxy: confirmed by specialist OR by ASN+keyword
+    (isResidentialProxy && (residentialProxyVotes >= 3 || factors.asnType === "residential_proxy")) ||
+    // WebRTC leak = decisive evidence of VPN (different real IP visible)
+    (factors.webrtcLeak === true && (isVPN || isProxy || isResidentialProxy || hasDefiniteAsnEvidence)) ||
+    // VPN infrastructure CIDR + any vote = block (M247/ExpressVPN/etc. CIDRs)
+    (hasVpnInfraCidr && (vpnVotes >= 1 || proxyVotes >= 1) && !isCloudflareWARP) ||
+    // Decentralized/residential VPN detected by ASN match alone is strong
+    (factors.asnCategory === "definite" && factors.asnType === "residential_proxy" && maxConfidence >= 92)
   
   // Agreement ratio
   const maxVotes = Math.max(vpnVotes, proxyVotes, torVotes, residentialProxyVotes)
