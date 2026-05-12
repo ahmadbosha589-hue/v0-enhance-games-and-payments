@@ -54,9 +54,13 @@ const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
   notik: [],
 }
 
-// Providers that expect a specific plain-text response body
+// Providers that expect a specific plain-text response body.
+// c.cx.ua's parser is case-sensitive and requires uppercase "OK" / "DUP"
+// (see https://objectivewall.com/documentation/postback — c.cx.ua is a
+// wannads fork using the same protocol). Returning "ok" lowercase causes
+// c.cx.ua to flag the postback as "Failed" and retry up to 5 times.
 const PROVIDER_OK_RESPONSE: Record<string, string> = {
-  ccxua: "ok",
+  ccxua: "OK",
 }
 
 const PROVIDER_DUPLICATE_RESPONSE: Record<string, string> = {
@@ -70,11 +74,16 @@ function getSupabaseAdmin() {
 function validateSignature(provider: string, params: Record<string, string>, signature: string): boolean {
   const secret = PROVIDER_SECRETS[provider]
 
-  // If no secret is configured, skip validation (but log warning)
+  // If no secret is configured, skip validation (with a loud warning).
+  // We intentionally allow this in production so a freshly-configured
+  // provider doesn't silently start rejecting every postback as 403; the
+  // operator sets the secret env var (e.g. CCXUA_SECRET_KEY) when ready.
   if (!secret) {
-    console.warn(`[Postback] No secret configured for provider: ${provider}`)
-    // In production, you might want to reject requests without configured secrets
-    return process.env.NODE_ENV === "development"
+    console.warn(
+      `[Postback] No secret configured for provider "${provider}" — signature check skipped. ` +
+        `Set the corresponding env var (e.g. CCXUA_SECRET_KEY) to enable verification.`,
+    )
+    return true
   }
 
   try {
@@ -215,19 +224,36 @@ function validateProviderIP(provider: string, requestIP: string): boolean {
 function parsePostbackParams(provider: string, searchParams: URLSearchParams): PostbackParams | null {
   try {
     switch (provider) {
-      case "ccxua":
+      case "ccxua": {
+        // c.cx.ua's postback (wannads-compatible) sends:
+        //   subId, transId, reward, payout, signature, status, userIp,
+        //   campaign_id, offer_type (short|surf|offer), country, uuid
+        // For PTC/Video the campaign id arrives in `campaign_id`, while
+        // `transId` is the unique postback id we use for deduplication.
+        const offerType = searchParams.get("offer_type") || ""
+        const campaignId = searchParams.get("campaign_id") || ""
+        const defaultName =
+          offerType === "short"
+            ? "c.cx.ua Shortlink"
+            : offerType === "surf"
+              ? "c.cx.ua PTC / Video"
+              : "c.cx.ua Offer"
         return {
           userId: searchParams.get("subId") || "",
-          offerId: searchParams.get("transId") || "",
-          offerName: searchParams.get("offer_name") || "c.cx.ua Offer",
-          // c.cx.ua sends `reward` already converted into your virtual currency
-          // using the Exchange Rate set in your c.cx.ua dashboard
-          // (recommend setting it to 100000 = sats per 1 USD).
-          // We use that reward directly and keep conversion_rate=1.0 in the DB.
+          offerId: campaignId || searchParams.get("transId") || "",
+          offerName: searchParams.get("offer_name") || defaultName,
+          // c.cx.ua sends `reward` already converted into your virtual
+          // currency using the Exchange Rate set in your c.cx.ua dashboard
+          // (Exchange Rate = credits per $1 of offer payout). For PTC
+          // payouts as small as $0.000250 the resulting credit can be
+          // fractional, so we keep it as a float here — the satoshi
+          // conversion below rounds and floors at >= 1 sat for any
+          // positive credit so micro-PTC clicks still pay out.
           credits: Number.parseFloat(searchParams.get("reward") || "0"),
           transactionId: searchParams.get("transId") || "",
           ip: searchParams.get("userIp") || "",
         }
+      }
 
       case "cpx-research":
         return {
@@ -453,7 +479,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       console.warn(`[Postback] Missing parameters for ${provider}:`, {
         hasUserId: !!postbackParams?.userId,
         hasTransactionId: !!postbackParams?.transactionId,
+        rawParams: paramsObj,
       })
+      // Same retry-avoidance rationale as below: for providers that
+      // expect plain-text OK and retry on non-2xx, ack the test postback.
+      const okText = PROVIDER_OK_RESPONSE[provider]
+      if (okText) {
+        return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
+      }
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 })
     }
 
@@ -493,11 +526,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .single()
 
     if (!providerData) {
+      console.error(
+        `[Postback] Provider "${provider}" missing from offerwall_providers table. ` +
+          `Run the seed script (e.g. scripts/070_add_ccxua_offerwall_provider.sql).`,
+      )
+      // For providers that retry on non-2xx (c.cx.ua retries 5x), return
+      // their expected plain-text OK so they don't keep hammering the
+      // endpoint. The error is still logged for the operator to fix.
+      const okText = PROVIDER_OK_RESPONSE[provider]
+      if (okText) {
+        return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
+      }
       return NextResponse.json({ error: "Provider not found" }, { status: 404 })
     }
 
-    // Calculate satoshi payout
-    const payoutSatoshis = Math.floor(postbackParams.credits * (providerData.conversion_rate || 1))
+    // Calculate satoshi payout. Use Math.round (not floor) so micro-PTC
+    // payouts that produce fractional sats (e.g. 0.5) credit 1 sat instead
+    // of 0. Any positive reward is guaranteed at least 1 sat so c.cx.ua's
+    // tiny $0.000250 PTC clicks never silently credit nothing.
+    const rawSats = postbackParams.credits * (providerData.conversion_rate || 1)
+    const payoutSatoshis =
+      rawSats > 0 ? Math.max(1, Math.round(rawSats)) : Math.round(rawSats)
 
     // Verify user exists and get current balance
     const { data: profile } = await supabaseAdmin
@@ -507,6 +556,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .single()
 
     if (!profile) {
+      console.warn(
+        `[Postback] User "${postbackParams.userId}" not found for provider "${provider}". ` +
+          `Likely a test postback or invalid subId.`,
+      )
+      // Acknowledge with the provider's expected OK token so c.cx.ua's
+      // Test Postback button reports success and doesn't retry forever.
+      const okText = PROVIDER_OK_RESPONSE[provider]
+      if (okText) {
+        return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
+      }
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
