@@ -434,12 +434,22 @@ function updateOfferwallTournamentScores(
   Promise.allSettled(calls).catch(() => { })
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Core handler. Receives an already-merged URLSearchParams (URL params + any
+// POST body params) and the raw request (used only for headers/IP). Both GET
+// and POST entry points call this so the logic lives in one place and we
+// don't have to clone NextRequest objects (which is fragile because
+// content-length from the original POST body leaks onto the body-less GET
+// replay and breaks under-the-hood fetch validation).
+// ─────────────────────────────────────────────────────────────────────────────
+async function handlePostback(
+  request: NextRequest,
+  provider: string,
+  searchParams: URLSearchParams,
+): Promise<NextResponse> {
   const supabaseAdmin = getSupabaseAdmin()
 
   try {
-    const { provider } = await params
-    const searchParams = request.nextUrl.searchParams
     const signature = searchParams.get("sig") || searchParams.get("signature") || searchParams.get("hash") || ""
 
     // Get request IP for logging and optional whitelist check

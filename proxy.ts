@@ -118,9 +118,23 @@ export default async function proxy(request: NextRequest) {
     )
   }
 
-  // Rate limiting (skip for Cloudflare-verified requests with ray ID)
+  // Server-to-server webhook routes must NEVER hit the in-memory rate
+  // limiter. Offerwall providers (c.cx.ua, CPX, Lootably, Torox, etc.) can
+  // burst many postbacks from a single egress IP, and a 429 with a JSON
+  // body causes them to mark the offer as "Failed" in their dashboard
+  // (see https://c.cx.ua/docs/#ow_response — the response body must be
+  // exactly "ok"). Each route enforces signature + IP whitelist checks of
+  // its own, so this bypass is the correct trust boundary.
+  const isWebhookPath =
+    pathname.startsWith("/api/postback") ||
+    pathname.startsWith("/api/webhook") ||
+    pathname.startsWith("/api/webhooks") ||
+    pathname.startsWith("/api/cron")
+
+  // Rate limiting (skip for Cloudflare-verified requests with ray ID
+  // and for server-to-server webhook endpoints).
   const cfRay = request.headers.get("cf-ray")
-  if (!cfRay) {
+  if (!cfRay && !isWebhookPath) {
     const rateLimit = checkRateLimit(ip, pathname)
     if (!rateLimit.allowed) {
       console.warn(`[RateLimit] IP ${ip} exceeded limit for ${pathname}`)
@@ -142,10 +156,34 @@ export default async function proxy(request: NextRequest) {
     }
   }
 
-  // Public API routes - no auth needed
-  const publicApiPaths = ["/api/stats", "/api/health", "/api/webhooks", "/api/ping"]
+  // Public API routes - no auth needed.
+  //
+  // /api/postback/* is critical here. Offerwall providers (c.cx.ua, CPX,
+  // Lootably, Torox, etc.) POST server-to-server with no cookies and expect
+  // an exact plain-text body (c.cx.ua requires lowercase "ok" — anything
+  // else is marked as "Failed" in their dashboard, see
+  // https://c.cx.ua/docs/#ow_response). Running these through updateSession
+  // would touch cookies, and running them through the in-memory rate limiter
+  // would 429 a burst of legitimate postbacks with a JSON body. The route
+  // itself enforces signature + IP-whitelist checks, so this bypass is safe.
+  //
+  // We also bypass /api/cron/* (Vercel cron secret-guarded) for the same
+  // reasons — and /api/stripe/webhook (raw-body verification) where present.
+  const publicApiPaths = [
+    "/api/stats",
+    "/api/health",
+    "/api/webhooks",
+    "/api/webhook",
+    "/api/ping",
+    "/api/postback",
+    "/api/cron",
+  ]
   if (publicApiPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return addSecurityHeaders(NextResponse.next())
+    // Return NextResponse.next() WITHOUT adding security headers — the
+    // X-Frame-Options/X-XSS-Protection bundle is meaningful for HTML pages,
+    // not S2S endpoints, and stripping them keeps the response byte-exact
+    // to what the route handler returns.
+    return NextResponse.next()
   }
 
   // Public pages that don't need auth
