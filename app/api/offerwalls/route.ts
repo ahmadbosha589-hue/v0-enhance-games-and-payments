@@ -34,7 +34,10 @@ const OFFERWALLS: OfferwallConfig[] = [
     color: "#06B6D4",
     bgGradient: "from-cyan-500/20 to-teal-600/10",
     minPayout: 0,
-    conversionRate: 100000,
+    // Effective rate users see: c.cx.ua dashboard Exchange Rate (20) ×
+    // DB conversion_rate (50 sats/credit) = ~1000 sats per USD of offer payout.
+    // Keep this in sync with scripts/070_add_ccxua_offerwall_provider.sql.
+    conversionRate: 1000,
     features: ["Auto-translated", "Global offers", "Fast crediting", "Featured"],
     url: "https://c.cx.ua/offerwall/{ccxua_api_key}/{user_id}",
     active: true,
@@ -492,6 +495,52 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser()
     const userId = user?.id || ""
 
+    // Stats helper — matches transactions to a specific provider via the
+    // postback's metadata.provider field (postback handler always writes the
+    // canonical slug there, e.g. "ccxua", "cpx-research").  The previous
+    // implementation matched on description via ILIKE %name% which silently
+    // returned 0 because descriptions contain the slug, not the display
+    // name (e.g. "Some Offer (ccxua)" does NOT contain "c.cx.ua").  It also
+    // selected the non-existent `amount` column — the schema uses
+    // `amount_satoshis` — so every stat came back as 0.
+    async function fetchProviderStats(providerSlug: string, providerName: string) {
+      // We try metadata->>provider first (canonical), then fall back to a
+      // description LIKE on either the slug or the display name so that
+      // historical rows written before this fix still get counted.
+      const orFilter =
+        `metadata->>provider.eq.${providerSlug},` +
+        `description.ilike.%${providerSlug}%,` +
+        `description.ilike.%${providerName}%`
+
+      const [{ data: aggData }, userResult] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("amount_satoshis")
+          .eq("type", "offerwall")
+          .eq("status", "completed")
+          .or(orFilter),
+        user
+          ? supabase
+              .from("transactions")
+              .select("amount_satoshis")
+              .eq("user_id", user.id)
+              .eq("type", "offerwall")
+              .eq("status", "completed")
+              .or(orFilter)
+          : Promise.resolve({ data: [] as Array<{ amount_satoshis: number }> }),
+      ])
+
+      const totalPaid =
+        aggData?.reduce((sum, tx) => sum + Number(tx.amount_satoshis || 0), 0) || 0
+      const completionCount = aggData?.length || 0
+      const userData = (userResult as { data: Array<{ amount_satoshis: number }> | null }).data
+      const userEarnings =
+        userData?.reduce((sum, tx) => sum + Number(tx.amount_satoshis || 0), 0) || 0
+      const userCompletions = userData?.length || 0
+
+      return { totalPaid, completionCount, userEarnings, userCompletions }
+    }
+
     // If requesting a specific offerwall
     if (slug) {
       const offerwall = OFFERWALLS.find((o) => o.slug === slug || o.id === slug)
@@ -503,33 +552,11 @@ export async function GET(request: Request) {
 
       let stats = null
       if (includeStats) {
-        const { data: completions } = await supabase
-          .from("transactions")
-          .select("amount")
-          .eq("type", "offerwall")
-          .eq("status", "completed")
-          .ilike("description", `%${offerwall.name}%`)
-
-        const totalPaid = completions?.reduce((sum, tx) => sum + tx.amount, 0) || 0
-        const completionCount = completions?.length || 0
-
-        let userEarnings = 0
-        if (user) {
-          const { data: userCompletions } = await supabase
-            .from("transactions")
-            .select("amount")
-            .eq("user_id", user.id)
-            .eq("type", "offerwall")
-            .eq("status", "completed")
-            .ilike("description", `%${offerwall.name}%`)
-
-          userEarnings = userCompletions?.reduce((sum, tx) => sum + tx.amount, 0) || 0
-        }
-
+        const s = await fetchProviderStats(offerwall.slug, offerwall.name)
         stats = {
-          total_paid: totalPaid,
-          completion_count: completionCount,
-          user_earnings: userEarnings,
+          total_paid: s.totalPaid,
+          completion_count: s.completionCount,
+          user_earnings: s.userEarnings,
         }
       }
 
@@ -548,41 +575,16 @@ export async function GET(request: Request) {
           return { ...offerwall, url, configured, stats: null }
         }
 
-        // Get aggregated stats from database
-        const { data: completions } = await supabase
-          .from("transactions")
-          .select("amount")
-          .eq("type", "offerwall")
-          .eq("status", "completed")
-          .ilike("description", `%${offerwall.name}%`)
-
-        const totalPaid = completions?.reduce((sum, tx) => sum + tx.amount, 0) || 0
-        const completionCount = completions?.length || 0
-
-        let userEarnings = 0
-        let userCompletions = 0
-        if (user) {
-          const { data: userTx } = await supabase
-            .from("transactions")
-            .select("amount")
-            .eq("user_id", user.id)
-            .eq("type", "offerwall")
-            .eq("status", "completed")
-            .ilike("description", `%${offerwall.name}%`)
-
-          userEarnings = userTx?.reduce((sum, tx) => sum + tx.amount, 0) || 0
-          userCompletions = userTx?.length || 0
-        }
-
+        const s = await fetchProviderStats(offerwall.slug, offerwall.name)
         return {
           ...offerwall,
           url,
           configured,
           stats: {
-            total_paid: totalPaid,
-            completion_count: completionCount,
-            user_earnings: userEarnings,
-            user_completions: userCompletions,
+            total_paid: s.totalPaid,
+            completion_count: s.completionCount,
+            user_earnings: s.userEarnings,
+            user_completions: s.userCompletions,
           },
         }
       }),
@@ -591,15 +593,16 @@ export async function GET(request: Request) {
     // Sort by priority — c.cx.ua (priority 0) is always first
     offerwallsWithStats.sort((a, b) => a.priority - b.priority)
 
-    // Get platform-wide stats
+    // Get platform-wide stats — all offerwall transactions, all providers.
     const { data: allOfferwallTx } = await supabase
       .from("transactions")
-      .select("amount")
+      .select("amount_satoshis")
       .eq("type", "offerwall")
       .eq("status", "completed")
 
     const platformStats = {
-      total_paid_all_offerwalls: allOfferwallTx?.reduce((sum, tx) => sum + tx.amount, 0) || 0,
+      total_paid_all_offerwalls:
+        allOfferwallTx?.reduce((sum, tx) => sum + Number(tx.amount_satoshis || 0), 0) || 0,
       total_completions: allOfferwallTx?.length || 0,
       active_offerwalls: OFFERWALLS.filter((o) => o.active).length,
     }
