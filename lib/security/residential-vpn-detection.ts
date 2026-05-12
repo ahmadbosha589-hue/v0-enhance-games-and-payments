@@ -83,6 +83,27 @@ export interface ResidentialVPNInputs {
   languages?: string[]
   /** Whether canvas is "farbled" (Brave/Tor signature) */
   canvasFarbled?: boolean
+  // ─── v12.0 NEW INPUTS ────────────────────────────────────────────────
+  /** v12.0: client-reported Date.now() at the moment of the request.
+   *  Compared against server clock + IP-timezone-expected offset. Tunneled
+   *  users often have system clocks set to a different region than their IP. */
+  clientClockMs?: number
+  /** v12.0: server-side request received timestamp (ms) */
+  serverClockMs?: number
+  /** v12.0: client-reported timezone offset in minutes (Date.prototype.getTimezoneOffset).
+   *  Cross-checked against the IANA timezone string and IP country. */
+  timezoneOffsetMinutes?: number
+  /** v12.0: payload echo timing - client sent a known-size POST body and
+   *  reported the round-trip; we use this to detect MTU truncation patterns
+   *  (common with WireGuard/OpenVPN VPNs that have MTU 1380-1420 vs 1500). */
+  payloadEchoMs?: number
+  /** v12.0: payload size (bytes) used for echo timing */
+  payloadEchoBytes?: number
+  /** v12.0: jitter (std dev of RTT over N samples) — high jitter is mesh-VPN signature */
+  rttJitter?: number
+  /** v12.0: number of distinct ICE candidate types (host/srflx/relay) seen.
+   *  Mesh dVPNs (Deeper/Mysterium) often have unusual candidate distribution. */
+  iceCandidateTypes?: string[]
 }
 
 // =============================================================================
@@ -382,30 +403,38 @@ function detectLanguageCountryMismatch(inputs: ResidentialVPNInputs): Behavioral
 const DVPN_ORG_TOKENS = [
   // ── Deeper Network DPN (residential mesh, HARDEST to detect) ──
   "deeper network", "deeper connect", "deepernetwork", "deepnet",
-  "deeper chain", "dpr token",
+  "deeper chain", "dpr token", "deeperconnect", "deeperdpn",
+  "dpn miner", "dpn node", "deeper mining", "deeper.network",
   // ── Mysterium Network (decentralized dVPN) ──
   "mysterium", "myst node", "mysterium network", "myst token",
-  "mysterium operator",
+  "mysterium operator", "mysterium.network", "mysteriumvpn",
   // ── Tachyon Protocol (Anomi VPN / X-VPN / NoBorder) ──
-  "tachyon", "tachyon protocol", "anomi vpn", "anomi network",
-  "x-vpn", "xvpn", "noborder", "no border",
+  "tachyon", "tachyon protocol", "anomi vpn", "anomi network", "anomivpn",
+  "x-vpn", "xvpn", "noborder", "no border", "xvpn ltd", "free connected limited",
+  "noborder network", "tachyon node",
   // ── Sentinel dVPN (Cosmos-based) ──
-  "sentinel dvpn", "sentinel network", "sentinelvpn",
+  "sentinel dvpn", "sentinel network", "sentinelvpn", "sentinel node",
+  "sentinel.co", "sentinel chain",
   // ── Orchid Protocol ──
-  "orchid protocol", "orchid vpn", "orchid network",
+  "orchid protocol", "orchid vpn", "orchid network", "orchid labs",
+  "oxt token",
   // ── Lokinet / Session / I2P / Tor ──
-  "loki network", "lokinet", "oxen network",
+  "loki network", "lokinet", "oxen network", "oxen privacy",
   "session messenger",
-  "i2p ", "i2p network", "invisible internet",
-  "tor exit", "tor relay", "tor node",
+  "i2p ", "i2p network", "invisible internet", "i2p.net",
+  "tor exit", "tor relay", "tor node", "tor project", "torservers",
   // ── Hola (residential P2P VPN) ──
-  "hola network", "hola vpn", "hola networks",
+  "hola network", "hola vpn", "hola networks", "hola free",
+  "luminati networks",
   // ── Residential SDK monetization (everyone who pays cents per GB) ──
-  "honeygain", "honey gain",
+  "honeygain", "honey gain", "honeygain.com",
   "packetstream", "packet stream",
   "earnapp", "earn app", "iproyal pawns", "pawns app", "pawns.app",
   "swash app", "browsec",
-  "globalhop sdk", "global hop",
+  "globalhop sdk", "global hop", "global hop sdk",
+  "peer2profit", "peer 2 profit", "p2pearn",
+  "repocket", "traffmonetizer", "traffic monetizer",
+  "honeygainsdk", "earnappsdk",
   // ── Commercial residential proxy services ──
   "smartproxy", "smart proxy",
   "bright data", "brightdata", "luminati",
@@ -422,9 +451,20 @@ const DVPN_ORG_TOKENS = [
   "spider proxies",
   "stormproxies", "storm proxies",
   "infatica",
+  "proxyrack", "proxy rack",
+  "proxyempire", "proxy empire",
+  "proxyseller", "proxy seller",
+  "froxy", "froxy proxy",
+  "abcproxy", "abc proxy",
+  "nimblepro", "nimble proxy",
+  "asocks", "a socks",
+  "rsocks", "r socks", "r-socks",
   // ── Mesh networks / community VPNs ──
-  "zerotier", "tailscale node",
-  "wireguard mesh", "bowtie",
+  "zerotier", "tailscale node", "tailnet",
+  "wireguard mesh", "bowtie", "headscale",
+  "nebula network", "slack nebula",
+  "n2n vpn", "n2n mesh",
+  "innernet", "yggdrasil network",
   // ── Hacker-favorite anonymous / offshore hosting ──
   "njal.la", "njalla",
   "anonymous hosting", "anonymous host",
@@ -432,19 +472,34 @@ const DVPN_ORG_TOKENS = [
   "private network", "p2p vpn",
   "perfect ip", "perfectip",
   "ip volume", "9pl ltd", "quasi networks",
-  "ecatel", "frantech",
-  "incognet", "private layer",
+  "ecatel", "frantech", "buyvm",
+  "incognet", "private layer", "privatelayer",
   "flokinet", "floki net",
   "cyberbunker",
+  "abelohost", "abelo host",
+  "shinjiru", "shinjiru technology",
+  "panama servers", "panamaservers",
+  "iceland hosting", "icelandic host",
+  "anon servers", "anonymous-cloud",
   // ── Crypto / blockchain VPN tokens (giveaway naming) ──
   "vpn token", "vpn coin", "vpn dao",
   "decentralized vpn", "dvpn",
   // ── Custom WireGuard / OpenVPN on VPS (hacker favorites) ──
-  "wireguard host",
-  "openvpn host",
-  "shadowsocks",
-  "v2ray", "trojan-gfw", "xray-core",
-  "naive proxy", "naïve proxy",
+  "wireguard host", "wireguard server",
+  "openvpn host", "openvpn server", "openvpn cloud",
+  "shadowsocks", "shadowsocks-libev", "shadowsocksr", "outline-server",
+  "v2ray", "trojan-gfw", "xray-core", "v2ray-core",
+  "naive proxy", "naïve proxy", "naiveproxy",
+  "hysteria network", "tuic protocol", "sing-box",
+  // ── Privacy-focused / hacker-rented infra ──
+  "1984 hosting", "1984.is",
+  "orangewebsite", "orange website",
+  "kheops technologies",
+  "anonymouscloud", "anonymous cloud",
+  "panel cloud", "panel hosting",
+  "fdcservers", "fdc servers",
+  "psychz networks", "psychz",
+  "data ideas",
 ] as const
 
 function detectDvpnOrg(inputs: ResidentialVPNInputs): BehavioralSignal | null {
