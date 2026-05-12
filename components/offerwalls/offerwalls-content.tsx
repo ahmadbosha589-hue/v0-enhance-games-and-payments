@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react"
 import useSWR from "swr"
 import Image from "next/image"
-import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -102,15 +101,6 @@ const OFFERWALL_META: Record<string, { type: "offerwall" | "survey" }> = {
   adscend: { type: "offerwall" },
   cpalead: { type: "offerwall" },
   minutestaff: { type: "offerwall" },
-}
-
-// Some providers (currently c.cx.ua) are best served via an internal
-// dashboard page that embeds the offerwall in an iframe and gracefully
-// handles missing API keys. Returns null if the provider should keep its
-// external URL.
-function internalUrlFor(offerwall: OfferwallData): string | null {
-  if (offerwall.id === "ccxua") return "/dashboard/offerwalls/ccxua"
-  return null
 }
 
 // Generate beautiful brand initials for fallback logo rendering
@@ -219,12 +209,8 @@ function OfferwallCard({
   const isSurvey = offerwall.type === "survey"
   const isNew = offerwall.priority === 0
   const isFeatured = isNew || variant === "featured"
-  const internalHref = internalUrlFor(offerwall)
-  // For providers with an internal landing page (c.cx.ua), the link is
-  // always usable — the landing page itself shows a friendly "Setup
-  // Required" UI instead of letting users click through to a 404.
-  const isConfigured = internalHref ? true : offerwall.configured !== false
-  const showSetupHint = internalHref ? offerwall.configured === false : !isConfigured
+  const isConfigured = offerwall.configured !== false
+  const showSetupHint = !isConfigured
 
   // Logo: prefer the API-supplied logo, fall back to polished initials on error
   const logoUrl = offerwall.logo
@@ -234,11 +220,14 @@ function OfferwallCard({
 
   const buttonLabel = isSurvey ? "Take Surveys" : "View Offers"
 
-  // Link wrapper that uses next/link for internal hrefs and <a> for external.
-  const linkProps = internalHref
-    ? { href: internalHref }
-    : { href: offerwall.url, target: "_blank" as const, rel: "noopener noreferrer" }
-  const LinkTag: any = internalHref ? Link : "a"
+  // All offerwalls (including c.cx.ua) open in a new tab using the resolved
+  // external URL from the API.
+  const linkProps = {
+    href: offerwall.url,
+    target: "_blank" as const,
+    rel: "noopener noreferrer",
+  }
+  const LinkTag: any = "a"
 
   // Expandable description so long copy isn't permanently truncated.
   const [descExpanded, setDescExpanded] = useState(false)
@@ -535,19 +524,11 @@ function OfferwallCard({
             size="default"
             asChild
           >
-            {internalHref ? (
-              <Link href={internalHref}>
-                <Play className="h-4 w-4" />
-                <span>{buttonLabel}</span>
-                <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
-              </Link>
-            ) : (
-              <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
-                <Play className="h-4 w-4" />
-                <span>{buttonLabel}</span>
-                <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
-              </a>
-            )}
+            <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
+              <Play className="h-4 w-4" />
+              <span>{buttonLabel}</span>
+              <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
+            </a>
           </Button>
         ) : (
           <Button

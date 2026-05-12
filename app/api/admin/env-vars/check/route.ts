@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+// Always read env vars fresh at request time so newly added Vercel env
+// variables show up immediately without a redeploy-triggered cache miss.
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const fetchCache = "force-no-store"
+export const runtime = "nodejs"
+
 interface EnvVarConfig {
   key: string
   category: "database" | "payment" | "api" | "security" | "other"

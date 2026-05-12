@@ -547,7 +547,11 @@ export default function AdminEnvVarsPage() {
   const checkEnvVars = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch("/api/admin/env-vars/check")
+      // cache-bust the request so newly added Vercel env vars are visible
+      // immediately when the admin clicks "Refresh".
+      const response = await fetch(`/api/admin/env-vars/check?t=${Date.now()}`, {
+        cache: "no-store",
+      })
       if (response.ok) {
         const data = await response.json()
         setEnvVars(data.envVars)
