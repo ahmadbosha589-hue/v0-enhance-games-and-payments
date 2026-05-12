@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import useSWR from "swr"
 import Image from "next/image"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -104,6 +105,15 @@ const OFFERWALL_META: Record<string, { type: "offerwall" | "survey" }> = {
   minutestaff: { type: "offerwall" },
 }
 
+// Some providers (currently c.cx.ua) are best served via an internal
+// dashboard page that embeds the offerwall in an iframe and gracefully
+// handles missing API keys. Returns null if the provider should keep its
+// external URL.
+function internalUrlFor(offerwall: OfferwallData): string | null {
+  if (offerwall.id === "ccxua") return "/dashboard/offerwalls/ccxua"
+  return null
+}
+
 // Generate beautiful brand initials for fallback logo rendering
 function getBrandInitials(name: string): string {
   // For dotted brands (e.g. "c.cx.ua"), keep the form
@@ -203,7 +213,12 @@ function FeaturedHeroCard({ offerwall }: { offerwall: OfferwallData }) {
   const initials = getBrandInitials(offerwall.name)
   const [logoError, setLogoError] = useState(false)
   const showLogo = !!logoUrl && !logoError
-  const isConfigured = offerwall.configured !== false
+  const internalHref = internalUrlFor(offerwall)
+  // When we have an internal landing page the link is always usable — the
+  // landing page itself renders a friendly "Setup Required" view instead of
+  // letting the user click through to a broken external 404.
+  const isConfigured = internalHref ? true : offerwall.configured !== false
+  const showSetupHint = internalHref ? offerwall.configured === false : !isConfigured
 
   return (
     <Card
@@ -339,11 +354,19 @@ function FeaturedHeroCard({ offerwall }: { offerwall: OfferwallData }) {
               asChild={isConfigured}
             >
               {isConfigured ? (
-                <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
-                  <Play className="h-4 w-4" />
-                  <span>Open Offerwall</span>
-                  <ArrowRight className="h-4 w-4" />
-                </a>
+                internalHref ? (
+                  <Link href={internalHref}>
+                    <Play className="h-4 w-4" />
+                    <span>Open Offerwall</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
+                    <Play className="h-4 w-4" />
+                    <span>Open Offerwall</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                )
               ) : (
                 <span>
                   <Lock className="h-4 w-4" />
@@ -351,9 +374,13 @@ function FeaturedHeroCard({ offerwall }: { offerwall: OfferwallData }) {
                 </span>
               )}
             </Button>
-            {!isConfigured && (
-              <p className="text-[10px] text-muted-foreground text-center">
-                Admin: set <code className="font-mono">CCXUA_API_KEY</code>
+            {showSetupHint && (
+              <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
+                Admin: set{" "}
+                <code className="font-mono bg-muted px-1 py-0.5 rounded">
+                  CCXUA_API_KEY
+                </code>{" "}
+                in environment variables
               </p>
             )}
           </div>
@@ -379,7 +406,12 @@ function OfferwallCard({
   const isSurvey = offerwall.type === "survey"
   const isNew = offerwall.priority === 0
   const isFeatured = isNew || variant === "featured"
-  const isConfigured = offerwall.configured !== false
+  const internalHref = internalUrlFor(offerwall)
+  // For providers with an internal landing page (c.cx.ua), the link is
+  // always usable — the landing page itself shows a friendly "Setup
+  // Required" UI instead of letting users click through to a 404.
+  const isConfigured = internalHref ? true : offerwall.configured !== false
+  const showSetupHint = internalHref ? offerwall.configured === false : !isConfigured
 
   // Logo: prefer the API-supplied logo, fall back to polished initials on error
   const logoUrl = offerwall.logo
@@ -389,13 +421,17 @@ function OfferwallCard({
 
   const buttonLabel = isSurvey ? "Take Surveys" : "View Offers"
 
+  // Link wrapper that uses next/link for internal hrefs and <a> for external.
+  const linkProps = internalHref
+    ? { href: internalHref }
+    : { href: offerwall.url, target: "_blank" as const, rel: "noopener noreferrer" }
+  const LinkTag: any = internalHref ? Link : "a"
+
   if (variant === "compact") {
-    const Wrapper: any = isConfigured ? "a" : "div"
+    const Wrapper: any = isConfigured ? LinkTag : "div"
     return (
       <Wrapper
-        {...(isConfigured
-          ? { href: offerwall.url, target: "_blank", rel: "noopener noreferrer" }
-          : {})}
+        {...(isConfigured ? linkProps : {})}
         className={cn("block group", !isConfigured && "cursor-not-allowed opacity-70")}
       >
         <Card
@@ -439,8 +475,10 @@ function OfferwallCard({
                   {isHot && <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />}
                   {isNew && <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />}
                 </div>
-                <p className="text-xs text-muted-foreground truncate">{offerwall.description}</p>
-                <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed text-pretty">
+                  {offerwall.description}
+                </p>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
                     {isSurvey ? "Survey" : "Offers"}
                   </Badge>
@@ -568,10 +606,17 @@ function OfferwallCard({
       </div>
 
       <CardContent className="space-y-3 flex-1 flex flex-col p-4">
-        {/* Title and Description */}
-        <div>
-          <h3 className="font-semibold text-base">{offerwall.name}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{offerwall.description}</p>
+        {/* Title and Description — give the description breathing room
+            (up to 3 lines, ~3 lines of reserved height keeps cards aligned
+            without truncating short descriptions). */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className="font-semibold text-base truncate">{offerwall.name}</h3>
+            {isNew && <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />}
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 min-h-[3.25rem] text-pretty">
+            {offerwall.description}
+          </p>
         </div>
 
         {/* Features */}
@@ -627,23 +672,45 @@ function OfferwallCard({
 
         {/* CTA Button */}
         {isConfigured ? (
-          <Button className="w-full gap-2 group/btn transition-all" size="default" asChild>
-            <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
-              <Play className="h-4 w-4" />
-              <span>{buttonLabel}</span>
-              <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
-            </a>
+          <Button
+            className={cn(
+              "w-full gap-2 group/btn transition-all",
+              isNew &&
+                "bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white border-0 shadow-md shadow-cyan-500/20",
+            )}
+            size="default"
+            asChild
+          >
+            {internalHref ? (
+              <Link href={internalHref}>
+                <Play className="h-4 w-4" />
+                <span>{buttonLabel}</span>
+                <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
+              </Link>
+            ) : (
+              <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
+                <Play className="h-4 w-4" />
+                <span>{buttonLabel}</span>
+                <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
+              </a>
+            )}
           </Button>
         ) : (
           <Button
             variant="outline"
-            className="w-full gap-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700 bg-transparent"
+            className="w-full gap-2 border-amber-500/40 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700 bg-transparent"
             size="default"
             disabled
+            title={`Admin must configure required environment variable(s) to enable ${offerwall.name}`}
           >
             <Lock className="h-4 w-4" />
             <span>Setup Required</span>
           </Button>
+        )}
+        {showSetupHint && (
+          <p className="text-[10px] text-muted-foreground text-center leading-relaxed mt-1">
+            Admin: add API key in environment variables
+          </p>
         )}
       </CardContent>
     </Card>
@@ -958,16 +1025,18 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
             </div>
           )}
 
-          {/* All Partners — ordered so c.cx.ua is first */}
+          {/* More Partners — featured already shown as hero card above */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Target className="h-5 w-5 text-muted-foreground" />
-              <h2 className="text-lg font-semibold">All Partners</h2>
+              <h2 className="text-lg font-semibold">
+                {featured ? "More Partners" : "All Partners"}
+              </h2>
               <Badge variant="secondary" className="ml-1">
-                {offerwalls.length}
+                {restOfOfferwalls.length}
               </Badge>
             </div>
-            <OfferwallsGrid offerwalls={offerwalls} />
+            <OfferwallsGrid offerwalls={restOfOfferwalls} />
           </div>
         </TabsContent>
 

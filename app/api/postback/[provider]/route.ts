@@ -661,7 +661,50 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// Some providers use POST for postbacks
+// Some providers (notably c.cx.ua) send POST with form-encoded or JSON bodies.
+// We merge body params into the URL's searchParams so the same GET handler
+// can process them transparently.
 export async function POST(request: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
-  return GET(request, { params })
+  try {
+    const contentType = request.headers.get("content-type") || ""
+    const url = new URL(request.url)
+
+    if (contentType.includes("application/x-www-form-urlencoded")) {
+      const text = await request.text()
+      const body = new URLSearchParams(text)
+      body.forEach((value, key) => {
+        if (!url.searchParams.has(key)) url.searchParams.set(key, value)
+      })
+    } else if (contentType.includes("multipart/form-data")) {
+      const form = await request.formData()
+      form.forEach((value, key) => {
+        if (typeof value === "string" && !url.searchParams.has(key)) {
+          url.searchParams.set(key, value)
+        }
+      })
+    } else if (contentType.includes("application/json")) {
+      try {
+        const json = await request.json()
+        if (json && typeof json === "object") {
+          Object.entries(json as Record<string, unknown>).forEach(([k, v]) => {
+            if (!url.searchParams.has(k) && v != null) {
+              url.searchParams.set(k, String(v))
+            }
+          })
+        }
+      } catch {
+        // Ignore JSON parse failures
+      }
+    }
+
+    // Rebuild the request with the merged searchParams so GET() can process it.
+    const merged = new NextRequest(url.toString(), {
+      method: "GET",
+      headers: request.headers,
+    })
+    return GET(merged, { params })
+  } catch (error) {
+    console.error("[Postback POST] Body parsing failed:", error)
+    return GET(request, { params })
+  }
 }

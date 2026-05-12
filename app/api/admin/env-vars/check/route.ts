@@ -27,6 +27,8 @@ const ENV_VAR_CONFIG: EnvVarConfig[] = [
   { key: "NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL", category: "other", isSecret: false, description: "OAuth redirect URL for development" },
 
   // ===== OFFERWALL PUBLIC KEYS =====
+  { key: "CCXUA_API_KEY", category: "api", isSecret: true, description: "c.cx.ua API key (required for offerwall URL)" },
+  { key: "CCXUA_SECRET_KEY", category: "api", isSecret: true, description: "c.cx.ua secret key for postback signature verification" },
   { key: "NEXT_PUBLIC_CPX_APP_ID", category: "api", isSecret: false, description: "CPX Research App ID" },
   { key: "NEXT_PUBLIC_BITLABS_TOKEN", category: "api", isSecret: false, description: "BitLabs API Token" },
   { key: "NEXT_PUBLIC_LOOTABLY_PLACEMENT_ID", category: "api", isSecret: false, description: "Lootably Placement ID" },

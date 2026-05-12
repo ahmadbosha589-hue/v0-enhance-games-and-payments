@@ -129,6 +129,18 @@ const ENV_VAR_CONFIG: Omit<EnvVar, "value" | "isSet">[] = [
 
   // ===== OFFERWALL PUBLIC KEYS =====
   {
+    key: "CCXUA_API_KEY",
+    category: "api",
+    isSecret: true,
+    description: "c.cx.ua API key (required for offerwall URL)",
+  },
+  {
+    key: "CCXUA_SECRET_KEY",
+    category: "api",
+    isSecret: true,
+    description: "c.cx.ua secret key for postback signature verification",
+  },
+  {
     key: "NEXT_PUBLIC_CPX_APP_ID",
     category: "api",
     isSecret: false,
