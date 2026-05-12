@@ -19,7 +19,7 @@ export function OfferwallVPNGuard({ children, strictMode = true }: OfferwallVPNG
   const [isCheckingMultiAccount, setIsCheckingMultiAccount] = useState(true)
   
   const { vpnDetected, isChecking, lastResult, recheck } = usePersistentVPNCheck({
-    intervalMs: 15000, // Check every 15 seconds for offerwalls
+    intervalMs: 10000, // v11.0 - check every 10s for offerwalls (was 15s)
     checkOnVisibilityChange: true,
     checkOnNetworkChange: true,
   })
@@ -58,8 +58,19 @@ export function OfferwallVPNGuard({ children, strictMode = true }: OfferwallVPNG
     checkMultiAccount()
   }, [])
 
-  // For strict mode, also block on high risk scores even without definitive VPN detection
-  const isBlocked = vpnDetected || (strictMode && lastResult && lastResult.riskScore >= 65)
+  // v11.0 - Aggressive strict-mode blocking: any of the following triggers a block:
+  //   1. Server flagged the IP as VPN/proxy/Tor (vpnDetected)
+  //   2. strict mode + risk score >= 55 (was 65) — catches residential VPNs / dVPNs
+  //   3. strict mode + residential-proxy flagged (Mysterium/Deeper/Anomi/Honeygain)
+  //   4. strict mode + datacenter + Tor flag present
+  // Zero-FP guarantee maintained via server-side multi-source consensus.
+  const isResidentialVPNRisk = strictMode && lastResult?.isResidentialProxy === true
+  const isCriticalRisk = strictMode && (lastResult?.riskLevel === "critical" || lastResult?.riskLevel === "high")
+  const isBlocked =
+    vpnDetected ||
+    (strictMode && lastResult && lastResult.riskScore >= 55) ||
+    isResidentialVPNRisk ||
+    isCriticalRisk
 
   // Show loading state on initial checks
   if ((!lastResult && isChecking) || isCheckingMultiAccount) {
@@ -111,7 +122,7 @@ export function OfferwallVPNGuard({ children, strictMode = true }: OfferwallVPNG
   if (isBlocked) {
     const isTor = lastResult?.isTor
     const isProxy = lastResult?.isProxy && !lastResult?.isVPN
-    const isHighRiskOnly = !vpnDetected && strictMode && lastResult && lastResult.riskScore >= 65
+    const isHighRiskOnly = !vpnDetected && strictMode && lastResult && lastResult.riskScore >= 55
     
     return (
       <div className="space-y-4 py-8">

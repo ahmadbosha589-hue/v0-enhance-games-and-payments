@@ -7,6 +7,13 @@ interface VPNCheckResult {
   isVPN: boolean
   isProxy: boolean
   isTor: boolean
+  // v11.0 - expose residential proxy + datacenter + risk level so callers
+  // (offerwall guard) can block residential dVPNs without extra checks.
+  isResidentialProxy?: boolean
+  isDatacenter?: boolean
+  isHosting?: boolean
+  riskLevel?: "none" | "low" | "medium" | "high" | "critical"
+  shouldBlock?: boolean
   confidence: number
   riskScore: number
   methods: string[]
@@ -166,19 +173,41 @@ export function usePersistentVPNCheck(
     }
   }, [enabled, intervalMs, performCheck])
 
-  // Check on tab visibility change (user switches back to tab)
+  // Check on tab visibility change AND window focus (user switches back / VPN toggle)
   useEffect(() => {
     if (!enabled || !checkOnVisibilityChange) return
 
+    let visTimer: ReturnType<typeof setTimeout> | null = null
+    let focusTimer: ReturnType<typeof setTimeout> | null = null
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        // Small delay to let network settle after tab switch
-        setTimeout(() => performCheck(), 500)
+        if (visTimer) clearTimeout(visTimer)
+        // v11.0: Small delay to let network settle after tab switch
+        visTimer = setTimeout(() => performCheck(), 500)
+      }
+    }
+    const handleFocus = () => {
+      if (focusTimer) clearTimeout(focusTimer)
+      // v11.0: focus event catches VPN-app toggles even when tab stays visible
+      focusTimer = setTimeout(() => performCheck(), 700)
+    }
+    const handlePageShow = (e: PageTransitionEvent) => {
+      // v11.0: bfcache restore (back/forward navigation) — force re-check
+      if (e.persisted) {
+        performCheck()
       }
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange)
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("pageshow", handlePageShow)
+    return () => {
+      if (visTimer) clearTimeout(visTimer)
+      if (focusTimer) clearTimeout(focusTimer)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("pageshow", handlePageShow)
+    }
   }, [enabled, checkOnVisibilityChange, performCheck])
 
   // Check on network change (VPN toggle triggers online/offline or connection change)

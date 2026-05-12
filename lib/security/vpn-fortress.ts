@@ -1824,6 +1824,9 @@ export async function detectVPNFortress(
 
       // Translate behavioral signals into the existing vote system.
       // Each high-confidence signal contributes a calibrated vote.
+      // v11.0 - added 4 new signal types from residential detector:
+      //   webrtc_octet_drift, downlink_throttle, multi_stack_contradiction,
+      //   mesh_device_fingerprint (Deeper Network specifically)
       for (const signal of residentialResult.signals) {
         switch (signal.type) {
           case "webrtc_real_ip_leak":
@@ -1834,6 +1837,11 @@ export async function detectVPNFortress(
           case "webrtc_multiple_public_ips":
             vpnVotes += 2
             break
+          case "webrtc_octet_drift":
+            // v11.0: WebRTC IP in different /8 than server IP = tunneling
+            vpnVotes += 2
+            factors.webrtcOctetDrift = true
+            break
           case "dvpn_org_token":
             // ISP/org explicitly names a residential VPN - 95% confidence
             vpnVotes += 3
@@ -1842,6 +1850,12 @@ export async function detectVPNFortress(
           case "latency_mismatch":
             // RTT does not match country - strong signal
             vpnVotes += 2
+            break
+          case "downlink_throttle":
+            // v11.0: Fast radio + slow downlink in high-infra country = mesh tunnel
+            vpnVotes++
+            residentialProxyVotes++
+            factors.downlinkThrottle = true
             break
           case "timezone_country_mismatch":
             // Note: factors.timezoneMismatch may already be set by Layer 6
@@ -1860,6 +1874,18 @@ export async function detectVPNFortress(
               vpnVotes++
             }
             break
+          case "multi_stack_contradiction":
+            // v11.0: UA + timezone + language all mismatch = decisive evidence
+            vpnVotes += 3
+            factors.multiStackContradiction = true
+            break
+          case "mesh_device_fingerprint":
+            // v11.0: Desktop UA + ARM-class hwConcurrency/deviceMemory =
+            // Deeper Network DPN box signature (very hard to spoof)
+            residentialProxyVotes += 2
+            vpnVotes++
+            factors.meshDeviceFingerprint = true
+            break
           case "headless_fingerprint":
             // Automation/headless = often paired with VPN/proxy
             proxyVotes++
@@ -1868,13 +1894,45 @@ export async function detectVPNFortress(
         }
       }
 
-      // If the residential detector flags as "suspect" with high score, this
-      // is enough corroboration alongside any ASN/API signal to flip
-      // hasDefiniteAsnEvidence-style consensus.
-      if (residentialResult.isSuspect && residentialResult.score >= 75) {
+      // v11.0: aggressive escalation for residential / decentralized VPNs.
+      // The residential detector is purposefully calibrated to be SUSPICIOUS
+      // even when API consensus misses (because the exit IP is a real ISP).
+      // We escalate at three tiers based on score, so Mysterium/Deeper/Anomi/
+      // Hola/Honeygain users get caught without needing an API hit.
+      if (residentialResult.isSuspect) {
         factors.residentialVpnConfirmed = true
-        if (vpnVotes < 2 && (factors.asnType === "residential_proxy" || factors.asnCategory === "definite")) {
-          vpnVotes += 2
+
+        // Tier 1: very high score (>=75) — count as a strong VPN+residential signal
+        if (residentialResult.score >= 75) {
+          if (vpnVotes < 3) vpnVotes += 2
+          if (residentialProxyVotes < 3) residentialProxyVotes += 2
+        } else if (residentialResult.score >= 65) {
+          // Tier 2: solid score — corroborates other signals
+          vpnVotes++
+          residentialProxyVotes++
+        } else if (residentialResult.score >= 55) {
+          // Tier 3: suspicious-only — must be confirmed by another vector
+          if (vpnVotes > 0 || proxyVotes > 0 || residentialProxyVotes > 0 || factors.asnCategory === "definite") {
+            vpnVotes++
+          }
+        }
+
+        // If multiple behavioral signals from DIFFERENT vector families fire,
+        // that's residential-VPN consensus in itself.
+        const signalFamilies = new Set(
+          residentialResult.signals.map((s) => {
+            if (s.type.startsWith("webrtc")) return "webrtc"
+            if (s.type.includes("timezone") || s.type.includes("language")) return "stack"
+            if (s.type.includes("latency") || s.type.includes("rtt") || s.type.includes("downlink")) return "network"
+            if (s.type.includes("dvpn")) return "org"
+            if (s.type.includes("mesh") || s.type.includes("headless")) return "device"
+            return "other"
+          }),
+        )
+        if (signalFamilies.size >= 3) {
+          // 3+ independent family signals = decentralized VPN with near certainty
+          residentialProxyVotes += 2
+          if (!factors.webrtcLeak) vpnVotes++
         }
       }
     } catch (err) {

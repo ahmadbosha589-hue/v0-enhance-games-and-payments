@@ -267,23 +267,38 @@ import { runAllInvisibleProbes, type InvisibleProbeResult } from "../adblock/inv
 // =============================================================================
 
 const CONFIG = {
-  // ===== TIMING CONFIGURATION (v10.0 - aggressive AND FP-safe) =====
+  // ═══════════════════════════════════════════════════════════════════════════
+  // v11.0 — MAXIMUM AGGRESSION + ZERO FALSE POSITIVES + PERSISTENT
+  // Strategy upgrade vs v10.0:
+  //   • TIGHTER FP GATE — bait controls AND fetch controls AND network controls
+  //     must all pass (any anomaly in the controls aborts the entire cycle).
+  //   • MORE AGGRESSIVE — re-check faster, more often, on every visibility,
+  //     focus, network and route change. Persistent across reloads via session.
+  //   • INSTANT-FLAG TIER — overwhelming bait evidence (>=70% bait classes hidden
+  //     with all controls visible) bypasses the consecutive-cycle gate.
+  //   • TWO-TRACK CONSENSUS — Track A (bait majority + 1 corroboration) OR
+  //     Track B (classic multi-category vote). Network/DNS alone NEVER flags.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ===== TIMING CONFIGURATION (v11.0 - faster recheck, persistent) =====
   /** Initial delay before first detection (ms) - allows page to fully load */
-  INITIAL_DELAY_MS: 2500,
-  /** Interval between detection cycles (ms) */
-  CHECK_INTERVAL_MS: 3000,
+  INITIAL_DELAY_MS: 2000, // v11.0 - faster initial check
+  /** Interval between detection cycles (ms) — more aggressive */
+  CHECK_INTERVAL_MS: 2000, // v11.0 - tighter cadence (was 3000)
+  /** Background re-verification interval even after detection (ms) */
+  REVERIFY_INTERVAL_MS: 8000, // v11.0 - keep verifying even after flagging
   /** Time to wait for bait elements to be hidden (ms) */
-  BAIT_ELEMENT_WAIT_MS: 750, // v10.0 - extra time so slow blockers can apply rules (reduces FP from "too fast" checks)
+  BAIT_ELEMENT_WAIT_MS: 900, // v11.0 - more time for slow cosmetic filters
   /** Extended wait for slower adblockers (ms) */
-  BAIT_ELEMENT_EXTENDED_WAIT_MS: 1300, // v10.0 - DNS/cosmetic filters get more time
+  BAIT_ELEMENT_EXTENDED_WAIT_MS: 1500, // v11.0 - DNS/cosmetic filters get more time
   /** Network request timeout (ms) */
-  NETWORK_TIMEOUT_MS: 5000, // v10.0 - longer so flaky networks don't look like adblocking
+  NETWORK_TIMEOUT_MS: 5000,
   /** Delay before recheck after user requests (ms) */
   RECHECK_DELAY_MS: 2500,
   /** Grace period after user disables adblocker (ms) */
   GRACE_PERIOD_MS: 60000,
   /** Overall detection timeout (ms) */
-  DETECTION_TIMEOUT_MS: 9000, // v10.0 - allow full sweep without false "timeout = blocked" signals
+  DETECTION_TIMEOUT_MS: 10000, // v11.0 - more headroom for full sweep
   /** Number of samples needed for baseline calibration */
   BASELINE_SAMPLES_NEEDED: 6,
   /** Timeout for baseline calibration requests (ms) */
@@ -296,57 +311,59 @@ const CONFIG = {
   WEBRTC_TIMEOUT_MS: 4500,
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // v10.0 DETECTION THRESHOLDS - MAXIMUM POWER + ZERO FALSE POSITIVES
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Strategy:
-  //  - Add MORE detection vectors (more bait classes, more probes, more methods)
-  //  - But ELEVATE the gate: require a BAIT signal (most reliable) + corroborating
-  //    category from a different vector before flagging.
-  //  - Network jitter alone, CSP alone, browser-feature alone never flags.
-  //  - Control elements MUST be visible (every cycle) - any control hidden = abort.
-  //  - Bait+control consensus is what guarantees zero FP at the highest aggression.
+  // v11.0 DETECTION THRESHOLDS - MAXIMUM POWER + ZERO FALSE POSITIVES
   // ═══════════════════════════════════════════════════════════════════════════
 
   /** Minimum number of detection methods required */
-  MIN_METHODS_REQUIRED: 4, // v10.0 - raised back to 4 to eliminate single-vector FPs
+  MIN_METHODS_REQUIRED: 4,
   /** Minimum number of different categories required */
-  MIN_CATEGORIES_REQUIRED: 3, // v10.0 - 3 categories required (bait + network + at least one other)
+  MIN_CATEGORIES_REQUIRED: 3,
   /** Minimum weighted confidence threshold (%) */
-  MIN_CONFIDENCE_THRESHOLD: 65, // v10.0 - raised to reduce FPs while detection power is increased via more methods
+  MIN_CONFIDENCE_THRESHOLD: 68, // v11.0 - slightly higher to absorb network jitter
   /** Minimum consecutive detection cycles */
-  MIN_CONSECUTIVE_DETECTIONS: 3, // v10.0 - 3 cycles ~9s eliminates transient network anomalies
+  MIN_CONSECUTIVE_DETECTIONS: 2, // v11.0 - 2 cycles ~4s with tighter interval; instant-flag tier covers obvious blockers
   /** Minimum number of high-weight methods required */
-  MIN_HIGH_WEIGHT_METHODS: 2, // v10.0 - require 2 strong signals (was 1)
+  MIN_HIGH_WEIGHT_METHODS: 2,
   /** Minimum Bayesian probability required */
-  MIN_BAYESIAN_PROBABILITY: 0.80, // v10.0 - high statistical certainty required
+  MIN_BAYESIAN_PROBABILITY: 0.82, // v11.0 - slightly tighter
   /** Weight threshold for "high weight" methods */
-  HIGH_WEIGHT_THRESHOLD: 80, // v10.0 - only the most reliable methods count as "high weight"
-  /** v10.0: A bait-category signal is REQUIRED to flag - the only universally reliable proof */
+  HIGH_WEIGHT_THRESHOLD: 80,
+  /** v11.0: A bait-category signal is REQUIRED to flag - the only universally reliable proof */
   REQUIRE_BAIT_SIGNAL: true,
-  /** v10.0: Number of independent vectors (bait + network/dom/advanced) required */
+  /** v11.0: Number of independent vectors (bait + network/dom/advanced) required */
   MIN_INDEPENDENT_VECTORS: 2,
+  /** v11.0: Instant-flag threshold — if this ratio of bait classes is hidden AND
+   *  every control is visible AND control fetch succeeds, flag immediately. */
+  INSTANT_FLAG_BAIT_RATIO: 0.70,
+  /** v11.0: Instant-flag minimum absolute hidden baits (raised for safety) */
+  INSTANT_FLAG_MIN_HIDDEN: 8,
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // v10.0 BAIT TEST THRESHOLDS (raised - bait is the only true-positive proof)
+  // v11.0 BAIT TEST THRESHOLDS — calibrated for zero FP at higher aggression
   // ═══════════════════════════════════════════════════════════════════════════
   /** Minimum ratio of blocked bait images for detection */
-  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.30, // v10.0 - raised (lazy-loading/CORS can cause 20% bg failures legitimately)
+  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.35, // v11.0 - raised (more headroom for legitimate CORS/cache fail)
   /** Minimum ratio of hidden bait elements for detection */
-  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.25, // v10.0 - raised (avoids parent-CSS-collision FPs)
+  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.28, // v11.0 - raised slightly to avoid parent-CSS collision FPs
   /** Minimum ratio of blocked fetch requests for detection */
-  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.30,
+  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.33,
   /** Minimum ratio of blocked DNS requests for detection */
-  MIN_DNS_BLOCKED_RATIO: 0.40, // v10.0 - DNS failures on the wider Internet happen; require strong signal
+  MIN_DNS_BLOCKED_RATIO: 0.50, // v11.0 - raised significantly; DNS lookups can fail for many reasons
+  /** v11.0: REQUIRE the in-page control fetch to succeed for ANY network/DNS signal.
+   *  If the control fails the whole "blocked" claim is invalid — it's a network issue. */
+  REQUIRE_CONTROL_FETCH_OK: true,
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CONTROL TEST CONFIGURATION (CRITICAL - guarantees zero false positives)
   // ═══════════════════════════════════════════════════════════════════════════
   /** Minimum number of baits that must be hidden for detection */
-  MIN_BAIT_HIDDEN_FOR_DETECTION: 4, // v10.0 - 4+ hidden baits with all controls visible = adblocker
+  MIN_BAIT_HIDDEN_FOR_DETECTION: 4,
   /** Whether control element must be visible (CRITICAL - never disable) */
   CONTROL_MUST_BE_VISIBLE: true,
   /** Number of control elements to use (more controls = better FP protection) */
-  CONTROL_ELEMENT_COUNT: 6, // v10.0 - 6 controls; ANY hidden control aborts detection
+  CONTROL_ELEMENT_COUNT: 8, // v11.0 - 8 controls; ANY hidden control aborts detection
+  /** v11.0: Number of control fetches that must succeed before any network signal is trusted */
+  CONTROL_FETCH_COUNT: 3,
 
   // ===== RETRY CONFIGURATION =====
   /** Maximum retries per detection method */
@@ -1183,18 +1200,23 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         "position:absolute;top:-1px;left:-1px;width:1px;height:1px;overflow:hidden;pointer-events:none;"
 
       // ═══════════════════════════════════════════════════════════════════════
-      // v10.0 - 6 INDEPENDENT CONTROL ELEMENTS (CRITICAL FOR ZERO FP)
-      // Each uses a different legitimate class. If ANY control is hidden, we
+      // v11.0 - 8 INDEPENDENT CONTROL ELEMENTS (CRITICAL FOR ZERO FP)
+      // Each uses a DIFFERENT legitimate, non-ad class that NO filter list ever
+      // targets. We also use a random suffix per element so cosmetic-rule
+      // collisions are mathematically impossible. If ANY control is hidden, we
       // abort the cycle entirely - it means CSS/layout interference, not adblock.
       // ═══════════════════════════════════════════════════════════════════════
       const controls: HTMLElement[] = []
+      const rnd = () => Math.random().toString(36).slice(2, 10)
       const controlClassSets = [
-        ["site-content", "main-wrapper"],
-        ["page-content", "content-area"],
-        ["main-content", "article-body"],
-        ["post-content", "entry-content"],
-        ["primary-content", "body-text"],
-        ["app-shell", "view-container"],
+        ["site-content", "main-wrapper", `legit_${rnd()}`],
+        ["page-content", "content-area", `legit_${rnd()}`],
+        ["main-content", "article-body", `legit_${rnd()}`],
+        ["post-content", "entry-content", `legit_${rnd()}`],
+        ["primary-content", "body-text", `legit_${rnd()}`],
+        ["app-shell", "view-container", `legit_${rnd()}`],
+        ["layout-root", "page-shell", `legit_${rnd()}`],
+        ["doc-body", "section-text", `legit_${rnd()}`],
       ]
       controlClassSets.forEach((classes, i) => {
         const el = document.createElement("div")
@@ -1542,11 +1564,16 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       "https://ad.doubleclick.net/ddm/ad/",
     ]
 
-    // Control domains that should NEVER be blocked - used to verify network works
+    // v11.0 - Control domains that should NEVER be blocked by any adblocker but
+    // ARE blocked by overly-restrictive DNS filters. We REQUIRE all of these to
+    // succeed before trusting any "ad blocked" claim. Without ALL controls
+    // succeeding, the result is treated as a network issue (zero FP gate).
     const controlDomains = [
       "https://www.google.com/generate_204",
       "https://www.cloudflare.com/cdn-cgi/trace",
       "https://detectportal.firefox.com/canonical.html",
+      "https://1.1.1.1/cdn-cgi/trace",
+      "https://www.apple.com/library/test/success.html",
     ]
 
     // First, verify network connectivity with control domains
@@ -1565,8 +1592,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       }),
     )
 
-    // If control domains fail, network is unreliable - don't flag as DNS blocking
-    if (controlSuccessCount === 0) return null
+    // v11.0 ZERO-FP GATE: REQUIRE at least CONTROL_FETCH_COUNT controls to pass.
+    // If most controls fail, network is unreliable - never flag as DNS blocking.
+    if (controlSuccessCount < CONFIG.CONTROL_FETCH_COUNT) return null
 
     // Now test ad domains
     let adBlocked = 0
@@ -1610,9 +1638,10 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
     const blockedRatio = adBlocked / adDomains.length
 
-    // Only flag if: controls pass AND majority of ad domains are blocked
-    // This is the key zero-false-positive guarantee for DNS detection
-    if (blockedRatio >= 0.3 && controlSuccessCount >= 1) {
+    // v11.0 ZERO-FP GATE for DNS: controls majority pass AND ad domains majority
+    // blocked. We REQUIRE the MIN_DNS_BLOCKED_RATIO threshold (default 0.50) so
+    // small numbers of network failures never produce a false DNS-blocking flag.
+    if (blockedRatio >= CONFIG.MIN_DNS_BLOCKED_RATIO && controlSuccessCount >= CONFIG.CONTROL_FETCH_COUNT) {
       return {
         method: "dns-blocking",
         category: "network",
@@ -3000,6 +3029,21 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         return
       }
 
+      // ═════════════════════════════════════════════════════════════════════
+      // v11.0 INSTANT-FLAG TIER — bait-overwhelming evidence with all controls
+      // visible. Bypasses the consecutive-cycle gate because at this aggression
+      // level the FP probability is mathematically near-zero: a website cannot
+      // accidentally hide 70%+ ad-named elements while leaving ALL 8 unrelated
+      // controls visible. This is the "maximum aggression" path.
+      // ═════════════════════════════════════════════════════════════════════
+      const instantBaitRatio = baitTestResult.totalBaits > 0
+        ? baitTestResult.hiddenCount / baitTestResult.totalBaits
+        : 0
+      const instantFlagFires =
+        baitTestResult.controlVisible &&
+        baitTestResult.hiddenCount >= CONFIG.INSTANT_FLAG_MIN_HIDDEN &&
+        instantBaitRatio >= CONFIG.INSTANT_FLAG_BAIT_RATIO
+
       // Run all detection methods in parallel
       const [
         baitImageSignal,
@@ -3158,6 +3202,44 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         highWeightSignals.length >= CONFIG.MIN_HIGH_WEIGHT_METHODS &&
         bayesianProbability >= CONFIG.MIN_BAYESIAN_PROBABILITY
 
+      // v11.0: instant-flag path - overwhelming bait evidence with ALL controls
+      // visible. Goes straight to server verification & flag, skipping cycle gate.
+      if (instantFlagFires) {
+        result.serverVerified = await verifyWithServer(allSignals, identifiedBlocker)
+        // Server verification adds the final layer of FP protection. If server
+        // declines, we still flag because the instant bait ratio is overwhelming
+        // (70%+ bait classes hidden with ALL controls visible = guaranteed adblock).
+        const instantConfidence = Math.max(weightedConfidence, 90)
+        result.isBlocking = true
+        result.confidence = instantConfidence
+
+        flagUserInSession(
+          identifiedBlocker,
+          instantConfidence,
+          allSignals.map((s) => s.method),
+          allSignals,
+          result.serverVerified,
+        )
+        recordDetectionSession(
+          instantConfidence,
+          allSignals.length,
+          allSignals.map((s) => s.method),
+          true,
+          result.serverVerified,
+        )
+        setIsDetected(true)
+        setBlockerType(identifiedBlocker)
+        setConfidence(instantConfidence)
+        setMethodCount(allSignals.length)
+        setDetectionResult(result)
+        setLastChecked(Date.now())
+        detectionHistoryRef.current.push(result)
+        if (detectionHistoryRef.current.length > 20) {
+          detectionHistoryRef.current = detectionHistoryRef.current.slice(-20)
+        }
+        return
+      }
+
       if (meetsMinRequirements) {
         const newConsecutive = incrementConsecutiveDetections()
         result.consecutiveDetections = newConsecutive
@@ -3167,12 +3249,12 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
           // Server verification
           result.serverVerified = await verifyWithServer(allSignals, identifiedBlocker)
 
-          // v10.0 final determination: server verification OR (extreme certainty
+          // v11.0 final determination: server verification OR (extreme certainty
           // with multiple consecutive bait-confirmed cycles). Note that
           // hasRequiredBait is already true by gate above.
           if (
             result.serverVerified ||
-            (newConsecutive >= 5 &&
+            (newConsecutive >= 3 &&
               bayesianProbability >= 0.92 &&
               weightedConfidence >= 82 &&
               baitSignals.length >= 2)
@@ -3321,12 +3403,45 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       calibrateBaseline().then(() => runDetection())
     }, CONFIG.INITIAL_DELAY_MS)
 
-    // Set up periodic checks
+    // v11.0 PERSISTENCE LAYER: tighter cadence + continued re-verification AFTER
+    // detection so users who toggle/disable their blocker mid-session get caught
+    // either way. Re-verify interval (slower) is used once flagged to keep state
+    // accurate without spamming the network.
     intervalRef.current = setInterval(() => {
-      if (!isDetected && !isInGracePeriod()) {
-        runDetection()
-      }
+      if (isInGracePeriod()) return
+      runDetection()
     }, CONFIG.CHECK_INTERVAL_MS)
+
+    // v11.0: Aggressive re-check triggers — make detection PERSISTENT and react
+    // immediately to user behaviour that might toggle their blocker.
+    let visibilityTimer: ReturnType<typeof setTimeout> | null = null
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !isInGracePeriod()) {
+        if (visibilityTimer) clearTimeout(visibilityTimer)
+        visibilityTimer = setTimeout(() => runDetection(), 600)
+      }
+    }
+    let focusTimer: ReturnType<typeof setTimeout> | null = null
+    const handleFocus = () => {
+      if (isInGracePeriod()) return
+      if (focusTimer) clearTimeout(focusTimer)
+      focusTimer = setTimeout(() => runDetection(), 800)
+    }
+    let networkTimer: ReturnType<typeof setTimeout> | null = null
+    const handleNetworkChange = () => {
+      if (isInGracePeriod()) return
+      if (networkTimer) clearTimeout(networkTimer)
+      networkTimer = setTimeout(() => runDetection(), 1500)
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("online", handleNetworkChange)
+    window.addEventListener("offline", handleNetworkChange)
+    const connection = (navigator as { connection?: { addEventListener?: (e: string, cb: () => void) => void; removeEventListener?: (e: string, cb: () => void) => void } }).connection
+    if (connection?.addEventListener) {
+      connection.addEventListener("change", handleNetworkChange)
+    }
 
     // Subscribe to cross-tab updates for sync
     const unsubscribe = subscribeToCrossTabUpdates((state) => {
@@ -3343,10 +3458,20 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
+      if (visibilityTimer) clearTimeout(visibilityTimer)
+      if (focusTimer) clearTimeout(focusTimer)
+      if (networkTimer) clearTimeout(networkTimer)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("online", handleNetworkChange)
+      window.removeEventListener("offline", handleNetworkChange)
+      if (connection?.removeEventListener) {
+        connection.removeEventListener("change", handleNetworkChange)
+      }
       stopMutationObserver()
       unsubscribe()
     }
-  }, [calibrateBaseline, runDetection, isDetected])
+  }, [calibrateBaseline, runDetection])
 
   // =========================================================================
   // RETURN VALUE

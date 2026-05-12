@@ -380,24 +380,71 @@ function detectLanguageCountryMismatch(inputs: ResidentialVPNInputs): Behavioral
 // =============================================================================
 
 const DVPN_ORG_TOKENS = [
-  "deeper network", "deeper connect",
-  "mysterium", "myst node",
-  "tachyon", "anomi vpn",
-  "sentinel dvpn",
-  "orchid protocol",
-  "loki network", "lokinet",
+  // ── Deeper Network DPN (residential mesh, HARDEST to detect) ──
+  "deeper network", "deeper connect", "deepernetwork", "deepnet",
+  "deeper chain", "dpr token",
+  // ── Mysterium Network (decentralized dVPN) ──
+  "mysterium", "myst node", "mysterium network", "myst token",
+  "mysterium operator",
+  // ── Tachyon Protocol (Anomi VPN / X-VPN / NoBorder) ──
+  "tachyon", "tachyon protocol", "anomi vpn", "anomi network",
+  "x-vpn", "xvpn", "noborder", "no border",
+  // ── Sentinel dVPN (Cosmos-based) ──
+  "sentinel dvpn", "sentinel network", "sentinelvpn",
+  // ── Orchid Protocol ──
+  "orchid protocol", "orchid vpn", "orchid network",
+  // ── Lokinet / Session / I2P / Tor ──
+  "loki network", "lokinet", "oxen network",
   "session messenger",
-  "i2p ",
-  "tor exit", "tor relay",
-  "hola network", "hola vpn",
-  "honeygain",
-  "packetstream",
-  "earnapp", "pawns",
-  "smartproxy", "bright data", "luminati", "oxylabs", "soax", "iproyal",
-  "zerotier",
+  "i2p ", "i2p network", "invisible internet",
+  "tor exit", "tor relay", "tor node",
+  // ── Hola (residential P2P VPN) ──
+  "hola network", "hola vpn", "hola networks",
+  // ── Residential SDK monetization (everyone who pays cents per GB) ──
+  "honeygain", "honey gain",
+  "packetstream", "packet stream",
+  "earnapp", "earn app", "iproyal pawns", "pawns app", "pawns.app",
+  "swash app", "browsec",
+  "globalhop sdk", "global hop",
+  // ── Commercial residential proxy services ──
+  "smartproxy", "smart proxy",
+  "bright data", "brightdata", "luminati",
+  "oxylabs",
+  "soax",
+  "netnut", "net nut",
+  "geosurf",
+  "iproyal", "ip royal",
+  "rayobyte", "blazing seo",
+  "shifter", "microleaves",
+  "dataimpulse",
+  "ipidea",
+  "rola residential", "rola ip",
+  "spider proxies",
+  "stormproxies", "storm proxies",
+  "infatica",
+  // ── Mesh networks / community VPNs ──
+  "zerotier", "tailscale node",
+  "wireguard mesh", "bowtie",
+  // ── Hacker-favorite anonymous / offshore hosting ──
   "njal.la", "njalla",
-  "anonymous hosting",
-  "offshore hosting",
+  "anonymous hosting", "anonymous host",
+  "offshore hosting", "bulletproof hosting",
+  "private network", "p2p vpn",
+  "perfect ip", "perfectip",
+  "ip volume", "9pl ltd", "quasi networks",
+  "ecatel", "frantech",
+  "incognet", "private layer",
+  "flokinet", "floki net",
+  "cyberbunker",
+  // ── Crypto / blockchain VPN tokens (giveaway naming) ──
+  "vpn token", "vpn coin", "vpn dao",
+  "decentralized vpn", "dvpn",
+  // ── Custom WireGuard / OpenVPN on VPS (hacker favorites) ──
+  "wireguard host",
+  "openvpn host",
+  "shadowsocks",
+  "v2ray", "trojan-gfw", "xray-core",
+  "naive proxy", "naïve proxy",
 ] as const
 
 function detectDvpnOrg(inputs: ResidentialVPNInputs): BehavioralSignal | null {
@@ -464,6 +511,152 @@ function detectHeadlessFingerprint(inputs: ResidentialVPNInputs): BehavioralSign
 }
 
 // =============================================================================
+// SIGNAL: DOWNLINK vs CONNECTION-TYPE MISMATCH (tunnel throttling)
+// =============================================================================
+//
+// Decentralized VPNs (Deeper, Mysterium, Anomi) typically cap or share
+// bandwidth across many users on the same residential exit. A user reporting
+// "4g" or "wifi" effective-type but a downlink of <5 Mbps in a high-infra
+// country (US/EU/JP/KR/SG/AU) is suspicious — they're tunneling through a
+// throttled mesh exit even though the radio reports fast connectivity.
+// =============================================================================
+function detectDownlinkAnomaly(inputs: ResidentialVPNInputs): BehavioralSignal | null {
+  if (!inputs.downlink || !inputs.effectiveType || !inputs.ipCountry) return null
+  const fastInfraCountries = new Set(["US", "CA", "GB", "DE", "FR", "NL", "JP", "KR", "SG", "AU", "SE", "DK", "FI", "CH", "AT", "BE", "NO", "TW", "HK"])
+  if (!fastInfraCountries.has(inputs.ipCountry.toUpperCase())) return null
+
+  // 4g/wifi user with throttled downlink = tunnel
+  const fastReportedTypes = new Set(["4g", "wifi", "5g"])
+  if (!fastReportedTypes.has(inputs.effectiveType.toLowerCase())) return null
+  if (inputs.downlink >= 5) return null // 5+ Mbps is normal
+
+  return {
+    type: "downlink_throttle",
+    weight: 50,
+    confidence: Math.min(80, 55 + (5 - inputs.downlink) * 5),
+    metadata: { downlink: inputs.downlink, effectiveType: inputs.effectiveType, ipCountry: inputs.ipCountry },
+  }
+}
+
+// =============================================================================
+// SIGNAL: WEBRTC vs SERVER IP COUNTRY MISMATCH
+// =============================================================================
+//
+// Even when WebRTC is mDNS-obfuscated, sometimes a public IP candidate slips
+// through STUN. If that public WebRTC IP is in a DIFFERENT country class than
+// the server-seen IP, the user is tunneling. Deeper Network in particular
+// exhibits this — DPN routes traffic via residential nodes but cannot mask
+// WebRTC peer-to-peer endpoints.
+// =============================================================================
+function detectWebRTCCountryDriftLite(inputs: ResidentialVPNInputs): BehavioralSignal | null {
+  if (!inputs.webrtcIPs || inputs.webrtcIPs.length === 0) return null
+  if (!inputs.clientIP) return null
+  // Take the FIRST octet difference as a quick country-class heuristic
+  const serverOct = inputs.clientIP.split(".")[0]
+  if (!serverOct) return null
+  const publicWebrtc = inputs.webrtcIPs.filter((ip) => {
+    if (!ip || typeof ip !== "string") return false
+    if (ip.endsWith(".local")) return false
+    if (/^(10|192\.168|127|169\.254|172\.(1[6-9]|2[0-9]|3[0-1]))\./.test(ip)) return false
+    if (/^fe80:|^fc|^fd/.test(ip)) return false
+    return /^\d+\.\d+\.\d+\.\d+$/.test(ip)
+  })
+  for (const wIp of publicWebrtc) {
+    const wOct = wIp.split(".")[0]
+    if (!wOct) continue
+    // Different /8 + different IP = strong drift signal
+    if (wOct !== serverOct && wIp !== inputs.clientIP) {
+      return {
+        type: "webrtc_octet_drift",
+        weight: 65,
+        confidence: 78,
+        metadata: { serverIP: inputs.clientIP, webrtcIP: wIp },
+      }
+    }
+  }
+  return null
+}
+
+// =============================================================================
+// SIGNAL: USER-AGENT vs PLATFORM vs TIMEZONE STACK (3-way contradiction)
+// =============================================================================
+//
+// Hacker tooling and dVPN clients often produce 3-way contradictions:
+// e.g. UA="Windows", platform="Linux", timezone="Asia/Shanghai" with IP=US.
+// One mismatch is benign; two or more is decisive evidence of tunneling.
+// =============================================================================
+function detectMultiStackContradiction(inputs: ResidentialVPNInputs): BehavioralSignal | null {
+  let contradictions = 0
+  const reasons: string[] = []
+
+  if (inputs.userAgent && inputs.platform) {
+    const ua = inputs.userAgent.toLowerCase()
+    const plat = inputs.platform.toLowerCase()
+    if ((ua.includes("windows") && !plat.includes("win")) ||
+        (ua.includes("macintosh") && !plat.includes("mac") && !plat.includes("darwin")) ||
+        (ua.includes("android") && !plat.includes("linux") && !plat.includes("arm"))) {
+      contradictions++
+      reasons.push("ua_platform_mismatch")
+    }
+  }
+  if (inputs.timezone && inputs.ipCountry) {
+    const expected = COUNTRY_TIMEZONE_PREFIX[inputs.ipCountry.toUpperCase()]
+    if (expected) {
+      const ok = expected.some((p) => (p.endsWith("/") ? inputs.timezone!.startsWith(p) : inputs.timezone === p))
+      if (!ok) {
+        contradictions++
+        reasons.push("tz_country_mismatch")
+      }
+    }
+  }
+  if (inputs.languages && inputs.languages.length > 0 && inputs.ipCountry) {
+    const primary = inputs.languages[0]?.split("-")[0]?.toLowerCase()
+    const expected = primary ? LANGUAGE_TO_COUNTRIES[primary] : null
+    if (expected && !expected.includes(inputs.ipCountry.toUpperCase())) {
+      contradictions++
+      reasons.push("lang_country_mismatch")
+    }
+  }
+  if (contradictions < 2) return null
+
+  return {
+    type: "multi_stack_contradiction",
+    weight: 82,
+    confidence: Math.min(95, 70 + contradictions * 8),
+    metadata: { contradictions, reasons },
+  }
+}
+
+// =============================================================================
+// SIGNAL: HARDWARE-CONCURRENCY × DEVICE-MEMORY anomaly (mesh node fingerprint)
+// =============================================================================
+//
+// Deeper Network DPN devices are tiny ARM router-class boxes with 1-2 GB RAM
+// and 2-4 cores. When the user appears to be on a "desktop" UA but reports
+// hardwareConcurrency<=2 AND deviceMemory<=2 AND a high-infra country, that's
+// the unmistakeable Deeper-style mesh fingerprint.
+// =============================================================================
+function detectMeshDeviceFingerprint(inputs: ResidentialVPNInputs): BehavioralSignal | null {
+  if (!inputs.hardwareConcurrency || !inputs.deviceMemory) return null
+  if (!inputs.userAgent || !inputs.ipCountry) return null
+  const ua = inputs.userAgent.toLowerCase()
+  const isDesktopUA = ua.includes("windows") || ua.includes("macintosh") || (ua.includes("x11") && ua.includes("linux"))
+  if (!isDesktopUA) return null
+  if (inputs.hardwareConcurrency > 2) return null
+  if (inputs.deviceMemory > 2) return null
+  return {
+    type: "mesh_device_fingerprint",
+    weight: 70,
+    confidence: 78,
+    metadata: {
+      hardwareConcurrency: inputs.hardwareConcurrency,
+      deviceMemory: inputs.deviceMemory,
+      ua: inputs.userAgent.slice(0, 80),
+    },
+  }
+}
+
+// =============================================================================
 // MAIN ENTRY POINT
 // =============================================================================
 
@@ -474,11 +667,15 @@ export function detectResidentialVPN(inputs: ResidentialVPNInputs): ResidentialV
   const runners: Array<(i: ResidentialVPNInputs) => BehavioralSignal | null> = [
     detectLatencyMismatch,
     detectWebRTCAnomaly,
+    detectWebRTCCountryDriftLite,
     detectTimezoneCountryMismatch,
     detectRTTAnomaly,
+    detectDownlinkAnomaly,
     detectLanguageCountryMismatch,
+    detectMultiStackContradiction,
     detectDvpnOrg,
     detectHeadlessFingerprint,
+    detectMeshDeviceFingerprint,
   ]
 
   for (const runner of runners) {
@@ -507,14 +704,23 @@ export function detectResidentialVPN(inputs: ResidentialVPNInputs): ResidentialV
   const diversityBonus = Math.min(20, signals.length * 5)
   const score = Math.min(100, base + diversityBonus)
 
-  // "Suspect" requires multiple independent behavioral signals OR one extremely
-  // high-confidence signal (e.g. WebRTC real-IP leak or dvpn-org-token).
+  // v11.0 "Suspect" determination — expanded for residential / decentralized
+  // VPNs. ANY of the following decisive signals alone is enough:
+  //   • WebRTC real-IP leak (different IP between server and STUN)
+  //   • dVPN/residential-proxy org name token (Deeper/Mysterium/Anomi/Hola/etc.)
+  //   • Multi-stack contradiction (UA + timezone + language all wrong)
+  //   • Mesh device fingerprint (ARM-class deviceMemory+hwConcurrency on desktop UA)
+  // Otherwise we require 2+ independent behavioural signals with score >= 55
+  // (lowered from 3+ / 60 in v10.0 — corroborated by VPN Fortress consensus).
   const hasDecisiveSignal = signals.some(
     (s) =>
       (s.type === "webrtc_real_ip_leak" && s.confidence >= 90) ||
-      (s.type === "dvpn_org_token" && s.confidence >= 90),
+      (s.type === "dvpn_org_token" && s.confidence >= 90) ||
+      (s.type === "multi_stack_contradiction" && s.confidence >= 86) ||
+      (s.type === "mesh_device_fingerprint" && s.confidence >= 75) ||
+      (s.type === "webrtc_octet_drift" && s.confidence >= 75),
   )
-  const isSuspect = hasDecisiveSignal || (signals.length >= 3 && score >= 60)
+  const isSuspect = hasDecisiveSignal || (signals.length >= 2 && score >= 55)
 
   // Confidence = composite weighted by signal count
   const confidence = Math.min(100, Math.round(score * (signals.length >= 4 ? 1.0 : 0.85)))
