@@ -340,7 +340,7 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS214379: { name: "BrightData (residential proxy)", type: "residential_proxy", confidence: 97, priority: 10, category: "definite" },
   AS62240: { name: "Luminati/BrightData", type: "residential_proxy", confidence: 96, priority: 10, category: "definite" },
   AS49493: { name: "Oxylabs residential", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
-  AS204957: { name: "Smartproxy residential", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
+  AS200593: { name: "Smartproxy residential", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
   AS213230: { name: "Hetzner (common WireGuard host)", type: "hosting", confidence: 72, priority: 7, category: "moderate" },
   AS24940: { name: "Hetzner Online (VPN host)", type: "hosting", confidence: 80, priority: 8, category: "high_probability" },
   AS14061: { name: "DigitalOcean (VPN host)", type: "hosting", confidence: 78, priority: 7, category: "high_probability" },
@@ -371,7 +371,7 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS210167: { name: "KeepSolid VPN Unlimited", type: "vpn", confidence: 95, priority: 10, category: "definite" },
   AS206628: { name: "Whoer VPN", type: "vpn", confidence: 94, priority: 10, category: "definite" },
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════��═══
   // v10.0 - DECENTRALIZED / RESIDENTIAL VPNS (HARDEST TO DETECT)
   // These route traffic through residential nodes which look like real ISPs.
   // We catch them via known node-operator ASNs, exit-node lists, and behavioral
@@ -1777,7 +1777,7 @@ export async function detectVPNFortress(
     }
   }
   
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ═══════════════��═══════════════════════════════════════════════════════════
   // LAYER 6: TIMEZONE MISMATCH
   // ═══════════════════════════════════════════════════════════════════════════
   
