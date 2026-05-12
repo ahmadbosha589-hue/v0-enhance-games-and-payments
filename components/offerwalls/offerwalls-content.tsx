@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import useSWR from "swr"
 import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -230,13 +230,37 @@ function OfferwallCard({
   const LinkTag: any = "a"
 
   // Expandable description so long copy isn't permanently truncated.
+  // We detect actual truncation by measuring the rendered DOM node — this
+  // catches any offerwall whose copy overflows the 3-line clamp, regardless
+  // of character count or column width.
   const [descExpanded, setDescExpanded] = useState(false)
-  // Heuristic: rough character count where 3 lines of small text would clip.
-  // Plus an exact check happens visually via line-clamp + measuring scrollHeight
-  // would require refs/effects; this heuristic keeps SSR clean and is good
-  // enough for marketing copy.
-  const descLooksLong =
-    typeof offerwall.description === "string" && offerwall.description.length > 110
+  const [descTruncated, setDescTruncated] = useState(false)
+  const descRef = useRef<HTMLParagraphElement | null>(null)
+
+  useEffect(() => {
+    const el = descRef.current
+    if (!el) return
+
+    const measure = () => {
+      // While expanded the node grows to fit its content, so we only need
+      // to update the "is truncated" flag while the clamp is active.
+      if (descExpanded) return
+      // 1px tolerance handles sub-pixel rounding in some browsers.
+      const isClipped = el.scrollHeight - el.clientHeight > 1
+      setDescTruncated((prev) => (prev === isClipped ? prev : isClipped))
+    }
+
+    measure()
+
+    // Re-measure when the card resizes (responsive layouts, font load, etc.)
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null
+    ro?.observe(el)
+    window.addEventListener("resize", measure)
+    return () => {
+      ro?.disconnect()
+      window.removeEventListener("resize", measure)
+    }
+  }, [offerwall.description, descExpanded])
 
   if (variant === "compact") {
     const Wrapper: any = isConfigured ? LinkTag : "div"
@@ -439,6 +463,7 @@ function OfferwallCard({
             {isNew && <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />}
           </div>
           <p
+            ref={descRef}
             className={cn(
               "text-xs text-muted-foreground leading-relaxed text-pretty",
               descExpanded ? "" : "line-clamp-3 min-h-[3.25rem]",
@@ -446,7 +471,7 @@ function OfferwallCard({
           >
             {offerwall.description}
           </p>
-          {descLooksLong && (
+          {(descTruncated || descExpanded) && (
             <button
               type="button"
               onClick={(e) => {
