@@ -55,16 +55,27 @@ const PROVIDER_IP_WHITELIST: Record<string, string[]> = {
 }
 
 // Providers that expect a specific plain-text response body.
-// c.cx.ua's parser is case-sensitive and requires uppercase "OK" / "DUP"
-// (see https://objectivewall.com/documentation/postback — c.cx.ua is a
-// wannads fork using the same protocol). Returning "ok" lowercase causes
-// c.cx.ua to flag the postback as "Failed" and retry up to 5 times.
+// c.cx.ua's official S2S docs (https://c.cx.ua/docs/#ow_response) are
+// explicit: "Our servers will expect your website to respond with 'ok'.
+// If your postback doesn't return 'ok' as response, postback will be
+// marked as failed (even if postback was successfully called)."
+// Every PHP example in their docs uses `echo "ok";` (lowercase) and the
+// response is whitespace-/case-sensitive. Returning anything else (e.g.
+// "OK", "1", JSON, "DUP") causes c.cx.ua to flag the postback Failed in
+// their dashboard and retry up to 5x even though we already credited the
+// user — producing the "no completions in dashboard" symptom.
 const PROVIDER_OK_RESPONSE: Record<string, string> = {
-  ccxua: "OK",
+  ccxua: "ok",
 }
 
+// The official c.cx.ua S2S contract only recognises "ok" as success — there
+// is no documented "DUP" sentinel (that token comes from the legacy Vie
+// Faucet sample code, not the S2S spec). For an already-processed
+// transaction we still return "ok" so c.cx.ua marks the postback as
+// successful and stops retrying. Idempotency is enforced server-side via
+// the unique constraint on `offerwall_conversions.transaction_id`.
 const PROVIDER_DUPLICATE_RESPONSE: Record<string, string> = {
-  ccxua: "DUP",
+  ccxua: "ok",
 }
 
 function getSupabaseAdmin() {
@@ -531,8 +542,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           `Run the seed script (e.g. scripts/070_add_ccxua_offerwall_provider.sql).`,
       )
       // For providers that retry on non-2xx (c.cx.ua retries 5x), return
-      // their expected plain-text OK so they don't keep hammering the
-      // endpoint. The error is still logged for the operator to fix.
+      // their expected plain-text ack ("ok" for c.cx.ua per the official
+      // S2S docs) so they don't keep hammering the endpoint. The error
+      // is still logged loudly above for the operator to fix.
       const okText = PROVIDER_OK_RESPONSE[provider]
       if (okText) {
         return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
@@ -560,8 +572,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         `[Postback] User "${postbackParams.userId}" not found for provider "${provider}". ` +
           `Likely a test postback or invalid subId.`,
       )
-      // Acknowledge with the provider's expected OK token so c.cx.ua's
-      // Test Postback button reports success and doesn't retry forever.
+      // Acknowledge with the provider's expected ack token ("ok" for
+      // c.cx.ua per the S2S docs) so the Test Postback button reports
+      // success and the call isn't retried forever.
       const okText = PROVIDER_OK_RESPONSE[provider]
       if (okText) {
         return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
@@ -711,7 +724,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     console.log(`[Postback] Success: ${provider} - User: ${postbackParams.userId} - Amount: ${payoutSatoshis} sats`)
 
-    // Return success — providers expect different plain-text bodies
+    // Return success — providers expect different plain-text bodies.
+    // c.cx.ua specifically requires lowercase "ok" (see top of file).
+    // Default to "1" for the providers that follow the more common
+    // generic offerwall convention.
     const okText = PROVIDER_OK_RESPONSE[provider] || "1"
     return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
   } catch (error) {
