@@ -1,5 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import {
+  getProviderCompletionStats,
+  getPlatformCompletionStats,
+} from "@/lib/completions"
 
 export const dynamic = "force-dynamic"
 
@@ -495,50 +499,27 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser()
     const userId = user?.id || ""
 
-    // Stats helper — matches transactions to a specific provider via the
-    // postback's metadata.provider field (postback handler always writes the
-    // canonical slug there, e.g. "ccxua", "cpx-research").  The previous
-    // implementation matched on description via ILIKE %name% which silently
-    // returned 0 because descriptions contain the slug, not the display
-    // name (e.g. "Some Offer (ccxua)" does NOT contain "c.cx.ua").  It also
-    // selected the non-existent `amount` column — the schema uses
-    // `amount_satoshis` — so every stat came back as 0.
-    async function fetchProviderStats(providerSlug: string, providerName: string) {
-      // We try metadata->>provider first (canonical), then fall back to a
-      // description LIKE on either the slug or the display name so that
-      // historical rows written before this fix still get counted.
-      const orFilter =
-        `metadata->>provider.eq.${providerSlug},` +
-        `description.ilike.%${providerSlug}%,` +
-        `description.ilike.%${providerName}%`
-
-      const [{ data: aggData }, userResult] = await Promise.all([
-        supabase
-          .from("transactions")
-          .select("amount_satoshis")
-          .eq("type", "offerwall")
-          .eq("status", "completed")
-          .or(orFilter),
-        user
-          ? supabase
-              .from("transactions")
-              .select("amount_satoshis")
-              .eq("user_id", user.id)
-              .eq("type", "offerwall")
-              .eq("status", "completed")
-              .or(orFilter)
-          : Promise.resolve({ data: [] as Array<{ amount_satoshis: number }> }),
-      ])
-
-      const totalPaid =
-        aggData?.reduce((sum, tx) => sum + Number(tx.amount_satoshis || 0), 0) || 0
-      const completionCount = aggData?.length || 0
-      const userData = (userResult as { data: Array<{ amount_satoshis: number }> | null }).data
-      const userEarnings =
-        userData?.reduce((sum, tx) => sum + Number(tx.amount_satoshis || 0), 0) || 0
-      const userCompletions = userData?.length || 0
-
-      return { totalPaid, completionCount, userEarnings, userCompletions }
+    // Stats helper — delegated to the unified completions layer.
+    //
+    // History: the old implementation read only from `transactions` and
+    // ILIKE'd the display name into the description. That silently returned
+    // 0 because descriptions contain the SLUG, not the display name (e.g.
+    // "Some Offer (ccxua)" doesn't contain "c.cx.ua"). It also missed every
+    // conversion where the postback chain partially failed (the conversion
+    // row exists but the transaction row never got written, so the card
+    // said "0 completions" even though we credited the user).
+    //
+    // The unified helper reads from BOTH `offerwall_conversions` (primary,
+    // written first) and `transactions` (legacy/fallback), deduped by
+    // transaction_id, so the numbers can never disagree again.
+    async function fetchProviderStats(providerSlug: string, _providerName: string) {
+      const s = await getProviderCompletionStats(providerSlug, user?.id)
+      return {
+        totalPaid: s.total_paid,
+        completionCount: s.completion_count,
+        userEarnings: s.user_earnings,
+        userCompletions: s.user_completions,
+      }
     }
 
     // If requesting a specific offerwall
@@ -593,17 +574,13 @@ export async function GET(request: Request) {
     // Sort by priority — c.cx.ua (priority 0) is always first
     offerwallsWithStats.sort((a, b) => a.priority - b.priority)
 
-    // Get platform-wide stats — all offerwall transactions, all providers.
-    const { data: allOfferwallTx } = await supabase
-      .from("transactions")
-      .select("amount_satoshis")
-      .eq("type", "offerwall")
-      .eq("status", "completed")
-
+    // Platform-wide stats — pulled from the unified completions layer so
+    // conversions that never made it into the `transactions` table (because
+    // an upstream postback step failed) are still counted.
+    const platformAgg = await getPlatformCompletionStats()
     const platformStats = {
-      total_paid_all_offerwalls:
-        allOfferwallTx?.reduce((sum, tx) => sum + Number(tx.amount_satoshis || 0), 0) || 0,
-      total_completions: allOfferwallTx?.length || 0,
+      total_paid_all_offerwalls: platformAgg.total_paid_all_offerwalls,
+      total_completions: platformAgg.total_completions,
       active_offerwalls: OFFERWALLS.filter((o) => o.active).length,
     }
 

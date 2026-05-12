@@ -746,25 +746,56 @@ async function handlePostback(
   }
 }
 
-// Some providers (notably c.cx.ua) send POST with form-encoded or JSON bodies.
-// We merge body params into the URL's searchParams so the same GET handler
-// can process them transparently.
-export async function POST(request: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// GET handler — used by:
+//   • c.cx.ua's "Test Postback" button (always GET — see https://c.cx.ua/docs/)
+//   • Browser-based debugging / manual testing
+//   • Any provider that prefers query-string postbacks (the default)
+//
+// We hand straight through to handlePostback with the raw searchParams.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ provider: string }> },
+): Promise<NextResponse> {
+  const { provider } = await params
+  const { searchParams } = new URL(request.url)
+  return handlePostback(request, provider, searchParams)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST handler — used by providers that submit form-encoded or JSON bodies
+// (CPX Research, some Lootably configurations, etc.). We merge body params
+// into the URL's searchParams and dispatch to the SAME handler the GET path
+// uses. We deliberately do NOT recreate a NextRequest here — copying the
+// original headers (including Content-Length) onto a body-less replay caused
+// the underlying fetch validator to reject the second pass, which is what
+// surfaced as `ReferenceError: GET is not defined` in production logs and
+// kept c.cx.ua's Test Postback button stuck on "Failed".
+// ─────────────────────────────────────────────────────────────────────────────
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ provider: string }> },
+): Promise<NextResponse> {
+  const { provider } = await params
+  // Start from the URL's existing searchParams so providers can send mixed
+  // query+body params and we keep both.
+  const merged = new URLSearchParams(new URL(request.url).search)
+
   try {
-    const contentType = request.headers.get("content-type") || ""
-    const url = new URL(request.url)
+    const contentType = (request.headers.get("content-type") || "").toLowerCase()
 
     if (contentType.includes("application/x-www-form-urlencoded")) {
       const text = await request.text()
       const body = new URLSearchParams(text)
       body.forEach((value, key) => {
-        if (!url.searchParams.has(key)) url.searchParams.set(key, value)
+        if (!merged.has(key)) merged.set(key, value)
       })
     } else if (contentType.includes("multipart/form-data")) {
       const form = await request.formData()
       form.forEach((value, key) => {
-        if (typeof value === "string" && !url.searchParams.has(key)) {
-          url.searchParams.set(key, value)
+        if (typeof value === "string" && !merged.has(key)) {
+          merged.set(key, value)
         }
       })
     } else if (contentType.includes("application/json")) {
@@ -772,24 +803,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const json = await request.json()
         if (json && typeof json === "object") {
           Object.entries(json as Record<string, unknown>).forEach(([k, v]) => {
-            if (!url.searchParams.has(k) && v != null) {
-              url.searchParams.set(k, String(v))
+            if (!merged.has(k) && v != null) {
+              merged.set(k, String(v))
             }
           })
         }
       } catch {
-        // Ignore JSON parse failures
+        // Ignore JSON parse failures — fall through with whatever we have.
       }
     }
-
-    // Rebuild the request with the merged searchParams so GET() can process it.
-    const merged = new NextRequest(url.toString(), {
-      method: "GET",
-      headers: request.headers,
-    })
-    return GET(merged, { params })
   } catch (error) {
     console.error("[Postback POST] Body parsing failed:", error)
-    return GET(request, { params })
+    // Fall through with whatever searchParams we managed to gather.
   }
+
+  return handlePostback(request, provider, merged)
 }

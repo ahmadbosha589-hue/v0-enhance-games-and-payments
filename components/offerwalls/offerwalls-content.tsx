@@ -653,7 +653,12 @@ function OfferwallsGrid({
 }
 
 function RecentCompletions() {
-  const { data, isLoading } = useSWR(`/api/transactions?type=offerwall&limit=5`, fetcher, {
+  // Use the unified /api/completions endpoint, which reads from BOTH
+  // `offerwall_conversions` (primary, written first by the postback) and
+  // `transactions` (legacy fallback). The old /api/transactions path missed
+  // conversions where the postback's balance/transaction step failed, so
+  // approved offers would credit the user but never show up here.
+  const { data, isLoading } = useSWR(`/api/completions?limit=5`, fetcher, {
     refreshInterval: 60000,
   })
 
@@ -667,7 +672,9 @@ function RecentCompletions() {
     )
   }
 
-  const completions = data?.transactions || []
+  // Endpoint returns { completions: Completion[] }. Older shapes
+  // (`transactions`) are kept as a fallback so a stale deploy still renders.
+  const completions = data?.completions || data?.transactions || []
 
   if (completions.length === 0) {
     return (
