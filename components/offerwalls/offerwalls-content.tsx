@@ -30,7 +30,6 @@ import {
   BarChart3,
   Wallet,
   Lock,
-  Crown,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -204,192 +203,6 @@ function StatsCards({
   )
 }
 
-// Hero card for c.cx.ua and other featured "NEW" partners
-function FeaturedHeroCard({ offerwall }: { offerwall: OfferwallData }) {
-  const userEarnings = offerwall.stats?.user_earnings || 0
-  const totalPaid = offerwall.stats?.total_paid || 0
-  const completions = offerwall.stats?.completion_count || 0
-  const logoUrl = offerwall.logo
-  const initials = getBrandInitials(offerwall.name)
-  const [logoError, setLogoError] = useState(false)
-  const showLogo = !!logoUrl && !logoError
-  const internalHref = internalUrlFor(offerwall)
-  // When we have an internal landing page the link is always usable — the
-  // landing page itself renders a friendly "Setup Required" view instead of
-  // letting the user click through to a broken external 404.
-  const isConfigured = internalHref ? true : offerwall.configured !== false
-  const showSetupHint = internalHref ? offerwall.configured === false : !isConfigured
-
-  return (
-    <Card
-      className={cn(
-        "relative overflow-hidden border-2 transition-all duration-300",
-        "hover:shadow-2xl hover:shadow-cyan-500/10",
-        "border-cyan-500/40 bg-gradient-to-br from-cyan-500/5 via-teal-500/5 to-transparent",
-      )}
-    >
-      {/* Decorative background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-cyan-500/10 blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-64 h-64 rounded-full bg-teal-500/10 blur-3xl" />
-      </div>
-
-      {/* "FEATURED" ribbon */}
-      <div className="absolute top-4 -right-12 z-10 rotate-45 bg-gradient-to-r from-cyan-500 to-teal-500 px-14 py-1 text-[10px] font-bold tracking-wider text-white shadow-lg">
-        FEATURED
-      </div>
-
-      <CardContent className="relative p-5 sm:p-6 lg:p-8">
-        <div className="grid gap-5 lg:gap-8 lg:grid-cols-[auto_1fr_auto] items-center">
-          {/* Logo block */}
-          <div className="flex items-center gap-4">
-            <div
-              className="relative h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center ring-2 ring-cyan-500/20 bg-background shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, ${offerwall.color}25 0%, ${offerwall.color}05 100%)`,
-              }}
-            >
-              {showLogo ? (
-                <Image
-                  src={logoUrl || "/placeholder.svg"}
-                  alt={offerwall.name}
-                  width={96}
-                  height={96}
-                  className="object-contain p-2"
-                  onError={() => setLogoError(true)}
-                  unoptimized
-                />
-              ) : (
-                <span
-                  className="text-xl font-bold tracking-tight text-center"
-                  style={{ color: offerwall.color }}
-                >
-                  {initials}
-                </span>
-              )}
-            </div>
-
-            <div className="lg:hidden">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Crown className="h-4 w-4 text-cyan-500" />
-                <Badge className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white border-0 text-[10px]">
-                  NEW PARTNER
-                </Badge>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-bold mt-1">{offerwall.name}</h2>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="space-y-3 min-w-0">
-            <div className="hidden lg:block">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Crown className="h-4 w-4 text-cyan-500" />
-                <Badge className="bg-gradient-to-r from-cyan-500 to-teal-500 text-white border-0 text-[10px]">
-                  NEW PARTNER
-                </Badge>
-                <Badge variant="outline" className="text-[10px]">
-                  Just Added
-                </Badge>
-              </div>
-              <h2 className="text-2xl xl:text-3xl font-bold mt-1.5">{offerwall.name}</h2>
-            </div>
-
-            <p className="text-sm text-muted-foreground leading-relaxed text-pretty">
-              {offerwall.description}
-            </p>
-
-            <div className="flex flex-wrap gap-1.5">
-              {offerwall.features.map((feature) => (
-                <Badge
-                  key={feature}
-                  variant="secondary"
-                  className="text-[10px] px-2 py-0.5 font-normal bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/20"
-                >
-                  {feature}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          {/* CTA / Stats */}
-          <div className="space-y-3 lg:min-w-[200px]">
-            {(totalPaid > 0 || completions > 0) && (
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-                <div className="rounded-lg bg-background/60 backdrop-blur-sm border border-border/50 p-2.5">
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <DollarSign className="h-2.5 w-2.5" />
-                    Total Paid
-                  </p>
-                  <p className="text-sm font-bold text-green-500">
-                    {totalPaid >= 1000 ? `${(totalPaid / 1000).toFixed(1)}k` : totalPaid} sats
-                  </p>
-                </div>
-                <div className="rounded-lg bg-background/60 backdrop-blur-sm border border-border/50 p-2.5">
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <Users className="h-2.5 w-2.5" />
-                    Completions
-                  </p>
-                  <p className="text-sm font-bold">{completions.toLocaleString()}</p>
-                </div>
-              </div>
-            )}
-
-            {userEarnings > 0 && (
-              <div className="flex items-center justify-between rounded-lg bg-gradient-to-r from-green-500/15 to-emerald-500/5 border border-green-500/20 px-3 py-2">
-                <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                  <Award className="h-3.5 w-3.5" />
-                  You earned
-                </span>
-                <span className="text-sm font-bold text-green-500">
-                  {userEarnings.toLocaleString()} sats
-                </span>
-              </div>
-            )}
-
-            <Button
-              className="w-full gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white border-0 shadow-lg shadow-cyan-500/20"
-              size="lg"
-              disabled={!isConfigured}
-              asChild={isConfigured}
-            >
-              {isConfigured ? (
-                internalHref ? (
-                  <Link href={internalHref}>
-                    <Play className="h-4 w-4" />
-                    <span>Open Offerwall</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                ) : (
-                  <a href={offerwall.url} target="_blank" rel="noopener noreferrer">
-                    <Play className="h-4 w-4" />
-                    <span>Open Offerwall</span>
-                    <ArrowRight className="h-4 w-4" />
-                  </a>
-                )
-              ) : (
-                <span>
-                  <Lock className="h-4 w-4" />
-                  Setup Required
-                </span>
-              )}
-            </Button>
-            {showSetupHint && (
-              <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
-                Admin: set{" "}
-                <code className="font-mono bg-muted px-1 py-0.5 rounded">
-                  CCXUA_API_KEY
-                </code>{" "}
-                in environment variables
-              </p>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 // Enhanced Offerwall Card with Logo Image
 function OfferwallCard({
   offerwall,
@@ -426,6 +239,15 @@ function OfferwallCard({
     ? { href: internalHref }
     : { href: offerwall.url, target: "_blank" as const, rel: "noopener noreferrer" }
   const LinkTag: any = internalHref ? Link : "a"
+
+  // Expandable description so long copy isn't permanently truncated.
+  const [descExpanded, setDescExpanded] = useState(false)
+  // Heuristic: rough character count where 3 lines of small text would clip.
+  // Plus an exact check happens visually via line-clamp + measuring scrollHeight
+  // would require refs/effects; this heuristic keeps SSR clean and is good
+  // enough for marketing copy.
+  const descLooksLong =
+    typeof offerwall.description === "string" && offerwall.description.length > 110
 
   if (variant === "compact") {
     const Wrapper: any = isConfigured ? LinkTag : "div"
@@ -513,13 +335,25 @@ function OfferwallCard({
         "group relative overflow-hidden transition-all duration-300 flex flex-col h-full",
         "hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1",
         isFeatured && "border-2 border-primary/30",
-        isNew && "border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/5",
+        isNew &&
+          "border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-500/10",
       )}
     >
-      {/* "NEW" ribbon for newest providers */}
+      {/* Soft cyan glow background for featured cards */}
       {isNew && (
-        <div className="absolute top-3 -right-8 z-10 rotate-45 bg-gradient-to-r from-cyan-500 to-teal-500 px-10 py-0.5 text-[10px] font-bold text-white shadow-md">
-          NEW
+        <div
+          className="absolute inset-0 pointer-events-none opacity-60"
+          style={{
+            background:
+              "radial-gradient(circle at top right, rgba(6, 182, 212, 0.08), transparent 60%)",
+          }}
+        />
+      )}
+
+      {/* "FEATURED" ribbon for newest providers (e.g. c.cx.ua) */}
+      {isNew && (
+        <div className="absolute top-3 -right-10 z-10 rotate-45 bg-gradient-to-r from-cyan-500 to-teal-500 px-12 py-0.5 text-[10px] font-bold tracking-wider text-white shadow-md">
+          FEATURED
         </div>
       )}
 
@@ -606,17 +440,37 @@ function OfferwallCard({
       </div>
 
       <CardContent className="space-y-3 flex-1 flex flex-col p-4">
-        {/* Title and Description — give the description breathing room
-            (up to 3 lines, ~3 lines of reserved height keeps cards aligned
-            without truncating short descriptions). */}
+        {/* Title and Description.
+            Defaults to 3 lines of breathing room (aligned across cards) and
+            offers a "See more" button when copy gets clipped so users can
+            always read the full text. */}
         <div className="space-y-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <h3 className="font-semibold text-base truncate">{offerwall.name}</h3>
             {isNew && <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />}
           </div>
-          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 min-h-[3.25rem] text-pretty">
+          <p
+            className={cn(
+              "text-xs text-muted-foreground leading-relaxed text-pretty",
+              descExpanded ? "" : "line-clamp-3 min-h-[3.25rem]",
+            )}
+          >
             {offerwall.description}
           </p>
+          {descLooksLong && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setDescExpanded((v) => !v)
+              }}
+              className="text-[11px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+              aria-expanded={descExpanded}
+            >
+              {descExpanded ? "See less" : "See more"}
+            </button>
+          )}
         </div>
 
         {/* Features */}
@@ -957,6 +811,8 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
   })
 
   // Featured = ccxua (priority 0). Show as hero card up top.
+  // Pull the featured/"Hot" partners list (anything other than c.cx.ua) so
+  // the "Hot Right Now" rail doesn't duplicate the first card of the grid.
   const featured = offerwalls.find((o) => o.id === "ccxua" || o.priority === 0)
   const restOfOfferwalls = offerwalls.filter((o) => o.id !== featured?.id)
 
@@ -1004,9 +860,6 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
         </TabsList>
 
         <TabsContent value="all" className="mt-4 sm:mt-5 space-y-6">
-          {/* Featured Hero — c.cx.ua */}
-          {featured && <FeaturedHeroCard offerwall={featured} />}
-
           {/* Hot Right Now */}
           {restOfOfferwalls.filter((o) => o.stats && o.stats.total_paid > 100000).length > 0 && (
             <div className="space-y-3">
@@ -1025,18 +878,16 @@ export function OfferwallsContent({ userId }: OfferwallsContentProps) {
             </div>
           )}
 
-          {/* More Partners — featured already shown as hero card above */}
+          {/* All Partners — c.cx.ua appears first via priority sort */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Target className="h-5 w-5 text-muted-foreground" />
-              <h2 className="text-lg font-semibold">
-                {featured ? "More Partners" : "All Partners"}
-              </h2>
+              <h2 className="text-lg font-semibold">All Partners</h2>
               <Badge variant="secondary" className="ml-1">
-                {restOfOfferwalls.length}
+                {offerwalls.length}
               </Badge>
             </div>
-            <OfferwallsGrid offerwalls={restOfOfferwalls} />
+            <OfferwallsGrid offerwalls={offerwalls} />
           </div>
         </TabsContent>
 
