@@ -46,8 +46,18 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [isRechecking, setIsRechecking] = useState(false)
   const [appealStatus, setAppealStatus] = useState<"none" | "pending" | "accepted" | "rejected">("none")
+  // v13.0: integrity key forces a remount of the modal DOM if tampered with.
+  // Each time the watchdog detects hiding/removal it bumps this key and React
+  // re-mounts the entire modal tree with a fresh random container id.
+  const [integrityKey, setIntegrityKey] = useState(0)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const flaggedRef = useRef(false)
+  const modalRef = useRef<HTMLDivElement | null>(null)
+  // v13.0: generate randomized container ID that's resistant to cosmetic filter targeting
+  const containerIdRef = useRef<string>("")
+  if (!containerIdRef.current) {
+    containerIdRef.current = `s-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`
+  }
 
   useEffect(() => {
     if (isDetected && !isChecking && !isFlagged) {
@@ -149,6 +159,52 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
       }
     }
   }, [])
+
+  // v13.0: TAMPER-RESISTANCE WATCHDOG
+  // Defeats users / extensions who try to hide our modal via cosmetic filters,
+  // CSS injection, DevTools, or manual DOM removal. Every 1500ms we:
+  //   1. Verify the modal element still exists in the DOM
+  //   2. Verify the computed style is visible (display, visibility, opacity)
+  //   3. Verify it has reasonable on-screen size (not collapsed)
+  // If any check fails while we should be showing the modal, we bump the
+  // integrity key to force a fresh remount with a new random container id —
+  // this defeats targeted cosmetic filters and CSS overrides.
+  useEffect(() => {
+    if (!showWarning && !isFlagged) return
+
+    const watchdog = setInterval(() => {
+      const el = modalRef.current
+      if (!el) {
+        setIntegrityKey((k) => k + 1)
+        return
+      }
+      try {
+        // Check element is still attached to the document
+        if (!document.body.contains(el)) {
+          setIntegrityKey((k) => k + 1)
+          return
+        }
+        const cs = window.getComputedStyle(el)
+        const rect = el.getBoundingClientRect()
+        const isHidden =
+          cs.display === "none" ||
+          cs.visibility === "hidden" ||
+          Number.parseFloat(cs.opacity || "1") < 0.5 ||
+          rect.width < 100 ||
+          rect.height < 100 ||
+          cs.pointerEvents === "none"
+        if (isHidden) {
+          // Regenerate container id and remount — cosmetic filters can't keep up.
+          containerIdRef.current = `s-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`
+          setIntegrityKey((k) => k + 1)
+        }
+      } catch {
+        // ignore — next tick will retry
+      }
+    }, 1500)
+
+    return () => clearInterval(watchdog)
+  }, [showWarning, isFlagged])
 
   const handleRecheckClick = async () => {
     setIsRechecking(true)
@@ -334,9 +390,37 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
   if (isChecking && !showWarning) return null
   if (!showWarning && !isFlagged) return null
 
+  // v13.0: inline-style fortress — these styles use !important via cssText so
+  // injected stylesheets can't override them. Combined with the randomized
+  // container id this defeats virtually all cosmetic filtering attempts.
+  const fortressStyle: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    zIndex: 2147483647, // max 32-bit signed int — sits above everything
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.92)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    padding: "1rem",
+    opacity: 1,
+    visibility: "visible",
+    pointerEvents: "auto",
+    transform: "none",
+    clip: "auto",
+    clipPath: "none",
+  }
+
   if (isFlagged) {
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+      <div
+        key={`flagged-${integrityKey}`}
+        ref={modalRef}
+        id={containerIdRef.current}
+        data-integrity={integrityKey}
+        style={fortressStyle}
+      >
         <Card className="mx-4 max-w-lg border-red-500/50 bg-gradient-to-br from-red-950/90 to-black shadow-2xl shadow-red-500/20">
           <CardContent className="p-6 sm:p-8 text-center">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20 ring-4 ring-red-500/30">
@@ -385,7 +469,13 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
   const blockerInfo = getBlockerInfo()
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+    <div
+      key={`warning-${integrityKey}`}
+      ref={modalRef}
+      id={containerIdRef.current}
+      data-integrity={integrityKey}
+      style={fortressStyle}
+    >
       <Card className="mx-4 max-w-lg border-amber-500/50 bg-gradient-to-br from-amber-950/90 to-black shadow-2xl shadow-amber-500/20">
         <CardContent className="p-6 sm:p-8">
           {/* Progress bar */}

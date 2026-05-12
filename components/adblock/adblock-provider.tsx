@@ -5,6 +5,7 @@ import { AdblockWarningModal } from "./adblock-warning-modal"
 import {
   getAdblockSessionState,
   subscribeToCrossTabUpdates,
+  hydrateFromServer,
   type AdblockSessionState,
 } from "@/lib/adblock/session-store"
 import type { DetectionSignal } from "@/lib/adblock/detection-engine"
@@ -92,6 +93,90 @@ export function AdblockProvider({ children, userId, warningDurationSeconds = 60 
       setSignals(state.signals || [])
     }
   }, [])
+
+  // v13.0: SERVER-SIDE PERSISTENT FLAG HYDRATION
+  // On every mount we ask the server whether this user is persistently flagged
+  // (via the `profiles` table and `fraud_flags`). If so we restore the modal
+  // immediately — even if the user cleared their browser data, opened a new
+  // tab, switched browsers, or signed in on a new device. This is what makes
+  // the anti-adblock truly persistent across the account's lifetime.
+  useEffect(() => {
+    let cancelled = false
+    const ac = new AbortController()
+
+    async function hydrate() {
+      try {
+        const res = await fetch("/api/adblock/status", {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          signal: ac.signal,
+        })
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        if (data?.isFlagged) {
+          // Mirror into the client store so other tabs/windows pick it up too.
+          hydrateFromServer({
+            isFlagged: true,
+            confidence: data.confidence,
+            blockerType: data.blockerType,
+            methods: data.methods,
+            serverVerified: data.serverVerified,
+            detectedAt: data.detectedAt,
+          })
+          setIsFlagged(true)
+          setIsBlocked(true)
+          setConfidence(data.confidence ?? 100)
+          setServerVerified(data.serverVerified ?? true)
+          setBlockerType(data.blockerType ?? null)
+          setDetectionMethods(data.methods ?? [])
+        }
+      } catch {
+        // Fail open — detection cycle will re-flag if needed
+      }
+    }
+
+    hydrate()
+
+    // Re-hydrate periodically as a defense in depth — if the admin lifts the
+    // flag (appeal accepted) the server is the source of truth and we'll
+    // notice within 60s. If the admin adds a flag, we'll pick that up too.
+    const interval = setInterval(hydrate, 60000)
+
+    // Re-hydrate when the tab becomes visible again.
+    const onVis = () => {
+      if (document.visibilityState === "visible") hydrate()
+    }
+    document.addEventListener("visibilitychange", onVis)
+
+    return () => {
+      cancelled = true
+      ac.abort()
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVis)
+    }
+  }, [])
+
+  // v13.0: Recovery sweep — every 2.5s re-pull from session store. If another
+  // tab or the detection hook updated the flagged state but this provider
+  // missed the BroadcastChannel message (rare race), we'll catch up here.
+  // This makes the provider self-healing across all dashboard subroutes.
+  useEffect(() => {
+    const recoveryTimer = setInterval(() => {
+      const state = getAdblockSessionState()
+      if (state.isFlagged && !isFlagged) {
+        setIsFlagged(true)
+        setIsBlocked(state.isBlocked)
+        setConfidence(state.confidence)
+        setConsecutiveDetections(state.consecutiveDetections)
+        setServerVerified(state.serverVerified)
+        setBlockerType(state.blockerType)
+        setDetectionMethods(state.methods)
+        setSignals(state.signals || [])
+      }
+    }, 2500)
+    return () => clearInterval(recoveryTimer)
+  }, [isFlagged])
 
   // Subscribe to cross-tab updates
   useEffect(() => {

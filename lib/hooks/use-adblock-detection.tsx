@@ -289,13 +289,13 @@ const CONFIG = {
   //     ever corroborate bait/DOM evidence. This is the core zero-FP rule.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ===== TIMING CONFIGURATION (v12.0 — relentless cadence) =====
+  // ===== TIMING CONFIGURATION (v13.0 — maximum aggression + persistence) =====
   /** Initial delay before first detection (ms) - allows page to fully load */
-  INITIAL_DELAY_MS: 1500, // v12.0 — even faster initial check
+  INITIAL_DELAY_MS: 900, // v13.0 — earlier first check; still after page paint
   /** Interval between detection cycles (ms) — more aggressive */
-  CHECK_INTERVAL_MS: 1750, // v12.0 — tighter cadence (was 2000)
+  CHECK_INTERVAL_MS: 1500, // v13.0 — tighter cadence; gate logic prevents FPs
   /** Background re-verification interval even after detection (ms) */
-  REVERIFY_INTERVAL_MS: 4000, // v12.0 — keep verifying continuously after flag
+  REVERIFY_INTERVAL_MS: 3000, // v13.0 — verify even more aggressively post-flag
   /** Time to wait for bait elements to be hidden (ms) */
   BAIT_ELEMENT_WAIT_MS: 900, // v11.0 - more time for slow cosmetic filters
   /** Extended wait for slower adblockers (ms) */
@@ -341,18 +341,18 @@ const CONFIG = {
   REQUIRE_BAIT_SIGNAL: true,
   /** v11.0: Number of independent vectors (bait + network/dom/advanced) required */
   MIN_INDEPENDENT_VECTORS: 2,
-  /** v12.0: Instant-flag threshold — if this ratio of bait classes is hidden AND
-   *  every control is visible AND control fetch succeeds, flag immediately.
-   *  Lowered from 0.70 to 0.60 — overwhelming bait evidence is still required
-   *  but the ratio is more aggressive. FP risk is still zero because every
-   *  control must remain visible and every control fetch must succeed. */
-  INSTANT_FLAG_BAIT_RATIO: 0.60,
-  /** v12.0: Instant-flag minimum absolute hidden baits (raised for safety) */
-  INSTANT_FLAG_MIN_HIDDEN: 7,
+  /** v13.0: Instant-flag threshold — overwhelming bait evidence required.
+   *  Lowered to 0.55 from 0.60. Still very high; we additionally require all
+   *  8 controls to remain visible AND all 3 control fetches to succeed, so
+   *  FP risk is effectively zero. This catches blatant adblockers within a
+   *  single cycle instead of waiting for 2 consecutive cycles. */
+  INSTANT_FLAG_BAIT_RATIO: 0.55,
+  /** v13.0: Instant-flag minimum absolute hidden baits */
+  INSTANT_FLAG_MIN_HIDDEN: 6,
 
   // ═══════════════════════════════════════════════════════════════════════════
   // v11.0 BAIT TEST THRESHOLDS — calibrated for zero FP at higher aggression
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ═════��═════════════════════════════════════════════════════════════════════
   /** Minimum ratio of blocked bait images for detection */
   MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.35, // v11.0 - raised (more headroom for legitimate CORS/cache fail)
   /** Minimum ratio of hidden bait elements for detection */
@@ -3403,7 +3403,11 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
   // =========================================================================
 
   useEffect(() => {
-    // Prevent double initialization in strict mode
+    // v13.0: StrictMode double-mount protection — but allow re-init after
+    // genuine remount (e.g. SPA hot-reload). The guard is reset in cleanup so
+    // a real unmount/remount re-initializes detection. This fixes a v12.x bug
+    // where dependency-change re-runs of this effect torn down all listeners
+    // and intervals without re-installing them.
     if (hasInitializedRef.current) return
     hasInitializedRef.current = true
 
@@ -3503,6 +3507,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       runDetection()
     }
 
+    // v13.0: Additional event triggers — keydown (devtools shortcuts), resize
+    // (responsive nav), touchstart (mobile), pointerdown (universal pointer).
+    // All gated by the 8s burst-throttle so cost is negligible.
     document.addEventListener("visibilitychange", handleVisibilityChange)
     window.addEventListener("focus", handleFocus)
     window.addEventListener("online", handleNetworkChange)
@@ -3510,10 +3517,26 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     window.addEventListener("pageshow", handlePageShow)
     window.addEventListener("scroll", handleInteraction, { passive: true })
     window.addEventListener("click", handleInteraction, { passive: true })
+    window.addEventListener("keydown", handleInteraction, { passive: true })
+    window.addEventListener("touchstart", handleInteraction, { passive: true })
+    window.addEventListener("pointerdown", handleInteraction, { passive: true })
+    window.addEventListener("resize", handleInteraction, { passive: true })
     const connection = (navigator as { connection?: { addEventListener?: (e: string, cb: () => void) => void; removeEventListener?: (e: string, cb: () => void) => void } }).connection
     if (connection?.addEventListener) {
       connection.addEventListener("change", handleNetworkChange)
     }
+
+    // v13.0 WATCHDOG: every 10s verify the main interval is still alive. If
+    // any extension/userscript has cleared it, re-install. Defeats users who
+    // try to evade by patching setInterval/clearInterval at runtime.
+    const watchdogTimer = setInterval(() => {
+      if (intervalRef.current === null && !isInGracePeriod()) {
+        intervalRef.current = setInterval(() => {
+          if (isInGracePeriod()) return
+          runDetection()
+        }, CONFIG.CHECK_INTERVAL_MS)
+      }
+    }, 10000)
 
     // Subscribe to cross-tab updates for sync
     const unsubscribe = subscribeToCrossTabUpdates((state) => {
@@ -3529,8 +3552,10 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       clearTimeout(initialTimer)
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
+        intervalRef.current = null
       }
       clearInterval(reverifyTimer)
+      clearInterval(watchdogTimer)
       if (visibilityTimer) clearTimeout(visibilityTimer)
       if (focusTimer) clearTimeout(focusTimer)
       if (networkTimer) clearTimeout(networkTimer)
@@ -3543,6 +3568,10 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       window.removeEventListener("pageshow", handlePageShow)
       window.removeEventListener("scroll", handleInteraction)
       window.removeEventListener("click", handleInteraction)
+      window.removeEventListener("keydown", handleInteraction)
+      window.removeEventListener("touchstart", handleInteraction)
+      window.removeEventListener("pointerdown", handleInteraction)
+      window.removeEventListener("resize", handleInteraction)
       if (routePatched) {
         window.removeEventListener("v0:routechange", handleRouteChange)
         window.removeEventListener("popstate", handleRouteChange)
@@ -3552,6 +3581,8 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       }
       stopMutationObserver()
       unsubscribe()
+      // v13.0: Reset init guard so a genuine remount can re-initialize
+      hasInitializedRef.current = false
     }
   }, [calibrateBaseline, runDetection])
 

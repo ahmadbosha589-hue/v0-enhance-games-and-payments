@@ -101,17 +101,41 @@ function getBroadcastChannel(): BroadcastChannel | null {
 }
 
 export function subscribeToCrossTabUpdates(callback: (state: AdblockSessionState) => void): () => void {
-  const channel = getBroadcastChannel()
-  if (!channel) return () => {}
+  // v13.0: dual-channel cross-window sync.
+  //   1) BroadcastChannel — instant, low-latency, same-origin (preferred).
+  //   2) localStorage `storage` event — fallback for older browsers and
+  //      cross-window persistence even when the BroadcastChannel isn't
+  //      available. Both must be wired so a flagged status that's set in
+  //      one window/iframe immediately reflects in every other open tab.
+  const unsubscribers: Array<() => void> = []
 
-  const handler = (event: MessageEvent) => {
-    if (event.data?.type === "adblock_state_update") {
-      callback(event.data.state)
+  const channel = getBroadcastChannel()
+  if (channel) {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "adblock_state_update") {
+        callback(event.data.state)
+      }
     }
+    channel.addEventListener("message", handler)
+    unsubscribers.push(() => channel.removeEventListener("message", handler))
   }
 
-  channel.addEventListener("message", handler)
-  return () => channel.removeEventListener("message", handler)
+  if (typeof window !== "undefined") {
+    const storageHandler = (event: StorageEvent) => {
+      if (event.key !== BACKUP_KEY || !event.newValue) return
+      try {
+        const parsed = JSON.parse(event.newValue)
+        const migrated = migrateState(parsed)
+        callback(migrated)
+      } catch {}
+    }
+    window.addEventListener("storage", storageHandler)
+    unsubscribers.push(() => window.removeEventListener("storage", storageHandler))
+  }
+
+  return () => {
+    for (const fn of unsubscribers) fn()
+  }
 }
 
 function broadcastStateUpdate(state: AdblockSessionState): void {
@@ -127,17 +151,34 @@ export function getAdblockSessionState(): AdblockSessionState {
   if (typeof window === "undefined") return defaultState
 
   try {
-    // Try primary storage
-    let stored = sessionStorage.getItem(STORAGE_KEY)
+    // v13.0 PERSISTENCE STRATEGY:
+    //   1. Prefer the most-recently-written FLAGGED state across both stores
+    //      — this means once flagged, neither closing the tab, clearing
+    //      sessionStorage, nor opening a new tab can drop the flag.
+    //   2. Fall back to whichever store has data otherwise.
+    //   3. Default state if neither store has anything.
+    const session = sessionStorage.getItem(STORAGE_KEY)
+    const local = localStorage.getItem(BACKUP_KEY)
 
-    // Fallback to backup if primary is missing/corrupted
-    if (!stored) {
-      stored = localStorage.getItem(BACKUP_KEY)
+    const parsedSession = session ? safeParse(session) : null
+    const parsedLocal = local ? safeParse(local) : null
+
+    const sessionFlagged = parsedSession && parsedSession.isFlagged
+    const localFlagged = parsedLocal && parsedLocal.isFlagged
+
+    // If localStorage has a flagged record, ALWAYS honor it (persistence
+    // takes priority over a stale-cleared sessionStorage).
+    let chosen: any = null
+    if (localFlagged) {
+      chosen = parsedLocal
+    } else if (sessionFlagged) {
+      chosen = parsedSession
+    } else {
+      chosen = parsedSession || parsedLocal
     }
 
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      const migrated = migrateState(parsed)
+    if (chosen) {
+      const migrated = migrateState(chosen)
 
       // Verify integrity - if tampered, return flagged state (assume blocking)
       if (migrated.isFlagged && !verifyStateIntegrity(migrated)) {
@@ -150,6 +191,14 @@ export function getAdblockSessionState(): AdblockSessionState {
   } catch {}
 
   return defaultState
+}
+
+function safeParse(s: string): any | null {
+  try {
+    return JSON.parse(s)
+  } catch {
+    return null
+  }
 }
 
 export function setAdblockSessionState(state: Partial<AdblockSessionState>): void {
@@ -170,17 +219,41 @@ export function setAdblockSessionState(state: Partial<AdblockSessionState>): voi
 
     const serialized = JSON.stringify(newState)
 
-    // Store in both session and local storage for persistence
-    sessionStorage.setItem(STORAGE_KEY, serialized)
+    // v13.0: dual-write to BOTH stores so persistence is symmetric.
+    // sessionStorage = fast intra-tab cache.
+    // localStorage   = durable, survives tab close, browser restart,
+    //                  cross-window sync via storage events.
+    try { sessionStorage.setItem(STORAGE_KEY, serialized) } catch {}
+    try { localStorage.setItem(BACKUP_KEY, serialized) } catch {}
 
-    // Backup flagged state to localStorage (survives session close)
-    if (newState.isFlagged) {
-      localStorage.setItem(BACKUP_KEY, serialized)
-    }
-
-    // Sync across tabs
+    // Sync across tabs (BroadcastChannel for same-origin tabs)
     broadcastStateUpdate(newState)
   } catch {}
+}
+
+// v13.0: Apply server-persisted flag back into client storage. Called by the
+// AdblockProvider on mount after fetching /api/adblock/status. This is the
+// mechanism that re-flags a user whose previous tab/session was cleared but
+// who is still flagged in the database.
+export function hydrateFromServer(payload: {
+  isFlagged: boolean
+  confidence?: number
+  blockerType?: string | null
+  methods?: string[]
+  serverVerified?: boolean
+  detectedAt?: string | null
+}): void {
+  if (!payload.isFlagged) return
+  setAdblockSessionState({
+    isFlagged: true,
+    isBlocked: true,
+    confidence: payload.confidence ?? 100,
+    blockerType: payload.blockerType ?? null,
+    methods: payload.methods ?? [],
+    serverVerified: payload.serverVerified ?? true,
+    detectedAt: payload.detectedAt ?? new Date().toISOString(),
+    lastVerifiedAt: new Date().toISOString(),
+  })
 }
 
 export function clearAdblockSessionState(): void {
