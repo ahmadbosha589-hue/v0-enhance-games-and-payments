@@ -6,7 +6,6 @@ import { AdminHeader } from "@/components/admin/header"
 import { ServerTime } from "@/components/server-time"
 import { SupabaseHealthProvider } from "@/components/admin/supabase-health-provider"
 import { ConnectivityBanner } from "@/components/admin/connectivity-banner"
-import { AdblockProvider } from "@/components/adblock/adblock-provider"
 import type { Profile } from "@/lib/types/database"
 import { unstable_noStore as noStore } from "next/cache"
 
@@ -115,17 +114,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <SupabaseHealthProvider>
-      <AdblockProvider userId={user?.id || safeProfile.id} warningDurationSeconds={60}>
-        <div className="min-h-screen bg-background flex flex-col">
-          <AdminSidebar profile={safeProfile} />
-          <div className="lg:pl-72 flex flex-col flex-1">
-            <AdminHeader profile={safeProfile} email={email} />
-            <ConnectivityBanner />
-            <main className="flex-1 p-3 sm:p-4 md:p-6 pb-16">{children}</main>
-            <ServerTime />
-          </div>
+      {/*
+        NOTE: AdblockProvider is intentionally NOT mounted on the admin panel.
+        Admins must always be able to access dashboards, fraud tools and
+        moderation queues — even if they personally run an adblocker or use a
+        privacy browser like Brave. The anti-adblock layer applies only to
+        end-user routes (e.g. /dashboard).
+      */}
+      <div className="min-h-screen bg-background flex flex-col">
+        <AdminSidebar profile={safeProfile} />
+        <div className="lg:pl-72 flex flex-col flex-1">
+          <AdminHeader profile={safeProfile} email={email} />
+          <ConnectivityBanner />
+          <main className="flex-1 p-3 sm:p-4 md:p-6 pb-16">{children}</main>
+          <ServerTime />
         </div>
-      </AdblockProvider>
+      </div>
     </SupabaseHealthProvider>
   )
 }

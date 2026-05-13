@@ -13,6 +13,9 @@ import {
   Info,
   CheckCircle2,
   XCircle,
+  Settings,
+  MousePointerClick,
+  Heart,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -353,6 +356,18 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
           ],
         }
 
+      case "AdBlock Ultimate":
+        return {
+          title: "AdBlock Ultimate Detected",
+          icon: <ShieldOff className="h-8 w-8 text-amber-500" />,
+          instructions: [
+            "Click the AdBlock Ultimate icon in your browser toolbar",
+            "Click the power button to pause it on this site",
+            "Or open Settings > Whitelist and add this domain",
+            "Refresh the page after disabling",
+          ],
+        }
+
       case "AdGuard":
         return {
           title: "AdGuard Detected",
@@ -495,9 +510,14 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
               <Ban className="h-10 w-10 text-red-500" />
             </div>
             <h2 className="mb-3 text-2xl font-bold text-red-500">Account Flagged</h2>
-            <p className="mb-6 text-muted-foreground">
-              Your account has been flagged for persistent adblock usage. This action has been reported to our fraud
-              prevention team for review.
+            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+              Your account has been flagged for persistent ad-blocker usage. Earnings, withdrawals
+              and bonuses are paused while this flag is active.
+            </p>
+            <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+              If this is a mistake &mdash; for example a strict browser, VPN or DNS filter &mdash;
+              tap <span className="font-semibold text-red-400">Appeal This Decision</span> below
+              and our team will review your case.
             </p>
 
             {blockerType && <p className="mb-4 text-sm text-red-400">Detected: {blockerType}</p>}
@@ -566,21 +586,124 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
               <span>Time remaining: {formatTime(timeRemaining)}</span>
             </div>
 
-            <p className="mb-6 text-sm text-muted-foreground">
-              Please disable your ad blocker to continue using this platform. We rely on ads to keep our service free.
-            </p>
+            <div className="mb-5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-left">
+              <div className="mb-2 flex items-center gap-2">
+                <Heart className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-semibold text-amber-400">We need your help to keep this free</h3>
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Every claim, bonus and reward on this platform is funded by the ads our partners show.
+                When your browser blocks them, we earn nothing &mdash; but you keep withdrawing.
+                Please whitelist this site so we can keep paying real users like you.
+              </p>
+            </div>
 
-            <div className="mb-6 rounded-lg bg-amber-500/10 p-4 text-left">
-              <h3 className="mb-2 font-semibold text-amber-400">How to disable:</h3>
-              <ol className="space-y-2 text-sm text-muted-foreground">
+            {/* Step 1 — turn off the adblocker */}
+            <div className="mb-4 rounded-lg bg-amber-500/10 p-4 text-left">
+              <div className="mb-2 flex items-center gap-2">
+                <ShieldOff className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-semibold text-amber-400">Step 1 &mdash; Disable your ad blocker</h3>
+              </div>
+              <ol className="space-y-1.5 text-sm text-muted-foreground">
                 {blockerInfo.instructions.map((instruction, i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-amber-500">{i + 1}.</span>
-                    {instruction}
+                    <span className="shrink-0 font-semibold text-amber-500">{i + 1}.</span>
+                    <span className="leading-relaxed">{instruction}</span>
                   </li>
                 ))}
               </ol>
             </div>
+
+            {/* Step 2 — allow ads in browser site settings */}
+            <div className="mb-4 rounded-lg bg-amber-500/10 p-4 text-left">
+              <div className="mb-2 flex items-center gap-2">
+                <Settings className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-semibold text-amber-400">
+                  Step 2 &mdash; Allow ads in your browser&apos;s site settings
+                </h3>
+              </div>
+              <ol className="space-y-1.5 text-sm text-muted-foreground">
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">1.</span>
+                  <span className="leading-relaxed">
+                    Click the lock or tune icon to the left of the address bar
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">2.</span>
+                  <span className="leading-relaxed">
+                    Open <span className="font-medium text-foreground">Site settings</span> /
+                    <span className="font-medium text-foreground"> Permissions for this site</span>
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">3.</span>
+                  <span className="leading-relaxed">
+                    Set <span className="font-medium text-foreground">Ads</span> to{" "}
+                    <span className="font-medium text-foreground">Allow</span>{" "}
+                    (Chrome, Edge, Brave &mdash; some browsers call it &quot;Intrusive ads&quot;)
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">4.</span>
+                  <span className="leading-relaxed">
+                    On Brave: tap the lion icon &rarr; turn{" "}
+                    <span className="font-medium text-foreground">Shields DOWN</span> for this site
+                  </span>
+                </li>
+              </ol>
+            </div>
+
+            {/* Step 3 — allow popups & redirects */}
+            <div className="mb-6 rounded-lg bg-amber-500/10 p-4 text-left">
+              <div className="mb-2 flex items-center gap-2">
+                <MousePointerClick className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-semibold text-amber-400">
+                  Step 3 &mdash; Allow pop-ups and redirects
+                </h3>
+              </div>
+              <ol className="space-y-1.5 text-sm text-muted-foreground">
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">1.</span>
+                  <span className="leading-relaxed">
+                    Still in <span className="font-medium text-foreground">Site settings</span>,
+                    scroll to{" "}
+                    <span className="font-medium text-foreground">Pop-ups and redirects</span>
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">2.</span>
+                  <span className="leading-relaxed">
+                    Switch it to{" "}
+                    <span className="font-medium text-foreground">Allow</span> &mdash; this lets
+                    sponsor offers and shortlinks open properly
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">3.</span>
+                  <span className="leading-relaxed">
+                    On mobile Chrome / Brave: open <span className="font-medium text-foreground">
+                      Settings &rarr; Site settings &rarr; Pop-ups and redirects
+                    </span>{" "}
+                    and turn it on
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="shrink-0 font-semibold text-amber-500">4.</span>
+                  <span className="leading-relaxed">
+                    Make sure no VPN, Pi-hole, AdGuard DNS or NextDNS profile is filtering this
+                    domain
+                  </span>
+                </li>
+              </ol>
+            </div>
+
+            <p className="mb-5 text-xs leading-relaxed text-muted-foreground">
+              Once all three steps are done, hit{" "}
+              <span className="font-semibold text-amber-400">&quot;I&apos;ve done it&quot;</span> below.
+              We&apos;ll re-check instantly &mdash; nothing is reported to our fraud system unless
+              the blocker is still active.
+            </p>
 
             <div className="flex flex-col gap-3">
               <Button
@@ -596,7 +719,7 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
                 ) : (
                   <>
                     <RefreshCw className="mr-2 h-4 w-4" />
-                    I've Disabled It - Check Again
+                    I&apos;ve done it &mdash; check again
                   </>
                 )}
               </Button>

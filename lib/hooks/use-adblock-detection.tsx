@@ -428,6 +428,7 @@ export type AdblockType =
   | "uBlock Origin"
   | "AdBlock Plus"
   | "AdBlock"
+  | "AdBlock Ultimate"
   | "AdGuard"
   | "Ghostery"
   | "Privacy Badger"
@@ -3157,20 +3158,47 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     const knownExtension = signals.find((s) => s.method === "extension-detection" && s.metadata?.blockerName)
     if (knownExtension) return knownExtension.metadata!.blockerName as AdblockType
 
-    // Check for Brave Shields
+    // Check for Brave Shields — both the explicit signal AND the navigator.brave
+    // hint. Brave (desktop + Android + iOS) sets `navigator.brave.isBrave()` and
+    // ships built-in shields enabled by default, so when bait is hidden inside
+    // Brave we attribute it to Brave Shields even without canvas farbling.
     if (signals.some((s) => s.method === "brave-shields")) return "Brave Shields"
-
-    // Check for canvas farbling (Brave-specific)
-    if (signals.some((s) => s.method === "canvas-farbling")) {
-      const isBrave = !!(navigator as any).brave
-      if (isBrave) return "Brave Shields"
+    const isBrave =
+      typeof (navigator as any).brave?.isBrave === "function" || !!(navigator as any).brave
+    if (isBrave && signals.some((s) => s.category === "bait" || s.method === "canvas-farbling")) {
+      return "Brave Shields"
     }
+
+    // AdGuard signatures: AdGuard injects "adguard" class onto elements and
+    // exposes `window.AG_onLoad`. Some signal metadata may also carry the
+    // blockerName hint set by the extension-detection probe.
+    try {
+      if (
+        typeof window !== "undefined" &&
+        ((window as any).AG_onLoad ||
+          (window as any).adguard ||
+          document.documentElement.classList.contains("adguard"))
+      ) {
+        return "AdGuard"
+      }
+    } catch {}
+
+    // AdBlock Ultimate signatures: uses a custom uBlock-style fork with its own
+    // namespace. Falls back to bait-based detection for the generic flavor.
+    try {
+      if (typeof window !== "undefined" && ((window as any).adblockUltimate || (window as any).ABU)) {
+        return "AdBlock Ultimate"
+      }
+    } catch {}
 
     // Infer from browser
     const ua = navigator.userAgent.toLowerCase()
     if (ua.includes("firefox")) return "Firefox Tracking Protection"
     if (ua.includes("opr") || ua.includes("opera")) return "Opera Ad Blocker"
     if (ua.includes("safari") && !ua.includes("chrome")) return "Safari Content Blocker"
+    if (ua.includes("duckduckgo") || ua.includes("ddg")) return "DuckDuckGo Privacy"
+    // Edge tracking prevention — Edge ships its own tracker blocker.
+    if (ua.includes("edg/")) return "Extension-based"
 
     // Infer from categories
     if (signals.some((s) => s.method === "dns-blocking")) return "DNS Blocker"
