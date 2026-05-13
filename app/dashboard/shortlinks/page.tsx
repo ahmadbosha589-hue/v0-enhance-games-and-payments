@@ -194,8 +194,10 @@ export default function ShortlinksPage() {
   const completedLinks = shortlinks.filter(s => visitedToday.has(s.id))
 
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen p-3 sm:p-4 md:p-6 lg:p-8">
+      {/* Widened from max-w-4xl to max-w-7xl so the link list and the 12-slot
+          partner ad grid breathe on desktop and stay readable on mobile. */}
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 mb-4">

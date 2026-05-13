@@ -214,17 +214,28 @@ export function WatchAdBonusReward({
       )}
 
       {/* Modal with 3 Google Rewarded Ads + 11 Ad Networks + c.cx.ua
-          Larger sizing: max-w-5xl on desktop, full-screen scroll on mobile,
-          taller ad placeholders so every slot generates a real impression. */}
+          Sizing strategy:
+            • Mobile: full-bleed (w-full) so ad placeholders stay readable.
+            • Tablet: max-w-3xl with generous side padding.
+            • Desktop: max-w-7xl so the 12-slot ad grid (11 networks + cx.ua)
+              and 3 rewarded ads render at full 300x250 size.
+            • Always scrolls vertically — never clips ad slots. */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-background/85 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
-          <Card className={cn("w-full max-w-5xl my-2 sm:my-4", config.borderColor)}>
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-background/90 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+          <Card
+            className={cn(
+              "w-full sm:max-w-3xl lg:max-w-6xl xl:max-w-7xl",
+              "my-0 sm:my-4 rounded-none sm:rounded-2xl",
+              "min-h-screen sm:min-h-0",
+              config.borderColor
+            )}
+          >
             <CardHeader className="pb-3 sm:pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl lg:text-2xl">
+                <Icon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 text-primary" />
                 {config.title}
               </CardTitle>
-              <CardDescription className="text-xs sm:text-sm">{config.description}</CardDescription>
+              <CardDescription className="text-xs sm:text-sm lg:text-base">{config.description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 sm:space-y-6">
               {/* Reward Preview */}
@@ -250,13 +261,14 @@ export function WatchAdBonusReward({
               </div>
 
               {/* 3 Ad Slots Running Simultaneously — sized as 300x250 medium
-                  rectangles to match standard ad network creative sizes. */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                  rectangles on desktop (standard ad network creative size)
+                  and 320x250 banners on mobile so the ad fills the column. */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
                     className={cn(
-                      "relative rounded-lg border p-3 sm:p-4 transition-all",
+                      "relative rounded-xl border p-3 sm:p-4 transition-all",
                       adStatus[i] === "completed" && "bg-green-500/10 border-green-500/30",
                       adStatus[i] === "playing" && "bg-red-500/5 border-red-500/30 animate-pulse",
                       adStatus[i] === "pending" && "bg-muted/30"
@@ -275,19 +287,20 @@ export function WatchAdBonusReward({
                     </div>
                     <Progress value={adProgress[i]} className="h-1.5 sm:h-2" />
 
-                    {/* Ad Content Placeholder — taller for real impressions */}
+                    {/* Ad Content Placeholder — sized for real impressions:
+                        ≥250px on mobile, ≥280px tablet, ≥320px desktop. */}
                     <div
-                      className="mt-3 min-h-[200px] sm:min-h-[250px] bg-muted/50 rounded flex items-center justify-center border border-dashed"
+                      className="mt-3 min-h-[250px] sm:min-h-[280px] lg:min-h-[320px] bg-muted/50 rounded-lg flex items-center justify-center border border-dashed"
                       data-ad-slot={`bonus-reward-${type}-${i}`}
                     >
                       {adStatus[i] === "playing" ? (
                         <div className="text-center px-2">
-                          <Play className="h-7 w-7 sm:h-8 sm:w-8 mx-auto text-muted-foreground/50 animate-pulse" />
+                          <Play className="h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 mx-auto text-muted-foreground/50 animate-pulse" />
                           <span className="text-[10px] sm:text-xs text-muted-foreground block mt-1">Ad playing...</span>
                           <span className="text-[10px] sm:text-xs text-muted-foreground/60 block">300 × 250</span>
                         </div>
                       ) : adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-7 w-7 sm:h-8 sm:w-8 text-green-500" />
+                        <CheckCircle className="h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 text-green-500" />
                       ) : (
                         <span className="text-[10px] sm:text-xs text-muted-foreground">Ready</span>
                       )}

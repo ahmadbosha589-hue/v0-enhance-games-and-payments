@@ -60,6 +60,23 @@ const TRACKED_ENV_VARS = [
 
   // Cron Jobs
   "CRON_SECRET",
+
+  // Shortlink Providers - all 14 supported networks
+  "SHORTLINK_PROVIDER",
+  "SHRINKME_API_KEY",
+  "SHRINKEARN_API_KEY",
+  "EXEIO_API_KEY",
+  "FCLC_API_KEY",
+  "GPLINKS_API_KEY",
+  "OUOIO_API_KEY",
+  "LINKVERTISE_API_KEY",
+  "SHORTEST_API_KEY",
+  "SHAREUS_API_KEY",
+  "STFLY_API_KEY",
+  "CUTY_API_KEY",
+  "ADFOCUS_API_KEY",
+  "LINKPAYS_API_KEY",
+  "CLK_API_KEY",
 ]
 
 export const dynamic = "force-dynamic"

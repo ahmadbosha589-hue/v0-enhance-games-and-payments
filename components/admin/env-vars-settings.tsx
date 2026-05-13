@@ -11,14 +11,14 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import {
   Loader2, Save, Trash2, CheckCircle2, AlertCircle,
-  Eye, EyeOff, RefreshCw, Shield, Info, Lock, Key, Settings
+  Eye, EyeOff, RefreshCw, Shield, Info, Lock, Key, Settings, Link2
 } from "lucide-react"
 
 interface EnvVarConfig {
   key: string
   label: string
   description: string
-  category: "ads" | "payments" | "security" | "api"
+  category: "ads" | "payments" | "security" | "api" | "shortlink"
   isSet: boolean
   lastUpdated?: string
 }
@@ -78,6 +78,24 @@ const ENV_VAR_CONFIGS: EnvVarConfig[] = [
 
   // Cron Jobs
   { key: "CRON_SECRET", label: "Cron Secret", description: "Secret for cron job authentication", category: "security", isSet: false },
+
+  // Shortlink Providers — admins can configure any subset; the library
+  // auto-falls-back to any configured provider when shortening URLs.
+  { key: "SHORTLINK_PROVIDER",  label: "Active Shortlink Provider", description: "shrinkme | shrinkearn | exeio | fclc | gplinks | ouoio | linkvertise | shortest | shareus | stfly | cuty | adfocus | linkpays | clk", category: "shortlink", isSet: false },
+  { key: "SHRINKME_API_KEY",    label: "ShrinkMe.io API Key",   description: "Highest-paying URL shortener (up to $22 CPM)",  category: "shortlink", isSet: false },
+  { key: "SHRINKEARN_API_KEY",  label: "ShrinkEarn API Key",    description: "Trusted shortener since 2018 (up to $20 CPM)",   category: "shortlink", isSet: false },
+  { key: "EXEIO_API_KEY",       label: "Exe.io API Key",        description: "Bitcoin payouts available (up to $15 CPM)",      category: "shortlink", isSet: false },
+  { key: "FCLC_API_KEY",        label: "FC.LC API Key",         description: "Fast redirect network",                          category: "shortlink", isSet: false },
+  { key: "GPLINKS_API_KEY",     label: "GPLinks.in API Key",    description: "India-friendly shortener",                       category: "shortlink", isSet: false },
+  { key: "OUOIO_API_KEY",       label: "Ouo.io API Key",        description: "Fast & reliable redirects (up to $7 CPM)",       category: "shortlink", isSet: false },
+  { key: "LINKVERTISE_API_KEY", label: "Linkvertise API Token", description: "Premium rewards platform (up to $5 CPM)",        category: "shortlink", isSet: false },
+  { key: "SHORTEST_API_KEY",    label: "Shorte.st API Token",   description: "Veteran shortlink network",                      category: "shortlink", isSet: false },
+  { key: "SHAREUS_API_KEY",     label: "ShareUs.io API Key",    description: "Crypto-friendly shortener (up to $10 CPM)",      category: "shortlink", isSet: false },
+  { key: "STFLY_API_KEY",       label: "Stfly.io API Key",      description: "Free, fast shortener (up to $9 CPM)",            category: "shortlink", isSet: false },
+  { key: "CUTY_API_KEY",        label: "Cuty.io API Key",       description: "Multi-tier earnings (up to $14 CPM)",            category: "shortlink", isSet: false },
+  { key: "ADFOCUS_API_KEY",     label: "AdFoc.us API Key",      description: "Daily payouts shortener",                        category: "shortlink", isSet: false },
+  { key: "LINKPAYS_API_KEY",    label: "LinkPays.in API Key",   description: "Worldwide audience (up to $12 CPM)",             category: "shortlink", isSet: false },
+  { key: "CLK_API_KEY",         label: "Clk.sh API Key",        description: "Reliable, established network (up to $11 CPM)",  category: "shortlink", isSet: false },
 ]
 
 const CATEGORY_INFO = {
@@ -85,6 +103,7 @@ const CATEGORY_INFO = {
   payments: { label: "Payment Processors", icon: Key, color: "text-green-500", bgColor: "bg-green-500/10" },
   security: { label: "Security", icon: Shield, color: "text-blue-500", bgColor: "bg-blue-500/10" },
   api: { label: "Offerwall APIs", icon: Lock, color: "text-purple-500", bgColor: "bg-purple-500/10" },
+  shortlink: { label: "Shortlink Providers", icon: Link2, color: "text-cyan-500", bgColor: "bg-cyan-500/10" },
 }
 
 export function EnvVarsSettings() {

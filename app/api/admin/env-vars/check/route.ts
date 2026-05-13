@@ -10,7 +10,7 @@ export const runtime = "nodejs"
 
 interface EnvVarConfig {
   key: string
-  category: "database" | "payment" | "api" | "security" | "other"
+  category: "database" | "payment" | "api" | "security" | "shortlink" | "other"
   isSecret: boolean
   description: string
 }
@@ -67,12 +67,21 @@ const ENV_VAR_CONFIG: EnvVarConfig[] = [
   { key: "CRON_SECRET", category: "security", isSecret: true, description: "Secret key for cron job authentication" },
 
   // ===== SHORTLINK PROVIDERS =====
-  { key: "SHORTLINK_PROVIDER", category: "api", isSecret: false, description: "Active shortlink provider (shrinkme, exeio, fclc, gplinks, ouoio)" },
-  { key: "SHRINKME_API_KEY", category: "api", isSecret: true, description: "ShrinkMe API Key for shortlinks" },
-  { key: "EXEIO_API_KEY", category: "api", isSecret: true, description: "Exe.io API Key for shortlinks" },
-  { key: "FCLC_API_KEY", category: "api", isSecret: true, description: "FC.LC API Key for shortlinks" },
-  { key: "GPLINKS_API_KEY", category: "api", isSecret: true, description: "GPLinks API Key for shortlinks" },
-  { key: "OUOIO_API_KEY", category: "api", isSecret: true, description: "Ouo.io API Key for shortlinks" },
+  { key: "SHORTLINK_PROVIDER",  category: "shortlink", isSecret: false, description: "Active provider (shrinkme | shrinkearn | exeio | fclc | gplinks | ouoio | linkvertise | shortest | shareus | stfly | cuty | adfocus | linkpays | clk)" },
+  { key: "SHRINKME_API_KEY",    category: "shortlink", isSecret: true, description: "ShrinkMe.io API Key — highest-paying URL shortener" },
+  { key: "SHRINKEARN_API_KEY",  category: "shortlink", isSecret: true, description: "ShrinkEarn API Key — trusted shortener since 2018" },
+  { key: "EXEIO_API_KEY",       category: "shortlink", isSecret: true, description: "Exe.io API Key — Bitcoin payouts available" },
+  { key: "FCLC_API_KEY",        category: "shortlink", isSecret: true, description: "FC.LC API Key — fast redirect network" },
+  { key: "GPLINKS_API_KEY",     category: "shortlink", isSecret: true, description: "GPLinks.in API Key — India-friendly shortener" },
+  { key: "OUOIO_API_KEY",       category: "shortlink", isSecret: true, description: "Ouo.io API Key — fast & reliable redirects" },
+  { key: "LINKVERTISE_API_KEY", category: "shortlink", isSecret: true, description: "Linkvertise API Token — premium rewards platform" },
+  { key: "SHORTEST_API_KEY",    category: "shortlink", isSecret: true, description: "Shorte.st Public API Token — veteran shortlink network" },
+  { key: "SHAREUS_API_KEY",     category: "shortlink", isSecret: true, description: "ShareUs.io API Key — crypto-friendly shortener" },
+  { key: "STFLY_API_KEY",       category: "shortlink", isSecret: true, description: "Stfly.io API Key — free, fast shortener" },
+  { key: "CUTY_API_KEY",        category: "shortlink", isSecret: true, description: "Cuty.io API Key — multi-tier earnings" },
+  { key: "ADFOCUS_API_KEY",     category: "shortlink", isSecret: true, description: "AdFoc.us API Key — daily payouts shortener" },
+  { key: "LINKPAYS_API_KEY",    category: "shortlink", isSecret: true, description: "LinkPays.in API Key — worldwide audience" },
+  { key: "CLK_API_KEY",         category: "shortlink", isSecret: true, description: "Clk.sh API Key — reliable, established network" },
 
   // ===== SECURITY - VPN/PROXY DETECTION =====
   { key: "IP_API_KEY", category: "security", isSecret: true, description: "IP-API.com API Key for geolocation" },

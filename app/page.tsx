@@ -12,6 +12,7 @@ import { StatsSection } from "@/components/landing/stats-section"
 import { FAQSection } from "@/components/landing/faq-section"
 import { CTASection } from "@/components/landing/cta-section"
 import { Footer } from "@/components/landing/footer"
+import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
 import { WithdrawalTickerMarquee } from "@/components/shared/withdrawal-ticker-marquee"
 import { SkipLink } from "@/components/ui/skip-link"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -257,6 +258,11 @@ function HomePageContent() {
 
       {/* Footer */}
       <Footer />
+
+      {/* c.cx.ua partner banner (zone 32) + popup redirect (zone 31).
+          Mounted on the landing page so first-time visitors see the partner
+          banner and (at most once per 24h) the popup redirect. */}
+      <PublicAdsLayer />
     </div>
   )
 }

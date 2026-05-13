@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 import { useLanguage } from "@/lib/i18n/language-context"
+import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
 
 export default function PublicLayout({
   children,
@@ -158,6 +159,10 @@ export default function PublicLayout({
 
       {/* Footer */}
       <Footer />
+
+      {/* c.cx.ua partner banner (zone 32) + popup redirect (zone 31, ≤1/day).
+          Mounted only on non-admin public surfaces. */}
+      <PublicAdsLayer />
     </div>
   )
 }
