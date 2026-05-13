@@ -40,6 +40,14 @@ interface MultiNetworkAdsProps {
   showLabels?: boolean
   lazyLoad?: boolean
   priority?: "high" | "medium" | "low"
+  /**
+   * Visual density for the slot heights.
+   *   - "default": 200/250px min-height — best for dedicated ad surfaces
+   *     like dashboards, the watch-ad modal, and earning pages.
+   *   - "compact": 120/150px min-height — best for marketing pages where
+   *     ads should not dominate the layout.
+   */
+  density?: "default" | "compact"
 }
 
 // Memoized skeleton for lazy loading
@@ -78,13 +86,15 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
   network,
   refreshCount,
   position,
-  isVisible
+  isVisible,
+  density = "default",
 }: {
   network: typeof AD_NETWORKS[number]
   refreshCount: number
   position: string
   showLabel?: boolean
   isVisible: boolean
+  density?: "default" | "compact"
 }) {
   const slotRef = useRef<HTMLDivElement>(null)
 
@@ -103,19 +113,27 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
   }, [network.id, position, refreshCount, isVisible])
 
   // Ad slot container - ad scripts inject content into the inner div.
-  // Sized to industry-standard 300x250 medium rectangle for max fill-rate
-  // on every device — keeps impressions consistent regardless of network.
+  // Default density: 300x250 medium rectangle (industry standard, best fill).
+  // Compact density: lighter footprint for marketing pages.
+  const slotHeight =
+    density === "compact"
+      ? "min-h-[120px] sm:min-h-[150px]"
+      : "min-h-[200px] sm:min-h-[250px]"
+
   return (
     <div
       ref={slotRef}
-      className="relative min-h-[200px] sm:min-h-[250px] w-full rounded-md overflow-hidden border border-border/40 bg-muted/10"
+      className={cn(
+        "relative w-full rounded-md overflow-hidden border border-border/40 bg-muted/10",
+        slotHeight
+      )}
       data-ad-network={network.id}
       data-ad-position={position}
       data-refresh-count={refreshCount}
       data-page-load-only={network.pageLoadOnly || false}
     >
       <div
-        className="w-full h-full min-h-[200px] sm:min-h-[250px] flex items-center justify-center"
+        className={cn("w-full h-full flex items-center justify-center", slotHeight)}
         id={`ad-${network.id}-${position}`}
         data-ad-slot={`${network.id}-${position}`}
       />
@@ -129,7 +147,8 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   layout = "grid",
   showLabels = false,
   lazyLoad = true,
-  priority = "medium"
+  priority = "medium",
+  density = "default",
 }: MultiNetworkAdsProps) {
   const [refreshCounts, setRefreshCounts] = useState<Record<string, number>>({})
   const [isVisible, setIsVisible] = useState(!lazyLoad || priority === "high")
@@ -319,14 +338,20 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
             position={position}
             showLabel={showLabels}
             isVisible={shouldRender}
+            density={density}
           />
         ))}
 
         {/* c.cx.ua — 12th partner slot, rendered alongside the 11 networks
-            so impressions are uniform across the grid. Uses the compact
-            variant so it slots cleanly next to the other rectangles. */}
+            so impressions are uniform across the grid. Heights match the
+            sibling network slots exactly so the grid stays balanced. */}
         <div
-          className="relative min-h-[200px] sm:min-h-[250px] w-full rounded-md overflow-hidden border border-border/40 bg-muted/10 flex items-center justify-center"
+          className={cn(
+            "relative w-full rounded-md overflow-hidden border border-border/40 bg-muted/10 flex items-center justify-center",
+            density === "compact"
+              ? "min-h-[120px] sm:min-h-[150px]"
+              : "min-h-[200px] sm:min-h-[250px]"
+          )}
           data-ad-network="cx-ua"
           data-ad-position={position}
         >

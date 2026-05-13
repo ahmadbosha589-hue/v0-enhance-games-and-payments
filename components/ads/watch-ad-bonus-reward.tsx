@@ -213,18 +213,22 @@ export function WatchAdBonusReward({
         </p>
       )}
 
-      {/* Modal with 3 Google Rewarded Ads + 11 Ad Networks + c.cx.ua
-          Sizing strategy:
-            • Mobile: full-bleed (w-full) so ad placeholders stay readable.
-            • Tablet: max-w-3xl with generous side padding.
-            • Desktop: max-w-7xl so the 12-slot ad grid (11 networks + cx.ua)
-              and 3 rewarded ads render at full 300x250 size.
+      {/* Modal with 3 Google Rewarded Ads + 11 Ad Networks + c.cx.ua.
+          Sizing strategy is generous on every breakpoint so each ad slot
+          renders close to its native 300×250 medium-rectangle size for
+          the strongest impressions:
+            • Mobile: full-bleed (w-full) — no wasted side padding.
+            • sm (≥640): max-w-2xl  — phones in landscape
+            • md (≥768): max-w-4xl  — tablets
+            • lg (≥1024): max-w-6xl — laptops
+            • xl (≥1280): max-w-[1440px] — desktops (wide enough for the
+              12-slot grid to render 3×4 without crowding).
             • Always scrolls vertically — never clips ad slots. */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-background/90 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
           <Card
             className={cn(
-              "w-full sm:max-w-3xl lg:max-w-6xl xl:max-w-7xl",
+              "w-full sm:max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-[1440px]",
               "my-0 sm:my-4 rounded-none sm:rounded-2xl",
               "min-h-screen sm:min-h-0",
               config.borderColor

@@ -18,6 +18,7 @@ import { SkipLink } from "@/components/ui/skip-link"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageSelector } from "@/components/language-selector"
 import { ResponsiveAd } from "@/components/ads/responsive-ad"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { Menu, Loader2 } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useLanguage } from "@/lib/i18n/language-context"
@@ -213,10 +214,12 @@ function HomePageContent() {
       <main id="main-content" className="flex-1">
         <HeroSection />
 
-        {/* Top Ad Banner - After Hero */}
-        <section className="py-4 sm:py-6 bg-muted/10">
-          <div className="container px-4 sm:px-6">
-            <ResponsiveAd position="header" mobileHidden />
+        {/* Top Ad Banner — slim 728×90 leaderboard. No 12-network grid here:
+            it inflated the landing page. The full partner grid is rendered
+            once near the footer instead. */}
+        <section className="py-3 sm:py-4 bg-muted/10">
+          <div className="container px-4 sm:px-6 flex justify-center">
+            <ResponsiveAd position="header" showMultiNetwork={false} />
           </div>
         </section>
 
@@ -227,29 +230,48 @@ function HomePageContent() {
         </section>
         <StatsSection />
 
-        {/* Mid-Page Ad - Between Stats and Features */}
-        <section className="py-4 sm:py-6 bg-gradient-to-r from-transparent via-muted/20 to-transparent">
-          <div className="container px-4 sm:px-6">
-            <ResponsiveAd position="between-content" />
+        {/* Mid-Page Ad — slim 468×60 banner only. Keeps the page light. */}
+        <section className="py-3 sm:py-4 bg-gradient-to-r from-transparent via-muted/20 to-transparent">
+          <div className="container px-4 sm:px-6 flex justify-center">
+            <ResponsiveAd position="between-content" showMultiNetwork={false} />
           </div>
         </section>
 
         <FeaturesSection />
         <HowItWorksSection />
 
-        {/* Content Break Ad - Between How It Works and FAQ */}
-        <section className="py-4 sm:py-6">
-          <div className="container px-4 sm:px-6">
-            <ResponsiveAd position="content" />
+        {/* Content Break Ad — slim banner only */}
+        <section className="py-3 sm:py-4">
+          <div className="container px-4 sm:px-6 flex justify-center">
+            <ResponsiveAd position="content" showMultiNetwork={false} />
           </div>
         </section>
 
         <FAQSection />
 
-        {/* Footer Ad - Before CTA */}
-        <section className="py-4 sm:py-6 bg-muted/10">
+        {/* Footer Ad — slim banner only, multi-network grid lives below */}
+        <section className="py-3 sm:py-4 bg-muted/10">
+          <div className="container px-4 sm:px-6 flex justify-center">
+            <ResponsiveAd position="footer" showMultiNetwork={false} />
+          </div>
+        </section>
+
+        {/* Consolidated 11-network + c.cx.ua partner grid — rendered ONCE on
+            the landing page (in compact density) instead of repeated under
+            every section. This keeps the page light while still giving each
+            partner network an impression for every visitor. */}
+        <section className="py-6 sm:py-8 border-y border-border/40 bg-muted/5">
           <div className="container px-4 sm:px-6">
-            <ResponsiveAd position="footer" />
+            <p className="text-center text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Sponsored Partners
+            </p>
+            <MultiNetworkAds
+              position="content"
+              layout="grid"
+              showLabels={false}
+              density="compact"
+              priority="low"
+            />
           </div>
         </section>
 

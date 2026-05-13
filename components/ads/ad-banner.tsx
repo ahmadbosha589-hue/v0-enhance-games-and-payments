@@ -111,18 +111,21 @@ export function AdBanner({
     return null // Don't show broken ads
   }
 
+  // Responsive sizing — never force horizontal overflow on small screens.
+  // We keep the ad creative's natural size as a *max* and let the slot
+  // shrink with the viewport. Height is preserved so impressions still
+  // measure correctly at the network level.
   return (
     <div
       ref={containerRef}
       className={cn(
-        "flex items-center justify-center overflow-hidden rounded-lg bg-muted/30 transition-opacity",
+        "mx-auto flex items-center justify-center overflow-hidden rounded-lg bg-muted/30 transition-opacity w-full",
         !isLoaded && "animate-pulse",
         className,
       )}
       style={{
-        minWidth: dimensions.width,
+        maxWidth: dimensions.width,
         minHeight: dimensions.height,
-        maxWidth: "100%",
       }}
       aria-label="Advertisement"
     />

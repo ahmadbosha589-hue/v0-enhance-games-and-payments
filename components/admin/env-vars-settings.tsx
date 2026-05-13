@@ -48,6 +48,11 @@ const ENV_VAR_CONFIGS: EnvVarConfig[] = [
   { key: "TURNSTILE_SECRET_KEY", label: "Turnstile Secret", description: "Cloudflare Turnstile secret key", category: "security", isSet: false },
   { key: "HCAPTCHA_SECRET", label: "hCaptcha Secret", description: "hCaptcha secret key", category: "security", isSet: false },
 
+  // c.cx.ua Banner / Popup Network (zones 31, 32)
+  { key: "CCXUA_API_KEY", label: "c.cx.ua API Key", description: "Server-side API key for c.cx.ua reporting", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CCXUA_API_KEY", label: "c.cx.ua Public ID", description: "Public publisher ID for c.cx.ua banner/popup zones", category: "ads", isSet: false },
+  { key: "CCXUA_SECRET_KEY", label: "c.cx.ua Secret Key", description: "Secret used to verify c.cx.ua server postbacks", category: "ads", isSet: false },
+
   // Offerwall Public Keys
   { key: "NEXT_PUBLIC_CPX_APP_ID", label: "CPX Research App ID", description: "App ID for CPX Research", category: "api", isSet: false },
   { key: "NEXT_PUBLIC_TOROX_PUB_ID", label: "Torox Publisher ID", description: "Publisher ID for Torox", category: "api", isSet: false },

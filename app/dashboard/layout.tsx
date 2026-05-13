@@ -12,7 +12,7 @@ import { PageAdsWrapper } from "@/components/ads/page-ads-wrapper"
 import { ServerTime } from "@/components/server-time"
 import { DeviceFingerprintProvider } from "@/components/security/device-fingerprint-provider"
 import { AntiBotProvider } from "@/components/security/anti-bot-provider"
-import { CxUaPopupLoader } from "@/components/ads/cx-ua-ads"
+import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
 
 export const metadata: Metadata = {
   title: {
@@ -84,7 +84,11 @@ export default async function DashboardLayout({
               </main>
               <ServerTime />
               <FloatingWithdrawalTicker />
-              <CxUaPopupLoader />
+              {/* c.cx.ua banner (zone 32) + popup redirect (zone 31).
+                  Mounted on every dashboard page so logged-in users get
+                  the partner banner and self-throttled popup, but NOT
+                  shown in the admin panel (which never mounts this). */}
+              <PublicAdsLayer />
             </SidebarInset>
           </AdblockProvider>
         </AntiBotProvider>
