@@ -59,18 +59,21 @@ export async function updateSession(request: NextRequest) {
       },
     })
 
-    // Kick off (and AWAIT briefly) getUser() so @supabase/ssr can refresh
-    // the access token cookie if it's near expiry. We cap the await at 1.5s
-    // so a slow Supabase auth endpoint NEVER blocks navigation. If it times
-    // out we fall back to cookie-presence — which is correct because the
-    // protected page itself will re-validate server-side.
+    // Kick off (and AWAIT) getUser() so @supabase/ssr can refresh the
+    // access token cookie if it's near expiry. We cap the await at 5s
+    // (was 1.5s — too aggressive: it timed out before Supabase could
+    // refresh the token cookie on cold starts, leaving the user with
+    // cookies the server kept rejecting → /dashboard → /auth/login →
+    // /dashboard infinite loop). 5s is enough for any reasonable cold
+    // start while still preventing a totally-dead Supabase from blocking
+    // every navigation.
     let verifiedUser: { id: string } | null = null
     try {
       const userPromise = supabase.auth.getUser()
       const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((resolve) =>
         setTimeout(
           () => resolve({ data: { user: null }, error: new Error("Auth timeout") }),
-          1500
+          5000
         )
       )
       const result = await Promise.race([userPromise, timeoutPromise])

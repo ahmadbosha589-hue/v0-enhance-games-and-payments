@@ -96,20 +96,32 @@ export default function LoginPage() {
 
     const checkSession = async () => {
       try {
-        // Fast read from localStorage (no network). If a session exists, the
-        // server proxy will have ALSO already redirected to /dashboard — this
-        // is a belt-and-braces client-side fallback for the case where the
-        // proxy was skipped (e.g. cached HTML response).
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+        // CRITICAL: Use the SERVER's view of the session (via /api/auth/me)
+        // instead of client-side getSession(). Previously we redirected to
+        // /dashboard whenever localStorage had a session — but if the SERVER
+        // couldn't validate that session (cookie mismatch, expired refresh
+        // token, slow Supabase refresh, etc.), the dashboard layout bounced
+        // the user back to /auth/login, which then redirected them to
+        // /dashboard again based on the stale localStorage session — an
+        // infinite refresh loop.
+        //
+        // /api/auth/me reads the actual httpOnly session cookie server-side,
+        // so its answer matches what the dashboard layout will see.
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        })
 
         if (cancelled) return
 
-        if (session?.user && !redirectingRef.current) {
-          redirectingRef.current = true
-          window.location.replace(safeRedirect)
-          return
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.user && !redirectingRef.current) {
+            redirectingRef.current = true
+            window.location.replace(safeRedirect)
+            return
+          }
         }
       } catch (err) {
         console.warn("[Login] Session check failed:", err)
@@ -132,12 +144,30 @@ export default function LoginPage() {
     // sets isManualLoginRef.current = true so we skip the duplicate redirect.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return
       if (event !== "SIGNED_IN") return
       if (!session?.user) return
       if (isManualLoginRef.current) return
       if (redirectingRef.current) return
+
+      // OAuth callback — verify the server can see the session before
+      // redirecting, otherwise we risk the /dashboard → /auth/login →
+      // /dashboard loop when cookies haven't propagated yet.
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+          signal: AbortSignal.timeout(3000),
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!data?.user) return
+      } catch {
+        return
+      }
+
+      if (cancelled || redirectingRef.current) return
 
       // Single-fire guarded by redirectingRef — the listener will never run
       // this branch twice, so the toast can't loop even on TOKEN_REFRESHED.
@@ -344,6 +374,37 @@ export default function LoginPage() {
         }
       }
 
+      // Wait for the server to see the new session (same anti-loop guard as
+      // in handleLogin — see comment there).
+      let serverSeesSession = false
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          const res = await fetch("/api/auth/me", {
+            credentials: "include",
+            cache: "no-store",
+            signal: AbortSignal.timeout(2000),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.user) {
+              serverSeesSession = true
+              break
+            }
+          }
+        } catch {
+          // Network error — retry
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+
+      if (!serverSeesSession) {
+        setError("Signed in, but the server couldn't read your session. Please refresh and try again.")
+        setShow2FA(false)
+        setPendingCredentials(null)
+        setPending2FAUserId(null)
+        return
+      }
+
       redirectingRef.current = true
       toast.success("Welcome back!")
       window.location.replace(safeRedirect)
@@ -452,6 +513,46 @@ export default function LoginPage() {
           },
           { onConflict: "user_id,fingerprint_hash" },
         )
+      }
+
+      // CRITICAL: Confirm the server can see the new session BEFORE redirecting
+      // to /dashboard. Without this check, the browser navigates to /dashboard
+      // before the auth cookie has propagated to the server, the dashboard
+      // layout's server-side getUser() returns null, the user gets bounced
+      // back to /auth/login, which then sees the session in localStorage and
+      // bounces them to /dashboard again → infinite refresh loop.
+      //
+      // We poll /api/auth/me (which reads the cookie server-side) for up to
+      // 3 seconds to give @supabase/ssr time to flush its cookie writes.
+      let serverSeesSession = false
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          const res = await fetch("/api/auth/me", {
+            credentials: "include",
+            cache: "no-store",
+            signal: AbortSignal.timeout(2000),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data?.user) {
+              serverSeesSession = true
+              break
+            }
+          }
+        } catch {
+          // Network error — retry
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+
+      if (!serverSeesSession) {
+        // Cookies never propagated — surface a clear error instead of looping
+        setIsManualLogin(false)
+        isManualLoginRef.current = false
+        setError(
+          "Signed in, but the server couldn't read your session. Please refresh the page and try again, or clear your cookies if this persists."
+        )
+        return
       }
 
       redirectingRef.current = true
