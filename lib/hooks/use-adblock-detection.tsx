@@ -289,13 +289,13 @@ const CONFIG = {
   //     ever corroborate bait/DOM evidence. This is the core zero-FP rule.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ===== TIMING CONFIGURATION (v13.0 — maximum aggression + persistence) =====
+  // ===== TIMING CONFIGURATION (v15.0 — maximum aggression + persistence) =====
   /** Initial delay before first detection (ms) - allows page to fully load */
   INITIAL_DELAY_MS: 900, // v13.0 — earlier first check; still after page paint
   /** Interval between detection cycles (ms) — more aggressive */
   CHECK_INTERVAL_MS: 1500, // v13.0 — tighter cadence; gate logic prevents FPs
   /** Background re-verification interval even after detection (ms) */
-  REVERIFY_INTERVAL_MS: 3000, // v13.0 — verify even more aggressively post-flag
+  REVERIFY_INTERVAL_MS: 2500, // v15.0 — even tighter post-detection sweeps; works in tandem with the watchdog interval to defeat extensions that try to kill our timer
   /** Time to wait for bait elements to be hidden (ms) */
   BAIT_ELEMENT_WAIT_MS: 900, // v11.0 - more time for slow cosmetic filters
   /** Extended wait for slower adblockers (ms) */
@@ -354,13 +354,13 @@ const CONFIG = {
   // v11.0 BAIT TEST THRESHOLDS — calibrated for zero FP at higher aggression
   // ═══���═��═════════════════════════════════════════════════════════════════════
   /** Minimum ratio of blocked bait images for detection */
-  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.35, // v11.0 - raised (more headroom for legitimate CORS/cache fail)
+  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.40, // v15.0 — was 0.35, raised slightly: image fetches fail for many legit reasons (CORS, cache, hotlink protection, slow CDN). Combined with the absolute MIN_BAIT_HIDDEN floor below and the control-fetch gate, this still gives near-zero FP while keeping element-based detection sensitive (the dominant vector for real adblockers).
   /** Minimum ratio of hidden bait elements for detection */
   MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.28, // v11.0 - raised slightly to avoid parent-CSS collision FPs
   /** Minimum ratio of blocked fetch requests for detection */
-  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.33,
+  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.40, // v15.0 — was 0.33; this is the main FP vector (corporate proxies, restrictive DNS, transient network blips). Real adblockers block 80–100% of bait fetches, so 0.40 is still trivially exceeded.
   /** Minimum ratio of blocked DNS requests for detection */
-  MIN_DNS_BLOCKED_RATIO: 0.50, // v11.0 - raised significantly; DNS lookups can fail for many reasons
+  MIN_DNS_BLOCKED_RATIO: 0.55, // v15.0 — was 0.50; DNS lookups fail for many reasons (rate limits, geo-restrictions, throttling, captive portals). Bumped further.
   /** v11.0: REQUIRE the in-page control fetch to succeed for ANY network/DNS signal.
    *  If the control fails the whole "blocked" claim is invalid — it's a network issue. */
   REQUIRE_CONTROL_FETCH_OK: true,
@@ -369,7 +369,7 @@ const CONFIG = {
   // CONTROL TEST CONFIGURATION (CRITICAL - guarantees zero false positives)
   // ═══════════════════════════════════════════════════════════════════════════
   /** Minimum number of baits that must be hidden for detection */
-  MIN_BAIT_HIDDEN_FOR_DETECTION: 4,
+  MIN_BAIT_HIDDEN_FOR_DETECTION: 5, // v15.0 — was 4. A real adblocker hides 8–15+ baits effortlessly; transient parent-CSS / layout issues rarely hide more than 3–4. Bumping the absolute floor cuts the long tail of FPs without affecting any genuine adblocker detection.
   /** Whether control element must be visible (CRITICAL - never disable) */
   CONTROL_MUST_BE_VISIBLE: true,
   /** Number of control elements to use (more controls = better FP protection) */
@@ -3848,9 +3848,12 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       connection.addEventListener("change", handleNetworkChange)
     }
 
-    // v13.0 WATCHDOG: every 10s verify the main interval is still alive. If
+    // v15.0 WATCHDOG: every 4s verify the main interval is still alive. If
     // any extension/userscript has cleared it, re-install. Defeats users who
-    // try to evade by patching setInterval/clearInterval at runtime.
+    // try to evade by patching setInterval/clearInterval at runtime, and
+    // recovers quickly enough that a tampering user can't get more than one
+    // missed cycle before we re-arm. Lowered from 10s → 4s for far more
+    // aggressive persistence.
     const watchdogTimer = setInterval(() => {
       if (intervalRef.current === null && !isInGracePeriod()) {
         intervalRef.current = setInterval(() => {
@@ -3858,7 +3861,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
           runDetection()
         }, CONFIG.CHECK_INTERVAL_MS)
       }
-    }, 10000)
+    }, 4000)
 
     // Subscribe to cross-tab updates for sync
     const unsubscribe = subscribeToCrossTabUpdates((state) => {

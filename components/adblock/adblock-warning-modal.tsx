@@ -476,7 +476,11 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
     minHeight: "100svh",
     zIndex: 2147483647, // max 32-bit signed int — sits above everything
     display: "flex",
-    alignItems: "center",
+    // v15.0: align to top on mobile so a tall card never gets clipped above the
+    // viewport (the previous `center` alignment caused overflow to be cut off
+    // at the top when the content was taller than the viewport — a fatal UX
+    // bug on small phones / iOS Safari with dynamic toolbars).
+    alignItems: "flex-start",
     justifyContent: "center",
     backgroundColor: "rgba(0, 0, 0, 0.92)",
     backdropFilter: "blur(12px)",
@@ -504,8 +508,8 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
         data-integrity={integrityKey}
         style={fortressStyle}
       >
-        <Card className="mx-4 max-w-lg border-red-500/50 bg-gradient-to-br from-red-950/90 to-black shadow-2xl shadow-red-500/20">
-          <CardContent className="p-6 sm:p-8 text-center">
+        <Card className="mx-4 my-4 w-full max-w-xl max-h-[calc(100dvh-2rem)] overflow-hidden border-red-500/50 bg-gradient-to-br from-red-950/90 to-black shadow-2xl shadow-red-500/20 flex flex-col">
+          <CardContent className="p-6 sm:p-8 text-center overflow-y-auto">
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20 ring-4 ring-red-500/30">
               <Ban className="h-10 w-10 text-red-500" />
             </div>
@@ -564,10 +568,20 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
       data-integrity={integrityKey}
       style={fortressStyle}
     >
-      <Card className="mx-4 max-w-lg border-amber-500/50 bg-gradient-to-br from-amber-950/90 to-black shadow-2xl shadow-amber-500/20">
-        <CardContent className="p-6 sm:p-8">
+      {/*
+        v15.0 LAYOUT — WIDE, NOT TALL.
+        Card constraints:
+          • `max-w-4xl` lets steps flow as a 3-column grid on tablet/desktop
+          • `max-h-[calc(100dvh-2rem)]` + inner `overflow-y-auto` keeps the
+            card fully visible on every viewport — the title and primary CTA
+            are never clipped off-screen on iOS Safari / mobile Chrome.
+          • `flex flex-col` so the CardContent fills available height and
+            handles its own scrolling instead of growing past the viewport.
+      */}
+      <Card className="mx-4 my-4 w-full max-w-4xl max-h-[calc(100dvh-2rem)] overflow-hidden border-amber-500/50 bg-gradient-to-br from-amber-950/90 to-black shadow-2xl shadow-amber-500/20 flex flex-col">
+        <CardContent className="p-5 sm:p-7 overflow-y-auto">
           {/* Progress bar */}
-          <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-amber-950">
+          <div className="mb-4 h-1 w-full overflow-hidden rounded-full bg-amber-950">
             <div
               className="h-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-1000"
               style={{ width: `${progressPercent}%` }}
@@ -575,141 +589,165 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
           </div>
 
           <div className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/20 ring-4 ring-amber-500/30">
-              {blockerInfo.icon}
-            </div>
-
-            <h2 className="mb-2 text-xl font-bold text-amber-500">{blockerInfo.title}</h2>
-
-            <div className="mb-4 flex items-center justify-center gap-2 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>Time remaining: {formatTime(timeRemaining)}</span>
-            </div>
-
-            <div className="mb-5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-left">
-              <div className="mb-2 flex items-center gap-2">
-                <Heart className="h-4 w-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-amber-400">We need your help to keep this free</h3>
+            {/*
+              v15.0 — header laid out horizontally on tablet+ to keep vertical
+              footprint small. Icon + title + timer sit on the left; the
+              "we need your help" message fills the rest. Stacks on mobile.
+            */}
+            <div className="mb-5 flex flex-col items-center gap-4 sm:flex-row sm:items-stretch sm:text-left">
+              <div className="flex flex-col items-center justify-center gap-2 sm:items-start">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-500/20 ring-4 ring-amber-500/30 sm:h-14 sm:w-14">
+                  {blockerInfo.icon}
+                </div>
+                <h2 className="text-lg font-bold leading-tight text-amber-500 sm:text-xl">
+                  {blockerInfo.title}
+                </h2>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>{formatTime(timeRemaining)} remaining</span>
+                </div>
               </div>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Every claim, bonus and reward on this platform is funded by the ads our partners show.
-                When your browser blocks them, we earn nothing &mdash; but you keep withdrawing.
-                Please whitelist this site so we can keep paying real users like you.
-              </p>
+
+              <div className="flex-1 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-left sm:p-4">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <Heart className="h-4 w-4 shrink-0 text-amber-400" />
+                  <h3 className="text-sm font-semibold text-amber-400">
+                    We need your help to keep this free
+                  </h3>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                  Every claim, bonus and reward on this platform is funded by the ads our partners
+                  show. When your browser blocks them, we earn nothing &mdash; but you keep
+                  withdrawing. Please whitelist this site so we can keep paying real users like you.
+                </p>
+              </div>
             </div>
 
-            {/* Step 1 — turn off the adblocker */}
-            <div className="mb-4 rounded-lg bg-amber-500/10 p-4 text-left">
-              <div className="mb-2 flex items-center gap-2">
-                <ShieldOff className="h-4 w-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-amber-400">Step 1 &mdash; Disable your ad blocker</h3>
+            {/*
+              v15.0 — three step panels laid out as a responsive grid.
+              Mobile: stacks single-column (still narrower and shorter than
+                the old layout because each panel's padding/typography is
+                tightened below).
+              Tablet+ (md): three equal columns side-by-side so the card grows
+                WIDER, not taller. This is the key fix that prevents the modal
+                from being clipped off-screen.
+            */}
+            <div className="mb-5 grid grid-cols-1 gap-3 text-left md:grid-cols-3">
+              {/* Step 1 — turn off the adblocker */}
+              <div className="rounded-lg bg-amber-500/10 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <ShieldOff className="h-4 w-4 shrink-0 text-amber-400" />
+                  <h3 className="text-sm font-semibold text-amber-400">
+                    Step 1 &mdash; Disable your ad blocker
+                  </h3>
+                </div>
+                <ol className="space-y-1.5 text-xs text-muted-foreground sm:text-sm">
+                  {blockerInfo.instructions.map((instruction, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className="shrink-0 font-semibold text-amber-500">{i + 1}.</span>
+                      <span className="leading-relaxed">{instruction}</span>
+                    </li>
+                  ))}
+                </ol>
               </div>
-              <ol className="space-y-1.5 text-sm text-muted-foreground">
-                {blockerInfo.instructions.map((instruction, i) => (
-                  <li key={i} className="flex gap-2">
-                    <span className="shrink-0 font-semibold text-amber-500">{i + 1}.</span>
-                    <span className="leading-relaxed">{instruction}</span>
+
+              {/* Step 2 — allow ads in browser site settings */}
+              <div className="rounded-lg bg-amber-500/10 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <Settings className="h-4 w-4 shrink-0 text-amber-400" />
+                  <h3 className="text-sm font-semibold text-amber-400">
+                    Step 2 &mdash; Allow ads in site settings
+                  </h3>
+                </div>
+                <ol className="space-y-1.5 text-xs text-muted-foreground sm:text-sm">
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">1.</span>
+                    <span className="leading-relaxed">
+                      Click the lock or tune icon to the left of the address bar
+                    </span>
                   </li>
-                ))}
-              </ol>
-            </div>
-
-            {/* Step 2 — allow ads in browser site settings */}
-            <div className="mb-4 rounded-lg bg-amber-500/10 p-4 text-left">
-              <div className="mb-2 flex items-center gap-2">
-                <Settings className="h-4 w-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-amber-400">
-                  Step 2 &mdash; Allow ads in your browser&apos;s site settings
-                </h3>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">2.</span>
+                    <span className="leading-relaxed">
+                      Open <span className="font-medium text-foreground">Site settings</span> /
+                      <span className="font-medium text-foreground"> Permissions for this site</span>
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">3.</span>
+                    <span className="leading-relaxed">
+                      Set <span className="font-medium text-foreground">Ads</span> to{" "}
+                      <span className="font-medium text-foreground">Allow</span> (some browsers
+                      label it &quot;Intrusive ads&quot;)
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">4.</span>
+                    <span className="leading-relaxed">
+                      On Brave: tap the lion icon &rarr; turn{" "}
+                      <span className="font-medium text-foreground">Shields DOWN</span> for this site
+                    </span>
+                  </li>
+                </ol>
               </div>
-              <ol className="space-y-1.5 text-sm text-muted-foreground">
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">1.</span>
-                  <span className="leading-relaxed">
-                    Click the lock or tune icon to the left of the address bar
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">2.</span>
-                  <span className="leading-relaxed">
-                    Open <span className="font-medium text-foreground">Site settings</span> /
-                    <span className="font-medium text-foreground"> Permissions for this site</span>
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">3.</span>
-                  <span className="leading-relaxed">
-                    Set <span className="font-medium text-foreground">Ads</span> to{" "}
-                    <span className="font-medium text-foreground">Allow</span>{" "}
-                    (Chrome, Edge, Brave &mdash; some browsers call it &quot;Intrusive ads&quot;)
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">4.</span>
-                  <span className="leading-relaxed">
-                    On Brave: tap the lion icon &rarr; turn{" "}
-                    <span className="font-medium text-foreground">Shields DOWN</span> for this site
-                  </span>
-                </li>
-              </ol>
-            </div>
 
-            {/* Step 3 — allow popups & redirects */}
-            <div className="mb-6 rounded-lg bg-amber-500/10 p-4 text-left">
-              <div className="mb-2 flex items-center gap-2">
-                <MousePointerClick className="h-4 w-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-amber-400">
-                  Step 3 &mdash; Allow pop-ups and redirects
-                </h3>
+              {/* Step 3 — allow popups & redirects */}
+              <div className="rounded-lg bg-amber-500/10 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <MousePointerClick className="h-4 w-4 shrink-0 text-amber-400" />
+                  <h3 className="text-sm font-semibold text-amber-400">
+                    Step 3 &mdash; Allow pop-ups &amp; redirects
+                  </h3>
+                </div>
+                <ol className="space-y-1.5 text-xs text-muted-foreground sm:text-sm">
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">1.</span>
+                    <span className="leading-relaxed">
+                      In <span className="font-medium text-foreground">Site settings</span>, scroll to{" "}
+                      <span className="font-medium text-foreground">Pop-ups and redirects</span>
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">2.</span>
+                    <span className="leading-relaxed">
+                      Switch it to{" "}
+                      <span className="font-medium text-foreground">Allow</span> &mdash; this lets
+                      sponsor offers and shortlinks open
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">3.</span>
+                    <span className="leading-relaxed">
+                      Mobile Chrome / Brave:{" "}
+                      <span className="font-medium text-foreground">
+                        Settings &rarr; Site settings &rarr; Pop-ups and redirects
+                      </span>{" "}
+                      &rarr; turn on
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="shrink-0 font-semibold text-amber-500">4.</span>
+                    <span className="leading-relaxed">
+                      Make sure no VPN, Pi-hole, AdGuard DNS or NextDNS profile is filtering this
+                      domain
+                    </span>
+                  </li>
+                </ol>
               </div>
-              <ol className="space-y-1.5 text-sm text-muted-foreground">
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">1.</span>
-                  <span className="leading-relaxed">
-                    Still in <span className="font-medium text-foreground">Site settings</span>,
-                    scroll to{" "}
-                    <span className="font-medium text-foreground">Pop-ups and redirects</span>
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">2.</span>
-                  <span className="leading-relaxed">
-                    Switch it to{" "}
-                    <span className="font-medium text-foreground">Allow</span> &mdash; this lets
-                    sponsor offers and shortlinks open properly
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">3.</span>
-                  <span className="leading-relaxed">
-                    On mobile Chrome / Brave: open <span className="font-medium text-foreground">
-                      Settings &rarr; Site settings &rarr; Pop-ups and redirects
-                    </span>{" "}
-                    and turn it on
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-amber-500">4.</span>
-                  <span className="leading-relaxed">
-                    Make sure no VPN, Pi-hole, AdGuard DNS or NextDNS profile is filtering this
-                    domain
-                  </span>
-                </li>
-              </ol>
             </div>
 
-            <p className="mb-5 text-xs leading-relaxed text-muted-foreground">
+            <p className="mb-4 text-center text-xs leading-relaxed text-muted-foreground">
               Once all three steps are done, hit{" "}
               <span className="font-semibold text-amber-400">&quot;I&apos;ve done it&quot;</span> below.
               We&apos;ll re-check instantly &mdash; nothing is reported to our fraud system unless
               the blocker is still active.
             </p>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
               <Button
                 onClick={handleRecheckClick}
                 disabled={isRechecking}
-                className="w-full bg-amber-600 hover:bg-amber-700"
+                className="w-full bg-amber-600 hover:bg-amber-700 sm:w-auto sm:min-w-[16rem]"
               >
                 {isRechecking ? (
                   <>
@@ -728,7 +766,7 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowDiagnostics(!showDiagnostics)}
-                className="text-muted-foreground"
+                className="text-muted-foreground sm:w-auto"
               >
                 <Info className="mr-2 h-4 w-4" />
                 {showDiagnostics ? "Hide" : "Show"} Detection Details
