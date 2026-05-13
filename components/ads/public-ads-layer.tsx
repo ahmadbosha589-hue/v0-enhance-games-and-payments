@@ -48,34 +48,45 @@ export function PublicAdsLayer() {
       {/* Popup redirect script (zone 31) — fires at most once per 24h per visitor */}
       <CxUaPopupLoader />
 
-      {/* Floating banner (zone 32) — pinned to the bottom on every public page.
-          Hidden until the client has mounted to keep SSR output stable, and
-          dismissible so it never blocks important UI. */}
+      {/* Sticky bottom strip (zone 32). Slim leaderboard so it never blocks
+          content: 50px tall on mobile, 60px on small screens, 90px on
+          desktop — matching industry-standard sticky banner sizes
+          (320x50 mobile, 728x90 desktop). Hidden until client mounts so
+          SSR output stays stable, and dismissible per session. */}
       {mounted && !bannerDismissed && (
         <div
           className={cn(
-            "fixed bottom-2 left-1/2 -translate-x-1/2 z-40",
-            "w-[calc(100%-1rem)] max-w-[760px]",
-            "rounded-xl border bg-background/95 backdrop-blur-sm shadow-lg",
-            "p-2 sm:p-3"
+            "fixed bottom-0 inset-x-0 z-40",
+            "flex justify-center",
+            "px-2 pb-2 pt-1 sm:px-3 sm:pb-3",
+            "pointer-events-none" // wrapper passes clicks; child re-enables
           )}
           role="complementary"
           aria-label="Sponsored partner banner"
         >
-          <button
-            type="button"
-            onClick={handleDismiss}
-            aria-label="Dismiss sponsored banner"
+          <div
             className={cn(
-              "absolute -top-2 -right-2 z-10",
-              "h-7 w-7 rounded-full border bg-background text-muted-foreground",
-              "flex items-center justify-center shadow-sm",
-              "hover:text-foreground hover:bg-muted transition-colors"
+              "pointer-events-auto relative w-full",
+              "max-w-[360px] sm:max-w-[480px] md:max-w-[760px]",
+              "rounded-lg border bg-background/95 backdrop-blur-sm shadow-lg",
+              "p-1.5 sm:p-2"
             )}
           >
-            <X className="h-3.5 w-3.5" />
-          </button>
-          <CxUaBanner variant="compact" showLabel={true} className="w-full" />
+            <button
+              type="button"
+              onClick={handleDismiss}
+              aria-label="Dismiss sponsored banner"
+              className={cn(
+                "absolute -top-2 -right-2 z-10",
+                "h-6 w-6 rounded-full border bg-background text-muted-foreground",
+                "flex items-center justify-center shadow-sm",
+                "hover:text-foreground hover:bg-muted transition-colors"
+              )}
+            >
+              <X className="h-3 w-3" />
+            </button>
+            <CxUaBanner variant="slim" showLabel={false} className="w-full" />
+          </div>
         </div>
       )}
     </>

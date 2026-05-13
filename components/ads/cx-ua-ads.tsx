@@ -7,7 +7,15 @@ import { Megaphone, Sparkles } from "lucide-react"
 interface CxUaBannerProps {
   className?: string
   showLabel?: boolean
-  variant?: "default" | "compact" | "card"
+  /**
+   * Visual variant:
+   *   - "default"  : full medium rectangle (300x250) with label row above
+   *   - "compact"  : medium rectangle, no outer label row — for grid peers
+   *   - "card"     : medium rectangle wrapped in a featured-partner card
+   *   - "slim"     : leaderboard-style strip (320x50 mobile, 728x90 desktop)
+   *                  used for sticky bottom banners so it never blocks content
+   */
+  variant?: "default" | "compact" | "card" | "slim"
 }
 
 /**
@@ -38,6 +46,27 @@ export function CxUaBanner({
     script.dataset.cxuaBanner = "32"
     containerRef.current.appendChild(script)
   }, [])
+
+  if (variant === "slim") {
+    // Leaderboard-style strip for sticky banners.
+    // Mobile: 320x50 mobile banner. Desktop: 728x90 leaderboard.
+    // Never tall enough to obstruct page content.
+    return (
+      <div className={cn("relative w-full", className)}>
+        {showLabel && (
+          <span className="absolute -top-2 left-3 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider rounded-full bg-background border text-muted-foreground z-10">
+            Sponsored
+          </span>
+        )}
+        <div
+          ref={containerRef}
+          className="h-[50px] sm:h-[60px] md:h-[90px] w-full rounded-md bg-muted/20 flex items-center justify-center overflow-hidden"
+          data-ad-network="cx-ua"
+          aria-label="Sponsored banner"
+        />
+      </div>
+    )
+  }
 
   if (variant === "compact") {
     // Sized to match the surrounding network ad rectangles (300x250) so
