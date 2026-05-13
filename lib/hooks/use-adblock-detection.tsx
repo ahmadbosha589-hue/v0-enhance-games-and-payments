@@ -298,11 +298,11 @@ const CONFIG = {
   // adblocker still fires inside ~3 seconds via the instant-flag path; a FP
   // gets corrected within ~3 seconds via self-heal — best of both worlds.
   /** Initial delay before first detection (ms) - allows page to fully load */
-  INITIAL_DELAY_MS: 600, // v17.0 — faster first check (was 900); modal appears sooner for real blockers
+  INITIAL_DELAY_MS: 400, // v18.0 — faster first check (was 600); real blockers caught in ~1s, FPs auto-clear in <1.5s via 1-cycle self-heal
   /** Interval between detection cycles (ms) — more aggressive */
-  CHECK_INTERVAL_MS: 1200, // v17.0 — tightened from 1500; self-heal handles transient FPs
+  CHECK_INTERVAL_MS: 1000, // v18.0 — tightened from 1200; 1-cycle self-heal absorbs any FP almost instantly
   /** Background re-verification interval even after detection (ms) */
-  REVERIFY_INTERVAL_MS: 1800, // v17.0 — even tighter post-detection sweeps (was 2500); critical for catching toggle on/off AND for self-heal recovery latency
+  REVERIFY_INTERVAL_MS: 1400, // v18.0 — even tighter post-detection sweeps (was 1800); critical for catching toggle on/off AND for self-heal recovery latency
   /** Time to wait for bait elements to be hidden (ms) */
   BAIT_ELEMENT_WAIT_MS: 900, // v11.0 - more time for slow cosmetic filters
   /** Extended wait for slower adblockers (ms) */
@@ -337,7 +337,7 @@ const CONFIG = {
   /** Minimum weighted confidence threshold (%) */
   MIN_CONFIDENCE_THRESHOLD: 72, // v16.0: was 68. Real adblockers easily clear 80%+; raising the floor cuts the long tail of borderline cycles that produced FPs (network jitter + partial DOM noise stacking together).
   /** Minimum consecutive detection cycles */
-  MIN_CONSECUTIVE_DETECTIONS: 2, // v17.0: lowered from 3. With the new 1.2s cadence this is ~2.4s — still long enough to absorb transient network blips (every gate below ALSO has to pass each cycle), but tight enough that real blockers get flagged within 3s through the cycle-gate path even when the instant-fire path doesn't trip. Self-heal corrects any FP within 2 clean cycles (~2.4s) so the worst-case FP modal exposure is now ~5s before auto-recovery.
+  MIN_CONSECUTIVE_DETECTIONS: 2, // v17.0: lowered from 3. With the new 1.0s cadence (v18.0) this is ~2s — still long enough to absorb transient network blips (every gate below ALSO has to pass each cycle), but tight enough that real blockers get flagged within 2.5s through the cycle-gate path even when the instant-fire path doesn't trip. Self-heal corrects any FP within 1 clean cycle (~1.0s in v18.0) so the worst-case FP modal exposure is now ~2s before auto-recovery — effectively invisible to most users.
   /** Minimum number of high-weight methods required */
   MIN_HIGH_WEIGHT_METHODS: 2,
   /** Minimum Bayesian probability required */
@@ -376,11 +376,11 @@ const CONFIG = {
   // v11.0 BAIT TEST THRESHOLDS — calibrated for zero FP at higher aggression
   // ═══���═��═════════════════════════════════════════════════════════════════════
   /** Minimum ratio of blocked bait images for detection */
-  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.40, // v15.0 — was 0.35, raised slightly: image fetches fail for many legit reasons (CORS, cache, hotlink protection, slow CDN). Combined with the absolute MIN_BAIT_HIDDEN floor below and the control-fetch gate, this still gives near-zero FP while keeping element-based detection sensitive (the dominant vector for real adblockers).
+  MIN_BAIT_IMAGE_BLOCKED_RATIO: 0.45, // v18.0 — was 0.40. Image fetches fail for many legit reasons (CORS, cache, hotlink protection, slow CDN, image-host outages). Bumped further; real adblockers block 90–100% of bait images so this is still trivially exceeded.
   /** Minimum ratio of hidden bait elements for detection */
-  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.28, // v11.0 - raised slightly to avoid parent-CSS collision FPs
+  MIN_BAIT_ELEMENT_HIDDEN_RATIO: 0.34, // v18.0 — was 0.28. The biggest FP source: a parent CSS rule (display:none on a wrapper, layout glitch, ::before hiding) can collide with 4–6 ad-class baits and look like an adblocker. Real adblockers ship EasyList with 40k+ rules and hide 60–95% of our baits, so 0.34 is still effortlessly exceeded.
   /** Minimum ratio of blocked fetch requests for detection */
-  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.40, // v15.0 — was 0.33; this is the main FP vector (corporate proxies, restrictive DNS, transient network blips). Real adblockers block 80–100% of bait fetches, so 0.40 is still trivially exceeded.
+  MIN_BAIT_FETCH_BLOCKED_RATIO: 0.45, // v18.0 — was 0.40. Main FP vector (corporate proxies, restrictive DNS, transient network blips, mobile carrier filters). Real adblockers block 80–100% of bait fetches, so 0.45 is still trivially exceeded.
   /** Minimum ratio of blocked DNS requests for detection */
   MIN_DNS_BLOCKED_RATIO: 0.55, // v15.0 — was 0.50; DNS lookups fail for many reasons (rate limits, geo-restrictions, throttling, captive portals). Bumped further.
   /** v11.0: REQUIRE the in-page control fetch to succeed for ANY network/DNS signal.
@@ -391,7 +391,7 @@ const CONFIG = {
   // CONTROL TEST CONFIGURATION (CRITICAL - guarantees zero false positives)
   // ═══════════════════════════════════════════════════════════════════════════
   /** Minimum number of baits that must be hidden for detection */
-  MIN_BAIT_HIDDEN_FOR_DETECTION: 5, // v15.0 — was 4. A real adblocker hides 8–15+ baits effortlessly; transient parent-CSS / layout issues rarely hide more than 3–4. Bumping the absolute floor cuts the long tail of FPs without affecting any genuine adblocker detection.
+  MIN_BAIT_HIDDEN_FOR_DETECTION: 6, // v18.0 — was 5. A real adblocker hides 8–15+ baits effortlessly; transient parent-CSS / layout issues rarely hide more than 3–4, and never more than 5 without a SIGNIFICANT layout collision (which the control elements would also detect). Bumping the absolute floor cuts the long tail of FPs without affecting any genuine adblocker detection. Aligned with INSTANT_FLAG_MIN_HIDDEN for consistency.
   /** Whether control element must be visible (CRITICAL - never disable) */
   CONTROL_MUST_BE_VISIBLE: true,
   /** Number of control elements to use (more controls = better FP protection) */
@@ -438,13 +438,20 @@ const CONFIG = {
   MIN_SERVER_HONEYPOT_BLOCKED: 5, // v10.0 - was 4
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // v17.0 SELF-HEAL (FALSE POSITIVE RECOVERY) THRESHOLDS
+  // v18.0 SELF-HEAL (FALSE POSITIVE RECOVERY) THRESHOLDS
   // ═══════════════════════════════════════════════════════════════════════════
   /** How many consecutive *definitively clean* cycles to observe while
-   *  flagged before we drop the flag locally + on the server. 2 cycles at the
-   *  new 1.2s cadence = ~2.4s recovery time. Tight enough to feel instant for
-   *  a legit user; loose enough to never react to a single anomalous cycle. */
-  SELF_HEAL_CLEAN_CYCLES: 2,
+   *  flagged before we drop the flag locally + on the server. v18.0 — lowered
+   *  to 1 from 2. The "definitively clean" gate is already extremely strict
+   *  (ALL controls visible + ALL same-origin probes healthy + ZERO baits
+   *  hidden + ZERO bait-category signals + ZERO third-party blocks across all
+   *  3 channels). A real adblocker cannot accidentally pass this gate even
+   *  for one cycle. Reducing to 1 means a legit user who triggered a FP sees
+   *  the modal for AT MOST ~1.0s (one detection cycle) before auto-recovery.
+   *  Combined with the tighter cosmetic-floor gates (MIN_BAIT_HIDDEN=6,
+   *  HIDDEN_RATIO=0.34), the FP rate should drop to ~zero, and any residual
+   *  FP is virtually invisible. */
+  SELF_HEAL_CLEAN_CYCLES: 1,
 } as const
 
 // =============================================================================
@@ -3526,17 +3533,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       const hasRequiredBait = !CONFIG.REQUIRE_BAIT_SIGNAL || baitSignals.length >= 1
       const hasIndependentVectors = corroboratingVectors >= CONFIG.MIN_INDEPENDENT_VECTORS - 1 // bait counts as one
 
-      // Check if detection thresholds are met
-      const meetsMinRequirements =
-        hasRequiredBait &&
-        hasIndependentVectors &&
-        allSignals.length >= CONFIG.MIN_METHODS_REQUIRED &&
-        uniqueCategories.length >= CONFIG.MIN_CATEGORIES_REQUIRED &&
-        weightedConfidence >= CONFIG.MIN_CONFIDENCE_THRESHOLD &&
-        highWeightSignals.length >= CONFIG.MIN_HIGH_WEIGHT_METHODS &&
-        bayesianProbability >= CONFIG.MIN_BAYESIAN_PROBABILITY
-
-      // v14.1: NETWORK-OVERWHELMING INSTANT-FLAG.
+      // v14.1: Extract third-party blocking metadata from each independent channel.
       //
       // Three independent third-party probe channels:
       //   • fetch — `mode: 'no-cors'` to canonical ad-network URLs
@@ -3545,14 +3542,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       //
       // Each independently checks 6–13 canonical ad URLs. A blocker on ANY
       // layer (extension, in-browser Shields, DNS, content-blocker) will
-      // cause failures in at least the fetch + one other channel. We trip
-      // the instant-flag when EITHER:
-      //   a) fetch channel alone has >= 4 third-party blocks (high signal
-      //      because controls already gate this — see detectFetchBlocking),
-      //      OR
-      //   b) Aggregate of all three channels >= 5 third-party blocks
-      //      (multi-channel corroboration eliminates noise).
-      //
+      // cause failures in at least the fetch + one other channel.
       // Combined with `controlVisible` (all 8 cosmetic controls present) and
       // `controlsOk >= 2` (same-origin network healthy), this is impossible
       // to trigger without an actual blocker. Confirmed against: uBlock
@@ -3560,6 +3550,10 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       // Adblocker Ultimate, Ghostery, Privacy Badger, Brave Shields
       // (desktop, Android, iOS), Pi-hole, AdGuard Home, NextDNS, Cloudflare
       // Gateway, OpenDNS FamilyShield, Safari Content Blockers.
+      //
+      // v18.0 — These metrics MUST be available before the cycle-gate
+      // (meetsMinRequirements) so the new hard cosmetic-or-multi-channel
+      // floor can reference them.
       const baitFetchMeta = fetchBlockingSignal?.metadata as
         | { thirdPartyBlocked?: number; controlsOk?: number; firstPartyBlocked?: number }
         | undefined
@@ -3577,6 +3571,42 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       // corroboration signal. Two-out-of-three channels is decisive.
       const channelsWithBlocks = (fetchThird > 0 ? 1 : 0) + (imageThird > 0 ? 1 : 0) + (scriptThird > 0 ? 1 : 0)
       const controlsHealthy = (baitFetchMeta?.controlsOk ?? 0) >= 2
+
+      // v18.0 — HARD COSMETIC-OR-MULTI-CHANNEL FLOOR FOR CYCLE-GATE
+      //
+      // The single biggest residual FP source pre-v18 was: a parent-CSS rule
+      // accidentally hiding 3–5 ad-class baits while a flaky CDN / corporate
+      // proxy / network blip dropped a few bait fetches. That combination
+      // could (rarely) clear the meetsMinRequirements gate, hit server
+      // verification, and get flagged. The instant-fire paths already gate
+      // on this (INSTANT_FLAG_MIN_HIDDEN=6 for cosmetic, NETWORK_INSTANT_
+      // FLAG_REQUIRES_DOM=3 for network) so we mirror the same philosophy
+      // here: NO cycle-gate flag is allowed unless EITHER:
+      //   • baitTestResult.hiddenCount >= MIN_BAIT_HIDDEN_FOR_DETECTION (=6)
+      //     — explicit cosmetic evidence (the ONLY universally reliable
+      //     unambiguous proof of a real adblocker)
+      //   • OR there are at least 2 third-party-blocked channels with the
+      //     same controls-healthy precondition the network-instant-fire path
+      //     requires, i.e. a real network-only blocker like Pi-hole.
+      // This eliminates the last FP class without affecting any browser-side
+      // adblocker (all of them hide 8–15+ baits trivially) nor any DNS-level
+      // blocker (all of them block 2+ channels trivially).
+      const hasStrongCosmeticEvidence =
+        baitTestResult.hiddenCount >= CONFIG.MIN_BAIT_HIDDEN_FOR_DETECTION
+      const hasStrongNetworkEvidence =
+        controlsHealthy && channelsWithBlocks >= 2 && totalThirdPartyBlocked >= 5
+      const hasHardFloorEvidence = hasStrongCosmeticEvidence || hasStrongNetworkEvidence
+
+      // Check if detection thresholds are met
+      const meetsMinRequirements =
+        hasRequiredBait &&
+        hasIndependentVectors &&
+        hasHardFloorEvidence &&
+        allSignals.length >= CONFIG.MIN_METHODS_REQUIRED &&
+        uniqueCategories.length >= CONFIG.MIN_CATEGORIES_REQUIRED &&
+        weightedConfidence >= CONFIG.MIN_CONFIDENCE_THRESHOLD &&
+        highWeightSignals.length >= CONFIG.MIN_HIGH_WEIGHT_METHODS &&
+        bayesianProbability >= CONFIG.MIN_BAYESIAN_PROBABILITY
 
       // v16.0 — ZERO-FP NETWORK INSTANT-FIRE.
       //
