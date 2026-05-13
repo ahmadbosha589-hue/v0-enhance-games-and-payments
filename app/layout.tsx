@@ -129,9 +129,18 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://hilltopads.com" />
         <link rel="dns-prefetch" href="https://mellowads.com" />
 
-        {/* Structured data for SEO */}
+        {/*
+          Structured data for SEO.
+          suppressHydrationWarning: required because the v0 preview sandbox
+          (and some browser extensions / ad blockers in production) inject
+          into the first <script> tag in <head>, which causes a benign
+          server/client attribute mismatch. The script is still rendered
+          correctly server-side for SEO crawlers — we just don't want React
+          to log a hydration warning for the injection.
+        */}
         <script
           type="application/ld+json"
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
