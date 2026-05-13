@@ -52,6 +52,9 @@ const ENV_VAR_CONFIGS: EnvVarConfig[] = [
   { key: "CCXUA_API_KEY", label: "c.cx.ua API Key", description: "Server-side API key for c.cx.ua reporting", category: "ads", isSet: false },
   { key: "NEXT_PUBLIC_CCXUA_API_KEY", label: "c.cx.ua Public ID", description: "Public publisher ID for c.cx.ua banner/popup zones", category: "ads", isSet: false },
   { key: "CCXUA_SECRET_KEY", label: "c.cx.ua Secret Key", description: "Secret used to verify c.cx.ua server postbacks", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CXUA_BANNER_ZONE_ID", label: "c.cx.ua Banner Zone ID", description: "Numeric banner zone id from the c.cx.ua panel (default: 32)", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CXUA_POPUP_ZONE_ID", label: "c.cx.ua Popup Zone ID", description: "Numeric popup zone id from the c.cx.ua panel (default: 31)", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CXUA_POPUP_PARAMS", label: "c.cx.ua Popup Params", description: "Frequency params for popup script (default: f=4&t=1)", category: "ads", isSet: false },
 
   // Offerwall Public Keys
   { key: "NEXT_PUBLIC_CPX_APP_ID", label: "CPX Research App ID", description: "App ID for CPX Research", category: "api", isSet: false },

@@ -128,6 +128,8 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://adsterra.com" />
         <link rel="dns-prefetch" href="https://hilltopads.com" />
         <link rel="dns-prefetch" href="https://mellowads.com" />
+        <link rel="preconnect" href="https://c.cx.ua" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://c.cx.ua" />
 
         {/*
           Structured data for SEO.

@@ -1,40 +1,45 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
-import { Megaphone, Sparkles, ArrowRight, Coins, Gift, Zap } from "lucide-react"
+import { Megaphone } from "lucide-react"
 import {
-  buildCxUaOfferwallUrl,
-  getCxUaApiKey,
-  isCxUaConfigured,
-} from "@/lib/cxua/offerwall-url"
+  getBannerScriptUrl,
+  getBannerZoneId,
+  getPopupScriptUrl,
+  getPopupZoneId,
+  CXUA_ORIGIN,
+} from "@/lib/cxua/zones"
 
 /**
- * c.cx.ua integration
- * ===================
- * IMPORTANT: c.cx.ua is an OFFERWALL platform — they do NOT ship banner ad
- * scripts or popup-redirect scripts. Per their docs
- * (https://c.cx.ua/docs) the ONE and ONLY publisher endpoint is:
+ * c.cx.ua integration — using the REAL ad-serving endpoints from the
+ * publisher panel:
  *
- *     https://c.cx.ua/offerwall/[API_KEY]/[USER_ID]
+ *   Banner: <script src="https://c.cx.ua/ad/serve/banner/{zone}"></script>
+ *   Popup : <script src="https://c.cx.ua/ad/serve/popup/{zone}?f=4&t=1"></script>
  *
- * Earlier versions of this file injected `<script>` tags pointing at
- * `c.cx.ua/ad/serve/banner/...` and `/ad/serve/popup/...` — those URLs do
- * not exist on c.cx.ua's servers, which is why "the ads didn't work."
+ * Why the previous "drop the <script> in a React tree" approach didn't work
+ * --------------------------------------------------------------------------
+ *  • The banner script uses legacy `document.write()` to inject its
+ *    creative at the script tag's location. React loads scripts
+ *    asynchronously, AFTER `DOMContentLoaded`, at which point
+ *    `document.write` becomes destructive (or silently no-ops in modern
+ *    browsers) — so the banner never renders.
  *
- * What this file now does instead:
- *   - `CxUaBanner`        : a polished promo card with multiple visual
- *                           variants. Clicking it opens the REAL offerwall
- *                           URL in a new tab. Pre-fetches the offerwall
- *                           origin so it opens instantly.
- *   - `CxUaPopupLoader`   : a proper popunder that fires the offerwall URL
- *                           on first user interaction, with a 24-hour
- *                           per-visitor throttle (matches the original
- *                           `f=1&t=24` intent).
+ *    Fix: render the banner inside an `<iframe srcDoc>` so the script
+ *    runs against a fresh, still-parsing document where `document.write`
+ *    is legal again.
  *
- * Both surfaces are no-ops when `NEXT_PUBLIC_CCXUA_API_KEY` isn't set, so
- * they render nothing on unconfigured environments rather than leaving
- * an empty grey box.
+ *  • The popup script installs a global click-hook that opens a popunder.
+ *    React 18+ strict mode mounts/unmounts effects twice in dev, which
+ *    causes the script tag to be added/removed in rapid succession and
+ *    the hook to be lost. Plus, if we let React control the `<script>` in
+ *    the tree, the script element gets garbage-collected when its parent
+ *    unmounts, killing the listener.
+ *
+ *    Fix: append the script element directly to `document.body` (outside
+ *    React's reconciliation tree), and refuse to re-inject if it's
+ *    already present.
  */
 
 // ---------------------------------------------------------------------------
@@ -44,328 +49,212 @@ import {
 interface CxUaBannerProps {
   className?: string
   showLabel?: boolean
+  /** Override the configured zone id (defaults to env / panel default). */
+  zoneId?: string
   /**
-   * Optional authenticated user id. When provided, the offerwall URL is
-   * scoped to this id so postback rewards land on the right account.
-   * Omit on public/marketing pages — a stable guest id will be generated.
-   */
-  userId?: string | null
-  /**
-   * Visual variant:
-   *   - "default" : medium rectangle (300x250-ish) with a label row above
-   *   - "compact" : medium rectangle, no outer label — for grid peers
-   *   - "card"    : featured-partner card with gradient accent
-   *   - "slim"    : leaderboard strip for sticky bottom banners
+   * Visual layout variant.
+   *   - "default"  : 300x250 medium rectangle, centered, with label
+   *   - "compact"  : 300x250 with no extra chrome (for grids)
+   *   - "card"     : 300x250 wrapped in a soft card
+   *   - "slim"     : responsive leaderboard — 320x50 mobile, 728x90 desktop
    */
   variant?: "default" | "compact" | "card" | "slim"
+  /**
+   * Optional explicit pixel size override. If set, takes precedence over
+   * variant defaults. Useful when a zone is configured for a non-standard
+   * size in the c.cx.ua panel.
+   */
+  width?: number
+  height?: number
+  /** No-op, kept for API compatibility with older callers. */
+  userId?: string | null
 }
 
 /**
- * Three rotating creatives so the banner doesn't look static across page
- * loads. Pure CSS — no external script, no layout shift, no flicker.
+ * Builds the srcDoc HTML for the iframe. Keep this minimal — every byte
+ * here is parsed before the ad script runs. We DON'T include a doctype
+ * fallback hack: modern browsers handle `<!doctype html>` srcdoc fine.
  */
-const CREATIVES = [
-  {
-    icon: Coins,
-    eyebrow: "c.cx.ua Offerwall",
-    headline: "Earn crypto for completing offers",
-    sub: "Surveys, app installs & quick tasks — paid in sats.",
-    cta: "Start earning",
-    accent: "from-amber-500/15 via-orange-500/10 to-transparent",
-    ring: "ring-amber-500/30",
-    iconWrap: "bg-amber-500/15 text-amber-500",
-  },
-  {
-    icon: Gift,
-    eyebrow: "Sponsored • c.cx.ua",
-    headline: "Premium global offers, auto-translated",
-    sub: "Get rewarded in your local language. Worldwide coverage.",
-    cta: "Browse offers",
-    accent: "from-cyan-500/15 via-teal-500/10 to-transparent",
-    ring: "ring-cyan-500/30",
-    iconWrap: "bg-cyan-500/15 text-cyan-500",
-  },
-  {
-    icon: Zap,
-    eyebrow: "Featured Partner",
-    headline: "Fast crediting, signed postbacks",
-    sub: "Rewards confirmed in 5–30 min. Secured with MD5 signatures.",
-    cta: "Open offerwall",
-    accent: "from-emerald-500/15 via-green-500/10 to-transparent",
-    ring: "ring-emerald-500/30",
-    iconWrap: "bg-emerald-500/15 text-emerald-500",
-  },
-] as const
-
-function pickCreative(seed: number) {
-  const idx = Math.abs(seed) % CREATIVES.length
-  return CREATIVES[idx]
+function buildBannerSrcDoc(zoneId: string): string {
+  const scriptUrl = getBannerScriptUrl(zoneId)
+  // Inline CSS reset so the iframe's body doesn't add an 8px margin and
+  // shift the creative. `overflow: hidden` to avoid scrollbars on
+  // pixel-rounding edge cases. Background is transparent so the parent's
+  // theme shows through if the creative has any whitespace.
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<base target="_top">
+<style>
+html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:system-ui,sans-serif}
+body{display:flex;align-items:center;justify-content:center;min-height:100vh}
+a,img,iframe,div{max-width:100%}
+</style>
+</head>
+<body>
+<script src="${scriptUrl}"></script>
+</body>
+</html>`
 }
 
-/**
- * Tracks a banner click (best-effort, fire-and-forget).
- * Used to give the admin panel some basic CTR insight if needed later —
- * silently no-ops if the endpoint doesn't exist.
- */
-function trackBannerClick(variant: string) {
-  try {
-    const payload = JSON.stringify({ provider: "ccxua", variant, ts: Date.now() })
-    if (navigator?.sendBeacon) {
-      const blob = new Blob([payload], { type: "application/json" })
-      navigator.sendBeacon("/api/ads/track", blob)
-    } else {
-      fetch("/api/ads/track", {
-        method: "POST",
-        body: payload,
-        headers: { "Content-Type": "application/json" },
-        keepalive: true,
-      }).catch(() => {})
-    }
-  } catch {
-    /* swallow — tracking must never break UX */
+/** Returns the iframe dimensions for the chosen variant + overrides. */
+function getBannerDims(
+  variant: NonNullable<CxUaBannerProps["variant"]>,
+  width?: number,
+  height?: number,
+): { w: number; h: number; responsive: boolean } {
+  if (width && height) return { w: width, h: height, responsive: false }
+  switch (variant) {
+    case "slim":
+      // 728x90 leaderboard with mobile fallback to 320x50.
+      return { w: 728, h: 90, responsive: true }
+    case "card":
+    case "compact":
+    case "default":
+    default:
+      return { w: 300, h: 250, responsive: false }
   }
 }
 
 /**
- * CxUaBanner — a clickable c.cx.ua promo surface. Opens the real offerwall
- * URL in a new tab on click. Renders nothing when the API key is not
- * configured, so admins never see empty placeholders.
+ * CxUaBanner — renders a c.cx.ua banner zone in a sandboxed iframe so the
+ * legacy `document.write()` ad code can inject its creative safely.
  */
 export function CxUaBanner({
   className,
   showLabel = true,
-  userId,
+  zoneId,
   variant = "default",
+  width,
+  height,
 }: CxUaBannerProps) {
+  const [zone] = useState<string>(zoneId || getBannerZoneId())
   const [mounted, setMounted] = useState(false)
-  const [href, setHref] = useState<string | null>(null)
-  const seedRef = useRef<number>(0)
+  const [blocked, setBlocked] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
   useEffect(() => {
-    // Seed the creative per-mount so we get rotation across page views
-    // without causing hydration mismatches.
-    seedRef.current = Math.floor(Math.random() * 1_000_000)
     setMounted(true)
-    setHref(buildCxUaOfferwallUrl(userId))
-  }, [userId])
+  }, [])
 
-  const creative = useMemo(() => pickCreative(seedRef.current), [mounted])
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLAnchorElement>) => {
-      if (!href) {
-        e.preventDefault()
-        return
+  // Best-effort ad-block detection: if the iframe never paints any
+  // children (e.g. the c.cx.ua origin is on a filter list), surface a
+  // graceful fallback instead of an empty grey box.
+  useEffect(() => {
+    if (!mounted) return
+    const t = window.setTimeout(() => {
+      const f = iframeRef.current
+      if (!f) return
+      try {
+        const doc = f.contentDocument
+        // If the iframe body is empty after 2.5s, treat as blocked. We
+        // can read the body because srcDoc gives us same-origin access.
+        if (doc && doc.body && doc.body.children.length === 0) {
+          setBlocked(true)
+        }
+      } catch {
+        // Cross-origin — once the ad script swaps the document it may
+        // become inaccessible, which is actually a GOOD sign (script ran).
       }
-      trackBannerClick(variant)
-    },
-    [href, variant],
+    }, 2500)
+    return () => window.clearTimeout(t)
+  }, [mounted])
+
+  const { w, h, responsive } = getBannerDims(variant, width, height)
+  const srcDoc = mounted ? buildBannerSrcDoc(zone) : undefined
+
+  // SSR / pre-mount: render a stable skeleton with matching dimensions so
+  // there's no layout shift when the iframe pops in.
+  const wrapperCls = cn(
+    "relative w-full",
+    variant === "card" && "rounded-lg border bg-card p-2 shadow-sm",
+    className,
   )
 
-  // Don't render anything if c.cx.ua isn't configured — avoids the
-  // perpetual "Loading banner..." ghost box reported by users.
-  if (mounted && !isCxUaConfigured()) return null
+  const iframeCls = cn(
+    "block border-0 bg-transparent",
+    responsive
+      ? "h-[50px] w-full sm:h-[60px] md:h-[90px] md:max-w-[728px] md:mx-auto"
+      : "mx-auto",
+  )
 
-  // Server / pre-hydration render: stable skeleton, no random creative.
-  if (!mounted) {
-    return (
-      <div
-        className={cn(
-          "relative w-full rounded-lg border bg-muted/10",
-          variant === "slim"
-            ? "h-[50px] sm:h-[60px] md:h-[90px]"
-            : "min-h-[200px] sm:min-h-[250px]",
-          className,
-        )}
-        aria-hidden="true"
-      />
-    )
-  }
-
-  const Icon = creative.icon
-
-  // -------- slim leaderboard (sticky bottom banners) --------
-  if (variant === "slim") {
-    return (
-      <div className={cn("relative w-full", className)}>
-        {showLabel && (
-          <span className="absolute -top-2 left-3 z-10 rounded-full border bg-background px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-            Sponsored
-          </span>
-        )}
-        <a
-          href={href ?? "#"}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
-          onClick={handleClick}
-          data-ad-network="cx-ua"
-          aria-label={`${creative.eyebrow} — ${creative.headline}`}
-          className={cn(
-            "group flex h-[50px] w-full items-center gap-3 overflow-hidden rounded-md border bg-gradient-to-r px-3 transition-colors hover:bg-muted/40 sm:h-[60px] sm:px-4 md:h-[90px] md:px-5",
-            creative.accent,
-          )}
-        >
-          <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md sm:h-8 sm:w-8 md:h-10 md:w-10", creative.iconWrap)}>
-            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[11px] font-semibold sm:text-sm md:text-base">
-              {creative.headline}
-            </span>
-            <span className="hidden truncate text-[10px] text-muted-foreground sm:block sm:text-xs">
-              {creative.sub}
-            </span>
-          </span>
-          <span className="hidden shrink-0 items-center gap-1 rounded-full bg-foreground/90 px-2.5 py-1 text-[10px] font-semibold text-background transition-transform group-hover:translate-x-0.5 sm:inline-flex sm:text-xs">
-            {creative.cta}
-            <ArrowRight className="h-3 w-3" />
-          </span>
-        </a>
-      </div>
-    )
-  }
-
-  // -------- compact (used inside the multi-network grid) --------
-  if (variant === "compact") {
-    return (
-      <div className={cn("relative h-full w-full", className)}>
-        {showLabel && (
-          <span className="absolute -top-2 left-3 z-10 rounded-full border bg-background px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
-            Sponsored
-          </span>
-        )}
-        <a
-          href={href ?? "#"}
-          target="_blank"
-          rel="noopener noreferrer sponsored"
-          onClick={handleClick}
-          data-ad-network="cx-ua"
-          aria-label={`${creative.eyebrow} — ${creative.headline}`}
-          className={cn(
-            "group flex min-h-[200px] w-full flex-col justify-between overflow-hidden rounded-lg border bg-gradient-to-br p-4 transition-all hover:border-foreground/20 hover:shadow-md sm:min-h-[250px] sm:p-5",
-            creative.accent,
-          )}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <span className={cn("flex h-10 w-10 items-center justify-center rounded-lg", creative.iconWrap)}>
-              <Icon className="h-5 w-5" />
-            </span>
-            <span className="rounded-full border border-foreground/10 bg-background/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground backdrop-blur-sm">
-              {creative.eyebrow}
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-sm font-semibold leading-snug text-pretty sm:text-base">
-              {creative.headline}
-            </p>
-            <p className="text-xs leading-relaxed text-muted-foreground text-pretty">
-              {creative.sub}
-            </p>
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-foreground px-3 py-1 text-[11px] font-semibold text-background transition-transform group-hover:translate-x-0.5">
-              {creative.cta}
-              <ArrowRight className="h-3 w-3" />
-            </span>
-          </div>
-        </a>
-      </div>
-    )
-  }
-
-  // -------- featured "card" variant --------
-  if (variant === "card") {
-    return (
-      <a
-        href={href ?? "#"}
-        target="_blank"
-        rel="noopener noreferrer sponsored"
-        onClick={handleClick}
-        data-ad-network="cx-ua"
-        aria-label={`${creative.eyebrow} — ${creative.headline}`}
-        className={cn(
-          "group relative block overflow-hidden rounded-xl border-2 border-dashed bg-gradient-to-br p-4 transition-all hover:border-solid hover:shadow-lg sm:p-6",
-          creative.accent,
-          `border-foreground/15 ring-1 ring-inset ${creative.ring}`,
-          className,
-        )}
-      >
-        {showLabel && (
-          <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-foreground/60" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:text-xs">
-                {creative.eyebrow}
-              </span>
-            </div>
-            <span className="text-[9px] text-muted-foreground/70">Sponsored</span>
-          </div>
-        )}
-        <div className="flex min-h-[200px] flex-col justify-between gap-4 sm:min-h-[260px]">
-          <span className={cn("flex h-12 w-12 items-center justify-center rounded-xl", creative.iconWrap)}>
-            <Icon className="h-6 w-6" />
-          </span>
-          <div className="space-y-2">
-            <p className="text-lg font-bold leading-tight text-pretty sm:text-xl">
-              {creative.headline}
-            </p>
-            <p className="text-sm leading-relaxed text-muted-foreground text-pretty">
-              {creative.sub}
-            </p>
-            <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-xs font-semibold text-background transition-transform group-hover:translate-x-0.5">
-              {creative.cta}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </span>
-          </div>
-        </div>
-      </a>
-    )
-  }
-
-  // -------- default variant --------
   return (
-    <div className={cn("relative w-full", className)}>
-      {showLabel && (
+    <div
+      className={wrapperCls}
+      data-ad-network="cx-ua"
+      data-ad-zone={zone}
+      data-ad-type="banner"
+    >
+      {showLabel && variant !== "slim" && (
         <div className="mb-1.5 flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5">
-            <Megaphone className="h-3 w-3 text-muted-foreground" />
+            <Megaphone className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Sponsored
             </span>
           </div>
         </div>
       )}
-      <a
-        href={href ?? "#"}
-        target="_blank"
-        rel="noopener noreferrer sponsored"
-        onClick={handleClick}
-        data-ad-network="cx-ua"
-        aria-label={`${creative.eyebrow} — ${creative.headline}`}
-        className={cn(
-          "group flex min-h-[200px] w-full flex-col justify-between overflow-hidden rounded-lg border bg-gradient-to-br p-4 transition-all hover:border-foreground/20 hover:shadow-md sm:min-h-[250px] sm:p-5",
-          creative.accent,
-        )}
-      >
-        <div className="flex items-start justify-between">
-          <span className={cn("flex h-10 w-10 items-center justify-center rounded-lg", creative.iconWrap)}>
-            <Icon className="h-5 w-5" />
-          </span>
-          <span className="rounded-full border border-foreground/10 bg-background/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground backdrop-blur-sm">
-            {creative.eyebrow}
-          </span>
-        </div>
-        <div className="space-y-1.5">
-          <p className="text-base font-semibold leading-snug text-pretty sm:text-lg">
-            {creative.headline}
-          </p>
-          <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm text-pretty">
-            {creative.sub}
-          </p>
-          <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-foreground px-3 py-1 text-[11px] font-semibold text-background transition-transform group-hover:translate-x-0.5">
-            {creative.cta}
-            <ArrowRight className="h-3 w-3" />
-          </span>
-        </div>
-      </a>
+
+      {showLabel && variant === "slim" && (
+        <span className="pointer-events-none absolute -top-2 left-3 z-10 rounded-full border bg-background px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+          Sponsored
+        </span>
+      )}
+
+      {/* Pre-hydration skeleton — keeps SSR + CSR markup compatible. */}
+      {!mounted && (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "rounded-md bg-muted/20",
+            responsive
+              ? "h-[50px] w-full sm:h-[60px] md:h-[90px]"
+              : "mx-auto",
+          )}
+          style={responsive ? undefined : { width: w, height: h }}
+        />
+      )}
+
+      {mounted && !blocked && (
+        <iframe
+          ref={iframeRef}
+          title="Sponsored content"
+          srcDoc={srcDoc}
+          width={responsive ? undefined : w}
+          height={responsive ? undefined : h}
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          // Allow scripts and popups (the banner click typically opens an
+          // offer in a new tab). `allow-popups-to-escape-sandbox` lets the
+          // popup open without inheriting the sandbox restrictions.
+          // We intentionally OMIT `allow-same-origin` so the third-party
+          // script can't read parent cookies/localStorage.
+          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-forms"
+          allow="autoplay 'none'; geolocation 'none'; microphone 'none'; camera 'none'"
+          // `scrolling="no"` is deprecated but still respected — combined
+          // with body{overflow:hidden} this kills accidental scrollbars.
+          scrolling="no"
+          className={iframeCls}
+          style={responsive ? undefined : { width: w, height: h }}
+        />
+      )}
+
+      {/* Graceful fallback when AdBlock or a CSP swallows the iframe. We
+          keep the layout stable but render nothing visible so the page
+          doesn't show a broken-ad placeholder. */}
+      {mounted && blocked && (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "rounded-md",
+            responsive ? "h-[50px] w-full sm:h-[60px] md:h-[90px]" : "mx-auto",
+          )}
+          style={responsive ? undefined : { width: w, height: h }}
+        />
+      )}
     </div>
   )
 }
@@ -375,134 +264,112 @@ export function CxUaBanner({
 // ---------------------------------------------------------------------------
 
 interface CxUaPopupLoaderProps {
-  /**
-   * Optional authenticated user id. Used in the popunder URL so postbacks
-   * credit the right account. Defaults to the anonymous visitor id.
-   */
+  /** Override the configured popup zone id. */
+  zoneId?: string
+  /** Override the configured frequency query string (e.g. "f=4&t=1"). */
+  params?: string
+  /** No-op, kept for API compatibility with older callers. */
   userId?: string | null
-  /**
-   * Min seconds between popunders per visitor. Defaults to 24h.
-   * Matches the legacy `t=24` query parameter intent.
-   */
+  /** No-op, kept for API compatibility with older callers. */
   throttleHours?: number
 }
 
-const POPUP_LAST_KEY = "cxua_popup_last_v1"
-
-function shouldFirePopup(throttleHours: number): boolean {
-  if (typeof window === "undefined") return false
-  try {
-    const raw = localStorage.getItem(POPUP_LAST_KEY)
-    if (!raw) return true
-    const last = Number(raw)
-    if (!Number.isFinite(last)) return true
-    const msSince = Date.now() - last
-    return msSince > throttleHours * 60 * 60 * 1000
-  } catch {
-    // Private mode / storage disabled — fire conservatively (once per session)
-    return !window.sessionStorage?.getItem(POPUP_LAST_KEY)
-  }
-}
-
-function markPopupFired() {
-  try {
-    localStorage.setItem(POPUP_LAST_KEY, String(Date.now()))
-  } catch {
-    try {
-      sessionStorage.setItem(POPUP_LAST_KEY, "1")
-    } catch {
-      /* ignore */
-    }
-  }
-}
+/**
+ * Marker we put on the script tag so we never inject it twice (HMR, React
+ * strict-mode double-mount, navigation re-renders, etc.).
+ */
+const POPUP_MARKER_ATTR = "data-cxua-popup"
 
 /**
- * CxUaPopupLoader — proper popunder for the c.cx.ua offerwall.
+ * CxUaPopupLoader — injects the real c.cx.ua popunder script directly into
+ * `document.body`, exactly as the panel instructs ("place before
+ * </body>"). The script self-throttles based on the `f` and `t` query
+ * params set in the c.cx.ua publisher panel.
  *
- * Why this works (and the old version didn't):
- * 1. `window.open()` is blocked by all modern browsers unless triggered by
- *    a real user gesture. We attach a one-shot listener to `pointerdown`
- *    (covers mouse, touch and pen) so the popup only fires on a genuine
- *    interaction.
- * 2. We use the popunder pattern: open the offerwall in a new tab, then
- *    immediately re-focus the current window so the offerwall lands behind
- *    — the visitor stays on your site, exactly like the original script
- *    intended.
- * 3. We throttle per-visitor via localStorage (default 24h) to match the
- *    legacy `f=1&t=24` behavior.
- * 4. We never block the user's primary navigation: we wait until after the
- *    visitor has done something interactive on the page.
+ * Mounts safely under React strict mode (double-mount-proof via a DOM
+ * marker), idempotent across SPA navigations.
  */
 export function CxUaPopupLoader({
-  userId,
-  throttleHours = 24,
+  zoneId,
+  params,
 }: CxUaPopupLoaderProps = {}) {
   useEffect(() => {
     if (typeof window === "undefined") return
-    if (!getCxUaApiKey()) return
-    if (!shouldFirePopup(throttleHours)) return
+    if (typeof document === "undefined") return
 
-    // Respect DNT and bot-like environments
+    const zone = (zoneId || getPopupZoneId()).trim()
+    if (!zone) return
+
+    // Respect Do-Not-Track.
     const dnt =
       navigator.doNotTrack === "1" ||
-      // @ts-ignore — IE/legacy
+      // @ts-expect-error legacy IE
       window.doNotTrack === "1" ||
-      // @ts-ignore — Safari
+      // @ts-expect-error Safari
       navigator.msDoNotTrack === "1"
     if (dnt) return
 
-    let fired = false
+    // Idempotent: bail if the script is already on the page.
+    const existing = document.querySelector(
+      `script[${POPUP_MARKER_ATTR}="${zone}"]`,
+    )
+    if (existing) return
 
-    const fire = () => {
-      if (fired) return
-      const url = buildCxUaOfferwallUrl(userId)
-      if (!url) return
-      fired = true
+    const src = params
+      ? getPopupScriptUrl(zone, params)
+      : getPopupScriptUrl(zone)
 
-      try {
-        // Popunder: open in a new tab/window, then immediately re-focus
-        // the current window so the new tab lands behind. Some browsers
-        // (Chrome, Firefox) will keep focus on the opener already, but
-        // calling `.blur()` on the popup + `window.focus()` on opener is
-        // the most reliable cross-browser approach.
-        const popup = window.open(url, "_blank", "noopener,noreferrer")
-        if (popup) {
-          try {
-            popup.blur()
-          } catch {
-            /* cross-origin — that's fine */
-          }
-          try {
-            window.focus()
-          } catch {
-            /* ignore */
-          }
-          markPopupFired()
-        } else {
-          // Popup was blocked — don't burn the throttle, give it another
-          // chance on the next interaction.
-          fired = false
-        }
-      } catch {
-        fired = false
-      } finally {
-        cleanup()
-      }
+    const s = document.createElement("script")
+    s.src = src
+    s.async = true
+    // `data-cxua-popup` lets us recognise the tag for idempotency.
+    s.setAttribute(POPUP_MARKER_ATTR, zone)
+    // Tell browsers we don't need this resource on the critical path.
+    s.setAttribute("fetchpriority", "low")
+    // Some browsers honour `referrerpolicy` on script tags — give c.cx.ua
+    // the referrer so they can attribute the impression.
+    s.referrerPolicy = "no-referrer-when-downgrade"
+
+    s.onerror = () => {
+      // AdBlock / network failure. Don't surface to the UI — silently bail.
+      s.remove()
     }
 
-    const cleanup = () => {
-      window.removeEventListener("pointerdown", fire, true)
-      window.removeEventListener("keydown", fire, true)
-    }
+    document.body.appendChild(s)
 
-    // `capture: true` so we catch the gesture even if a child stops
-    // propagation. `once: false` — we manage the one-shot ourselves via
-    // the `fired` flag so we can recover from popup-blocker failures.
-    window.addEventListener("pointerdown", fire, { capture: true })
-    window.addEventListener("keydown", fire, { capture: true })
-
-    return cleanup
-  }, [userId, throttleHours])
+    // NOTE: we deliberately DO NOT remove the script on unmount. The
+    // popunder script installs document-level event listeners on first
+    // load; removing the <script> tag wouldn't remove those listeners
+    // anyway, and re-adding the script would create duplicate handlers.
+    // Leaving the tag in place is the safest and least-disruptive
+    // approach for SPA navigation.
+  }, [zoneId, params])
 
   return null
+}
+
+// ---------------------------------------------------------------------------
+// Preconnect hint (perf optimization)
+// ---------------------------------------------------------------------------
+
+/**
+ * `<CxUaPreconnect />` — drop this in the root layout's `<head>` (or anywhere
+ * inside the document) to warm up the TLS handshake to c.cx.ua before the
+ * iframe / popup script actually requests anything. Cuts ~150-400ms off
+ * first ad paint on cold loads.
+ *
+ * Usage in `app/layout.tsx`:
+ *   import { CxUaPreconnect } from "@/components/ads/cx-ua-ads"
+ *   ...
+ *   <head>
+ *     <CxUaPreconnect />
+ *   </head>
+ */
+export function CxUaPreconnect() {
+  return (
+    <>
+      <link rel="preconnect" href={CXUA_ORIGIN} crossOrigin="anonymous" />
+      <link rel="dns-prefetch" href={CXUA_ORIGIN} />
+    </>
+  )
 }
