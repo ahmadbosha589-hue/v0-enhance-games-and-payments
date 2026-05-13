@@ -16,7 +16,17 @@ const BALANCE_TIERS = {
   HEALTHY: 200_000, // 0.002 BTC = 200K sats (this is 100% health)
 }
 
-export const revalidate = 30
+// Previously `export const revalidate = 30` — this caused Next.js to attempt
+// static prerendering of this route at build time, which fires a live
+// FaucetPay API request + 3 Supabase queries during build. When FaucetPay is
+// slow/unreachable from the build environment (transient network, rate
+// limits, regional outages) the build hangs and Next.js retries up to 3x
+// with a 60s timeout each, failing the deploy.
+//
+// `force-dynamic` ensures the route is rendered per-request only. The 30s
+// caching benefit is preserved at the CDN edge via the Cache-Control header
+// on the response below; the client (SWR) also caches in-flight.
+export const dynamic = "force-dynamic"
 
 export async function GET() {
   // Log control probe for fortress verification
