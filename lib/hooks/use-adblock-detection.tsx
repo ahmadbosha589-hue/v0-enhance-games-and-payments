@@ -3365,7 +3365,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         return
       }
 
-      // ═════════════════════════════════════════════════════════════════════
+      // ══════════════════════════════════════���══════════════════════════════
       // v11.0 INSTANT-FLAG TIER — bait-overwhelming evidence with all controls
       // visible. Bypasses the consecutive-cycle gate because at this aggression
       // level the FP probability is mathematically near-zero: a website cannot
@@ -3571,6 +3571,19 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       // corroboration signal. Two-out-of-three channels is decisive.
       const channelsWithBlocks = (fetchThird > 0 ? 1 : 0) + (imageThird > 0 ? 1 : 0) + (scriptThird > 0 ? 1 : 0)
       const controlsHealthy = (baitFetchMeta?.controlsOk ?? 0) >= 2
+      // v18.1: First-party block count is the KEY DNS-vs-firewall discriminator.
+      // DNS-level blockers (AdGuard DNS, dns.adguard.com, Pi-hole, NextDNS,
+      // AdGuard Home, Cloudflare Gateway "Block Ads", OpenDNS Family Shield)
+      // can ONLY filter by hostname — they cannot inspect URL paths. Since our
+      // first-party bait URLs are served from the deploying domain (which the
+      // user's DNS resolves normally), DNS-level blockers produce
+      // `firstPartyBlocked === 0`. Corporate / school / carrier filters
+      // typically use deep-packet-inspection or block pages, blocking BOTH
+      // same-origin "/ads/*" paths AND third-party domains alike, so they
+      // produce `firstPartyBlocked >= 3` alongside third-party blocks. The
+      // signature `firstPartyBlocked === 0 && thirdPartyBlocked >= 8` is
+      // therefore unique to DNS-level ad-blockers — a near-perfect fingerprint.
+      const fetchFirstPartyBlocked = baitFetchMeta?.firstPartyBlocked ?? 0
 
       // v18.0 — HARD COSMETIC-OR-MULTI-CHANNEL FLOOR FOR CYCLE-GATE
       //
@@ -3595,7 +3608,20 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         baitTestResult.hiddenCount >= CONFIG.MIN_BAIT_HIDDEN_FOR_DETECTION
       const hasStrongNetworkEvidence =
         controlsHealthy && channelsWithBlocks >= 2 && totalThirdPartyBlocked >= 5
-      const hasHardFloorEvidence = hasStrongCosmeticEvidence || hasStrongNetworkEvidence
+      // v18.1 — DNS-LEVEL BLOCKER NETWORK EVIDENCE (cycle-gate path).
+      // Mirrors the dnsLevelInstantFires logic with slightly relaxed counts
+      // because the cycle-gate already requires 2 consecutive cycles of this
+      // exact pattern, so any transient ambient interference would have to
+      // persist across multiple seconds — physically impossible for noise.
+      // Same `fetchFirstPartyBlocked === 0` discriminator: rules out
+      // corporate firewalls and carrier ad-filters categorically.
+      const hasDnsLevelEvidence =
+        controlsHealthy &&
+        channelsWithBlocks >= 2 &&
+        totalThirdPartyBlocked >= 6 &&
+        fetchFirstPartyBlocked === 0
+      const hasHardFloorEvidence =
+        hasStrongCosmeticEvidence || hasStrongNetworkEvidence || hasDnsLevelEvidence
 
       // Check if detection thresholds are met
       const meetsMinRequirements =
@@ -3647,7 +3673,68 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
           (totalThirdPartyBlocked >= 5 && channelsWithBlocks >= 2)
         )
 
-      const instantFlagFires = cosmeticInstantFires || networkInstantFires
+      // v18.1 — DEDICATED DNS-LEVEL INSTANT-FIRE (NO DOM REQUIRED).
+      //
+      // Pre-v18.1, pure-network blockers (AdGuard DNS / dns.adguard.com,
+      // Pi-hole, NextDNS, AdGuard Home, Cloudflare Gateway, OpenDNS Family
+      // Shield) had to wait for the multi-cycle gate AND survive a category
+      // diversity check that DNS-only blockers frequently fail (they only
+      // produce `bait` + maybe `network` categories). Result: detection took
+      // 3+ cycles or didn't fire at all.
+      //
+      // This dedicated path catches DNS-level blocking instantly using a
+      // signature that is MATHEMATICALLY IMPOSSIBLE for any of the common
+      // false-positive scenarios:
+      //
+      //   REQUIREMENTS:
+      //     1. controlsHealthy: same-origin /api/health, /api/ping,
+      //        /favicon.ico ALL succeed (≥2/3 OK). Rules out general
+      //        network outage and most CDN failures.
+      //     2. controlVisible: ALL 8 unrelated cosmetic controls visible.
+      //        Rules out any over-aggressive CSS / parent-collision FPs.
+      //     3. ALL 3 third-party channels report blocks (fetch + image +
+      //        script). DNS filters the hostname, so every channel that
+      //        resolves that hostname fails. A corporate firewall typically
+      //        uses one mechanism per protocol so doesn't uniformly impact
+      //        all 3 web channels.
+      //     4. totalThirdPartyBlocked >= 9. Each channel probes 6–13 URLs;
+      //        a DNS blocker catches 80–100% of them, so 9+ aggregate is
+      //        trivial for real DNS filters but very unlikely for ambient
+      //        network jitter (each channel timeout is independent).
+      //     5. fetchFirstPartyBlocked === 0. THE KEY DISCRIMINATOR. DNS
+      //        blockers physically cannot block our same-origin /api/ads/*
+      //        paths (the hostname resolves normally). Corporate firewalls
+      //        almost always also block these paths via DPI/URL filters.
+      //        If first-party paths get through but third-party uniformly
+      //        fail, we're seeing pure hostname-level filtering, which is
+      //        the unambiguous signature of a DNS ad-blocker. The fetch
+      //        channel's controlsOk≥2 gate above guarantees same-origin
+      //        works, so firstPartyBlocked === 0 means our `/api/ads/*`
+      //        responded with 2xx (the API route returns a small JSON
+      //        response, not blocked).
+      //
+      // Combined, this gate cannot be tripped by:
+      //   • Corporate / school / work firewalls — they block both
+      //     first-party "/ads/*" AND third-party (firstPartyBlocked >= 3).
+      //   • Mobile carrier ad-filters — same, they block "/ads/" paths.
+      //   • Country censorship — typically blocks specific domains, rarely
+      //     all 3 channels uniformly with our exact bait set.
+      //   • Browser-side adblockers — they DO block first-party paths so
+      //     firstPartyBlocked >= 5 typically; those are caught by cosmetic
+      //     or normal network instant-fire anyway.
+      //   • VPN ad-block exit nodes — these typically use DNS-level
+      //     blocking too, so SHOULD trip this gate, which is correct
+      //     because they are functionally identical to running a DNS
+      //     blocker.
+      //   • CDN / transient network issues — controlsHealthy gates this.
+      const dnsLevelInstantFires =
+        baitTestResult.controlVisible &&
+        controlsHealthy &&
+        channelsWithBlocks === 3 &&
+        totalThirdPartyBlocked >= 9 &&
+        fetchFirstPartyBlocked === 0
+
+      const instantFlagFires = cosmeticInstantFires || networkInstantFires || dnsLevelInstantFires
 
       // v11.0: instant-flag path - overwhelming bait evidence with ALL controls
       // visible. Goes straight to server verification & flag, skipping cycle gate.
