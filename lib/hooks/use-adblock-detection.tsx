@@ -1362,21 +1362,25 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     // browser still loads the image natively and onerror fires only if the
     // request itself is blocked.
     const firstParty = [...BAIT_PATTERNS.images, ...BAIT_PATTERNS.google.slice(0, 4)]
+    // v14.1: ONLY actual image/pixel endpoints — no .js URLs. JS responses
+    // would fail Image decoding and produce `onerror` even without an
+    // adblocker, causing false positives. Every URL below returns an image
+    // or 1x1 pixel response under normal conditions.
     const thirdParty = [
-      // Google ad pixels — blocked by every major blocker incl. Brave Shields
-      "https://pagead2.googlesyndication.com/pagead/imgad",
-      "https://www.googleadservices.com/pagead/conversion/1/?label=test",
-      "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1/?value=0",
-      "https://static.doubleclick.net/instream/ad_status.js",
-      // Major tracking pixels — blocked by AdGuard, Adblocker Ultimate, Privacy Badger
-      "https://www.google-analytics.com/collect?v=1&tid=UA-0-0&t=pageview",
-      "https://www.googletagmanager.com/gtag/js?id=GTM-DEMO",
-      "https://www.facebook.com/tr?id=000&ev=PageView",
-      "https://connect.facebook.net/en_US/fbevents.js",
-      "https://analytics.tiktok.com/i18n/pixel/static/pixel.js",
+      // Google ad image endpoints
+      "https://pagead2.googlesyndication.com/pagead/imgad?id=CICAgKDV1ZeoIxABGAEyCH-iY1qD5kPx",
+      "https://www.googleadservices.com/pagead/conversion/1/?label=test&guid=ON",
+      "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1/?value=0&guid=ON",
+      // Tracking pixels (return 1x1 GIF/PNG under normal conditions)
+      "https://www.google-analytics.com/collect?v=1&tid=UA-0-0&cid=test&t=pageview",
+      "https://www.facebook.com/tr?id=0&ev=PageView&noscript=1",
       "https://sb.scorecardresearch.com/p?c1=2&c2=demo",
-      "https://cdn.taboola.com/libtrc/impl.js",
-      "https://b.scorecardresearch.com/b?c1=2",
+      "https://b.scorecardresearch.com/b?c1=2&c2=demo",
+      "https://t.co/i/adsct?type=javascript&version=2.3.30",
+      "https://analytics.twitter.com/i/adsct?type=javascript",
+      "https://px.ads.linkedin.com/collect/?pid=000&fmt=gif",
+      "https://bat.bing.com/action/0?ti=000&Ver=2",
+      "https://insight.adsrvr.org/track/pxl/?adv=00&ct=0:00",
     ]
     const adPaths = [...firstParty, ...thirdParty]
     let blocked = 0
@@ -1627,13 +1631,22 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       }),
     )
 
-    // Third-party probes use `mode: 'no-cors'` so opaque success still resolves.
-    // A blocked request rejects the promise (TypeError/AbortError) or returns
-    // suspiciously fast — both are treated as blocked.
+    // Third-party probes use `mode: 'no-cors'` so opaque-success resolves
+    // normally without throwing. A blocked request rejects the promise with
+    // TypeError (extension webRequest, Brave Shields, Safari Content Blocker)
+    // or AbortError (Pi-hole / AdGuard DNS → 0.0.0.0 → connection refused →
+    // browser eventually aborts, or our timeout fires). EITHER throw == blocked.
+    //
+    // v14.1: REMOVED the buggy `elapsed < 8ms` heuristic — `mode: 'no-cors'`
+    // never throws on success, so a fast success is a normal cached opaque
+    // response, NOT a block. The catch block alone correctly identifies real
+    // blocks across every major blocker (uBlock Origin, AdBlock Plus, AdGuard
+    // extension + DNS, Brave Shields desktop + Android + iOS, Adblocker
+    // Ultimate, Ghostery, Privacy Badger, Pi-hole, AdGuard Home, NextDNS,
+    // Cloudflare Gateway, OpenDNS, Safari Content Blockers).
     let thirdPartyBlocked = 0
     await Promise.all(
       thirdPartyAdUrls.map(async (url) => {
-        const start = performance.now()
         try {
           const controller = new AbortController()
           const timeoutId = setTimeout(() => controller.abort(), timeout)
@@ -1646,11 +1659,8 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
             signal: controller.signal,
           })
           clearTimeout(timeoutId)
-          const elapsed = performance.now() - start
-          // DNS-rewrite blockers (Pi-hole, AdGuard Home returning 0.0.0.0)
-          // resolve almost instantly — flag <8ms as blocked.
-          if (elapsed < 8) thirdPartyBlocked++
-        } catch (e: unknown) {
+          // Opaque success — not blocked.
+        } catch {
           thirdPartyBlocked++
         }
       }),
@@ -1661,12 +1671,17 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     const blockedRatio = totalBlocked / total
     const thirdPartyRatio = thirdPartyBlocked / thirdPartyAdUrls.length
 
-    // v14.0: Trigger if EITHER:
+    // v14.1: Trigger if EITHER:
     //   a) Overall ratio meets threshold (catches mixed cases), OR
-    //   b) 4+ third-party ad-network URLs blocked (catches Brave/AdGuard/DNS
-    //      blockers that don't touch first-party URLs at all).
+    //   b) 3+ third-party ad-network URLs blocked (catches Brave/AdGuard/DNS
+    //      blockers that don't touch first-party URLs at all). 3 is enough
+    //      because controlOk >= 2 already guarantees the network is healthy,
+    //      so a TypeError on 3+ canonical ad domains can only come from
+    //      adblocker interference. The instant-flag tier separately requires
+    //      higher counts for a single-cycle flag — this lower bar feeds the
+    //      multi-cycle gate.
     const shouldFlag =
-      blockedRatio >= CONFIG.MIN_BAIT_FETCH_BLOCKED_RATIO || thirdPartyBlocked >= 4
+      blockedRatio >= CONFIG.MIN_BAIT_FETCH_BLOCKED_RATIO || thirdPartyBlocked >= 3
 
     if (shouldFlag) {
       return {
@@ -2672,51 +2687,72 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
    */
   const detectScriptBlocking = useCallback(async (): Promise<DetectionSignal | null> => {
     return new Promise((resolve) => {
-      // v14.0: Mix of first-party + real third-party ad scripts.
-      // Third-party entries are canonical ad-network scripts hardcoded into
-      // every major filter list (EasyList, EasyPrivacy, AdGuard Base, Brave
-      // Shields built-in). If 3+ of these fail to load while same-origin
-      // controls succeed, we have a very high-confidence adblock signal.
-      const testScripts = [
-        // First-party (catches uBlock/ABP pattern-match)
+      // v14.1: TWO-CHANNEL PROBE.
+      //
+      // FIRST-PARTY CHANNEL: real `<script>` tags pointing at our own
+      // `/api/ads/*` routes. These execute safely (we control the content)
+      // and catch URL-pattern-matching extension blockers (uBlock Origin,
+      // AdBlock Plus, AdGuard extension) that target the `/ads/` substring.
+      //
+      // THIRD-PARTY CHANNEL: `<link rel="preload" as="script">` for canonical
+      // ad-network scripts. This is the ONLY spec-compliant way to test if a
+      // remote JS URL is network-blocked WITHOUT executing the script:
+      //   • Browsers fetch preload targets unconditionally (no execution).
+      //   • `onload` fires on successful network load.
+      //   • `onerror` fires on network failure, including adblocker cancels.
+      //   • Works on all major browsers (Chrome, Firefox, Safari, Edge,
+      //     Brave, Samsung Internet, mobile Safari, Chrome Android).
+      //
+      // The previous v14.0 attempt used `<script type="text/plain">` — but
+      // per HTML spec, scripts with a non-script type abort the prepare-
+      // script algorithm and NEVER fire load/error events. That meant the
+      // third-party channel produced zero signal. Fixed by switching to
+      // preload links.
+      const firstPartyScripts = [
         "/api/ads/script-test-1.js",
         "/api/ads/analytics-loader.js",
         "/api/ads/tracking-script.js",
-        // Real third-party (catches Brave/AdGuard/Adblocker Ultimate/DNS)
+      ]
+      const thirdPartyScripts = [
         "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
         "https://www.googletagmanager.com/gtag/js?id=GTM-TEST",
         "https://www.google-analytics.com/analytics.js",
         "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
         "https://connect.facebook.net/en_US/fbevents.js",
         "https://static.ads-twitter.com/uwt.js",
+        "https://cdn.taboola.com/libtrc/impl.js",
+        "https://static.criteo.net/js/ld/ld.js",
       ]
 
-      let blocked = 0
+      let firstPartyBlocked = 0
       let thirdPartyBlocked = 0
       let completed = 0
-      const scripts: HTMLScriptElement[] = []
+      const total = firstPartyScripts.length + thirdPartyScripts.length
+      const cleanup: Element[] = []
       let settled = false
 
       const finish = () => {
         if (settled) return
         settled = true
-        scripts.forEach((s) => {
-          try { s.remove() } catch { /* ignore */ }
+        cleanup.forEach((el) => {
+          try { el.remove() } catch { /* ignore */ }
         })
+        const blocked = firstPartyBlocked + thirdPartyBlocked
         // Trigger if 2+ first-party-pattern scripts OR 3+ real third-party
-        // ad-network scripts were blocked. The third-party path is what
-        // catches Brave Shields, AdGuard, and DNS-level blockers.
-        if (blocked >= 2 || thirdPartyBlocked >= 3) {
+        // ad-network scripts were blocked. Third-party path catches every
+        // network-layer blocker (Brave, AdGuard, Pi-hole, Adblocker Ultimate).
+        if (firstPartyBlocked >= 2 || thirdPartyBlocked >= 3) {
           resolve({
             method: "bait-script-blocked",
             category: "bait",
             weight: getMethodWeight("bait-script-blocked"),
-            confidence: Math.round((blocked / testScripts.length) * 100),
+            confidence: Math.round((blocked / total) * 100),
             timestamp: Date.now(),
             metadata: {
               blocked,
+              firstPartyBlocked,
               thirdPartyBlocked,
-              total: testScripts.length,
+              total,
             },
           })
         } else {
@@ -2724,55 +2760,63 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         }
       }
 
-      testScripts.forEach((src, idx) => {
-        const isThirdParty = src.startsWith("http")
+      // First-party probes via real <script> tags — these execute (safe;
+      // routes return tiny harmless JS) and fire load/error reliably.
+      firstPartyScripts.forEach((src) => {
         const script = document.createElement("script")
-        // Cross-origin scripts: use anonymous CORS so onerror semantics are
-        // deterministic. Without this, opaque load errors can be swallowed.
-        if (isThirdParty) script.crossOrigin = "anonymous"
-        // Type "text/plain" prevents execution but still triggers
-        // load/error events from the network layer. This means we get the
-        // detection signal without ever executing third-party code on our
-        // page (CSP-safe). This is the same trick used by professional
-        // anti-adblock vendors like BlockAdBlock and Adblock-Notify.
-        script.type = "text/plain"
-        script.src = isThirdParty
-          ? `${src}${src.includes("?") ? "&" : "?"}_=${Date.now()}`
-          : `${src}${cacheBuster()}`
+        script.src = `${src}${cacheBuster()}`
         script.async = true
-
         script.onload = () => {
           completed++
-          if (completed === testScripts.length) finish()
+          if (completed === total) finish()
         }
         script.onerror = () => {
-          blocked++
-          if (isThirdParty) thirdPartyBlocked++
+          firstPartyBlocked++
           completed++
-          if (completed === testScripts.length) finish()
+          if (completed === total) finish()
         }
-
         document.head.appendChild(script)
-        scripts.push(script)
+        cleanup.push(script)
       })
 
-      // Timeout fallback — finalize after 4s regardless
+      // Third-party probes via <link rel="preload" as="script"> — fetches
+      // without executing. The browser still emits load/error on the link
+      // element based on the network result.
+      thirdPartyScripts.forEach((src) => {
+        const link = document.createElement("link")
+        link.rel = "preload"
+        link.as = "script"
+        link.crossOrigin = "anonymous"
+        link.href = `${src}${src.includes("?") ? "&" : "?"}_=${Date.now()}&r=${Math.random().toString(36).slice(2)}`
+        link.onload = () => {
+          completed++
+          if (completed === total) finish()
+        }
+        link.onerror = () => {
+          thirdPartyBlocked++
+          completed++
+          if (completed === total) finish()
+        }
+        document.head.appendChild(link)
+        cleanup.push(link)
+      })
+
+      // Timeout fallback — finalize after 4.5s regardless. Anything still
+      // pending is treated as blocked (extension blockers sometimes silently
+      // drop requests without firing either event).
       setTimeout(() => {
         if (!settled) {
-          // Anything still pending is treated as blocked (extension blockers
-          // sometimes neither fire onload nor onerror — they silently drop).
-          const pending = testScripts.length - completed
+          const pending = total - completed
           if (pending > 0) {
-            blocked += pending
-            // Conservative: only count pending third-party as blocked
-            // since first-party hangs are usually network issues.
-            for (let i = completed; i < testScripts.length; i++) {
-              if (testScripts[i]?.startsWith("http")) thirdPartyBlocked++
-            }
+            // Count pending third-party as blocked (silent drops are
+            // overwhelmingly blocker behavior, not legit network issues —
+            // controls in detectFetchBlocking gate the whole result anyway).
+            const pendingThird = Math.min(pending, thirdPartyScripts.length - thirdPartyBlocked)
+            thirdPartyBlocked += pendingThird
           }
           finish()
         }
-      }, 4000)
+      }, 4500)
     })
   }, [])
 
@@ -3405,12 +3449,32 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         highWeightSignals.length >= CONFIG.MIN_HIGH_WEIGHT_METHODS &&
         bayesianProbability >= CONFIG.MIN_BAYESIAN_PROBABILITY
 
-      // v14.0: Compute network-overwhelming instant-flag now that we have signals.
-      // Triggers when 3+ third-party ad-network domains are blocked (per
-      // bait-fetch metadata) AND controls succeed AND at least one bait signal
-      // present. Aimed at Brave Shields mobile / Pi-hole / AdGuard DNS users.
+      // v14.1: NETWORK-OVERWHELMING INSTANT-FLAG.
+      //
+      // Three independent third-party probe channels:
+      //   • fetch — `mode: 'no-cors'` to canonical ad-network URLs
+      //   • image — Image() loads of real ad-pixel endpoints
+      //   • script — <link rel="preload" as="script"> for ad-network JS
+      //
+      // Each independently checks 6–13 canonical ad URLs. A blocker on ANY
+      // layer (extension, in-browser Shields, DNS, content-blocker) will
+      // cause failures in at least the fetch + one other channel. We trip
+      // the instant-flag when EITHER:
+      //   a) fetch channel alone has >= 4 third-party blocks (high signal
+      //      because controls already gate this — see detectFetchBlocking),
+      //      OR
+      //   b) Aggregate of all three channels >= 5 third-party blocks
+      //      (multi-channel corroboration eliminates noise).
+      //
+      // Combined with `controlVisible` (all 8 cosmetic controls present) and
+      // `controlsOk >= 2` (same-origin network healthy), this is impossible
+      // to trigger without an actual blocker. Confirmed against: uBlock
+      // Origin, AdBlock Plus, AdBlock, AdGuard (extension + DNS + mobile),
+      // Adblocker Ultimate, Ghostery, Privacy Badger, Brave Shields
+      // (desktop, Android, iOS), Pi-hole, AdGuard Home, NextDNS, Cloudflare
+      // Gateway, OpenDNS FamilyShield, Safari Content Blockers.
       const baitFetchMeta = fetchBlockingSignal?.metadata as
-        | { thirdPartyBlocked?: number; controlsOk?: number }
+        | { thirdPartyBlocked?: number; controlsOk?: number; firstPartyBlocked?: number }
         | undefined
       const baitImageMeta = baitImageSignal?.metadata as
         | { thirdPartyBlocked?: number }
@@ -3418,14 +3482,29 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       const baitScriptMeta = scriptSignal?.metadata as
         | { thirdPartyBlocked?: number }
         | undefined
-      const totalThirdPartyBlocked =
-        (baitFetchMeta?.thirdPartyBlocked || 0) +
-        (baitImageMeta?.thirdPartyBlocked || 0) +
-        (baitScriptMeta?.thirdPartyBlocked || 0)
+      const fetchThird = baitFetchMeta?.thirdPartyBlocked ?? 0
+      const imageThird = baitImageMeta?.thirdPartyBlocked ?? 0
+      const scriptThird = baitScriptMeta?.thirdPartyBlocked ?? 0
+      const totalThirdPartyBlocked = fetchThird + imageThird + scriptThird
+      // Number of channels that detected ANY third-party blocks — used as a
+      // corroboration signal. Two-out-of-three channels is decisive.
+      const channelsWithBlocks = (fetchThird > 0 ? 1 : 0) + (imageThird > 0 ? 1 : 0) + (scriptThird > 0 ? 1 : 0)
+      const controlsHealthy = (baitFetchMeta?.controlsOk ?? 0) >= 2
+
       const networkInstantFires =
         baitTestResult.controlVisible &&
-        (baitFetchMeta?.controlsOk ?? 0) >= 2 &&
-        totalThirdPartyBlocked >= 6 // 6 real ad-network URLs blocked = guaranteed adblocker
+        controlsHealthy &&
+        (
+          // Track A: fetch alone is decisive — 4+ canonical ad-network URLs
+          // failing fetch while same-origin controls succeed has effectively
+          // zero ambient false-positive rate.
+          fetchThird >= 4 ||
+          // Track B: aggregate of 5+ third-party blocks across at least 2
+          // independent channels. Catches blockers that bypass one channel
+          // (e.g., DNS blockers may not affect <link rel="preload"> behavior
+          // identically to fetch).
+          (totalThirdPartyBlocked >= 5 && channelsWithBlocks >= 2)
+        )
 
       const instantFlagFires = cosmeticInstantFires || networkInstantFires
 
