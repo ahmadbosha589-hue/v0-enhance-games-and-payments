@@ -3,7 +3,13 @@ import { createClient } from "@/lib/supabase/server"
 import { getFaucetPayClientAsync, isFaucetPayConfiguredAsync } from "@/lib/faucetpay/client"
 import { logger } from "@/lib/logger"
 
-export const revalidate = 60 // Cache for 60 seconds
+// This route uses Supabase server client which reads request cookies, so it
+// must be rendered dynamically per-request. Without this Next.js will try to
+// statically render it at build time and throw "Dynamic server usage: Route
+// /api/faucet-health/crypto couldn't be rendered statically because it used
+// `cookies`." Caching is handled client-side (SWR) and at the CDN via
+// response headers below.
+export const dynamic = "force-dynamic"
 
 interface CryptoHealth {
   symbol: string
@@ -173,11 +179,23 @@ export async function GET() {
     // Sort by health (worst first to draw attention)
     cryptos.sort((a, b) => a.healthPercentage - b.healthPercentage)
 
-    return NextResponse.json({
-      cryptos,
-      source: faucetPayConnected ? "faucetpay" : "database",
-      timestamp: new Date().toISOString()
-    })
+    return NextResponse.json(
+      {
+        cryptos,
+        source: faucetPayConnected ? "faucetpay" : "database",
+        timestamp: new Date().toISOString(),
+      },
+      {
+        // Preserves the original 60-second caching intent at the CDN edge
+        // while the route itself remains dynamic per-request (required for
+        // Supabase cookie access). stale-while-revalidate lets stale data be
+        // served instantly while a fresh response is fetched in the
+        // background.
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      },
+    )
   } catch (error) {
     logger.error("Failed to fetch crypto health:", error instanceof Error ? error : new Error(String(error)))
 
