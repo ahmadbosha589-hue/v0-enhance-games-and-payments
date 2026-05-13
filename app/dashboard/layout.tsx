@@ -57,12 +57,17 @@ export default async function DashboardLayout({
   const user = await getUser()
 
   if (!user) {
-    // LOOP-BREAKER. If we land here it means BOTH supabase.auth.getUser()
-    // AND supabase.auth.getSession() (cookie fallback) returned null. The
-    // proxy decides redirects from raw cookie presence; if it still sees
-    // an `sb-…-auth-token` cookie it would bounce us straight back to
-    // /dashboard and we'd spin forever. The `?expired=1` flag is read by
-    // the proxy and disables that bounce — see lib/supabase/proxy.ts.
+    // LOOP-BREAKER. We only reach here if ALL THREE auth strategies
+    // failed:
+    //   1) supabase.auth.getUser()       (Supabase Auth API)
+    //   2) supabase.auth.getSession()    (cookie + possible refresh)
+    //   3) manual cookie payload decode  (zero network, always works
+    //                                     if a session cookie exists)
+    //
+    // If we still have nothing, the cookie either doesn't exist or is
+    // unparseable — in either case the user genuinely needs to sign in
+    // again. The `?expired=1` query param tells the proxy NOT to bounce
+    // us back to /dashboard (see lib/supabase/proxy.ts).
     const cookiePresent = await hasSessionCookie()
     const target = cookiePresent
       ? "/auth/login?redirect=/dashboard&expired=1"

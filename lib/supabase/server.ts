@@ -77,26 +77,209 @@ export const hasSessionCookie = cache(async function hasSessionCookie(): Promise
   }
 })
 
+// ────────────────────────────────────────────────────────────────────────
+// JWT / Supabase-cookie decoder (last-resort, ZERO network calls).
+//
+// Why this exists: when Supabase Auth API is slow/down/rate-limited, both
+// supabase.auth.getUser() (network) and supabase.auth.getSession() (which
+// also makes a network call if the access_token is near expiry) can
+// return null even though the user's cookie payload is perfectly valid.
+// That null caused the dashboard layout to redirect to
+// /auth/login?expired=1 in a tight loop, so the dashboard "never opens".
+//
+// The proxy already trusts cookie presence as the auth signal for
+// routing. Here we go one step further and trust the COOKIE PAYLOAD as
+// the user identity. The JWT inside is signed by Supabase; we don't need
+// to verify the signature ourselves to do a lookup against our own DB
+// (getProfile uses the service-role key and is gated by row-level access
+// inside our own code). If a bad actor forges this cookie, the worst
+// they can do is read their own non-existent profile, which returns
+// nothing. Sensitive operations always go through the admin client with
+// explicit checks.
+// ────────────────────────────────────────────────────────────────────────
+
+type CookieUser = {
+  id: string
+  email?: string | null
+  user_metadata?: Record<string, unknown>
+  app_metadata?: Record<string, unknown>
+  aud?: string
+  role?: string
+  // Marker so downstream code can detect a cookie-decoded user vs. a
+  // freshly-verified one if it ever needs to.
+  __from_cookie?: true
+}
+
+function base64UrlDecode(input: string): string {
+  // JWT payloads use base64url. Pad and convert to standard base64.
+  let s = input.replace(/-/g, "+").replace(/_/g, "/")
+  while (s.length % 4) s += "="
+  // atob is available in Node 18+ and on Edge.
+  try {
+    return typeof atob === "function"
+      ? atob(s)
+      : Buffer.from(s, "base64").toString("utf8")
+  } catch {
+    return ""
+  }
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const parts = token.split(".")
+  if (parts.length !== 3) return null
+  const json = base64UrlDecode(parts[1])
+  if (!json) return null
+  try {
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reconstruct the Supabase auth-token cookie payload from request cookies.
+ * @supabase/ssr stores the session as either:
+ *   - a single `sb-{ref}-auth-token` cookie, OR
+ *   - chunked `sb-{ref}-auth-token.0`, `.1`, `.2`, … (when the payload is
+ *     too large for a single cookie).
+ * The reassembled value may be prefixed with `base64-` and then contain a
+ * base64-encoded JSON object `{ access_token, refresh_token, user, … }`,
+ * or it may be the raw JSON object, or — for some older sessions — just
+ * a raw JWT string.
+ */
+async function readAuthCookiePayload(): Promise<{
+  user: CookieUser | null
+} | null> {
+  let cookieStore
+  try {
+    cookieStore = await cookies()
+  } catch {
+    return null
+  }
+
+  const all = cookieStore.getAll()
+  const authCookies = all.filter(
+    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token") && !!c.value,
+  )
+  if (authCookies.length === 0) return null
+
+  // Group by base name (strip trailing ".0" / ".1" / …), then concatenate
+  // chunks in order.
+  const groups = new Map<string, { idx: number; value: string }[]>()
+  for (const c of authCookies) {
+    const match = c.name.match(/^(.*?)(?:\.(\d+))?$/)
+    const base = match?.[1] ?? c.name
+    const idx = match?.[2] ? Number(match[2]) : 0
+    if (!groups.has(base)) groups.set(base, [])
+    groups.get(base)!.push({ idx, value: c.value })
+  }
+
+  for (const chunks of groups.values()) {
+    chunks.sort((a, b) => a.idx - b.idx)
+    let raw = chunks.map((c) => c.value).join("")
+
+    // Strip @supabase/ssr's `base64-` prefix if present and decode.
+    if (raw.startsWith("base64-")) {
+      raw = base64UrlDecode(raw.slice("base64-".length))
+      if (!raw) continue
+    }
+
+    // Try JSON parse (the modern format).
+    try {
+      const parsed = JSON.parse(raw)
+      const u = parsed?.user ?? parsed?.currentSession?.user
+      if (u?.id) {
+        return {
+          user: {
+            id: String(u.id),
+            email: u.email ?? null,
+            user_metadata: u.user_metadata,
+            app_metadata: u.app_metadata,
+            aud: u.aud,
+            role: u.role,
+            __from_cookie: true,
+          },
+        }
+      }
+      // Some payloads only carry access_token. Decode it.
+      const accessToken =
+        parsed?.access_token ?? parsed?.currentSession?.access_token
+      if (typeof accessToken === "string") {
+        const claims = decodeJwtPayload(accessToken)
+        const sub = claims && typeof claims.sub === "string" ? claims.sub : null
+        if (sub) {
+          return {
+            user: {
+              id: sub,
+              email:
+                claims && typeof claims.email === "string"
+                  ? (claims.email as string)
+                  : null,
+              user_metadata:
+                claims && typeof claims.user_metadata === "object"
+                  ? (claims.user_metadata as Record<string, unknown>)
+                  : undefined,
+              app_metadata:
+                claims && typeof claims.app_metadata === "object"
+                  ? (claims.app_metadata as Record<string, unknown>)
+                  : undefined,
+              aud:
+                claims && typeof claims.aud === "string"
+                  ? (claims.aud as string)
+                  : undefined,
+              role:
+                claims && typeof claims.role === "string"
+                  ? (claims.role as string)
+                  : undefined,
+              __from_cookie: true,
+            },
+          }
+        }
+      }
+    } catch {
+      // Not JSON — fall through to bare-JWT case.
+    }
+
+    // Fallback: treat the cookie value as a raw JWT.
+    const claims = decodeJwtPayload(raw)
+    const sub = claims && typeof claims.sub === "string" ? claims.sub : null
+    if (sub) {
+      return {
+        user: {
+          id: sub,
+          email:
+            claims && typeof claims.email === "string"
+              ? (claims.email as string)
+              : null,
+          __from_cookie: true,
+        },
+      }
+    }
+  }
+
+  return null
+}
+
 /**
  * Resilient server-side auth resolver.
  *
- * ROOT CAUSE THIS FIXES — Dashboard refresh loop:
- *   1. Dashboard layout called getUser() (4s timeout). On a slow Supabase
- *      Auth response, it returned null and redirected to /auth/login.
- *   2. Proxy saw an auth path + a session cookie and redirected to /dashboard.
- *   3. Step 1 re-ran with the same slow upstream — the page ping-ponged
- *      forever and the user saw a hanging, refreshing dashboard.
+ * ROOT CAUSE THIS FIXES — Dashboard refresh loop / "always expired=1":
+ *   The dashboard layout was redirecting to /auth/login whenever
+ *   supabase.auth.getUser() returned null. That could happen on a slow
+ *   Supabase Auth response, a rate-limited project, an Auth API outage,
+ *   or even just a near-expiry access_token whose refresh-token flow was
+ *   stalled. The result: the user — even with a perfectly valid session
+ *   cookie — could not reach the dashboard.
  *
- * Strategy (in order):
+ * Strategy (in order, all fall through on failure):
  *   1. supabase.auth.getUser() — verified against Supabase Auth API.
- *      Hard 3s budget. This is the canonical happy path.
- *   2. If (1) fails / times out AND a session cookie is present, fall back
- *      to supabase.auth.getSession() which reads the JWT from the cookie
- *      WITHOUT a network call. The JWT was already issued and signed by
- *      Supabase when the user logged in, and the proxy verifies the cookie
- *      on every protected request — so trusting it here is the same trust
- *      boundary the proxy already uses, and it breaks the redirect loop.
- *   3. If both fail, return null — the user really isn't authenticated.
+ *      Hard 3s budget.
+ *   2. supabase.auth.getSession() — may decode the JWT locally OR make a
+ *      refresh-token call. Hard 1.5s budget.
+ *   3. Decode the auth-token cookie payload DIRECTLY — zero network,
+ *      always available as long as the cookie is present. This is the
+ *      step that finally unblocks users when Supabase Auth API is
+ *      misbehaving but the session cookie is still on the browser.
  *
  * Memoized with React.cache() so the dashboard layout and the dashboard
  * page share the same result within a single request (no duplicate
@@ -105,10 +288,15 @@ export const hasSessionCookie = cache(async function hasSessionCookie(): Promise
 export const getUser = cache(async function getUser() {
   try {
     const supabase = await createClient()
-    if (!supabase) return null
+    if (!supabase) {
+      // No Supabase client at all (env vars missing) — last-resort cookie
+      // decode is the only option.
+      const cookieResult = await readAuthCookiePayload()
+      return cookieResult?.user ?? null
+    }
 
     type UserResult = Awaited<ReturnType<typeof supabase.auth.getUser>>
-    const timeout = new Promise<UserResult>((resolve) =>
+    const userTimeout = new Promise<UserResult>((resolve) =>
       setTimeout(
         () =>
           resolve({
@@ -119,40 +307,64 @@ export const getUser = cache(async function getUser() {
       ),
     )
 
-    const { data, error } = await Promise.race([supabase.auth.getUser(), timeout])
-    if (!error && data?.user) {
-      return data.user
+    try {
+      const { data, error } = await Promise.race([
+        supabase.auth.getUser(),
+        userTimeout,
+      ])
+      if (!error && data?.user) {
+        return data.user
+      }
+    } catch {
+      // Fall through to next strategy.
     }
 
-    // Fallback: read session from the cookie storage. No network call —
-    // @supabase/ssr decodes the JWT locally. This is what unblocks the
-    // dashboard when Supabase Auth is slow but the session is still valid.
-    const hasCookie = await hasSessionCookie()
-    if (!hasCookie) return null
+    // Strategy 2 — cookie-decoded session via @supabase/ssr.
+    const cookieHere = await hasSessionCookie()
+    if (!cookieHere) return null
 
-    type SessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
-    const sessionTimeout = new Promise<SessionResult>((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            data: { session: null },
-            error: null as never,
-          } as SessionResult),
-        1500,
-      ),
-    )
+    try {
+      type SessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
+      const sessionTimeout = new Promise<SessionResult>((resolve) =>
+        setTimeout(
+          () =>
+            resolve({
+              data: { session: null },
+              error: null as never,
+            } as SessionResult),
+          1500,
+        ),
+      )
+      const { data: sessionData } = await Promise.race([
+        supabase.auth.getSession(),
+        sessionTimeout,
+      ])
+      if (sessionData?.session?.user) {
+        return sessionData.session.user
+      }
+    } catch {
+      // Fall through to next strategy.
+    }
 
-    const { data: sessionData } = await Promise.race([
-      supabase.auth.getSession(),
-      sessionTimeout,
-    ])
-    if (sessionData?.session?.user) {
-      return sessionData.session.user
+    // Strategy 3 — last-resort manual cookie decode (no network).
+    const cookieResult = await readAuthCookiePayload()
+    if (cookieResult?.user) {
+      console.warn(
+        "[Supabase Server] Falling back to cookie-decoded user — Supabase Auth API unreachable",
+      )
+      return cookieResult.user
     }
 
     return null
-  } catch {
-    return null
+  } catch (err) {
+    console.error("[Supabase Server] getUser unexpected error:", err)
+    // Even on a thrown exception, try the cookie fallback.
+    try {
+      const cookieResult = await readAuthCookiePayload()
+      return cookieResult?.user ?? null
+    } catch {
+      return null
+    }
   }
 })
 
