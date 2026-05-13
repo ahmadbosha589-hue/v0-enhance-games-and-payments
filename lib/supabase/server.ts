@@ -57,13 +57,53 @@ export async function getUser() {
   try {
     const supabase = await createClient()
     if (!supabase) return null
-    const { data, error } = await supabase.auth.getUser()
+
+    // Hard timeout on supabase.auth.getUser() — without this, a slow or
+    // unresponsive Supabase Auth endpoint would block server-rendered
+    // pages indefinitely (the dashboard layout was hanging forever in
+    // this exact spot, which presented to the user as "logged out after
+    // 5 seconds"). 4s is enough for any healthy cold start while still
+    // bounding the worst case.
+    type UserResult = Awaited<ReturnType<typeof supabase.auth.getUser>>
+    const timeout = new Promise<UserResult>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            data: { user: null },
+            error: new Error("getUser timeout") as never,
+          } as UserResult),
+        4000,
+      ),
+    )
+
+    const { data, error } = await Promise.race([supabase.auth.getUser(), timeout])
     if (error || !data?.user) {
       return null
     }
     return data.user
   } catch {
     return null
+  }
+}
+
+/**
+ * Detect whether the current request carries a Supabase session cookie.
+ * Used as a "soft" auth signal for resilience: if getUser() times out due
+ * to a slow Supabase Auth API but a session cookie is present, we prefer
+ * to render the page (and let the client re-validate) rather than bounce
+ * the user to /auth/login on a transient network blip.
+ */
+export async function hasSessionCookie(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies()
+    return cookieStore
+      .getAll()
+      .some(
+        (c) =>
+          c.name.startsWith("sb-") && c.name.includes("-auth-token") && !!c.value,
+      )
+  } catch {
+    return false
   }
 }
 

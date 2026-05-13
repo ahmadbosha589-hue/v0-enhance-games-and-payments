@@ -59,60 +59,53 @@ export async function updateSession(request: NextRequest) {
       },
     })
 
-    // Kick off (and AWAIT) getUser() so @supabase/ssr can refresh the
-    // access token cookie if it's near expiry. We cap the await at 5s
-    // (was 1.5s — too aggressive: it timed out before Supabase could
-    // refresh the token cookie on cold starts, leaving the user with
-    // cookies the server kept rejecting → /dashboard → /auth/login →
-    // /dashboard infinite loop). 5s is enough for any reasonable cold
-    // start while still preventing a totally-dead Supabase from blocking
-    // every navigation.
-    let verifiedUser: { id: string } | null = null
+    // ────────────────────────────────────────────────────────────────────
+    // CRITICAL ARCHITECTURE: routing decisions use ONLY cookie presence.
+    // We do NOT await getUser() here. Awaiting it caused 5+ second hangs
+    // on every navigation when Supabase Auth was slow (which immediately
+    // followed by the dashboard layout doing ANOTHER unbounded getUser(),
+    // appearing to the user as "logged out after 5 seconds").
+    //
+    // We still need supabase.auth.getUser() to be CALLED — that's how
+    // @supabase/ssr refreshes the access-token cookie when it's near
+    // expiry. We kick it off with a short 2-second budget purely for the
+    // side-effect of writing refreshed cookies onto supabaseResponse via
+    // the setAll() callback above. If it doesn't finish in 2s, we don't
+    // care — the cookies stay as they are and the next request will try
+    // again. Routing is decided ONLY from hasSessionCookie.
+    // ────────────────────────────────────────────────────────────────────
     try {
-      const userPromise = supabase.auth.getUser()
-      const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((resolve) =>
-        setTimeout(
-          () => resolve({ data: { user: null }, error: new Error("Auth timeout") }),
-          5000
-        )
-      )
-      const result = await Promise.race([userPromise, timeoutPromise])
-      verifiedUser = result?.data?.user ?? null
+      await Promise.race([
+        supabase.auth.getUser(),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ])
     } catch {
-      // Network error — fall through to cookie-presence heuristic
+      // Best effort — ignore.
     }
 
-    // ── Decide auth state ──
-    // hasUser is true if EITHER we got a verified user OR a session cookie
-    // is present (we trust the cookie shape; if it's invalid the page itself
-    // will redirect via its own server-side getUser() check).
-    const hasUser = !!verifiedUser || hasSessionCookie
-
-    // Protected routes require auth
+    // Protected routes require auth — decided ONLY from cookie presence.
     const protectedPaths = ["/dashboard", "/admin"]
     const isProtectedPath = protectedPaths.some((path) =>
       request.nextUrl.pathname.startsWith(path)
     )
 
-    if (isProtectedPath && !hasUser) {
+    if (isProtectedPath && !hasSessionCookie) {
       const redirectUrl = request.nextUrl.clone()
       redirectUrl.pathname = "/auth/login"
       redirectUrl.searchParams.set("redirect", request.nextUrl.pathname)
       return NextResponse.redirect(redirectUrl)
     }
 
-    // Redirect logged-in users away from auth pages — but ONLY if we have a
-    // verified user. We do NOT redirect on cookie-presence alone, because a
-    // stale/expired cookie would bounce the user to /dashboard which then
-    // bounces them back, creating a loop. Letting the auth page render and
-    // run its own client-side check is the safe path on cookie-only state.
+    // Redirect logged-in users away from auth pages — based on cookie
+    // presence. The auth page itself runs a server-side /api/auth/me check
+    // and will redirect if the session is actually valid; if it's a stale
+    // cookie, the auth page renders and lets the user re-authenticate.
     const authPaths = ["/auth/login", "/auth/sign-up"]
     const isAuthPath = authPaths.some((path) => request.nextUrl.pathname.startsWith(path))
 
-    if (isAuthPath && verifiedUser) {
+    if (isAuthPath && hasSessionCookie) {
       const redirectUrl = request.nextUrl.clone()
       const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard"
-      // Sanitize: never redirect back to an auth page (loop guard)
       const safeTarget =
         redirectTo.startsWith("/auth/") || !redirectTo.startsWith("/")
           ? "/dashboard"

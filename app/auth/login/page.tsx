@@ -144,7 +144,7 @@ export default function LoginPage() {
     // sets isManualLoginRef.current = true so we skip the duplicate redirect.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { id: string } } | null) => {
       if (cancelled) return
       if (event !== "SIGNED_IN") return
       if (!session?.user) return
