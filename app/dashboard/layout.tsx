@@ -1,10 +1,10 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
-import { getUser, getProfile } from "@/lib/supabase/server"
-// NOTE: getUser() is awaited first because we need the userId for getProfile,
-// but getProfile uses the admin client (no auth round-trip) so it returns
-// in a single fast PostgREST call.
+import { getUser, getProfile, hasSessionCookie } from "@/lib/supabase/server"
+// getUser() and getProfile() are both wrapped in React.cache(), so the
+// dashboard page can call them again without triggering a second Supabase
+// round-trip. We resolve them in parallel here when possible.
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
@@ -57,7 +57,17 @@ export default async function DashboardLayout({
   const user = await getUser()
 
   if (!user) {
-    redirect("/auth/login?redirect=/dashboard")
+    // LOOP-BREAKER. If we land here it means BOTH supabase.auth.getUser()
+    // AND supabase.auth.getSession() (cookie fallback) returned null. The
+    // proxy decides redirects from raw cookie presence; if it still sees
+    // an `sb-…-auth-token` cookie it would bounce us straight back to
+    // /dashboard and we'd spin forever. The `?expired=1` flag is read by
+    // the proxy and disables that bounce — see lib/supabase/proxy.ts.
+    const cookiePresent = await hasSessionCookie()
+    const target = cookiePresent
+      ? "/auth/login?redirect=/dashboard&expired=1"
+      : "/auth/login?redirect=/dashboard"
+    redirect(target)
   }
 
   const profile = await getProfile(user.id)

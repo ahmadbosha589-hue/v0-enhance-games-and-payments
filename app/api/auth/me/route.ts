@@ -1,31 +1,34 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { getUser, getProfile } from "@/lib/supabase/server"
+
+// Always re-evaluate per request — the response depends on the session cookie.
+export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-
-    if (!supabase) {
+    // Resilient getUser(): falls back to cookie-decoded session when the
+    // Supabase Auth API is slow, so this endpoint never hangs the dashboard
+    // or login page on a transient upstream blip.
+    const user = await getUser()
+    if (!user) {
       return NextResponse.json({ user: null }, { status: 200 })
     }
 
-    const { data: { user }, error } = await supabase.auth.getUser()
+    const profile = await getProfile(user.id)
 
-    if (error || !user) {
-      return NextResponse.json({ user: null }, { status: 200 })
-    }
-
-    // Also fetch the profile
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single()
-
-    return NextResponse.json({
-      user,
-      profile: profile ?? null
-    }, { status: 200 })
+    return NextResponse.json(
+      {
+        user,
+        profile: profile ?? null,
+      },
+      {
+        status: 200,
+        headers: {
+          // Never let an intermediary cache the auth state of a user.
+          "Cache-Control": "private, no-store, no-cache, must-revalidate",
+        },
+      },
+    )
   } catch {
     return NextResponse.json({ user: null }, { status: 200 })
   }

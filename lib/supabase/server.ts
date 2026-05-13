@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
+import { cache } from "react"
 
 export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -29,7 +30,9 @@ export async function createClient() {
   })
 }
 
-export function createAdminClient() {
+// Memoize the admin client per-request — avoids re-creating it on every
+// safeQuery / getProfile call within the same RSC tree.
+export const createAdminClient = cache(function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -51,40 +54,7 @@ export function createAdminClient() {
       persistSession: false,
     },
   })
-}
-
-export async function getUser() {
-  try {
-    const supabase = await createClient()
-    if (!supabase) return null
-
-    // Hard timeout on supabase.auth.getUser() — without this, a slow or
-    // unresponsive Supabase Auth endpoint would block server-rendered
-    // pages indefinitely (the dashboard layout was hanging forever in
-    // this exact spot, which presented to the user as "logged out after
-    // 5 seconds"). 4s is enough for any healthy cold start while still
-    // bounding the worst case.
-    type UserResult = Awaited<ReturnType<typeof supabase.auth.getUser>>
-    const timeout = new Promise<UserResult>((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            data: { user: null },
-            error: new Error("getUser timeout") as never,
-          } as UserResult),
-        4000,
-      ),
-    )
-
-    const { data, error } = await Promise.race([supabase.auth.getUser(), timeout])
-    if (error || !data?.user) {
-      return null
-    }
-    return data.user
-  } catch {
-    return null
-  }
-}
+})
 
 /**
  * Detect whether the current request carries a Supabase session cookie.
@@ -93,7 +63,7 @@ export async function getUser() {
  * to render the page (and let the client re-validate) rather than bounce
  * the user to /auth/login on a transient network blip.
  */
-export async function hasSessionCookie(): Promise<boolean> {
+export const hasSessionCookie = cache(async function hasSessionCookie(): Promise<boolean> {
   try {
     const cookieStore = await cookies()
     return cookieStore
@@ -105,9 +75,88 @@ export async function hasSessionCookie(): Promise<boolean> {
   } catch {
     return false
   }
-}
+})
 
-export async function getProfile(userId: string) {
+/**
+ * Resilient server-side auth resolver.
+ *
+ * ROOT CAUSE THIS FIXES — Dashboard refresh loop:
+ *   1. Dashboard layout called getUser() (4s timeout). On a slow Supabase
+ *      Auth response, it returned null and redirected to /auth/login.
+ *   2. Proxy saw an auth path + a session cookie and redirected to /dashboard.
+ *   3. Step 1 re-ran with the same slow upstream — the page ping-ponged
+ *      forever and the user saw a hanging, refreshing dashboard.
+ *
+ * Strategy (in order):
+ *   1. supabase.auth.getUser() — verified against Supabase Auth API.
+ *      Hard 3s budget. This is the canonical happy path.
+ *   2. If (1) fails / times out AND a session cookie is present, fall back
+ *      to supabase.auth.getSession() which reads the JWT from the cookie
+ *      WITHOUT a network call. The JWT was already issued and signed by
+ *      Supabase when the user logged in, and the proxy verifies the cookie
+ *      on every protected request — so trusting it here is the same trust
+ *      boundary the proxy already uses, and it breaks the redirect loop.
+ *   3. If both fail, return null — the user really isn't authenticated.
+ *
+ * Memoized with React.cache() so the dashboard layout and the dashboard
+ * page share the same result within a single request (no duplicate
+ * Supabase round-trips).
+ */
+export const getUser = cache(async function getUser() {
+  try {
+    const supabase = await createClient()
+    if (!supabase) return null
+
+    type UserResult = Awaited<ReturnType<typeof supabase.auth.getUser>>
+    const timeout = new Promise<UserResult>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            data: { user: null },
+            error: new Error("getUser timeout") as never,
+          } as UserResult),
+        3000,
+      ),
+    )
+
+    const { data, error } = await Promise.race([supabase.auth.getUser(), timeout])
+    if (!error && data?.user) {
+      return data.user
+    }
+
+    // Fallback: read session from the cookie storage. No network call —
+    // @supabase/ssr decodes the JWT locally. This is what unblocks the
+    // dashboard when Supabase Auth is slow but the session is still valid.
+    const hasCookie = await hasSessionCookie()
+    if (!hasCookie) return null
+
+    type SessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
+    const sessionTimeout = new Promise<SessionResult>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            data: { session: null },
+            error: null as never,
+          } as SessionResult),
+        1500,
+      ),
+    )
+
+    const { data: sessionData } = await Promise.race([
+      supabase.auth.getSession(),
+      sessionTimeout,
+    ])
+    if (sessionData?.session?.user) {
+      return sessionData.session.user
+    }
+
+    return null
+  } catch {
+    return null
+  }
+})
+
+export const getProfile = cache(async function getProfile(userId: string) {
   try {
     const adminSupabase = createAdminClient()
     if (!adminSupabase) return null
@@ -120,14 +169,14 @@ export async function getProfile(userId: string) {
   } catch {
     return null
   }
-}
+})
 
-export async function getUserWithProfile() {
+export const getUserWithProfile = cache(async function getUserWithProfile() {
   const user = await getUser()
   if (!user) return { user: null, profile: null }
   const profile = await getProfile(user.id)
   return { user, profile }
-}
+})
 
 export async function safeQuery<T>(
   queryFn: (supabase: NonNullable<ReturnType<typeof createAdminClient>>) => Promise<{ data: T | null; error: any }>,

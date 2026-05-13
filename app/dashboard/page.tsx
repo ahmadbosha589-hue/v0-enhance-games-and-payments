@@ -131,8 +131,13 @@ function TransactionsSkeleton() {
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage() {
+  // getUser() and getProfile() are React.cache()'d in lib/supabase/server.ts,
+  // so these calls re-use the work the dashboard layout already did for this
+  // same request — no duplicate Supabase round-trips. The layout has already
+  // gated access (redirected on null user), so the null-check here is a
+  // defensive guard, not a second auth check.
   const user = await getUser()
-  if (!user) redirect("/auth/login")
+  if (!user) redirect("/auth/login?redirect=/dashboard&expired=1")
 
   const profile = await getProfile(user.id)
 

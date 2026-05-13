@@ -100,10 +100,32 @@ export async function updateSession(request: NextRequest) {
     // presence. The auth page itself runs a server-side /api/auth/me check
     // and will redirect if the session is actually valid; if it's a stale
     // cookie, the auth page renders and lets the user re-authenticate.
+    //
+    // LOOP BREAKERS (critical — these prevent the
+    // /dashboard → /auth/login → /dashboard → … infinite refresh loop):
+    //
+    //   1. `?expired=1` — set by the dashboard layout when its own
+    //      getUser() call cannot resolve a real user. That signals the
+    //      session cookie is stale/broken even though it exists. We MUST
+    //      let the user actually reach /auth/login in that case, not
+    //      bounce them back to the dashboard.
+    //
+    //   2. `?signedOut=…` — set on landing-page redirects right after
+    //      sign-out, while the browser may still hold the cookie for a
+    //      tick. Same rule: don't bounce.
+    //
+    //   3. `?error=…` — preserve any explicit auth error path
+    //      (bot_detected, banned, etc.) so the auth page can render the
+    //      error UI.
     const authPaths = ["/auth/login", "/auth/sign-up"]
     const isAuthPath = authPaths.some((path) => request.nextUrl.pathname.startsWith(path))
+    const authSearch = request.nextUrl.searchParams
+    const isLoopBreaker =
+      authSearch.has("expired") ||
+      authSearch.has("signedOut") ||
+      authSearch.has("error")
 
-    if (isAuthPath && hasSessionCookie) {
+    if (isAuthPath && hasSessionCookie && !isLoopBreaker) {
       const redirectUrl = request.nextUrl.clone()
       const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard"
       const safeTarget =
