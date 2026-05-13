@@ -15,12 +15,15 @@ import {
   AlertCircle,
   Trophy,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Shield,
+  Star,
+  Award,
 } from "lucide-react"
 import { getAuthUser } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
-import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
+import { CxUaBanner } from "@/components/ads/cx-ua-ads"
+import { cn } from "@/lib/utils"
 
 interface Shortlink {
   id: string
@@ -398,15 +401,98 @@ export default function ShortlinksPage() {
           </CardContent>
         </Card>
 
-        {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
-        <GoogleRewardedAds position="bottom" className="mt-6" />
+        {/* Trusted Shortlink Networks — real provider partners */}
+        <Card className="bg-gray-900/50 border-gray-800">
+          <CardHeader>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Shield className="h-5 w-5 text-cyan-400" />
+                  Trusted Shortlink Networks
+                </CardTitle>
+                <CardDescription>
+                  Industry-leading shortlink providers — verified, high-paying, instant credit
+                </CardDescription>
+              </div>
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30 shrink-0">
+                <Star className="h-3 w-3 mr-1" />
+                Verified Partners
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {SHORTLINK_PROVIDERS.map((provider) => (
+                <a
+                  key={provider.id}
+                  href={provider.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    "group relative p-4 rounded-xl border bg-gray-800/40 hover:bg-gray-800/70",
+                    "border-gray-700 hover:border-cyan-500/50 transition-all duration-200",
+                    "flex flex-col gap-2 overflow-hidden"
+                  )}
+                >
+                  {provider.featured && (
+                    <Badge className="absolute top-2 right-2 bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px]">
+                      <Award className="h-2.5 w-2.5 mr-0.5" />
+                      Top
+                    </Badge>
+                  )}
+                  <div className="flex items-center gap-2.5">
+                    <div className={cn(
+                      "w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0",
+                      provider.color
+                    )}>
+                      {provider.initials}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-white truncate group-hover:text-cyan-400 transition-colors">
+                        {provider.name}
+                      </p>
+                      <p className="text-[11px] text-gray-400 truncate">{provider.tagline}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-gray-400">{provider.cpm}</span>
+                    <span className="flex items-center gap-1 text-cyan-400 group-hover:gap-2 transition-all">
+                      Visit
+                      <ExternalLink className="h-3 w-3" />
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-4 text-center">
+              External partners — opens in a new tab. You earn from your own shortlink campaigns.
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* Spacer to separate Google Ads from other networks per policy */}
-        <div className="h-8" aria-hidden="true" />
-
-        {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
-        <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
+        {/* CX.UA featured banner — polished card placement matching the rest of the page */}
+        <CxUaBanner variant="card" />
       </div>
     </div>
   )
 }
+
+/**
+ * Curated list of trusted shortlink providers. Each links out to the real
+ * provider so users can monetize their own shortlinks through verified
+ * networks. CPM values are rough public-rate estimates for context.
+ */
+const SHORTLINK_PROVIDERS = [
+  { id: "shrinkme",   name: "ShrinkMe.io",   tagline: "Highest-paying URL shortener", url: "https://shrinkme.io",    initials: "SM", color: "bg-emerald-500", cpm: "Up to $22 CPM", featured: true  },
+  { id: "shrinkearn", name: "ShrinkEarn",    tagline: "Trusted since 2018",           url: "https://shrinkearn.com", initials: "SE", color: "bg-blue-500",    cpm: "Up to $20 CPM", featured: false },
+  { id: "ouo",        name: "Ouo.io",        tagline: "Fast & reliable redirects",    url: "https://ouo.io",         initials: "OU", color: "bg-amber-500",   cpm: "Up to $7 CPM",  featured: true  },
+  { id: "linkvertise",name: "Linkvertise",   tagline: "Premium rewards platform",     url: "https://linkvertise.com",initials: "LV", color: "bg-orange-500",  cpm: "Up to $5 CPM",  featured: false },
+  { id: "exeio",      name: "Exe.io",        tagline: "Bitcoin payouts available",    url: "https://exe.io",         initials: "EX", color: "bg-cyan-500",    cpm: "Up to $15 CPM", featured: false },
+  { id: "shorte",     name: "Shorte.st",     tagline: "Veteran shortlink network",    url: "https://shorte.st",      initials: "SH", color: "bg-pink-500",    cpm: "Up to $5 CPM",  featured: false },
+  { id: "shareus",    name: "ShareUs.io",    tagline: "Crypto-friendly shortener",    url: "https://shareus.io",     initials: "SU", color: "bg-indigo-500",  cpm: "Up to $10 CPM", featured: false },
+  { id: "stfly",      name: "Stfly.io",      tagline: "Free, fast, no signup",        url: "https://stfly.io",       initials: "ST", color: "bg-teal-500",    cpm: "Up to $9 CPM",  featured: false },
+  { id: "cuty",       name: "Cuty.io",       tagline: "Multi-tier earnings",          url: "https://cuty.io",        initials: "CY", color: "bg-rose-500",    cpm: "Up to $14 CPM", featured: false },
+  { id: "adfocus",    name: "AdFoc.us",      tagline: "Daily payouts",                url: "https://adfoc.us",       initials: "AF", color: "bg-red-500",     cpm: "Up to $8 CPM",  featured: false },
+  { id: "linkpays",   name: "LinkPays.in",   tagline: "Worldwide audience",           url: "https://linkpays.in",    initials: "LP", color: "bg-violet-500",  cpm: "Up to $12 CPM", featured: false },
+  { id: "clk",        name: "Clk.sh",        tagline: "Reliable, established",        url: "https://clk.sh",         initials: "CK", color: "bg-sky-500",     cpm: "Up to $11 CPM", featured: false },
+] as const

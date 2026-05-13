@@ -47,9 +47,10 @@ export default async function SupportUsPage() {
       <Alert className="border-red-500/30 bg-red-500/5">
         <Info className="h-4 w-4 text-red-500" />
         <AlertDescription className="text-xs sm:text-sm">
-          <strong>How it works:</strong> Click the button below to watch 3 ads simultaneously. Each ad
-          earns you <strong>$0.0003</strong> (approximately 3 satoshis), totaling <strong>$0.0009</strong> (~9 sats) per session.
-          You&apos;re directly supporting the platform while earning rewards!
+          <strong>How it works:</strong> Watch 3 ads simultaneously to earn <strong>$0.0001</strong> per
+          ad — <strong>$0.0003</strong> total per session. After claiming, scroll down to watch our 11
+          partner ad networks and <strong>triple your reward</strong> to <strong>$0.0009</strong> USDT
+          (sent straight to FaucetPay).
         </AlertDescription>
       </Alert>
 
@@ -63,7 +64,7 @@ export default async function SupportUsPage() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs text-muted-foreground">Reward Per Ad</p>
-                <p className="text-sm sm:text-lg font-bold text-green-500">$0.0003</p>
+                <p className="text-sm sm:text-lg font-bold text-green-500">$0.0001</p>
               </div>
             </div>
           </CardContent>

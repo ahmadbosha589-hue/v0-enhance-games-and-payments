@@ -4,12 +4,14 @@ import { cookies, headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { log } from "@/lib/logger"
 
-// Same reward as main claim - 0.0009 USDT
-const TOTAL_REWARD_USDT = 0.0009
+// Triple-reward bonus: base $0.0003 + bonus $0.0006 = $0.0009 total per session.
+// This endpoint sends ONLY the bonus ($0.0006) after the user watches the
+// extra 11 partner ad networks below the fold.
+const BONUS_REWARD_USDT = 0.0006
 // FaucetPay expects amounts in smallest unit (8 decimals for USDT)
-const TOTAL_REWARD_SMALLEST_UNIT = Math.floor(TOTAL_REWARD_USDT * 100000000) // 90000
+const TOTAL_REWARD_SMALLEST_UNIT = Math.floor(BONUS_REWARD_USDT * 100000000) // 60000
 const ADS_PER_SESSION = 3
-const COOLDOWN_SECONDS = 60 // 1 minute cooldown for double rewards
+const COOLDOWN_SECONDS = 60 // 1 minute cooldown for triple-reward bonus
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
 
 // Get FaucetPay API key from DB or env
@@ -247,7 +249,7 @@ export async function POST(request: NextRequest) {
         amount_satoshis: 0,
         claim_type: "support_us_double_faucetpay",
         metadata: {
-          usdt_amount: TOTAL_REWARD_USDT,
+          usdt_amount: BONUS_REWARD_USDT,
           faucetpay_payout_id: paymentResult.payoutId,
           ads_watched: adsWatched
         }
@@ -266,7 +268,7 @@ export async function POST(request: NextRequest) {
 
       if (existingStats) {
         await adminSupabase.from("support_stats").update({
-          total_support_earnings: (existingStats.total_support_earnings || 0) + TOTAL_REWARD_USDT,
+          total_support_earnings: (existingStats.total_support_earnings || 0) + BONUS_REWARD_USDT,
           updated_at: new Date().toISOString()
         }).eq("user_id", user.id)
       }
@@ -276,9 +278,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      bonusUSDT: TOTAL_REWARD_USDT,
+      bonusUSDT: BONUS_REWARD_USDT,
       payoutId: paymentResult.payoutId,
-      message: `${TOTAL_REWARD_USDT} USDT bonus sent to your FaucetPay account!`
+      message: `${BONUS_REWARD_USDT} USDT bonus sent to your FaucetPay account!`
     })
   } catch (error) {
     log.error("Support-us double reward error:", error)

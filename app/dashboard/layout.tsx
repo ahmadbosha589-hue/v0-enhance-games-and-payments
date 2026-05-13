@@ -12,6 +12,7 @@ import { PageAdsWrapper } from "@/components/ads/page-ads-wrapper"
 import { ServerTime } from "@/components/server-time"
 import { DeviceFingerprintProvider } from "@/components/security/device-fingerprint-provider"
 import { AntiBotProvider } from "@/components/security/anti-bot-provider"
+import { CxUaPopupLoader } from "@/components/ads/cx-ua-ads"
 
 export const metadata: Metadata = {
   title: {
@@ -83,6 +84,7 @@ export default async function DashboardLayout({
               </main>
               <ServerTime />
               <FloatingWithdrawalTicker />
+              <CxUaPopupLoader />
             </SidebarInset>
           </AdblockProvider>
         </AntiBotProvider>

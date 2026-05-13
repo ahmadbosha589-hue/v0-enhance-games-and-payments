@@ -12,11 +12,16 @@ import { PTCAdCard } from "@/components/dashboard/ptc-ad-card"
 import { OfferwallVPNGuard } from "@/components/dashboard/offerwall-vpn-guard"
 import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
+import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 
 export const metadata = {
   title: "PTC Ads | CryptoFaucet",
   description: "Watch ads and earn satoshis",
 }
+
+// Force dynamic rendering to avoid build-time data collection timeouts
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 interface PTCAd {
   id: string
@@ -335,6 +340,9 @@ export default async function PTCPage() {
 
         {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
         <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
+
+        {/* CX.UA featured partner banner — placed between the 11 networks and footer for visibility */}
+        <CxUaBanner variant="card" className="mt-6" />
       </OfferwallVPNGuard>
     </div>
   )

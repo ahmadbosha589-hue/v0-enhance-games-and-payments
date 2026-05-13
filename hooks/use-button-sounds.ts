@@ -178,7 +178,7 @@ export function useButtonSounds() {
 }
 
 // Context provider for global sound settings
-import { createContext, useContext, type ReactNode } from "react"
+import { createContext, createElement, useContext, type ReactNode } from "react"
 
 interface SoundContextValue {
   playSound: (type: SoundType) => void
@@ -192,19 +192,15 @@ const SoundContext = createContext<SoundContextValue | null>(null)
 export function SoundProvider({ children }: { children: ReactNode }) {
   const sounds = useButtonSounds()
 
-  return (
-    <SoundContext.Provider
-      value= {{
+  const value: SoundContextValue = {
     playSound: sounds.playSound,
-      soundEnabled: sounds.soundEnabled,
-        toggleSound: sounds.toggleSound,
-          setSound: sounds.setSound,
-      }
-}
-    >
-  { children }
-  </SoundContext.Provider>
-  )
+    soundEnabled: sounds.soundEnabled,
+    toggleSound: sounds.toggleSound,
+    setSound: sounds.setSound,
+  }
+
+  // Using createElement so this file can stay a .ts module without JSX.
+  return createElement(SoundContext.Provider, { value }, children)
 }
 
 export function useSounds() {
@@ -212,10 +208,10 @@ export function useSounds() {
   if (!context) {
     // Return a no-op version if used outside provider
     return {
-      playSound: () => { },
+      playSound: () => {},
       soundEnabled: false,
-      toggleSound: () => { },
-      setSound: () => { },
+      toggleSound: () => {},
+      setSound: () => {},
     }
   }
   return context

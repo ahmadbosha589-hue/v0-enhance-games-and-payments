@@ -4,12 +4,14 @@ import { cookies, headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { log } from "@/lib/logger"
 
-// $0.0003 per ad, 3 ads = $0.0009 total per session
-const REWARD_PER_AD_USD = 0.0003
+// $0.0001 per ad, 3 ads = $0.0003 total per session
+// Users can scroll down and watch the 11 partner ad networks to TRIPLE
+// their reward to $0.0009 via the /api/support-us/double endpoint (bonus $0.0006).
+const REWARD_PER_AD_USD = 0.0001
 const ADS_PER_SESSION = 3
-const TOTAL_REWARD_USDT = 0.0009 // 0.0009 USDT sent to FaucetPay
+const TOTAL_REWARD_USDT = 0.0003 // 0.0003 USDT sent to FaucetPay
 // FaucetPay expects amounts in smallest unit (satoshis for BTC, 8 decimals for USDT)
-const TOTAL_REWARD_SMALLEST_UNIT = Math.floor(TOTAL_REWARD_USDT * 100000000) // 90000
+const TOTAL_REWARD_SMALLEST_UNIT = Math.floor(TOTAL_REWARD_USDT * 100000000) // 30000
 const COOLDOWN_SECONDS = 120 // 2 minute cooldown between sessions
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
 

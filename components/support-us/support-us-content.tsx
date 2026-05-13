@@ -9,13 +9,15 @@ import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Play, Pause, Heart, Coins, Clock, CheckCircle2,
-  TrendingUp, Sparkles, Volume2, VolumeX, X, RefreshCw, AlertTriangle
+  TrendingUp, Sparkles, Volume2, VolumeX, X, RefreshCw, AlertTriangle,
+  ArrowDown, Rocket, Zap,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import confetti from "canvas-confetti"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
+import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 
 interface SupportUsContentProps {
   userId: string
@@ -36,11 +38,16 @@ const AD_NETWORKS = [
   { id: "adskeeper", name: "AdsKeeper", color: "bg-emerald-500" },
 ] as const
 
-// $0.0003 per ad, 3 ads = $0.0009 USDT sent to FaucetPay
-const REWARD_PER_AD_USD = 0.0003 // USD per ad
-const TOTAL_REWARD_USDT = 0.0009 // Total USDT per session
+// $0.0001 per ad — 3 ads = $0.0003 base USDT sent to FaucetPay.
+// After claim, the user can scroll to the 11-network section and watch
+// them to triple their reward (bonus of $0.0006 → total $0.0009 USDT).
+const REWARD_PER_AD_USD = 0.0001 // USD per ad
+const TOTAL_REWARD_USDT = 0.0003 // Base session total
+const TRIPLE_BONUS_USDT = 0.0006 // Bonus sent on "triple" claim
+const TRIPLED_TOTAL_USDT = 0.0009 // Final total after triple
 const AD_DURATION = 60 // seconds
 const ADS_PER_SESSION = 3 // 3 ads running simultaneously
+const PARTNER_AD_WATCH_SECONDS = 30 // seconds the user must keep partner section visible
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -61,7 +68,15 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
   const [isClaiming, setIsClaiming] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
 
+  // Triple-reward flow state (replaces "double" modal)
+  const [hasClaimedBase, setHasClaimedBase] = useState(false)
+  const [tripleClaimed, setTripleClaimed] = useState(false)
+  const [partnerWatchProgress, setPartnerWatchProgress] = useState(0) // 0..100
+  const [partnerWatchUnlocked, setPartnerWatchUnlocked] = useState(false)
+
   const modalRef = useRef<HTMLDivElement>(null)
+  const partnerSectionRef = useRef<HTMLDivElement>(null)
+  const partnerWatchSecondsRef = useRef<number>(0)
 
   // Fetch user's support stats
   const { data: statsData, mutate } = useSWR(
@@ -106,6 +121,52 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
       document.body.style.top = ""
     }
   }, [isWatching, hasStarted])
+
+  // Track partner-network watch progress AFTER the base reward is claimed.
+  // Uses IntersectionObserver + tab visibility so we only count seconds while
+  // the section is on screen and the page is focused. Once PARTNER_AD_WATCH_SECONDS
+  // is reached we unlock the "Triple Reward" CTA.
+  useEffect(() => {
+    if (!hasClaimedBase || tripleClaimed || partnerWatchUnlocked) return
+
+    const el = partnerSectionRef.current
+    if (!el) return
+
+    let intersecting = false
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        intersecting = entry.isIntersecting && entry.intersectionRatio > 0.25
+      },
+      { threshold: [0, 0.25, 0.5, 0.75, 1] }
+    )
+    observer.observe(el)
+
+    const interval = setInterval(() => {
+      if (!intersecting) return
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+
+      partnerWatchSecondsRef.current = Math.min(
+        partnerWatchSecondsRef.current + 1,
+        PARTNER_AD_WATCH_SECONDS
+      )
+      const pct = Math.round(
+        (partnerWatchSecondsRef.current / PARTNER_AD_WATCH_SECONDS) * 100
+      )
+      setPartnerWatchProgress(pct)
+
+      if (partnerWatchSecondsRef.current >= PARTNER_AD_WATCH_SECONDS) {
+        setPartnerWatchUnlocked(true)
+        toast.success("Triple Reward unlocked!", {
+          description: "Click the button below to claim your $0.0006 bonus."
+        })
+      }
+    }, 1000)
+
+    return () => {
+      observer.disconnect()
+      clearInterval(interval)
+    }
+  }, [hasClaimedBase, tripleClaimed, partnerWatchUnlocked])
 
   // Page visibility detection - pause when user leaves the page
   useEffect(() => {
@@ -199,9 +260,11 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
 
       if (response.ok && data.success) {
         setAdsWatchedToday(prev => prev + ADS_PER_SESSION)
+        setLastSessionEarnings(TOTAL_REWARD_USDT)
 
-        toast.success(`${TOTAL_REWARD_USDT} USDT sent to FaucetPay!`, {
-          description: data.message || "Check your FaucetPay account"
+        toast.success(`$${TOTAL_REWARD_USDT} USDT sent to FaucetPay!`, {
+          description: "Scroll down to TRIPLE your reward to $0.0009 USDT",
+          duration: 6000
         })
 
         confetti({
@@ -210,7 +273,7 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
           origin: { y: 0.6 }
         })
 
-        // Reset for next session
+        // Reset ad session UI
         setIsWatching(false)
         setHasStarted(false)
         setAllCompleted(false)
@@ -219,8 +282,17 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         setAdProgress(Array(ADS_PER_SESSION).fill(0))
         setTimeRemaining(Array(ADS_PER_SESSION).fill(AD_DURATION))
 
-        // Show double reward option
-        setShowDoubleReward(true)
+        // Unlock the triple-reward flow and auto-scroll to the partner section
+        setHasClaimedBase(true)
+        setTripleClaimed(false)
+        setPartnerWatchUnlocked(false)
+        setPartnerWatchProgress(0)
+        partnerWatchSecondsRef.current = 0
+
+        // Smoothly scroll to the partner-network section so the user knows to watch
+        setTimeout(() => {
+          partnerSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }, 600)
 
         mutate()
       } else {
@@ -234,8 +306,8 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     }
   }
 
-  const handleClaimDoubleReward = async () => {
-    if (isClaiming) return
+  const handleClaimTripleReward = async () => {
+    if (isClaiming || !partnerWatchUnlocked || tripleClaimed) return
     setIsClaiming(true)
 
     try {
@@ -250,24 +322,30 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
       const data = await response.json()
 
       if (response.ok && data.success) {
-        toast.success(`${TOTAL_REWARD_USDT} USDT bonus sent to FaucetPay!`, {
-          description: data.message || "Check your FaucetPay account"
+        toast.success(`+$${TRIPLE_BONUS_USDT} USDT bonus sent — total this session: $${TRIPLED_TOTAL_USDT}!`, {
+          description: data.message || "Check your FaucetPay account",
+          duration: 6000
         })
 
         confetti({
-          particleCount: 150,
-          spread: 100,
+          particleCount: 180,
+          spread: 110,
           origin: { y: 0.5 }
         })
 
+        setTripleClaimed(true)
         setShowDoubleReward(false)
+        // Reset the partner-watch tracker so it can run again next session
+        setHasClaimedBase(false)
+        setPartnerWatchProgress(0)
+        partnerWatchSecondsRef.current = 0
         mutate()
       } else {
-        toast.error(data.error || "Failed to claim double reward")
+        toast.error(data.error || "Failed to claim triple reward")
       }
     } catch (error) {
-      console.error("Failed to claim double reward:", error)
-      toast.error("Failed to claim double reward")
+      console.error("Failed to claim triple reward:", error)
+      toast.error("Failed to claim triple reward")
     } finally {
       setIsClaiming(false)
     }
@@ -638,18 +716,129 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         </Card>
       </div>
 
-      {/* 11 Ad Networks - REAL AD IMPRESSIONS */}
-      <Card className="border-muted">
+      {/* Post-claim scroll prompt */}
+      {hasClaimedBase && !tripleClaimed && (
+        <Alert className="border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 animate-in fade-in slide-in-from-top-2">
+          <Rocket className="h-4 w-4 text-amber-500" />
+          <AlertTitle className="text-amber-600 dark:text-amber-400 flex items-center gap-2">
+            <span>Triple Your Reward — Scroll Down</span>
+            <ArrowDown className="h-4 w-4 animate-bounce" />
+          </AlertTitle>
+          <AlertDescription className="text-xs sm:text-sm">
+            You just claimed <strong>${TOTAL_REWARD_USDT} USDT</strong>. Keep the 11 Partner Ad Networks
+            section below in view for {PARTNER_AD_WATCH_SECONDS}s to unlock an extra{" "}
+            <strong>${TRIPLE_BONUS_USDT} USDT</strong> bonus — a total of{" "}
+            <strong>${TRIPLED_TOTAL_USDT} USDT</strong> for this session.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* 11 Ad Networks — Triple Reward zone */}
+      <Card
+        ref={partnerSectionRef}
+        className={cn(
+          "transition-all duration-500",
+          hasClaimedBase && !tripleClaimed
+            ? "border-2 border-amber-500/50 shadow-[0_0_30px_-12px_rgba(245,158,11,0.4)]"
+            : "border-muted"
+        )}
+      >
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            11 Partner Ad Networks
-          </CardTitle>
-          <CardDescription className="text-xs">
-            All 11 partner networks displaying below - you earn impressions while browsing this page
-          </CardDescription>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className={cn(
+                  "h-5 w-5",
+                  hasClaimedBase && !tripleClaimed ? "text-amber-500" : "text-primary"
+                )} />
+                11 Partner Ad Networks
+                {hasClaimedBase && !tripleClaimed && (
+                  <Badge className="bg-amber-500 text-white text-[10px] gap-1">
+                    <Zap className="h-2.5 w-2.5" />
+                    Triple Reward Active
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {hasClaimedBase && !tripleClaimed
+                  ? `Keep this section visible to unlock +$${TRIPLE_BONUS_USDT} USDT bonus`
+                  : "All 11 partner networks displaying — you earn impressions while browsing"}
+              </CardDescription>
+            </div>
+
+            {hasClaimedBase && !tripleClaimed && (
+              <div className="flex flex-col items-end gap-1 min-w-[140px]">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {partnerWatchUnlocked ? "Unlocked" : "Watching"}
+                </span>
+                <Progress
+                  value={partnerWatchProgress}
+                  className={cn(
+                    "h-2 w-32 sm:w-40",
+                    partnerWatchUnlocked && "[&>div]:bg-green-500"
+                  )}
+                />
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {Math.min(
+                    PARTNER_AD_WATCH_SECONDS,
+                    Math.round((partnerWatchProgress / 100) * PARTNER_AD_WATCH_SECONDS)
+                  )}s / {PARTNER_AD_WATCH_SECONDS}s
+                </span>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Triple Reward CTA — only shown after base claim */}
+          {hasClaimedBase && !tripleClaimed && (
+            <div className="p-3 sm:p-4 rounded-lg bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-500/30">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <Rocket className="h-4 w-4 text-amber-500" />
+                    {partnerWatchUnlocked ? "Bonus ready to claim!" : "Triple Reward Unlocking..."}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Base ${TOTAL_REWARD_USDT} already sent · Bonus{" "}
+                    <span className="text-amber-500 font-semibold">+${TRIPLE_BONUS_USDT}</span> ·
+                    Total <span className="text-green-500 font-semibold">${TRIPLED_TOTAL_USDT}</span>
+                  </p>
+                </div>
+                <Button
+                  onClick={handleClaimTripleReward}
+                  disabled={!partnerWatchUnlocked || isClaiming}
+                  className={cn(
+                    "gap-2 shrink-0",
+                    partnerWatchUnlocked
+                      ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 animate-pulse"
+                      : ""
+                  )}
+                >
+                  {isClaiming ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : partnerWatchUnlocked ? (
+                    <>
+                      <Coins className="h-4 w-4" />
+                      Claim +${TRIPLE_BONUS_USDT} Bonus
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-4 w-4" />
+                      {Math.max(
+                        0,
+                        PARTNER_AD_WATCH_SECONDS -
+                          Math.round((partnerWatchProgress / 100) * PARTNER_AD_WATCH_SECONDS)
+                      )}s to unlock
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Actual MultiNetworkAds component with real ad scripts */}
           <MultiNetworkAds
             position="content"
@@ -658,6 +847,9 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             lazyLoad={false}
             priority="high"
           />
+
+          {/* CX.UA banner — sits neatly between the 11 networks and the legend */}
+          <CxUaBanner variant="compact" className="mt-2" />
 
           {/* Network legend */}
           <div className="pt-3 border-t">
@@ -673,6 +865,11 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
                   {network.name}
                 </Badge>
               ))}
+              {/* CX.UA listed alongside as a 12th partner */}
+              <Badge variant="outline" className="text-[10px] gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                CX.UA
+              </Badge>
             </div>
           </div>
         </CardContent>
@@ -683,63 +880,11 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         <Sparkles className="h-4 w-4 text-amber-500" />
         <AlertTitle className="text-amber-600 dark:text-amber-400">Pro Tip</AlertTitle>
         <AlertDescription className="text-xs sm:text-sm">
-          All 3 ads run simultaneously, so you only wait 60 seconds total! After claiming, you can
-          watch more ads to double your reward. Keep this tab open and let the ads run through all 11 networks.
+          All 3 ads run simultaneously, so you only wait 60 seconds total. After claiming the base{" "}
+          ${TOTAL_REWARD_USDT}, scroll to the 11 Partner Networks section and keep it visible for{" "}
+          {PARTNER_AD_WATCH_SECONDS} seconds to TRIPLE your reward to ${TRIPLED_TOTAL_USDT} USDT.
         </AlertDescription>
       </Alert>
-
-      {/* Double Reward Modal */}
-      {showDoubleReward && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-md border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-5 w-5 text-amber-500" />
-                Double Your Reward!
-              </CardTitle>
-              <CardDescription>
-                Watch another ad session to double your earnings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 rounded-lg bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 text-center">
-                <p className="text-sm text-muted-foreground mb-1">You earned</p>
-                <p className="text-3xl font-bold text-green-500">{lastSessionEarnings} sats</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Claim double to get +{lastSessionEarnings} more!
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setShowDoubleReward(false)}
-                >
-                  Skip
-                </Button>
-                <Button
-                  className="flex-1 gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-                  onClick={handleClaimDoubleReward}
-                  disabled={isClaiming}
-                >
-                  {isClaiming ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Claiming...
-                    </>
-                  ) : (
-                    <>
-                      <Coins className="h-4 w-4" />
-                      Double Reward
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   )
 }
