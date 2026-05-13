@@ -451,3 +451,52 @@ export function clearGracePeriod(): void {
     localStorage.removeItem("__adblock_disabled_at")
   } catch {}
 }
+
+// =============================================================================
+// v17.0 — SELF-HEALING (FALSE POSITIVE RECOVERY)
+// =============================================================================
+//
+// When the detection cycle observes a "definitively clean" page (all controls
+// visible, zero baits hidden, no fetches blocked, no DNS blocks) while the
+// session/server flag is still set, we have evidence the flag was stale or a
+// false positive. After N consecutive clean cycles, the hook calls
+// `markSelfHealed()` and the local + server flags are cleared.
+//
+// Subsequent server hydrations within `SELF_HEAL_WINDOW_MS` are suppressed so
+// the just-cleared server flag doesn't flap the modal back into view.
+// =============================================================================
+
+const SELF_HEAL_KEY = "__adblock_self_healed_at"
+/** How long (ms) to suppress server re-hydration after a successful self-heal */
+export const SELF_HEAL_WINDOW_MS = 5 * 60 * 1000 // 5 minutes — long enough for server to settle
+
+export function markSelfHealed(): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(SELF_HEAL_KEY, Date.now().toString())
+  } catch {}
+  // Clear all local flag state and broadcast the cleared state so every tab
+  // and the AdblockProvider drop the modal immediately.
+  clearAllAdblockState()
+}
+
+export function wasRecentlySelfHealed(windowMs: number = SELF_HEAL_WINDOW_MS): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    const v = localStorage.getItem(SELF_HEAL_KEY)
+    if (!v) return false
+    const ts = Number.parseInt(v, 10)
+    if (Number.isNaN(ts)) return false
+    if (Date.now() - ts < windowMs) return true
+    // Expired — clean up
+    localStorage.removeItem(SELF_HEAL_KEY)
+  } catch {}
+  return false
+}
+
+export function clearSelfHealedMark(): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.removeItem(SELF_HEAL_KEY)
+  } catch {}
+}

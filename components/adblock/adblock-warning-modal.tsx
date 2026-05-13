@@ -72,6 +72,17 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
         clearInterval(timerRef.current)
         timerRef.current = null
       }
+      // v17.0 SELF-HEAL — when the detection hook reports the page is now
+      // clean, drop the red "Account Flagged" modal too. The hook only
+      // reaches `!isDetected` after the self-heal recovery loop has both:
+      //   • observed 2+ consecutive definitively-clean detection cycles
+      //   • POSTed /api/adblock/clear, which the server independently
+      //     re-verifies before clearing
+      // so this transition is a high-confidence "no adblocker present" signal.
+      if (isFlagged) {
+        setIsFlagged(false)
+        flaggedRef.current = false
+      }
     }
   }, [isDetected, isChecking, isFlagged, warningDurationSeconds, consecutiveDetections])
 

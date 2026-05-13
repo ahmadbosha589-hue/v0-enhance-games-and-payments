@@ -6,6 +6,7 @@ import {
   getAdblockSessionState,
   subscribeToCrossTabUpdates,
   hydrateFromServer,
+  wasRecentlySelfHealed,
   type AdblockSessionState,
 } from "@/lib/adblock/session-store"
 import type { DetectionSignal } from "@/lib/adblock/detection-engine"
@@ -105,6 +106,12 @@ export function AdblockProvider({ children, userId, warningDurationSeconds = 60 
     const ac = new AbortController()
 
     async function hydrate() {
+      // v17.0 SELF-HEAL GUARD — if the client just observed multiple clean
+      // detection cycles and successfully called /api/adblock/clear, we must
+      // NOT immediately re-flag from a stale /api/adblock/status response.
+      // The server takes a moment to finalize the clear (multi-row UPDATE
+      // + audit insert), so we suppress hydration for SELF_HEAL_WINDOW_MS.
+      if (wasRecentlySelfHealed()) return
       try {
         const res = await fetch("/api/adblock/status", {
           method: "GET",
@@ -114,6 +121,9 @@ export function AdblockProvider({ children, userId, warningDurationSeconds = 60 
         })
         if (!res.ok || cancelled) return
         const data = await res.json()
+        // Re-check the self-heal flag after the network round-trip — a
+        // self-heal could have happened concurrently while we were awaiting.
+        if (wasRecentlySelfHealed()) return
         if (data?.isFlagged) {
           // Mirror into the client store so other tabs/windows pick it up too.
           hydrateFromServer({
@@ -130,6 +140,18 @@ export function AdblockProvider({ children, userId, warningDurationSeconds = 60 
           setServerVerified(data.serverVerified ?? true)
           setBlockerType(data.blockerType ?? null)
           setDetectionMethods(data.methods ?? [])
+        } else if (getAdblockSessionState().isFlagged) {
+          // Server says we are NOT flagged but local persisted state still
+          // thinks we are — admin lifted the flag (or self-heal completed in
+          // another tab). Mirror the cleared state locally so the red
+          // flagged modal closes here too.
+          setIsFlagged(false)
+          setIsBlocked(false)
+          setConfidence(0)
+          setServerVerified(false)
+          setBlockerType(null)
+          setDetectionMethods([])
+          setSignals([])
         }
       } catch {
         // Fail open — detection cycle will re-flag if needed
@@ -173,12 +195,27 @@ export function AdblockProvider({ children, userId, warningDurationSeconds = 60 
         setBlockerType(state.blockerType)
         setDetectionMethods(state.methods)
         setSignals(state.signals || [])
+      } else if (!state.isFlagged && isFlagged) {
+        // v17.0 — session was cleared (self-heal or admin) but our local
+        // provider state still thinks we're flagged. Mirror the cleared
+        // state so the modal closes here too.
+        setIsFlagged(false)
+        setIsBlocked(false)
+        setConfidence(0)
+        setConsecutiveDetections(0)
+        setServerVerified(false)
+        setBlockerType(null)
+        setDetectionMethods([])
+        setSignals([])
       }
     }, 2500)
     return () => clearInterval(recoveryTimer)
   }, [isFlagged])
 
-  // Subscribe to cross-tab updates
+  // Subscribe to cross-tab updates.
+  // v17.0 — also propagate self-heal: when state.isFlagged flips to false
+  // (another tab self-healed or admin cleared), mirror the cleared state
+  // locally so the modal closes immediately in every tab.
   useEffect(() => {
     const unsubscribe = subscribeToCrossTabUpdates((state) => {
       if (state.isFlagged) {
@@ -190,6 +227,16 @@ export function AdblockProvider({ children, userId, warningDurationSeconds = 60 
         setBlockerType(state.blockerType)
         setDetectionMethods(state.methods)
         setSignals(state.signals || [])
+      } else {
+        // Self-heal / admin clear broadcast
+        setIsFlagged(false)
+        setIsBlocked(false)
+        setConfidence(0)
+        setConsecutiveDetections(0)
+        setServerVerified(false)
+        setBlockerType(null)
+        setDetectionMethods([])
+        setSignals([])
       }
     })
 

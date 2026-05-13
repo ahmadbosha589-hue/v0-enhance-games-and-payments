@@ -24,6 +24,9 @@ import {
   isInGracePeriod,
   setGracePeriod,
   clearGracePeriod,
+  markSelfHealed,
+  wasRecentlySelfHealed,
+  clearAllAdblockState,
 } from "../adblock/session-store"
 import {
   runEntropyCorrelation,
@@ -289,13 +292,17 @@ const CONFIG = {
   //     ever corroborate bait/DOM evidence. This is the core zero-FP rule.
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // ===== TIMING CONFIGURATION (v15.0 — maximum aggression + persistence) =====
+  // ===== TIMING CONFIGURATION (v17.0 — MAXIMUM aggression + self-healing) =====
+  // The self-heal recovery loop now drops stale/false-positive flags within
+  // 2 clean cycles, so we can safely tighten cadence even further. A real
+  // adblocker still fires inside ~3 seconds via the instant-flag path; a FP
+  // gets corrected within ~3 seconds via self-heal — best of both worlds.
   /** Initial delay before first detection (ms) - allows page to fully load */
-  INITIAL_DELAY_MS: 900, // v13.0 — earlier first check; still after page paint
+  INITIAL_DELAY_MS: 600, // v17.0 — faster first check (was 900); modal appears sooner for real blockers
   /** Interval between detection cycles (ms) — more aggressive */
-  CHECK_INTERVAL_MS: 1500, // v13.0 — tighter cadence; gate logic prevents FPs
+  CHECK_INTERVAL_MS: 1200, // v17.0 — tightened from 1500; self-heal handles transient FPs
   /** Background re-verification interval even after detection (ms) */
-  REVERIFY_INTERVAL_MS: 2500, // v15.0 — even tighter post-detection sweeps; works in tandem with the watchdog interval to defeat extensions that try to kill our timer
+  REVERIFY_INTERVAL_MS: 1800, // v17.0 — even tighter post-detection sweeps (was 2500); critical for catching toggle on/off AND for self-heal recovery latency
   /** Time to wait for bait elements to be hidden (ms) */
   BAIT_ELEMENT_WAIT_MS: 900, // v11.0 - more time for slow cosmetic filters
   /** Extended wait for slower adblockers (ms) */
@@ -330,7 +337,7 @@ const CONFIG = {
   /** Minimum weighted confidence threshold (%) */
   MIN_CONFIDENCE_THRESHOLD: 72, // v16.0: was 68. Real adblockers easily clear 80%+; raising the floor cuts the long tail of borderline cycles that produced FPs (network jitter + partial DOM noise stacking together).
   /** Minimum consecutive detection cycles */
-  MIN_CONSECUTIVE_DETECTIONS: 3, // v16.0: was 2. Three consecutive cycles (~4.5s with the 1.5s cadence) absorbs ANY transient network/CDN blip while still flagging within 5 seconds for a real adblocker. The cosmetic instant-fire path still catches blatant blockers on cycle 1.
+  MIN_CONSECUTIVE_DETECTIONS: 2, // v17.0: lowered from 3. With the new 1.2s cadence this is ~2.4s — still long enough to absorb transient network blips (every gate below ALSO has to pass each cycle), but tight enough that real blockers get flagged within 3s through the cycle-gate path even when the instant-fire path doesn't trip. Self-heal corrects any FP within 2 clean cycles (~2.4s) so the worst-case FP modal exposure is now ~5s before auto-recovery.
   /** Minimum number of high-weight methods required */
   MIN_HIGH_WEIGHT_METHODS: 2,
   /** Minimum Bayesian probability required */
@@ -341,16 +348,18 @@ const CONFIG = {
   REQUIRE_BAIT_SIGNAL: true,
   /** v11.0: Number of independent vectors (bait + network/dom/advanced) required */
   MIN_INDEPENDENT_VECTORS: 2,
-  /** v16.0: Instant-flag threshold — overwhelming cosmetic bait evidence required.
-   *  Raised to 0.62 from 0.55. Still trivially exceeded by every real adblocker
-   *  (uBO/AdBlock Plus/AdGuard hide 80–100% of EasyList bait classes), but
-   *  immune to the rare edge case where a parent stylesheet collision happens
-   *  to hide 6 of 11 baits. Combined with controlVisible (all 8 controls present)
-   *  + controlsOk + same-origin success, single-cycle FP is mathematically near zero. */
-  INSTANT_FLAG_BAIT_RATIO: 0.62,
-  /** v16.0: Instant-flag minimum absolute hidden baits — raised to 7 from 6.
-   *  Genuine adblockers hide 8–15+ baits effortlessly. */
-  INSTANT_FLAG_MIN_HIDDEN: 7,
+  /** v17.0: Instant-flag threshold — overwhelming cosmetic bait evidence required.
+   *  Lowered to 0.55 (from 0.62). The control gate (all 8 unrelated control
+   *  elements must remain visible) AND the absolute floor below (>=6 baits hidden)
+   *  make 0.55 just as FP-safe as 0.62 was: a parent-CSS / layout collision that
+   *  happens to hide 6 ad-class baits would also collide with at least one of the
+   *  8 random-class controls. With self-heal active, any residual FP risk auto-
+   *  corrects within ~2.4s after the user navigates / interacts. */
+  INSTANT_FLAG_BAIT_RATIO: 0.55,
+  /** v17.0: Instant-flag minimum absolute hidden baits — lowered to 6 from 7.
+   *  Genuine adblockers hide 8–15+ baits effortlessly so this is trivially
+   *  exceeded; the control gate keeps FPs near-zero. */
+  INSTANT_FLAG_MIN_HIDDEN: 6,
   /** v16.0: Minimum cosmetic baits hidden required for the NETWORK instant-fire
    *  path to even consider firing. Previously the network path could fire purely
    *  on third-party fetch blocks, which is indistinguishable from corporate
@@ -427,6 +436,15 @@ const CONFIG = {
   ROTATING_ROUTE_MIN_BLOCKED: 4, // v10.0 - 4+ blocked rotating routes (was 3)
   /** v10.0: Minimum blocked honeypot probes for server detection */
   MIN_SERVER_HONEYPOT_BLOCKED: 5, // v10.0 - was 4
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // v17.0 SELF-HEAL (FALSE POSITIVE RECOVERY) THRESHOLDS
+  // ═══════════════════════════════════════════════════════════════════════════
+  /** How many consecutive *definitively clean* cycles to observe while
+   *  flagged before we drop the flag locally + on the server. 2 cycles at the
+   *  new 1.2s cadence = ~2.4s recovery time. Tight enough to feel instant for
+   *  a legit user; loose enough to never react to a single anomalous cycle. */
+  SELF_HEAL_CLEAN_CYCLES: 2,
 } as const
 
 // =============================================================================
@@ -1147,6 +1165,17 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
   /** Stable ref to latest calibrateBaseline */
   const calibrateBaselineRef = useRef<() => Promise<void>>(async () => { })
+
+  /**
+   * v17.0 SELF-HEAL: count of consecutive *definitively clean* detection
+   * cycles observed while the session/server flag is still set. When this
+   * reaches CONFIG.SELF_HEAL_CLEAN_CYCLES we clear the flag locally AND
+   * POST to /api/adblock/clear so the server-persisted flag goes too.
+   * Reset to 0 whenever ANY signal is observed.
+   */
+  const consecutiveCleanWhileFlaggedRef = useRef(0)
+  /** v17.0: in-flight guard so we never send two /api/adblock/clear at once */
+  const selfHealInFlightRef = useRef(false)
 
   // =========================================================================
   // BASELINE CALIBRATION
@@ -3290,24 +3319,41 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         return
       }
 
-      // Check if already flagged in session
-      if (isUserBlockedInSession()) {
-        const sessionState = getAdblockSessionState()
-        setIsDetected(true)
-        setConfidence(sessionState.confidence)
-        setBlockerType(sessionState.blockerType as AdblockType)
-        setIsChecking(false)
-        return
-      }
+      // ═════════════════════════════════════════════════════════════════════
+      // v17.0 — REMOVED early short-circuit on `isUserBlockedInSession()`.
+      //
+      // Pre-v17, when the session/localStorage flag was set the cycle would
+      // exit immediately with `setIsDetected(true)` and never actually
+      // re-evaluate. That is the precise reason a user who had a false
+      // positive (or who legitimately disabled their ad-blocker after a real
+      // detection) was stuck staring at the modal forever.
+      //
+      // The new behaviour:
+      //   1. We capture the prior flag state into `wasFlaggedAtCycleStart`.
+      //   2. We run the FULL detection cycle every time, just like an
+      //      unflagged user.
+      //   3. If the cycle returns a definitively-clean result and we were
+      //      previously flagged, we increment `consecutiveCleanWhileFlagged`.
+      //      After SELF_HEAL_CLEAN_CYCLES consecutive clean cycles we drop
+      //      the flag locally and POST /api/adblock/clear to drop it on the
+      //      server. This is the recovery path for false positives.
+      //   4. If the cycle returns any positive signal we reset the counter
+      //      so the auto-recovery never fires for a real adblocker that's
+      //      momentarily off-screen during one cycle.
+      // ═════════════════════════════════════════════════════════════════════
+      const wasFlaggedAtCycleStart = isUserBlockedInSession()
 
       const timeout = CONFIG.DETECTION_TIMEOUT_MS
 
       // Run controlled bait test first - CRITICAL for zero false positives
       const baitTestResult = await runControlledBaitTest()
 
-      // ABORT if control element was hidden - this indicates a false positive scenario
+      // ABORT if control element was hidden - this indicates a false positive scenario.
+      // v17.0 — we ALSO use this as a self-heal vote: a layout collision means
+      // we cannot conclude either way, so we DO NOT increment the clean counter
+      // here. We just exit silently.
       if (CONFIG.CONTROL_MUST_BE_VISIBLE && !baitTestResult.controlVisible) {
-        setIsDetected(false)
+        if (!wasFlaggedAtCycleStart) setIsDetected(false)
         setIsChecking(false)
         return
       }
@@ -3670,6 +3716,110 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         setConsecutiveDetections(0)
       }
 
+      // ═══════════════════════════════════════════════════════════════════
+      // v17.0 SELF-HEAL — FALSE POSITIVE / STALE FLAG AUTO-RECOVERY
+      // ═══════════════════════════════════════════════════════════════════
+      //
+      // This block ALWAYS runs after the gate logic above, even when the
+      // user is still flagged. It evaluates whether the current cycle is
+      // "definitively clean" — meaning: control elements all visible,
+      // controls' same-origin probes all succeeded, zero baits hidden, zero
+      // third-party canonical ad-network probes blocked across all three
+      // independent channels (fetch / image / script), and no bait-category
+      // signals at all.
+      //
+      // If all of these are true we have positive proof that this page
+      // currently has NO ad-blocker. If we observe this for
+      // SELF_HEAL_CLEAN_CYCLES consecutive cycles while the user is still
+      // flagged, we:
+      //   1. clear the local flag (sessionStorage + localStorage)
+      //   2. mark a self-heal timestamp so the AdblockProvider's periodic
+      //      server hydration does NOT flap the modal back on for 5 minutes
+      //   3. POST /api/adblock/clear so the server-persisted flag is also
+      //      dropped (the server independently re-verifies our evidence)
+      //   4. reset all hook state and broadcast the cleared state to other
+      //      tabs via the existing cross-tab channel
+      //
+      // The cosmetic instant-fire path early-returns before reaching this
+      // block, so a real adblocker that hides 6+ baits this cycle never
+      // gets here. A real adblocker also never produces zero bait signals
+      // and zero third-party blocks at the same time, so the clean test
+      // below cannot accidentally trigger while a blocker is still active.
+      // ═══════════════════════════════════════════════════════════════════
+      const cycleHasZeroBaitSignals = baitSignals.length === 0
+      const cycleHasZeroBaitsHidden = baitTestResult.hiddenCount === 0
+      const cycleControlsHealthy = controlsHealthy // same as for network-instant
+      const cycleZeroThirdPartyBlocked =
+        fetchThird === 0 && imageThird === 0 && scriptThird === 0
+      const cycleHasNoFetchBlock = !fetchBlockingSignal && !dnsBlockingSignal
+      const isDefinitivelyClean =
+        baitTestResult.controlVisible &&
+        cycleControlsHealthy &&
+        cycleHasZeroBaitSignals &&
+        cycleHasZeroBaitsHidden &&
+        cycleZeroThirdPartyBlocked &&
+        cycleHasNoFetchBlock
+
+      if (wasFlaggedAtCycleStart) {
+        if (isDefinitivelyClean) {
+          consecutiveCleanWhileFlaggedRef.current += 1
+
+          if (
+            consecutiveCleanWhileFlaggedRef.current >= CONFIG.SELF_HEAL_CLEAN_CYCLES &&
+            !selfHealInFlightRef.current
+          ) {
+            selfHealInFlightRef.current = true
+
+            // Step 1 — drop local flag and broadcast cleared state to all tabs
+            try {
+              markSelfHealed()
+              clearAllAdblockState()
+            } catch {}
+
+            // Step 2 — reset hook state so the modal hides immediately
+            setIsDetected(false)
+            setBlockerType(null)
+            setConfidence(0)
+            setMethodCount(0)
+            setConsecutiveDetections(0)
+            resetConsecutiveDetections()
+            setDetectionResult(null)
+            consecutiveCleanWhileFlaggedRef.current = 0
+
+            // Step 3 — best-effort server clear (don't await, but reset
+            // in-flight guard when done)
+            void fetch("/api/adblock/clear", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                evidence: {
+                  controlVisible: baitTestResult.controlVisible,
+                  controlsHealthy: cycleControlsHealthy,
+                  hiddenBaits: baitTestResult.hiddenCount,
+                  thirdPartyBlocked: fetchThird + imageThird + scriptThird,
+                  consecutiveCleanCycles: CONFIG.SELF_HEAL_CLEAN_CYCLES,
+                },
+              }),
+            })
+              .catch(() => {
+                // Network failure — keep the local clear, the next clean
+                // cycle will retry. We do NOT re-flag locally because the
+                // user clearly has no adblocker right now.
+              })
+              .finally(() => {
+                selfHealInFlightRef.current = false
+              })
+          }
+        } else {
+          // Any positive evidence resets the clean-streak counter
+          consecutiveCleanWhileFlaggedRef.current = 0
+        }
+      } else {
+        // Not currently flagged — counter is irrelevant
+        consecutiveCleanWhileFlaggedRef.current = 0
+      }
+
       // Update state
       setConfidence(weightedConfidence)
       setMethodCount(allSignals.length)
@@ -3911,12 +4061,22 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       }
     }, 4000)
 
-    // Subscribe to cross-tab updates for sync
+    // Subscribe to cross-tab updates for sync.
+    // v17.0: ALSO handle the "cleared" broadcast — when another tab self-heals
+    // we mirror that state here so this tab's modal hides immediately too.
     const unsubscribe = subscribeToCrossTabUpdates((state) => {
       if (state.isFlagged) {
         setIsDetected(true)
         setConfidence(state.confidence)
         setBlockerType(state.blockerType as AdblockType)
+      } else {
+        // Self-heal broadcast — drop everything
+        setIsDetected(false)
+        setBlockerType(null)
+        setConfidence(0)
+        setMethodCount(0)
+        setConsecutiveDetections(0)
+        consecutiveCleanWhileFlaggedRef.current = 0
       }
     })
 
