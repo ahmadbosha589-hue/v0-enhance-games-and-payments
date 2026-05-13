@@ -160,6 +160,48 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
     }
   }, [])
 
+  // v14.0: BODY SCROLL LOCK — when the warning/flagged modal is showing we
+  // freeze the page beneath so the user can't scroll past it, dismiss it
+  // accidentally on iOS rubber-banding, or pinch-zoom out of it. Restores
+  // the previous styles on unmount.
+  useEffect(() => {
+    if (!showWarning && !isFlagged) return
+    if (typeof window === "undefined") return
+
+    const html = document.documentElement
+    const body = document.body
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyWidth: body.style.width,
+      bodyTouch: body.style.touchAction,
+      bodyOverscroll: body.style.overscrollBehavior,
+    }
+    const scrollY = window.scrollY
+
+    html.style.overflow = "hidden"
+    body.style.overflow = "hidden"
+    body.style.touchAction = "none"
+    body.style.overscrollBehavior = "none"
+    // On iOS, position:fixed on body is the only way to truly lock scroll.
+    body.style.position = "fixed"
+    body.style.top = `-${scrollY}px`
+    body.style.width = "100%"
+
+    return () => {
+      html.style.overflow = prev.htmlOverflow
+      body.style.overflow = prev.bodyOverflow
+      body.style.position = prev.bodyPosition
+      body.style.top = prev.bodyTop
+      body.style.width = prev.bodyWidth
+      body.style.touchAction = prev.bodyTouch
+      body.style.overscrollBehavior = prev.bodyOverscroll
+      window.scrollTo(0, scrollY)
+    }
+  }, [showWarning, isFlagged])
+
   // v13.0: TAMPER-RESISTANCE WATCHDOG
   // Defeats users / extensions who try to hide our modal via cosmetic filters,
   // CSS injection, DevTools, or manual DOM removal. Every 1500ms we:
@@ -390,12 +432,33 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
   if (isChecking && !showWarning) return null
   if (!showWarning && !isFlagged) return null
 
-  // v13.0: inline-style fortress — these styles use !important via cssText so
-  // injected stylesheets can't override them. Combined with the randomized
+  // v14.0: inline-style fortress — uses !important-equivalent inline styles so
+  // injected stylesheets cannot override them. Combined with the randomized
   // container id this defeats virtually all cosmetic filtering attempts.
+  //
+  // Mobile-specific fixes (v14.0):
+  //   • Uses `100dvh`/`100svh` (dynamic viewport) so the modal always covers
+  //     the visible area even as mobile browser toolbars expand/collapse.
+  //     Falls back to `100vh` for browsers without dvh support.
+  //   • `100vw` width to bypass any ancestor `transform`/`will-change` that
+  //     would otherwise make `position:fixed` containing-block-relative.
+  //   • `top:0;left:0` instead of `inset:0` for broader mobile support.
+  //   • `touch-action: none` and `overscroll-behavior: contain` to block
+  //     page scrolling beneath the modal on touch devices.
+  //   • `userSelect: none` and `WebkitTapHighlightColor: transparent` for a
+  //     native overlay feel on iOS/Android.
   const fortressStyle: React.CSSProperties = {
     position: "fixed",
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: "100vw",
+    // Dynamic viewport units are the only reliable way to get full-screen on
+    // mobile Safari, Chrome iOS, Firefox Android, Brave mobile, etc. without
+    // gaps. The browser will pick the first supported unit.
+    height: "100dvh",
+    minHeight: "100svh",
     zIndex: 2147483647, // max 32-bit signed int — sits above everything
     display: "flex",
     alignItems: "center",
@@ -410,6 +473,11 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
     transform: "none",
     clip: "auto",
     clipPath: "none",
+    overflow: "auto",
+    overscrollBehavior: "contain",
+    touchAction: "manipulation",
+    WebkitTapHighlightColor: "transparent",
+    WebkitOverflowScrolling: "touch",
   }
 
   if (isFlagged) {
