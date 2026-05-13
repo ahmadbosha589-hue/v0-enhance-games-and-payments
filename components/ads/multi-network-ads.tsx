@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback, memo } from "react"
 import { cn } from "@/lib/utils"
 import { RefreshCw } from "lucide-react"
+import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 
 // 11 ad networks (excluding Google which is handled separately)
 const AD_NETWORKS = [
@@ -19,6 +20,10 @@ const AD_NETWORKS = [
   // AdsKeeper only refreshes on page load, not on timer
   { id: "adskeeper", name: "AdsKeeper", refreshInterval: 0, color: "bg-emerald-500", pageLoadOnly: true },
 ] as const
+
+// c.cx.ua is a separate partner banner — rendered as a 12th slot inside the
+// network grid so it visually sits alongside the other 11 networks for
+// uniform impressions. It uses its own loader (see CxUaBanner).
 
 interface AdNetworkConfig {
   enabled: boolean
@@ -55,10 +60,11 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
   return (
     <div className="rounded-lg border bg-muted/20 p-3 sm:p-4 animate-pulse">
       <div className={getLayoutClasses()}>
-        {AD_NETWORKS.map((network) => (
+        {/* 11 networks + cx.ua = 12 placeholders */}
+        {[...AD_NETWORKS, { id: "cx-ua" }].map((network) => (
           <div
             key={network.id}
-            className="aspect-[4/3] sm:aspect-video rounded-md bg-muted/50"
+            className="min-h-[180px] sm:min-h-[220px] rounded-md bg-muted/50"
           />
         ))}
       </div>
@@ -96,18 +102,20 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
     slotRef.current.dataset.adConfig = JSON.stringify(adConfig)
   }, [network.id, position, refreshCount, isVisible])
 
-  // Ad slot container - ad scripts inject content into the inner div
+  // Ad slot container - ad scripts inject content into the inner div.
+  // Sized to industry-standard 300x250 medium rectangle for max fill-rate
+  // on every device — keeps impressions consistent regardless of network.
   return (
     <div
       ref={slotRef}
-      className="relative min-h-[90px] rounded-md overflow-hidden"
+      className="relative min-h-[200px] sm:min-h-[250px] w-full rounded-md overflow-hidden border border-border/40 bg-muted/10"
       data-ad-network={network.id}
       data-ad-position={position}
       data-refresh-count={refreshCount}
       data-page-load-only={network.pageLoadOnly || false}
     >
       <div
-        className="w-full min-h-[90px]"
+        className="w-full h-full min-h-[200px] sm:min-h-[250px] flex items-center justify-center"
         id={`ad-${network.id}-${position}`}
         data-ad-slot={`${network.id}-${position}`}
       />
@@ -251,15 +259,17 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   }, [shouldRender])
 
   const getLayoutClasses = useCallback(() => {
+    // 12-slot grids: 11 networks + 1 c.cx.ua. We bias the column count so the
+    // rows are visually balanced (2x6, 3x4, 4x3, 6x2) and ads stay readable.
     switch (layout) {
       case "grid":
-        return "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3"
+        return "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4"
       case "stack":
-        return "flex flex-col gap-2"
+        return "flex flex-col gap-3"
       case "inline":
-        return "flex flex-wrap gap-2"
+        return "flex flex-wrap gap-3"
       default:
-        return "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"
+        return "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
     }
   }, [layout])
 
@@ -311,6 +321,17 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
             isVisible={shouldRender}
           />
         ))}
+
+        {/* c.cx.ua — 12th partner slot, rendered alongside the 11 networks
+            so impressions are uniform across the grid. Uses the compact
+            variant so it slots cleanly next to the other rectangles. */}
+        <div
+          className="relative min-h-[200px] sm:min-h-[250px] w-full rounded-md overflow-hidden border border-border/40 bg-muted/10 flex items-center justify-center"
+          data-ad-network="cx-ua"
+          data-ad-position={position}
+        >
+          <CxUaBanner variant="compact" showLabel={false} className="w-full" />
+        </div>
       </div>
     </div>
   )

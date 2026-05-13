@@ -40,8 +40,10 @@ export function CxUaBanner({
   }, [])
 
   if (variant === "compact") {
+    // Sized to match the surrounding network ad rectangles (300x250) so
+    // impressions stay consistent across the 12-slot grid.
     return (
-      <div className={cn("relative w-full", className)}>
+      <div className={cn("relative w-full h-full", className)}>
         {showLabel && (
           <span className="absolute -top-2 left-3 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider rounded-full bg-background border text-muted-foreground z-10">
             Sponsored
@@ -49,7 +51,7 @@ export function CxUaBanner({
         )}
         <div
           ref={containerRef}
-          className="min-h-[90px] w-full rounded-lg border bg-muted/20 flex items-center justify-center overflow-hidden"
+          className="min-h-[200px] sm:min-h-[250px] w-full rounded-lg bg-muted/20 flex items-center justify-center overflow-hidden"
           data-ad-network="cx-ua"
           aria-label="Sponsored banner"
         />
@@ -61,12 +63,12 @@ export function CxUaBanner({
     return (
       <div
         className={cn(
-          "relative rounded-xl border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 p-3 sm:p-4 overflow-hidden",
+          "relative rounded-xl border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 p-4 sm:p-6 overflow-hidden",
           className,
         )}
       >
         {showLabel && (
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -78,7 +80,7 @@ export function CxUaBanner({
         )}
         <div
           ref={containerRef}
-          className="min-h-[90px] w-full rounded-md bg-background/50 flex items-center justify-center overflow-hidden"
+          className="min-h-[200px] sm:min-h-[280px] w-full rounded-md bg-background/50 flex items-center justify-center overflow-hidden"
           data-ad-network="cx-ua"
           aria-label="Sponsored banner"
         />
@@ -100,7 +102,7 @@ export function CxUaBanner({
       )}
       <div
         ref={containerRef}
-        className="min-h-[90px] w-full rounded-lg border bg-muted/20 flex items-center justify-center overflow-hidden"
+        className="min-h-[200px] sm:min-h-[250px] w-full rounded-lg border bg-muted/20 flex items-center justify-center overflow-hidden"
         data-ad-network="cx-ua"
         aria-label="Sponsored banner"
       >

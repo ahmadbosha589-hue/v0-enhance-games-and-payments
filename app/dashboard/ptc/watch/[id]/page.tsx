@@ -369,7 +369,8 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
                 </CardContent>
               </Card>
 
-              {/* Sponsored Content Banner/Iframe */}
+              {/* Sponsored Content Banner/Iframe — much larger viewing area
+                  so users actually see the ad content while the timer runs. */}
               <Card className="border-2 border-primary/30">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
@@ -382,7 +383,7 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden border">
+                  <div className="relative w-full h-[60vh] min-h-[420px] sm:min-h-[560px] bg-muted rounded-lg overflow-hidden border">
                     <iframe
                       ref={iframeRef}
                       src={ad.url}
@@ -400,8 +401,10 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
                 </CardContent>
               </Card>
 
-              {/* Additional Ad Slots */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Additional Ad Slots — 4 wide on desktop for higher impression
+                  density without crowding mobile. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <AdSlotMultiNetwork position="content" size="rectangle" className="mx-auto" />
                 <AdSlotMultiNetwork position="content" size="rectangle" className="mx-auto" />
                 <AdSlotMultiNetwork position="content" size="rectangle" className="mx-auto" />
                 <AdSlotMultiNetwork position="content" size="rectangle" className="mx-auto" />

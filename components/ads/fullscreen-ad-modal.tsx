@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
 import { AdSlotMultiNetwork } from "./ad-slot-multi-network"
+import { CxUaBanner } from "./cx-ua-ads"
 
 export type DoubleRewardType =
   | "faucet"
@@ -318,7 +319,7 @@ export function FullscreenAdModal({
           "sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b",
           config.borderColor
         )}>
-          <div className="max-w-4xl mx-auto px-4 py-3 sm:py-4">
+          <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={cn(
@@ -358,8 +359,9 @@ export function FullscreenAdModal({
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-6">
+        {/* Main content — widened to 7xl so the 12 ad slots (11 networks +
+            c.cx.ua) and 3 rewarded ads have room to render at full size. */}
+        <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
           {/* Reward Preview Card */}
           <div className={cn(
             "rounded-xl p-4 sm:p-6 mb-6 text-center",
@@ -469,10 +471,12 @@ export function FullscreenAdModal({
                       </div>
                       <Progress value={adProgress[i]} className="h-2 mb-3" />
 
-                      {/* Google Rewarded Ad Content Area */}
+                      {/* Google Rewarded Ad Content Area — 16:9 video aspect
+                          with min-height to guarantee a visible impression on
+                          every device. */}
                       <div
                         className={cn(
-                          "aspect-video rounded-lg flex items-center justify-center overflow-hidden relative",
+                          "min-h-[200px] sm:min-h-[240px] rounded-lg flex items-center justify-center overflow-hidden relative",
                           adStatus[i] === "completed" ? "bg-green-500/10" : "bg-gradient-to-br from-red-500/10 to-orange-500/10"
                         )}
                       >
@@ -512,7 +516,7 @@ export function FullscreenAdModal({
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-amber-500" />
-                    <h3 className="font-semibold">Partner Ad Networks (11 Networks)</h3>
+                    <h3 className="font-semibold">Partner Ad Networks (11 Networks + c.cx.ua)</h3>
                     <Badge className="bg-green-500 text-white text-[10px] animate-pulse">LIVE</Badge>
                   </div>
                   <Badge variant="outline" className="text-xs bg-green-500/10 text-green-500 border-green-500/30">
@@ -520,8 +524,10 @@ export function FullscreenAdModal({
                   </Badge>
                 </div>
 
-                {/* Real Ad Slots - Grid of actual ad network slots */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {/* Real Ad Slots — 4-column grid sized for 300x250 medium
+                    rectangles so impressions are uniform across the 12 slots
+                    (11 partner networks + c.cx.ua). */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {AD_NETWORKS.map((network, index) => (
                     <div key={network.id} className="flex flex-col gap-1">
                       <div className="flex items-center gap-2 px-1">
@@ -537,11 +543,22 @@ export function FullscreenAdModal({
                       />
                     </div>
                   ))}
+
+                  {/* c.cx.ua — 12th featured partner slot, rendered as a peer
+                      to the 11 networks so it generates an impression every
+                      time the user opens the Watch Ad modal. */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 px-1">
+                      <div className="w-2 h-2 rounded-full bg-violet-500" />
+                      <span className="text-[10px] font-medium text-muted-foreground">c.cx.ua</span>
+                    </div>
+                    <CxUaBanner variant="compact" showLabel={false} className="w-full" />
+                  </div>
                 </div>
 
                 <p className="text-xs text-muted-foreground text-center mt-4 flex items-center justify-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
-                  All 11 partner ad networks generating real impressions while you watch
+                  All 12 partner ad slots generating real impressions while you watch
                 </p>
               </div>
             </div>
@@ -554,7 +571,7 @@ export function FullscreenAdModal({
             "sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm border-t p-4",
             config.borderColor
           )}>
-            <div className="max-w-4xl mx-auto flex gap-3">
+            <div className="max-w-7xl mx-auto flex gap-3">
               <Button
                 variant="outline"
                 className="flex-1"

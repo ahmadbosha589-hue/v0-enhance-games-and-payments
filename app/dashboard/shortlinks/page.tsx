@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import { getAuthUser } from "@/lib/supabase/client"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { CxUaBanner } from "@/components/ads/cx-ua-ads"
+import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { cn } from "@/lib/utils"
 
 interface Shortlink {
@@ -470,8 +470,10 @@ export default function ShortlinksPage() {
           </CardContent>
         </Card>
 
-        {/* CX.UA featured banner — polished card placement matching the rest of the page */}
-        <CxUaBanner variant="card" />
+        {/* 11 Partner Ad Networks + c.cx.ua — c.cx.ua renders as a 12th
+            slot inside this grid so impressions are uniform with the other
+            partner networks. */}
+        <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
       </div>
     </div>
   )

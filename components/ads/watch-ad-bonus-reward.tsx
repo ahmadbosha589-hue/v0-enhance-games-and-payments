@@ -13,7 +13,8 @@ import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
 export type BonusRewardType =
   | "shortlink_double"     // After completing shortlink - 2x reward
-  | "coupon_double"        // After redeeming coupon - 2x reward  
+  | "coupon_double"        // After redeeming coupon - 2x reward
+  | "ptc_double"           // After single PTC ad - 2x reward
   | "ptc_5x"               // After 5 PTC ads - 5x next reward
   | "faucet_double"        // After faucet claim - 2x reward
   | "manual_faucet_double" // After manual faucet - 2x reward
@@ -54,6 +55,15 @@ const TYPE_CONFIG: Record<BonusRewardType, {
     icon: Sparkles,
     gradient: "from-purple-500/20 to-pink-500/10",
     borderColor: "border-purple-500/30"
+  },
+  ptc_double: {
+    title: "Double Your PTC Reward",
+    description: "Watch 3 ads (60 seconds each) to receive 2x your PTC earnings",
+    buttonText: "Watch Ads to Double PTC Reward",
+    buttonSubtext: "Earn 2x your PTC ad reward",
+    icon: Gift,
+    gradient: "from-green-500/20 to-emerald-500/10",
+    borderColor: "border-green-500/30"
   },
   ptc_5x: {
     title: "Milestone Bonus Unlocked!",
@@ -203,79 +213,83 @@ export function WatchAdBonusReward({
         </p>
       )}
 
-      {/* Modal with 3 Google Rewarded Ads + 11 Ad Networks */}
+      {/* Modal with 3 Google Rewarded Ads + 11 Ad Networks + c.cx.ua
+          Larger sizing: max-w-5xl on desktop, full-screen scroll on mobile,
+          taller ad placeholders so every slot generates a real impression. */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <Card className={cn("w-full max-w-2xl my-4", config.borderColor)}>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Icon className="h-5 w-5 text-primary" />
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-background/85 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
+          <Card className={cn("w-full max-w-5xl my-2 sm:my-4", config.borderColor)}>
+            <CardHeader className="pb-3 sm:pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                 {config.title}
               </CardTitle>
-              <CardDescription>{config.description}</CardDescription>
+              <CardDescription className="text-xs sm:text-sm">{config.description}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 sm:space-y-6">
               {/* Reward Preview */}
               <div className={cn(
-                "rounded-lg p-4 text-center",
+                "rounded-lg p-4 sm:p-6 text-center",
                 `bg-gradient-to-br ${config.gradient}`
               )}>
                 <p className="text-sm text-muted-foreground mb-1">You will earn</p>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-3xl font-bold text-primary">
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <span className="text-3xl sm:text-4xl font-bold text-primary">
                     +{bonusAmount}
                   </span>
-                  <span className="text-lg text-muted-foreground">
+                  <span className="text-lg sm:text-xl text-muted-foreground">
                     {cryptoSymbol || "sats"}
                   </span>
                   <Badge variant="secondary" className="ml-2">
                     {multiplier}x Bonus
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-2">
                   Base: {baseAmount} {cryptoSymbol || "sats"} + Bonus: {bonusAmount} = Total: {totalAmount}
                 </p>
               </div>
 
-              {/* 3 Ad Slots Running Simultaneously */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* 3 Ad Slots Running Simultaneously — sized as 300x250 medium
+                  rectangles to match standard ad network creative sizes. */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
                     className={cn(
-                      "relative rounded-lg border p-3 transition-all",
+                      "relative rounded-lg border p-3 sm:p-4 transition-all",
                       adStatus[i] === "completed" && "bg-green-500/10 border-green-500/30",
                       adStatus[i] === "playing" && "bg-red-500/5 border-red-500/30 animate-pulse",
                       adStatus[i] === "pending" && "bg-muted/30"
                     )}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium">Ad #{i + 1}</span>
+                      <span className="text-xs sm:text-sm font-medium">Ad #{i + 1}</span>
                       {adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
                       ) : (
                         <div className="flex items-center gap-1 text-red-500">
-                          <Clock className="h-3 w-3" />
-                          <span className="text-xs font-mono">{timeRemaining[i]}s</span>
+                          <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="text-xs sm:text-sm font-mono">{timeRemaining[i]}s</span>
                         </div>
                       )}
                     </div>
-                    <Progress value={adProgress[i]} className="h-1.5" />
+                    <Progress value={adProgress[i]} className="h-1.5 sm:h-2" />
 
-                    {/* Ad Content Placeholder */}
+                    {/* Ad Content Placeholder — taller for real impressions */}
                     <div
-                      className="mt-2 aspect-video bg-muted/50 rounded flex items-center justify-center border border-dashed"
+                      className="mt-3 min-h-[200px] sm:min-h-[250px] bg-muted/50 rounded flex items-center justify-center border border-dashed"
                       data-ad-slot={`bonus-reward-${type}-${i}`}
                     >
                       {adStatus[i] === "playing" ? (
-                        <div className="text-center">
-                          <Play className="h-5 w-5 mx-auto text-muted-foreground/50 animate-pulse" />
-                          <span className="text-[10px] text-muted-foreground">Ad playing...</span>
+                        <div className="text-center px-2">
+                          <Play className="h-7 w-7 sm:h-8 sm:w-8 mx-auto text-muted-foreground/50 animate-pulse" />
+                          <span className="text-[10px] sm:text-xs text-muted-foreground block mt-1">Ad playing...</span>
+                          <span className="text-[10px] sm:text-xs text-muted-foreground/60 block">300 × 250</span>
                         </div>
                       ) : adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <CheckCircle className="h-7 w-7 sm:h-8 sm:w-8 text-green-500" />
                       ) : (
-                        <span className="text-[10px] text-muted-foreground">Ready</span>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground">Ready</span>
                       )}
                     </div>
                   </div>

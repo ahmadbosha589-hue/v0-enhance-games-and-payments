@@ -12,7 +12,6 @@ import { PTCAdCard } from "@/components/dashboard/ptc-ad-card"
 import { OfferwallVPNGuard } from "@/components/dashboard/offerwall-vpn-guard"
 import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
-import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 
 export const metadata = {
   title: "PTC Ads | CryptoFaucet",
@@ -338,11 +337,9 @@ export default async function PTCPage() {
         {/* Spacer to separate Google Ads from other networks per policy */}
         <div className="h-8" aria-hidden="true" />
 
-        {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
+        {/* Other 11 Ad Networks + c.cx.ua — the cx.ua slot now renders inline
+            with the 11 partner networks for uniform impressions. */}
         <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
-
-        {/* CX.UA featured partner banner — placed between the 11 networks and footer for visibility */}
-        <CxUaBanner variant="card" className="mt-6" />
       </OfferwallVPNGuard>
     </div>
   )

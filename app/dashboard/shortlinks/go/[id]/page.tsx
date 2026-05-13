@@ -23,7 +23,6 @@ import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
 import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { WatchAdBonusReward } from "@/components/ads/watch-ad-bonus-reward"
-import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 import { useLanguage } from "@/lib/i18n/language-context"
 
 interface Shortlink {
@@ -346,11 +345,10 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
         {/* Another spacer */}
         <div className="h-8" aria-hidden="true" />
 
-        {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
+        {/* Other 11 Ad Networks + c.cx.ua — the cx.ua slot now renders as
+            a peer inside MultiNetworkAds, so impressions are uniform across
+            all 12 partners on every page view. */}
         <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
-
-        {/* CX.UA featured partner banner — sits between the 11 networks and the leaderboard */}
-        <CxUaBanner variant="card" className="mt-6" />
 
         {/* Full width leaderboard */}
         <AdSlotMultiNetwork position="footer" size="leaderboard" className="mx-auto mt-6" />
