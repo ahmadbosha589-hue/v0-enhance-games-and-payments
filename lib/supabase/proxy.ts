@@ -19,8 +19,31 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  // ────────────────────────────────────────────────────────────────────────
+  // FAST-PATH: detect Supabase session cookie presence WITHOUT a network call.
+  // This is the single source of truth for redirect decisions in the proxy.
+  // We DO NOT call supabase.auth.getUser() here because that hits the
+  // Supabase auth endpoint on every navigation — adding 200-3000ms latency
+  // and (worse) flapping the user to "unauthenticated" on transient timeouts,
+  // which previously caused /dashboard → /auth/login → /dashboard loops.
+  //
+  // The actual auth validation still happens server-side inside protected
+  // pages (e.g. dashboard layout calls getUser() which verifies with Supabase).
+  // The proxy only does cheap cookie-presence routing.
+  // ────────────────────────────────────────────────────────────────────────
+  const hasSessionCookie = request.cookies
+    .getAll()
+    .some(
+      (c) =>
+        c.name.startsWith("sb-") &&
+        c.name.includes("-auth-token") &&
+        !!c.value
+    )
+
   try {
-    // Create fresh Supabase client for each request
+    // Create supabase client only to refresh cookies if needed. We do NOT
+    // await getUser() in the hot path — instead we let the underlying
+    // cookie management handle token refresh in the background.
     const supabase = createServerClient(url, key, {
       cookies: {
         getAll() {
@@ -36,20 +59,31 @@ export async function updateSession(request: NextRequest) {
       },
     })
 
-    // Get user with timeout to prevent hanging
-    const userPromise = supabase.auth.getUser()
-    const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((resolve) =>
-      setTimeout(() => resolve({ data: { user: null }, error: new Error("Auth timeout") }), 3000)
-    )
-
-    let user = null
+    // Kick off (and AWAIT briefly) getUser() so @supabase/ssr can refresh
+    // the access token cookie if it's near expiry. We cap the await at 1.5s
+    // so a slow Supabase auth endpoint NEVER blocks navigation. If it times
+    // out we fall back to cookie-presence — which is correct because the
+    // protected page itself will re-validate server-side.
+    let verifiedUser: { id: string } | null = null
     try {
+      const userPromise = supabase.auth.getUser()
+      const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((resolve) =>
+        setTimeout(
+          () => resolve({ data: { user: null }, error: new Error("Auth timeout") }),
+          1500
+        )
+      )
       const result = await Promise.race([userPromise, timeoutPromise])
-      user = result.data?.user
-    } catch (e) {
-      // Auth failed, continue without user
-      return supabaseResponse
+      verifiedUser = result?.data?.user ?? null
+    } catch {
+      // Network error — fall through to cookie-presence heuristic
     }
+
+    // ── Decide auth state ──
+    // hasUser is true if EITHER we got a verified user OR a session cookie
+    // is present (we trust the cookie shape; if it's invalid the page itself
+    // will redirect via its own server-side getUser() check).
+    const hasUser = !!verifiedUser || hasSessionCookie
 
     // Protected routes require auth
     const protectedPaths = ["/dashboard", "/admin"]
@@ -57,23 +91,32 @@ export async function updateSession(request: NextRequest) {
       request.nextUrl.pathname.startsWith(path)
     )
 
-    if (isProtectedPath && !user) {
-      const url = request.nextUrl.clone()
-      url.pathname = "/auth/login"
-      url.searchParams.set("redirect", request.nextUrl.pathname)
-      return NextResponse.redirect(url)
+    if (isProtectedPath && !hasUser) {
+      const redirectUrl = request.nextUrl.clone()
+      redirectUrl.pathname = "/auth/login"
+      redirectUrl.searchParams.set("redirect", request.nextUrl.pathname)
+      return NextResponse.redirect(redirectUrl)
     }
 
-    // Redirect logged-in users away from auth pages
+    // Redirect logged-in users away from auth pages — but ONLY if we have a
+    // verified user. We do NOT redirect on cookie-presence alone, because a
+    // stale/expired cookie would bounce the user to /dashboard which then
+    // bounces them back, creating a loop. Letting the auth page render and
+    // run its own client-side check is the safe path on cookie-only state.
     const authPaths = ["/auth/login", "/auth/sign-up"]
     const isAuthPath = authPaths.some((path) => request.nextUrl.pathname.startsWith(path))
 
-    if (isAuthPath && user) {
-      const url = request.nextUrl.clone()
+    if (isAuthPath && verifiedUser) {
+      const redirectUrl = request.nextUrl.clone()
       const redirectTo = request.nextUrl.searchParams.get("redirect") || "/dashboard"
-      url.pathname = redirectTo
-      url.search = ""
-      return NextResponse.redirect(url)
+      // Sanitize: never redirect back to an auth page (loop guard)
+      const safeTarget =
+        redirectTo.startsWith("/auth/") || !redirectTo.startsWith("/")
+          ? "/dashboard"
+          : redirectTo
+      redirectUrl.pathname = safeTarget
+      redirectUrl.search = ""
+      return NextResponse.redirect(redirectUrl)
     }
 
     return supabaseResponse

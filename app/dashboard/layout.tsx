@@ -2,6 +2,9 @@ import type React from "react"
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { getUser, getProfile } from "@/lib/supabase/server"
+// NOTE: getUser() is awaited first because we need the userId for getProfile,
+// but getProfile uses the admin client (no auth round-trip) so it returns
+// in a single fast PostgREST call.
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"

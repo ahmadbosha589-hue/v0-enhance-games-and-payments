@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
@@ -69,6 +69,19 @@ export default function LoginPage() {
   const redirect = searchParams.get("redirect") || "/dashboard"
   const message = searchParams.get("message")
 
+  // Refs (not state) for flags that must NOT trigger useEffect re-runs.
+  // Previously isManualLogin was in deps which caused the auth listener to
+  // be torn down + recreated on every form submit, leading to duplicate
+  // "Welcome back!" toasts firing on TOKEN_REFRESHED events.
+  const redirectingRef = useRef(false)
+  const isManualLoginRef = useRef(false)
+  // Sanitize the redirect target — never redirect back to an auth page,
+  // and reject any non-relative paths to prevent open-redirect loops.
+  const safeRedirect =
+    redirect.startsWith("/") && !redirect.startsWith("/auth/")
+      ? redirect
+      : "/dashboard"
+
   useEffect(() => {
     const supabase = createClient()
 
@@ -79,40 +92,29 @@ export default function LoginPage() {
       return
     }
 
-    let redirecting = false
+    let cancelled = false
 
     const checkSession = async () => {
       try {
-        // Clear orphaned Web Lock before auth operation to prevent hangs
-        await clearOrphanedAuthLock()
-
-        // First try getSession (reads from localStorage, fast)
+        // Fast read from localStorage (no network). If a session exists, the
+        // server proxy will have ALSO already redirected to /dashboard — this
+        // is a belt-and-braces client-side fallback for the case where the
+        // proxy was skipped (e.g. cached HTML response).
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
-        if (session?.user) {
-          console.log("[Login] Session found, redirecting to dashboard")
-          redirecting = true
-          // Use window.location.href for a full page navigation to ensure clean state
-          window.location.href = redirect
-          return
-        }
+        if (cancelled) return
 
-        // If no session from localStorage, try getUser (verifies with server)
-        // This catches the case where OAuth just completed and cookies are set
-        // but localStorage hasn't synced yet
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          console.log("[Login] User found via getUser, redirecting to dashboard")
-          redirecting = true
-          window.location.href = redirect
+        if (session?.user && !redirectingRef.current) {
+          redirectingRef.current = true
+          window.location.replace(safeRedirect)
           return
         }
       } catch (err) {
         console.warn("[Login] Session check failed:", err)
       } finally {
-        if (!redirecting) {
+        if (!cancelled && !redirectingRef.current) {
           setIsCheckingSession(false)
         }
       }
@@ -120,24 +122,37 @@ export default function LoginPage() {
 
     checkSession()
 
+    // Auth state listener — ONLY handles the SIGNED_IN event for OAuth
+    // callbacks (Google sign-in returns here after redirect). We intentionally
+    // do NOT handle TOKEN_REFRESHED here, because it fires on every page load
+    // when Supabase refreshes a near-expiry access token — that would spam
+    // the "Welcome back!" toast and fight with the server-side redirect.
+    //
+    // Manual email/password sign-in is handled inline in handleLogin() and
+    // sets isManualLoginRef.current = true so we skip the duplicate redirect.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[Login] Auth state change:", event, !!session?.user)
+      if (cancelled) return
+      if (event !== "SIGNED_IN") return
+      if (!session?.user) return
+      if (isManualLoginRef.current) return
+      if (redirectingRef.current) return
 
-      // Handle any sign-in event (OAuth callback, manual login, etc.)
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user && !isManualLogin && !redirecting) {
-        console.log("[Login] Auth state SIGNED_IN, redirecting...")
-        redirecting = true
-        toast.success("Welcome back!")
-        window.location.href = redirect
-      }
+      // Single-fire guarded by redirectingRef — the listener will never run
+      // this branch twice, so the toast can't loop even on TOKEN_REFRESHED.
+      redirectingRef.current = true
+      toast.success("Welcome back!")
+      window.location.replace(safeRedirect)
     })
 
     return () => {
+      cancelled = true
       subscription.unsubscribe()
     }
-  }, [redirect, router, isManualLogin])
+    // NOTE: only `safeRedirect` is in deps. router/isManualLogin are
+    // intentionally excluded — those must not retrigger the listener.
+  }, [safeRedirect])
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false)
@@ -329,8 +344,9 @@ export default function LoginPage() {
         }
       }
 
+      redirectingRef.current = true
       toast.success("Welcome back!")
-      window.location.href = redirect
+      window.location.replace(safeRedirect)
     } catch (err) {
       console.error("Login completion error:", err)
       setError("Failed to complete login. Please try again.")
@@ -380,6 +396,7 @@ export default function LoginPage() {
     setIsLoading(true)
     setError(null)
     setIsManualLogin(true)
+    isManualLoginRef.current = true
 
     try {
       const twoFACheck = await fetch("/api/2fa/status", {
@@ -396,6 +413,7 @@ export default function LoginPage() {
 
       if (signInError) {
         setIsManualLogin(false)
+        isManualLoginRef.current = false
         if (signInError.message.includes("Invalid login credentials")) {
           setError("Invalid email or password. Please try again.")
         } else if (signInError.message.includes("Email not confirmed")) {
@@ -436,11 +454,13 @@ export default function LoginPage() {
         )
       }
 
+      redirectingRef.current = true
       toast.success("Welcome back!")
-      window.location.href = redirect
+      window.location.replace(safeRedirect)
     } catch (err) {
       console.error("Login error:", err)
       setIsManualLogin(false)
+      isManualLoginRef.current = false
       setError("Unable to connect to authentication service. Please check your internet connection and try again.")
     } finally {
       setIsLoading(false)

@@ -22,83 +22,60 @@ import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { Menu, Loader2 } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useLanguage } from "@/lib/i18n/language-context"
-import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 
 function HomePageContent() {
   const { t } = useLanguage()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const searchParams = useSearchParams()
 
-  // Check if user just signed out - skip auth check entirely
+  // Check if user just signed out — skip auth check entirely
   const justSignedOut = searchParams.get("signedOut")
 
-  // Check if user is already logged in and redirect to dashboard
+  // Fire-and-forget auth check: render the landing page IMMEDIATELY (so
+  // first paint is fast for new visitors, which is the majority case) and
+  // only redirect to /dashboard in the background if a logged-in session
+  // is detected. We previously gated the whole page on this check, which
+  // made the landing feel sluggish for everyone.
   useEffect(() => {
-    // If user just signed out, don't check auth - just show the page
     if (justSignedOut) {
       // Clear the signedOut param from URL without refresh
       window.history.replaceState({}, "", "/")
-      setIsCheckingAuth(false)
       return
     }
 
-    const checkAuth = async () => {
-      const supabase = createClient()
-      if (!supabase) {
-        setIsCheckingAuth(false)
-        return
-      }
+    let cancelled = false
 
-      try {
-        // Clear orphaned lock first
-        await clearOrphanedAuthLock()
-
-        // Use getUser which validates against server - getSession can be stale
-        const { data: { user }, error } = await supabase.auth.getUser()
-
-        // If there's an error or no user, they're not logged in
-        if (error || !user) {
-          setIsCheckingAuth(false)
-          return
-        }
-
-        // User is authenticated, redirect to dashboard
-        console.log("[Landing] User authenticated, redirecting to dashboard")
-        window.location.href = "/dashboard"
-      } catch (err) {
-        console.warn("[Landing] Auth check failed:", err)
-        setIsCheckingAuth(false)
-      }
-    }
-
-    checkAuth()
-
-    // Also listen for auth changes (in case OAuth callback just fired)
     const supabase = createClient()
     if (!supabase) return
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Only redirect on explicit sign in, not cached sessions
-      if (event === "SIGNED_IN" && session?.user && !justSignedOut) {
-        console.log("[Landing] Auth state changed to SIGNED_IN, redirecting")
-        window.location.href = "/dashboard"
-      }
+    // Fast localStorage read — instant, no network.
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled || !session?.user) return
+        window.location.replace("/dashboard")
+      })
+      .catch(() => {
+        /* not logged in or error — stay on landing */
+      })
+
+    // React to OAuth callback completion (SIGNED_IN only — not token refresh).
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return
+      if (event !== "SIGNED_IN") return
+      if (!session?.user) return
+      if (justSignedOut) return
+      window.location.replace("/dashboard")
     })
 
     return () => {
+      cancelled = true
       subscription.unsubscribe()
     }
   }, [justSignedOut])
-
-  // Show loading while checking auth to prevent flash
-  if (isCheckingAuth) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    )
-  }
 
   return (
     <div className="flex min-h-screen flex-col">

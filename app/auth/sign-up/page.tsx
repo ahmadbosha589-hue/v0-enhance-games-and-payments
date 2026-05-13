@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
@@ -81,6 +81,10 @@ export default function SignUpPage() {
   const [referralValid, setReferralValid] = useState<boolean | null>(null)
   const [referrerName, setReferrerName] = useState<string | null>(null)
 
+  // Refs for flags that must NOT trigger useEffect re-runs.
+  const redirectingRef = useRef(false)
+  const isManualSignUpRef = useRef(false)
+
   useEffect(() => {
     const supabase = createClient()
 
@@ -91,37 +95,27 @@ export default function SignUpPage() {
       return
     }
 
-    let redirecting = false
+    let cancelled = false
 
     const checkSession = async () => {
       try {
-        // Clear orphaned Web Lock before auth operation to prevent hangs
-        await clearOrphanedAuthLock()
-
-        // First try getSession (reads from localStorage, fast)
+        // Fast localStorage read only. Server proxy already handles the
+        // redirect for verified sessions; this is the client fallback.
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
-        if (session?.user) {
-          console.log("[SignUp] Session found, redirecting to dashboard")
-          redirecting = true
-          window.location.href = "/dashboard"
-          return
-        }
+        if (cancelled) return
 
-        // Also check with getUser in case OAuth just completed
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          console.log("[SignUp] User found via getUser, redirecting to dashboard")
-          redirecting = true
-          window.location.href = "/dashboard"
+        if (session?.user && !redirectingRef.current) {
+          redirectingRef.current = true
+          window.location.replace("/dashboard")
           return
         }
       } catch (err) {
         console.warn("[SignUp] Session check failed:", err)
       } finally {
-        if (!redirecting) {
+        if (!cancelled && !redirectingRef.current) {
           setIsCheckingSession(false)
         }
       }
@@ -129,23 +123,27 @@ export default function SignUpPage() {
 
     checkSession()
 
+    // Only handle SIGNED_IN (OAuth callback). NOT TOKEN_REFRESHED — that
+    // fires on every page load when a near-expiry token is refreshed,
+    // which would spam toasts and fight with server-side redirects.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("[SignUp] Auth state change:", event, !!session?.user)
+      if (cancelled) return
+      if (event !== "SIGNED_IN") return
+      if (!session?.user) return
+      if (isManualSignUpRef.current) return
+      if (redirectingRef.current) return
 
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user && !redirecting) {
-        console.log("[SignUp] Auth state SIGNED_IN, redirecting...")
-        redirecting = true
-        toast.success("Account created successfully!")
-        window.location.href = "/dashboard"
-      }
+      redirectingRef.current = true
+      window.location.replace("/dashboard")
     })
 
     return () => {
+      cancelled = true
       subscription.unsubscribe()
     }
-  }, [router])
+  }, [])
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false)
@@ -397,8 +395,10 @@ export default function SignUpPage() {
           )
         }
 
+        isManualSignUpRef.current = true
+        redirectingRef.current = true
         toast.success("Account created successfully! Welcome!")
-        window.location.href = "/dashboard"
+        window.location.replace("/dashboard")
         return
       }
 
