@@ -18,28 +18,14 @@ import {
  *   Banner: <script src="https://c.cx.ua/ad/serve/banner/{zone}"></script>
  *   Popup : <script src="https://c.cx.ua/ad/serve/popup/{zone}?f=4&t=1"></script>
  *
- * Why the previous "drop the <script> in a React tree" approach didn't work
- * --------------------------------------------------------------------------
- *  • The banner script uses legacy `document.write()` to inject its
- *    creative at the script tag's location. React loads scripts
- *    asynchronously, AFTER `DOMContentLoaded`, at which point
- *    `document.write` becomes destructive (or silently no-ops in modern
- *    browsers) — so the banner never renders.
- *
- *    Fix: render the banner inside an `<iframe srcDoc>` so the script
- *    runs against a fresh, still-parsing document where `document.write`
- *    is legal again.
- *
- *  • The popup script installs a global click-hook that opens a popunder.
- *    React 18+ strict mode mounts/unmounts effects twice in dev, which
- *    causes the script tag to be added/removed in rapid succession and
- *    the hook to be lost. Plus, if we let React control the `<script>` in
- *    the tree, the script element gets garbage-collected when its parent
- *    unmounts, killing the listener.
- *
- *    Fix: append the script element directly to `document.body` (outside
- *    React's reconciliation tree), and refuse to re-inject if it's
- *    already present.
+ * Banner sizing
+ * -------------
+ * c.cx.ua serves whatever creative size the zone is configured for in the
+ * publisher panel (300x250, 468x60, 728x90, 160x600, custom, etc.). We
+ * MUST NOT force a fixed size — instead, we let the script render at its
+ * natural dimensions inside a sandboxed iframe and resize the iframe to
+ * match what the creative actually paints. This is the same trick Google
+ * AdSense's "fluid" units use.
  */
 
 // ---------------------------------------------------------------------------
@@ -52,35 +38,30 @@ interface CxUaBannerProps {
   /** Override the configured zone id (defaults to env / panel default). */
   zoneId?: string
   /**
-   * Visual layout variant.
-   *   - "default"  : 300x250 medium rectangle, centered, with label
-   *   - "compact"  : 300x250 with no extra chrome (for grids)
-   *   - "card"     : 300x250 wrapped in a soft card
-   *   - "slim"     : responsive leaderboard — 320x50 mobile, 728x90 desktop
+   * Optional visual chrome. Sizing is ALWAYS the creative's natural size
+   * — this only controls the surrounding wrapper.
+   *   - "default" : centered with a small "Sponsored" label above
+   *   - "compact" : no chrome (just the ad)
+   *   - "card"    : wrapped in a soft card
+   *   - "slim"    : minimal chrome, floating "Sponsored" pill
    */
   variant?: "default" | "compact" | "card" | "slim"
-  /**
-   * Optional explicit pixel size override. If set, takes precedence over
-   * variant defaults. Useful when a zone is configured for a non-standard
-   * size in the c.cx.ua panel.
-   */
-  width?: number
-  height?: number
   /** No-op, kept for API compatibility with older callers. */
   userId?: string | null
+  /**
+   * Maximum width to constrain the banner to (in case the creative is
+   * wider than the container). Default: no max (creative's natural width).
+   */
+  maxWidth?: number
 }
 
 /**
- * Builds the srcDoc HTML for the iframe. Keep this minimal — every byte
- * here is parsed before the ad script runs. We DON'T include a doctype
- * fallback hack: modern browsers handle `<!doctype html>` srcdoc fine.
+ * Builds the srcDoc HTML for the iframe. The body lets its content size
+ * itself (no flex-center, no min-height) so we can read the true creative
+ * dimensions from `documentElement.scrollWidth/Height`.
  */
 function buildBannerSrcDoc(zoneId: string): string {
   const scriptUrl = getBannerScriptUrl(zoneId)
-  // Inline CSS reset so the iframe's body doesn't add an 8px margin and
-  // shift the creative. `overflow: hidden` to avoid scrollbars on
-  // pixel-rounding edge cases. Background is transparent so the parent's
-  // theme shows through if the creative has any whitespace.
   return `<!doctype html>
 <html>
 <head>
@@ -88,9 +69,10 @@ function buildBannerSrcDoc(zoneId: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <base target="_top">
 <style>
-html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:system-ui,sans-serif}
-body{display:flex;align-items:center;justify-content:center;min-height:100vh}
-a,img,iframe,div{max-width:100%}
+html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:system-ui,sans-serif;line-height:0}
+body{display:inline-block}
+img,iframe{display:block;border:0;max-width:100%;height:auto}
+a{display:inline-block;line-height:0}
 </style>
 </head>
 <body>
@@ -99,85 +81,143 @@ a,img,iframe,div{max-width:100%}
 </html>`
 }
 
-/** Returns the iframe dimensions for the chosen variant + overrides. */
-function getBannerDims(
-  variant: NonNullable<CxUaBannerProps["variant"]>,
-  width?: number,
-  height?: number,
-): { w: number; h: number; responsive: boolean } {
-  if (width && height) return { w: width, h: height, responsive: false }
-  switch (variant) {
-    case "slim":
-      // 728x90 leaderboard with mobile fallback to 320x50.
-      return { w: 728, h: 90, responsive: true }
-    case "card":
-    case "compact":
-    case "default":
-    default:
-      return { w: 300, h: 250, responsive: false }
-  }
-}
-
 /**
- * CxUaBanner — renders a c.cx.ua banner zone in a sandboxed iframe so the
- * legacy `document.write()` ad code can inject its creative safely.
+ * CxUaBanner — renders a c.cx.ua banner zone in a sandboxed iframe sized
+ * to the creative's natural dimensions.
  */
 export function CxUaBanner({
   className,
   showLabel = true,
   zoneId,
   variant = "default",
-  width,
-  height,
+  maxWidth,
 }: CxUaBannerProps) {
   const [zone] = useState<string>(zoneId || getBannerZoneId())
   const [mounted, setMounted] = useState(false)
   const [blocked, setBlocked] = useState(false)
+  // The iframe's measured natural dimensions. Null until the first
+  // measurement comes in.
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Best-effort ad-block detection: if the iframe never paints any
-  // children (e.g. the c.cx.ua origin is on a filter list), surface a
-  // graceful fallback instead of an empty grey box.
+  // Measure the creative's natural size as soon as it paints, then keep
+  // it in sync with any subsequent layout changes (animated creatives,
+  // responsive units, etc).
   useEffect(() => {
     if (!mounted) return
-    const t = window.setTimeout(() => {
-      const f = iframeRef.current
-      if (!f) return
+    const f = iframeRef.current
+    if (!f) return
+
+    let ro: ResizeObserver | null = null
+    let pollTimer: number | null = null
+    let blockTimer: number | null = null
+
+    const measure = () => {
       try {
         const doc = f.contentDocument
-        // If the iframe body is empty after 2.5s, treat as blocked. We
-        // can read the body because srcDoc gives us same-origin access.
+        if (!doc) return false
+        // Prefer the documentElement's scroll size — that's what the
+        // creative *wants* to be. Fall back to body in old browsers.
+        const root = doc.documentElement
+        const body = doc.body
+        if (!root || !body) return false
+        const w = Math.max(
+          root.scrollWidth,
+          body.scrollWidth,
+          root.offsetWidth,
+          body.offsetWidth,
+        )
+        const h = Math.max(
+          root.scrollHeight,
+          body.scrollHeight,
+          root.offsetHeight,
+          body.offsetHeight,
+        )
+        if (w > 0 && h > 0) {
+          setDims((prev) =>
+            prev && prev.w === w && prev.h === h ? prev : { w, h },
+          )
+          return true
+        }
+        return false
+      } catch {
+        // The ad script swapped the document to a cross-origin location
+        // — we can no longer measure. That's actually a success signal
+        // (the script ran). Stop trying.
+        return true
+      }
+    }
+
+    const attach = () => {
+      try {
+        const doc = f.contentDocument
+        if (!doc || !doc.body) return
+        // Initial measurement once the inner document is ready.
+        measure()
+        // Keep measuring whenever the creative resizes (lazy-loaded
+        // images, animated banners, responsive units).
+        if (typeof ResizeObserver !== "undefined") {
+          ro = new ResizeObserver(() => measure())
+          ro.observe(doc.documentElement)
+          ro.observe(doc.body)
+        }
+      } catch {
+        // Cross-origin — can't measure. Leave dims as-is.
+      }
+    }
+
+    // The iframe's `load` event fires once the srcDoc has been parsed.
+    // After that, the ad script may still be running async, so we also
+    // poll for a short window to catch late-rendered creatives.
+    const onLoad = () => {
+      attach()
+      let attempts = 0
+      pollTimer = window.setInterval(() => {
+        attempts += 1
+        const done = measure()
+        if (done || attempts > 20) {
+          if (pollTimer !== null) {
+            window.clearInterval(pollTimer)
+            pollTimer = null
+          }
+        }
+      }, 250)
+    }
+    f.addEventListener("load", onLoad)
+
+    // AdBlock detection: if no creative has painted after 3s, fall back.
+    blockTimer = window.setTimeout(() => {
+      try {
+        const doc = f.contentDocument
         if (doc && doc.body && doc.body.children.length === 0) {
           setBlocked(true)
         }
       } catch {
-        // Cross-origin — once the ad script swaps the document it may
-        // become inaccessible, which is actually a GOOD sign (script ran).
+        // ignore
       }
-    }, 2500)
-    return () => window.clearTimeout(t)
+    }, 3000)
+
+    return () => {
+      f.removeEventListener("load", onLoad)
+      if (ro) ro.disconnect()
+      if (pollTimer !== null) window.clearInterval(pollTimer)
+      if (blockTimer !== null) window.clearTimeout(blockTimer)
+    }
   }, [mounted])
 
-  const { w, h, responsive } = getBannerDims(variant, width, height)
   const srcDoc = mounted ? buildBannerSrcDoc(zone) : undefined
 
-  // SSR / pre-mount: render a stable skeleton with matching dimensions so
-  // there's no layout shift when the iframe pops in.
   const wrapperCls = cn(
-    "relative w-full",
+    "relative",
     variant === "card" && "rounded-lg border bg-card p-2 shadow-sm",
+    // Center the iframe within its container so non-full-width creatives
+    // (e.g. a 300x250 sitting in an 800px column) don't hang to the left.
+    "flex w-full flex-col items-center",
     className,
-  )
-
-  const iframeCls = cn(
-    "block border-0 bg-transparent",
-    responsive
-      ? "h-[50px] w-full sm:h-[60px] md:h-[90px] md:max-w-[728px] md:mx-auto"
-      : "mx-auto",
   )
 
   return (
@@ -187,8 +227,8 @@ export function CxUaBanner({
       data-ad-zone={zone}
       data-ad-type="banner"
     >
-      {showLabel && variant !== "slim" && (
-        <div className="mb-1.5 flex items-center justify-between px-1">
+      {showLabel && variant !== "slim" && variant !== "compact" && (
+        <div className="mb-1.5 flex w-full items-center justify-between px-1">
           <div className="flex items-center gap-1.5">
             <Megaphone className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -204,17 +244,13 @@ export function CxUaBanner({
         </span>
       )}
 
-      {/* Pre-hydration skeleton — keeps SSR + CSR markup compatible. */}
-      {!mounted && (
+      {/* Pre-hydration / pre-measurement skeleton. We don't know the real
+          dimensions yet, so just hold a small space and let the iframe
+          replace us when it has measured itself. */}
+      {(!mounted || (mounted && !blocked && !dims)) && (
         <div
           aria-hidden="true"
-          className={cn(
-            "rounded-md bg-muted/20",
-            responsive
-              ? "h-[50px] w-full sm:h-[60px] md:h-[90px]"
-              : "mx-auto",
-          )}
-          style={responsive ? undefined : { width: w, height: h }}
+          className="h-[90px] w-full max-w-[728px] rounded-md bg-muted/20"
         />
       )}
 
@@ -223,36 +259,43 @@ export function CxUaBanner({
           ref={iframeRef}
           title="Sponsored content"
           srcDoc={srcDoc}
-          width={responsive ? undefined : w}
-          height={responsive ? undefined : h}
+          // Apply measured natural size. Until measured, render at zero
+          // so we don't double-show (skeleton above covers the gap).
+          width={dims?.w}
+          height={dims?.h}
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
-          // Allow scripts and popups (the banner click typically opens an
-          // offer in a new tab). `allow-popups-to-escape-sandbox` lets the
-          // popup open without inheriting the sandbox restrictions.
           // We intentionally OMIT `allow-same-origin` so the third-party
-          // script can't read parent cookies/localStorage.
+          // script can't read parent cookies/localStorage. We DO need
+          // `allow-scripts` (obvious) and the popup permissions so the
+          // banner's click-through (which c.cx.ua opens via a top-frame
+          // navigation) works.
           sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-forms"
           allow="autoplay 'none'; geolocation 'none'; microphone 'none'; camera 'none'"
-          // `scrolling="no"` is deprecated but still respected — combined
-          // with body{overflow:hidden} this kills accidental scrollbars.
           scrolling="no"
-          className={iframeCls}
-          style={responsive ? undefined : { width: w, height: h }}
+          className={cn(
+            "block border-0 bg-transparent",
+            // Hide the iframe entirely until it has measured itself, so
+            // there's no flash of zero-sized content.
+            !dims && "invisible absolute",
+          )}
+          style={
+            dims
+              ? {
+                  width: dims.w,
+                  height: dims.h,
+                  maxWidth: maxWidth ?? "100%",
+                }
+              : undefined
+          }
         />
       )}
 
-      {/* Graceful fallback when AdBlock or a CSP swallows the iframe. We
-          keep the layout stable but render nothing visible so the page
-          doesn't show a broken-ad placeholder. */}
+      {/* Graceful fallback when AdBlock or a CSP swallows the iframe. */}
       {mounted && blocked && (
         <div
           aria-hidden="true"
-          className={cn(
-            "rounded-md",
-            responsive ? "h-[50px] w-full sm:h-[60px] md:h-[90px]" : "mx-auto",
-          )}
-          style={responsive ? undefined : { width: w, height: h }}
+          className="h-[1px] w-full"
         />
       )}
     </div>
@@ -285,9 +328,6 @@ const POPUP_MARKER_ATTR = "data-cxua-popup"
  * `document.body`, exactly as the panel instructs ("place before
  * </body>"). The script self-throttles based on the `f` and `t` query
  * params set in the c.cx.ua publisher panel.
- *
- * Mounts safely under React strict mode (double-mount-proof via a DOM
- * marker), idempotent across SPA navigations.
  */
 export function CxUaPopupLoader({
   zoneId,
@@ -322,16 +362,11 @@ export function CxUaPopupLoader({
     const s = document.createElement("script")
     s.src = src
     s.async = true
-    // `data-cxua-popup` lets us recognise the tag for idempotency.
     s.setAttribute(POPUP_MARKER_ATTR, zone)
-    // Tell browsers we don't need this resource on the critical path.
     s.setAttribute("fetchpriority", "low")
-    // Some browsers honour `referrerpolicy` on script tags — give c.cx.ua
-    // the referrer so they can attribute the impression.
     s.referrerPolicy = "no-referrer-when-downgrade"
 
     s.onerror = () => {
-      // AdBlock / network failure. Don't surface to the UI — silently bail.
       s.remove()
     }
 
@@ -341,8 +376,6 @@ export function CxUaPopupLoader({
     // popunder script installs document-level event listeners on first
     // load; removing the <script> tag wouldn't remove those listeners
     // anyway, and re-adding the script would create duplicate handlers.
-    // Leaving the tag in place is the safest and least-disruptive
-    // approach for SPA navigation.
   }, [zoneId, params])
 
   return null
@@ -353,17 +386,8 @@ export function CxUaPopupLoader({
 // ---------------------------------------------------------------------------
 
 /**
- * `<CxUaPreconnect />` — drop this in the root layout's `<head>` (or anywhere
- * inside the document) to warm up the TLS handshake to c.cx.ua before the
- * iframe / popup script actually requests anything. Cuts ~150-400ms off
- * first ad paint on cold loads.
- *
- * Usage in `app/layout.tsx`:
- *   import { CxUaPreconnect } from "@/components/ads/cx-ua-ads"
- *   ...
- *   <head>
- *     <CxUaPreconnect />
- *   </head>
+ * Drop this in the root layout's `<head>` to warm the TLS handshake to
+ * c.cx.ua before the iframe / popup script actually requests anything.
  */
 export function CxUaPreconnect() {
   return (
