@@ -258,10 +258,13 @@ function HomePageContent() {
       {/* Footer */}
       <Footer />
 
-      {/* c.cx.ua partner banner (zone 32) + popup redirect (zone 31).
-          Mounted on the landing page so first-time visitors see the partner
-          banner and (at most once per 24h) the popup redirect. */}
-      <PublicAdsLayer />
+      {/* c.cx.ua partner banner (zone 32) ONLY on the landing page. The
+          popup redirect (zone 31, configured `t=1`) is intentionally
+          DISABLED here because that mode redirects the current page
+          away — fine on engaged in-app surfaces, but on a first-touch
+          landing page it would bounce every visitor and make the page
+          appear to "refresh" itself on every visit. */}
+      <PublicAdsLayer disablePopup />
     </div>
   )
 }

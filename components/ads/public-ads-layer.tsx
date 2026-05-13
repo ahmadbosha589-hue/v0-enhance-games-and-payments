@@ -15,12 +15,26 @@ import { cn } from "@/lib/utils"
  * The admin panel intentionally does NOT mount this layer so admins are never
  * shown the popup redirect or banner while moderating.
  *
- * The popup script self-throttles via `f=1&t=24` (one redirect per visitor
- * per 24 hours), so users never see more than one popup per day.
+ * Important: the popup zone is configured in the c.cx.ua publisher panel
+ * with `?f=4&t=1`. The `t=1` mode redirects the CURRENT page to the ad
+ * offer (not a popunder in a new tab). That is appropriate on engaged
+ * in-app pages but catastrophic on first-touch marketing surfaces (the
+ * landing page would appear to "refresh" itself and bounce every visitor
+ * straight back out). Callers that render this on the public landing
+ * page MUST pass `disablePopup` to suppress the redirect script there.
  *
  * The banner is dismissible per-session and remembered in sessionStorage.
  */
-export function PublicAdsLayer() {
+export interface PublicAdsLayerProps {
+  /**
+   * Suppress the c.cx.ua popup/clickunder/redirect script. Pass `true`
+   * on the marketing landing page and any other first-touch surface to
+   * avoid redirecting visitors away from the site.
+   */
+  disablePopup?: boolean
+}
+
+export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {}) {
   const [bannerDismissed, setBannerDismissed] = useState(true) // start hidden to avoid hydration mismatch
   const [mounted, setMounted] = useState(false)
 
@@ -45,14 +59,17 @@ export function PublicAdsLayer() {
 
   return (
     <>
-      {/* Popup redirect script (zone 31) — fires at most once per 24h per visitor */}
-      <CxUaPopupLoader />
+      {/* Popup redirect script (zone 31). The c.cx.ua zone is configured
+          in `t=1` (current-window redirect) mode, so we only mount it on
+          surfaces that can tolerate the user being redirected away —
+          never on the landing page (see prop docs above). */}
+      {!disablePopup && <CxUaPopupLoader />}
 
-      {/* Sticky bottom strip (zone 32). Slim leaderboard so it never blocks
-          content: 50px tall on mobile, 60px on small screens, 90px on
-          desktop — matching industry-standard sticky banner sizes
-          (320x50 mobile, 728x90 desktop). Hidden until client mounts so
-          SSR output stays stable, and dismissible per session. */}
+      {/* Sticky bottom leaderboard (zone 32 — 728×90, the size configured
+          in the c.cx.ua publisher panel). The banner component scales
+          itself DOWN proportionally on narrower viewports so the same
+          creative renders correctly on mobile too. Hidden until client
+          mounts so SSR output stays stable, and dismissible per session. */}
       {mounted && !bannerDismissed && (
         <div
           className={cn(
@@ -66,10 +83,15 @@ export function PublicAdsLayer() {
         >
           <div
             className={cn(
-              "pointer-events-auto relative w-full",
-              "max-w-[360px] sm:max-w-[480px] md:max-w-[760px]",
+              "pointer-events-auto relative",
+              // Sized to the 728×90 creative + chrome: capped just above
+              // the creative's natural width, with padding sized so the
+              // wrapper hugs the ad rather than ballooning into a giant
+              // empty box. On narrower screens CxUaBanner scales the
+              // creative down proportionally.
+              "w-full max-w-[760px]",
               "rounded-lg border bg-background/95 backdrop-blur-sm shadow-lg",
-              "p-1.5 sm:p-2"
+              "px-2 py-2"
             )}
           >
             <button
@@ -85,7 +107,7 @@ export function PublicAdsLayer() {
             >
               <X className="h-3 w-3" />
             </button>
-            <CxUaBanner variant="slim" showLabel={false} className="w-full" />
+            <CxUaBanner variant="default" showLabel className="w-full" />
           </div>
         </div>
       )}
