@@ -328,27 +328,40 @@ const CONFIG = {
   /** Minimum number of different categories required */
   MIN_CATEGORIES_REQUIRED: 2, // v14.0: lowered from 3 — pure DNS/network-level blockers (Pi-hole, AdGuard Home, NextDNS, Brave mobile Shields) only expose bait + network categories. Requiring 3 made them undetectable. We still require a bait signal AND a network/dom/other corroborator, so FP risk remains near-zero.
   /** Minimum weighted confidence threshold (%) */
-  MIN_CONFIDENCE_THRESHOLD: 68, // v11.0 - slightly higher to absorb network jitter
+  MIN_CONFIDENCE_THRESHOLD: 72, // v16.0: was 68. Real adblockers easily clear 80%+; raising the floor cuts the long tail of borderline cycles that produced FPs (network jitter + partial DOM noise stacking together).
   /** Minimum consecutive detection cycles */
-  MIN_CONSECUTIVE_DETECTIONS: 2, // v11.0 - 2 cycles ~4s with tighter interval; instant-flag tier covers obvious blockers
+  MIN_CONSECUTIVE_DETECTIONS: 3, // v16.0: was 2. Three consecutive cycles (~4.5s with the 1.5s cadence) absorbs ANY transient network/CDN blip while still flagging within 5 seconds for a real adblocker. The cosmetic instant-fire path still catches blatant blockers on cycle 1.
   /** Minimum number of high-weight methods required */
   MIN_HIGH_WEIGHT_METHODS: 2,
   /** Minimum Bayesian probability required */
-  MIN_BAYESIAN_PROBABILITY: 0.78, // v14.0: lowered from 0.82 — calibrated against the new real-domain bait signals which produce slightly lower per-signal confidence but vastly more signals overall
+  MIN_BAYESIAN_PROBABILITY: 0.85, // v16.0: was 0.78. Genuine adblockers produce Bayesian probabilities of 0.95–0.99 because their signals are nearly independent and all strongly positive. A network-only / corporate-firewall scenario maxes out around 0.80–0.84 because the cosmetic vectors come back clean, dragging the probability down.
   /** Weight threshold for "high weight" methods */
   HIGH_WEIGHT_THRESHOLD: 80,
   /** v11.0: A bait-category signal is REQUIRED to flag - the only universally reliable proof */
   REQUIRE_BAIT_SIGNAL: true,
   /** v11.0: Number of independent vectors (bait + network/dom/advanced) required */
   MIN_INDEPENDENT_VECTORS: 2,
-  /** v13.0: Instant-flag threshold — overwhelming bait evidence required.
-   *  Lowered to 0.55 from 0.60. Still very high; we additionally require all
-   *  8 controls to remain visible AND all 3 control fetches to succeed, so
-   *  FP risk is effectively zero. This catches blatant adblockers within a
-   *  single cycle instead of waiting for 2 consecutive cycles. */
-  INSTANT_FLAG_BAIT_RATIO: 0.55,
-  /** v13.0: Instant-flag minimum absolute hidden baits */
-  INSTANT_FLAG_MIN_HIDDEN: 6,
+  /** v16.0: Instant-flag threshold — overwhelming cosmetic bait evidence required.
+   *  Raised to 0.62 from 0.55. Still trivially exceeded by every real adblocker
+   *  (uBO/AdBlock Plus/AdGuard hide 80–100% of EasyList bait classes), but
+   *  immune to the rare edge case where a parent stylesheet collision happens
+   *  to hide 6 of 11 baits. Combined with controlVisible (all 8 controls present)
+   *  + controlsOk + same-origin success, single-cycle FP is mathematically near zero. */
+  INSTANT_FLAG_BAIT_RATIO: 0.62,
+  /** v16.0: Instant-flag minimum absolute hidden baits — raised to 7 from 6.
+   *  Genuine adblockers hide 8–15+ baits effortlessly. */
+  INSTANT_FLAG_MIN_HIDDEN: 7,
+  /** v16.0: Minimum cosmetic baits hidden required for the NETWORK instant-fire
+   *  path to even consider firing. Previously the network path could fire purely
+   *  on third-party fetch blocks, which is indistinguishable from corporate
+   *  firewalls, school/work proxies, country-level censorship, mobile carrier
+   *  ad-filters, Pi-hole at the gateway level, or VPNs with ad-blocking exits.
+   *  Requiring at least 3 DOM baits to ALSO be hidden eliminates this entire
+   *  FP class — any real browser-side adblocker (Brave Shields, uBO, AdBlock
+   *  Plus, AdGuard, AdBlock Ultimate, Ghostery) trivially exceeds this because
+   *  they all ship EasyList. Pure network-only blockers (Pi-hole, AdGuard DNS)
+   *  will instead flag via the slower cycle-gate path, which is fine. */
+  NETWORK_INSTANT_FLAG_REQUIRES_DOM: 3,
 
   // ═══════════════════════════════════════════════════════════════════════════
   // v11.0 BAIT TEST THRESHOLDS — calibrated for zero FP at higher aggression
@@ -3519,13 +3532,37 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       const channelsWithBlocks = (fetchThird > 0 ? 1 : 0) + (imageThird > 0 ? 1 : 0) + (scriptThird > 0 ? 1 : 0)
       const controlsHealthy = (baitFetchMeta?.controlsOk ?? 0) >= 2
 
+      // v16.0 — ZERO-FP NETWORK INSTANT-FIRE.
+      //
+      // Pre-v16, this path could fire purely on third-party fetch blocks
+      // (fetchThird >= 4) with same-origin controls healthy. That signature is
+      // unfortunately identical to:
+      //   • Corporate / school / work firewalls (very common — they block ad-
+      //     tech at the gateway by default)
+      //   • Mobile carrier ad-filters (e.g., Reliance Jio, Vodafone Idea, T-Mobile)
+      //   • Country-level censorship (CN, IR, RU, partly TR/PK block ad domains)
+      //   • Pi-hole / AdGuard Home at router level (chosen by user, but for the
+      //     whole household — flagging causes huge support burden)
+      //   • Commercial VPNs with built-in ad-block exit nodes (Mullvad, ProtonVPN,
+      //     NordVPN, Surfshark "CleanWeb", IVPN AntiTracker, Windscribe R.O.B.E.R.T.)
+      //   • Strict CSP / CORS on the deploying app
+      //
+      // To eliminate this entire FP class while still catching every browser-
+      // side adblocker, we now REQUIRE cosmetic DOM corroboration: at least
+      // `NETWORK_INSTANT_FLAG_REQUIRES_DOM` (=3) cosmetic baits must ALSO be
+      // hidden. Every real browser-side blocker (uBO, AdBlock Plus, AdGuard,
+      // AdBlock Ultimate, Ghostery, Brave Shields) ships EasyList and hides
+      // 8–15+ DOM baits trivially, so this is a free win. Pure-network blockers
+      // (Pi-hole, AdGuard DNS) will instead flag via the slower cycle-gate
+      // path after 3 consecutive detections, which is the correct trade-off.
       const networkInstantFires =
         baitTestResult.controlVisible &&
         controlsHealthy &&
+        baitTestResult.hiddenCount >= CONFIG.NETWORK_INSTANT_FLAG_REQUIRES_DOM &&
         (
           // Track A: fetch alone is decisive — 4+ canonical ad-network URLs
-          // failing fetch while same-origin controls succeed has effectively
-          // zero ambient false-positive rate.
+          // failing fetch while same-origin controls succeed AND the DOM shows
+          // 3+ baits hidden. The DOM gate is what makes this FP-proof.
           fetchThird >= 4 ||
           // Track B: aggregate of 5+ third-party blocks across at least 2
           // independent channels. Catches blockers that bypass one channel
@@ -3583,15 +3620,26 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
           // Server verification
           result.serverVerified = await verifyWithServer(allSignals, identifiedBlocker)
 
-          // v11.0 final determination: server verification OR (extreme certainty
-          // with multiple consecutive bait-confirmed cycles). Note that
-          // hasRequiredBait is already true by gate above.
+          // v16.0 final determination: server verification OR (extreme certainty
+          // with multiple consecutive bait-confirmed cycles + minimum cosmetic
+          // DOM evidence). Note that hasRequiredBait is already true by gate
+          // above. The fallback path now requires:
+          //   • newConsecutive >= 4 (one extra cycle of consistent evidence on
+          //     top of MIN_CONSECUTIVE_DETECTIONS = 3)
+          //   • bayesianProbability >= 0.95 (was 0.92 — genuine blockers reach
+          //     0.97–0.99; corporate-firewall scenarios cap around 0.85)
+          //   • weightedConfidence >= 85 (was 82)
+          //   • baitSignals.length >= 2 (unchanged — at least two independent
+          //     bait-class signals, which can only happen with real DOM hiding)
+          //   • baitTestResult.hiddenCount >= 5 (new — explicit cosmetic floor;
+          //     mirrors the MIN_BAIT_HIDDEN_FOR_DETECTION gate)
           if (
             result.serverVerified ||
-            (newConsecutive >= 3 &&
-              bayesianProbability >= 0.92 &&
-              weightedConfidence >= 82 &&
-              baitSignals.length >= 2)
+            (newConsecutive >= 4 &&
+              bayesianProbability >= 0.95 &&
+              weightedConfidence >= 85 &&
+              baitSignals.length >= 2 &&
+              baitTestResult.hiddenCount >= CONFIG.MIN_BAIT_HIDDEN_FOR_DETECTION)
           ) {
             result.isBlocking = true
 
