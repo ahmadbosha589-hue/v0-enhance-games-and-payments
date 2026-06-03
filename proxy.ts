@@ -14,7 +14,11 @@ import { updateSession } from "@/lib/supabase/proxy"
 // Rate limiting configuration
 const RATE_LIMITS: Record<string, { windowMs: number; maxRequests: number }> = {
   api: { windowMs: 60000, maxRequests: 60 },
-  auth: { windowMs: 60000, maxRequests: 10 },
+  // Only genuine credential mutations (POST sign-in / sign-up / reset) land
+  // in this strict bucket. Auth *page* navigations and the read-only
+  // /api/auth/me session probe are routed to "page"/"api" respectively —
+  // see getRateLimitType(). 30/min comfortably covers retries + 2FA flows.
+  auth: { windowMs: 60000, maxRequests: 30 },
   claim: { windowMs: 60000, maxRequests: 5 },
   page: { windowMs: 60000, maxRequests: 200 },
 }
@@ -47,15 +51,28 @@ function getClientIP(request: NextRequest): string {
     "unknown"
 }
 
-function getRateLimitType(pathname: string): keyof typeof RATE_LIMITS {
-  if (pathname.startsWith("/api/auth") || pathname.startsWith("/auth")) return "auth"
+function getRateLimitType(pathname: string, method: string): keyof typeof RATE_LIMITS {
+  // The session-probe endpoint is read-only and gets polled MANY times during
+  // a single login attempt (the login page polls it up to 6× while waiting for
+  // the auth cookie to propagate). It must NOT share the strict auth bucket,
+  // otherwise a normal sign-in trips the limiter and the client interprets the
+  // resulting 429 as "no session" — bouncing the user straight back out.
+  if (pathname === "/api/auth/me" || pathname.startsWith("/api/auth/me/")) return "api"
+
+  // Auth *pages* (GET /auth/login, /auth/sign-up, …) are ordinary navigations.
+  // Actual credential submission happens client-side against Supabase, so the
+  // only POSTs that reach us here are first-party auth API calls — keep those
+  // strict, let the page views use the generous "page" bucket.
+  if (pathname.startsWith("/auth")) return method === "POST" ? "auth" : "page"
+  if (pathname.startsWith("/api/auth")) return method === "POST" ? "auth" : "api"
+
   if (pathname.includes("/claim") || pathname.includes("/faucet")) return "claim"
   if (pathname.startsWith("/api/")) return "api"
   return "page"
 }
 
-function checkRateLimit(ip: string, path: string): { allowed: boolean; remaining: number } {
-  const limitType = getRateLimitType(path)
+function checkRateLimit(ip: string, path: string, method: string): { allowed: boolean; remaining: number } {
+  const limitType = getRateLimitType(path, method)
   const { windowMs, maxRequests } = RATE_LIMITS[limitType]
   const key = `${ip}:${limitType}`
   const now = Date.now()
@@ -135,7 +152,7 @@ export default async function proxy(request: NextRequest) {
   // and for server-to-server webhook endpoints).
   const cfRay = request.headers.get("cf-ray")
   if (!cfRay && !isWebhookPath) {
-    const rateLimit = checkRateLimit(ip, pathname)
+    const rateLimit = checkRateLimit(ip, pathname, request.method)
     if (!rateLimit.allowed) {
       console.warn(`[RateLimit] IP ${ip} exceeded limit for ${pathname}`)
       return new NextResponse(
