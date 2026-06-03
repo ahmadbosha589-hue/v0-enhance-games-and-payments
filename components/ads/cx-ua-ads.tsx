@@ -18,26 +18,32 @@ import {
  *   Banner: <script src="https://c.cx.ua/ad/serve/banner/{zone}"></script>
  *   Popup : <script src="https://c.cx.ua/ad/serve/popup/{zone}?f=4&t=1"></script>
  *
- * Integration model
- * -----------------
- * c.cx.ua's documented integration is "place this <script> before the
- * </body> tag" — i.e. the serve script is meant to run in the host-page
- * DOM and inject the creative wherever it's loaded.
+ * Why the banner MUST run inside an iframe
+ * ----------------------------------------
+ * The banner serve endpoint responds with a script whose entire body is a
+ * single `document.write(...)` call:
  *
- * Earlier we tried sandbox-isolating the script inside an <iframe srcDoc>
- * for security, but that made the creative paint into a fixed-size white
- * container (the iframe's own viewport) instead of sizing to its native
- * 728×90 dimensions, producing a cut-off / mostly-empty banner.
+ *   document.write('<a href="https://c.cx.ua/ad/click/54/32" ...>
+ *                     <img src="...png" width="728" height="90" .../></a>');
  *
- * The implementation below injects the serve script directly into a
- * mount-point div on the parent page. Same trade-off most ad-tech sites
- * accept: the third-party script runs with first-party privileges, but
- * the creative renders correctly. We minimize the surface area by:
- *   - mounting only on the client (no SSR leak)
- *   - injecting the script into a dedicated container so it doesn't
- *     touch other parts of the DOM
- *   - re-using a single load per zone (idempotent, no duplicate scripts)
- *   - honoring Do-Not-Track
+ * `document.write()` only injects content while the document is still being
+ * parsed. If you create the <script> dynamically and append it AFTER the
+ * page has loaded (the previous implementation), the browser SILENTLY
+ * IGNORES the write — so the creative never appears and you get an empty
+ * (black) reserved box. That was the bug.
+ *
+ * The fix: embed the serve <script> as parser-inserted markup inside an
+ * <iframe srcDoc>. Inside the iframe the document is freshly parsing, so
+ * `document.write` executes natively and the <a><img> creative renders at
+ * its true size. The script is still fetched from the user's browser, so
+ * impressions and clicks attribute correctly to the visitor (not our
+ * server). The iframe measures its own content and posts the height back
+ * so the banner stays responsive — no cut-off, no fixed white box.
+ *
+ * Security: the iframe is sandboxed with only "allow-scripts allow-popups
+ * allow-popups-to-escape-sandbox" — no allow-same-origin — so the ad
+ * script runs in an opaque origin with zero access to our cookies/DOM,
+ * while click-through (target=_blank) still works.
  */
 
 // IAB standard leaderboard — matches the size configured in the c.cx.ua
@@ -97,59 +103,79 @@ export function CxUaBanner({
   maxWidth,
 }: CxUaBannerProps) {
   const [zone] = useState<string>(zoneId || getBannerZoneId())
+  // Unique token so the iframe's height postMessage can be matched to THIS
+  // instance even when several banners share the same zone on one page.
+  const [token] = useState<string>(() => Math.random().toString(36).slice(2))
   const [mounted, setMounted] = useState(false)
-  const mountRef = useRef<HTMLDivElement | null>(null)
+  const [dnt, setDnt] = useState(false)
+  // Measured creative height reported back from inside the iframe. Falls
+  // back to the reserved height until the first measurement arrives.
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null)
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
   useEffect(() => {
     setMounted(true)
-  }, [])
-
-  // Inject the c.cx.ua banner serve script into our mount-point div.
-  // The script will append its creative <a><img></a> right after itself,
-  // which means it'll appear inside our mount-point.
-  useEffect(() => {
-    if (!mounted) return
-    if (typeof window === "undefined" || typeof document === "undefined") return
-
-    const host = mountRef.current
-    if (!host) return
-
-    // Respect Do-Not-Track. We render the wrapper (with the Sponsored
-    // label) but skip the network call.
-    const dnt =
+    const isDnt =
       navigator.doNotTrack === "1" ||
       // @ts-expect-error legacy IE
       window.doNotTrack === "1" ||
       // @ts-expect-error Safari
       navigator.msDoNotTrack === "1"
-    if (dnt) return
+    setDnt(isDnt)
+  }, [])
 
-    // Idempotent: bail if a script is already loading/loaded inside this
-    // host (e.g. React strict-mode double effect).
-    if (host.querySelector(`script[data-cxua-banner="${zone}"]`)) {
-      return
+  // Listen for the height report posted by the iframe document.
+  useEffect(() => {
+    if (!mounted || dnt) return
+    function onMessage(e: MessageEvent) {
+      const data = e.data
+      if (!data || typeof data !== "object") return
+      if (data.__cxuaBanner !== true || data.token !== token) return
+      const h = Number(data.height)
+      if (Number.isFinite(h) && h > 0) {
+        setMeasuredHeight(Math.ceil(h))
+      }
     }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [mounted, dnt, token])
 
+  // The srcDoc embeds the serve <script> as parser-inserted markup so its
+  // internal document.write() runs during parse (the whole point), then
+  // measures and reports the rendered height back to us.
+  const srcDoc = (() => {
     const src = getBannerScriptUrl(zone)
-    const s = document.createElement("script")
-    s.src = src
-    s.async = true
-    s.setAttribute("data-cxua-banner", zone)
-    s.setAttribute("fetchpriority", "low")
-    s.referrerPolicy = "no-referrer-when-downgrade"
-    s.onerror = () => {
-      s.remove()
+    return `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+  body{display:flex;align-items:center;justify-content:center}
+  a,img{display:block}
+  img{max-width:100%;height:auto}
+</style></head><body>
+<script src="${src}"><\/script>
+<script>
+  (function(){
+    var TOKEN=${JSON.stringify(token)};
+    function report(){
+      try{
+        var h=Math.max(
+          document.body?document.body.scrollHeight:0,
+          document.documentElement?document.documentElement.scrollHeight:0
+        );
+        parent.postMessage({__cxuaBanner:true,token:TOKEN,height:h},"*");
+      }catch(e){}
     }
-    host.appendChild(s)
-
-    // On unmount, clean up the mount-point so a future remount re-loads
-    // the creative fresh (avoids stale state across route transitions).
-    return () => {
-      // Remove everything inside the host — the script tag AND any DOM
-      // the ad script appended.
-      while (host.firstChild) host.removeChild(host.firstChild)
-    }
-  }, [mounted, zone])
+    // Report after initial parse, after full load, after each image loads,
+    // and a couple of safety re-checks for late creatives.
+    if(document.readyState!=="loading")report();
+    window.addEventListener("load",report);
+    var imgs=document.images||[];
+    for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
+    setTimeout(report,300);setTimeout(report,1200);
+  })();
+<\/script>
+</body></html>`
+  })()
 
   const wrapperCls = cn(
     "relative",
@@ -157,6 +183,8 @@ export function CxUaBanner({
     "flex w-full flex-col items-center",
     className,
   )
+
+  const frameHeight = measuredHeight ?? height
 
   return (
     <div
@@ -182,29 +210,36 @@ export function CxUaBanner({
         </span>
       )}
 
-      {/* Mount-point for the c.cx.ua serve script. We reserve the
-          creative's natural height so layout stays stable while the
-          script loads, but let the creative size itself naturally —
-          c.cx.ua serves at the zone-configured 728×90, and on narrower
-          viewports we cap with max-width + a CSS sizing rule that the
-          creative respects via standard <img> shrinking. */}
+      {/* The creative is served via document.write(), which only runs while
+          a document is parsing. We therefore host it in a sandboxed iframe
+          whose srcDoc contains the parser-inserted serve <script>. The
+          iframe reports its rendered height back so we can size to the
+          creative (728×90 on desktop, scaled down on mobile). */}
       <div
-        ref={mountRef}
-        className={cn(
-          "w-full flex items-center justify-center",
-          // Reserved space so layout doesn't jump before the ad loads.
-          // The creative itself is 728×90; on narrow viewports the
-          // inline <img> shrinks proportionally via the max-w-full rule
-          // applied below.
-          "[&_img]:max-w-full [&_img]:h-auto [&_img]:mx-auto [&_img]:block",
-          "[&_a]:inline-block [&_a]:max-w-full",
-        )}
-        style={{
-          maxWidth: maxWidth ?? width,
-          minHeight: height,
-        }}
+        className="w-full flex items-center justify-center"
+        style={{ maxWidth: maxWidth ?? width }}
         aria-label="Sponsored content"
-      />
+      >
+        {mounted && !dnt ? (
+          <iframe
+            ref={iframeRef}
+            title="Sponsored content"
+            srcDoc={srcDoc}
+            // No allow-same-origin: the ad script runs in an opaque origin
+            // with no access to our cookies/DOM. allow-popups lets the
+            // click-through open in a new tab.
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+            scrolling="no"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            className="w-full border-0 block"
+            style={{ height: frameHeight, maxWidth: maxWidth ?? width }}
+          />
+        ) : (
+          // Reserve space (DNT users or pre-mount) to avoid layout shift.
+          <div style={{ minHeight: height, width: "100%" }} />
+        )}
+      </div>
     </div>
   )
 }
