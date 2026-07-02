@@ -12,21 +12,26 @@ interface PostbackParams {
   userAgent?: string
 }
 
+// All secrets are trimmed: a single trailing space/newline pasted into an
+// env var makes EVERY md5/hmac signature check fail with 403, which the
+// provider dashboard surfaces as "Postback Failed" — an extremely common
+// and painful-to-debug misconfiguration. Trimming is always safe because
+// no offerwall issues secrets with meaningful leading/trailing whitespace.
 const PROVIDER_SECRETS: Record<string, string> = {
-  ccxua: process.env.CCXUA_SECRET_KEY || "",
-  "cpx-research": process.env.CPX_SECRET_KEY || "",
-  torox: process.env.TOROX_SECRET_KEY || "",
-  lootably: process.env.LOOTABLY_SECRET_KEY || "",
-  adgate: process.env.ADGATE_SECRET_KEY || "",
-  "mm-wall": process.env.MM_WALL_SECRET_KEY || "",
-  timewall: process.env.TIMEWALL_SECRET_KEY || "",
-  "offerwall-me": process.env.OFFERWALLME_SECRET_KEY || "",
-  bicotasks: process.env.BICOTASKS_SECRET_KEY || "",
-  adscend: process.env.ADSCEND_SECRET_KEY || "",
-  bitlabs: process.env.BITLABS_SECRET_KEY || "",
-  "ayet-studios": process.env.AYET_STUDIOS_SECRET_KEY || "",
-  "hang-my-ads": process.env.HANG_MY_ADS_SECRET_KEY || "",
-  notik: process.env.NOTIK_SECRET_KEY || "",
+  ccxua: (process.env.CCXUA_SECRET_KEY || "").trim(),
+  "cpx-research": (process.env.CPX_SECRET_KEY || "").trim(),
+  torox: (process.env.TOROX_SECRET_KEY || "").trim(),
+  lootably: (process.env.LOOTABLY_SECRET_KEY || "").trim(),
+  adgate: (process.env.ADGATE_SECRET_KEY || "").trim(),
+  "mm-wall": (process.env.MM_WALL_SECRET_KEY || "").trim(),
+  timewall: (process.env.TIMEWALL_SECRET_KEY || "").trim(),
+  "offerwall-me": (process.env.OFFERWALLME_SECRET_KEY || "").trim(),
+  bicotasks: (process.env.BICOTASKS_SECRET_KEY || "").trim(),
+  adscend: (process.env.ADSCEND_SECRET_KEY || "").trim(),
+  bitlabs: (process.env.BITLABS_SECRET_KEY || "").trim(),
+  "ayet-studios": (process.env.AYET_STUDIOS_SECRET_KEY || "").trim(),
+  "hang-my-ads": (process.env.HANG_MY_ADS_SECRET_KEY || "").trim(),
+  notik: (process.env.NOTIK_SECRET_KEY || "").trim(),
 }
 
 // c.cx.ua sends postbacks from these IPs (see https://c.cx.ua/docs/ → "IPs to whitelist").
@@ -236,19 +241,22 @@ function parsePostbackParams(provider: string, searchParams: URLSearchParams): P
   try {
     switch (provider) {
       case "ccxua": {
-        // c.cx.ua's postback (wannads-compatible) sends:
-        //   subId, transId, reward, payout, signature, status, userIp,
-        //   campaign_id, offer_type (short|surf|offer), country, uuid
-        // For PTC/Video the campaign id arrives in `campaign_id`, while
+        // c.cx.ua's S2S postback (per https://c.cx.ua/docs/ → "S2S Postback")
+        // sends: subId, transId, offer_name, offer_type, reward, reward_name,
+        //        reward_value, payout, userIp, country, status, debug, signature
+        // Documented offer_type values: ptc | offer | task | shortlink
+        // (a PPC/PTC campaign like Zerpayz arrives as offer_type=ptc).
         // `transId` is the unique postback id we use for deduplication.
-        const offerType = searchParams.get("offer_type") || ""
+        const offerType = (searchParams.get("offer_type") || "").toLowerCase()
         const campaignId = searchParams.get("campaign_id") || ""
         const defaultName =
-          offerType === "short"
+          offerType === "shortlink"
             ? "c.cx.ua Shortlink"
-            : offerType === "surf"
-              ? "c.cx.ua PTC / Video"
-              : "c.cx.ua Offer"
+            : offerType === "ptc"
+              ? "c.cx.ua PTC Ad"
+              : offerType === "task"
+                ? "c.cx.ua Task"
+                : "c.cx.ua Offer"
         return {
           userId: searchParams.get("subId") || "",
           offerId: campaignId || searchParams.get("transId") || "",
@@ -490,7 +498,20 @@ async function handlePostback(
     })
 
     if (!validateSignature(provider, paramsObj, signature)) {
-      console.warn(`[Postback] Invalid signature for ${provider} from IP: ${requestIP}`)
+      console.warn(`[Postback] Invalid signature for ${provider} from IP: ${requestIP}`, {
+        receivedSignature: signature,
+        rawParams: paramsObj,
+      })
+      // c.cx.ua's own docs respond with this exact plain-text convention on
+      // signature mismatch. It will (correctly) be marked Failed in their
+      // dashboard, but the readable body makes the root cause obvious there
+      // instead of an opaque JSON blob.
+      if (provider === "ccxua") {
+        return new NextResponse("ERROR: Signature doesn't match", {
+          status: 403,
+          headers: { "Content-Type": "text/plain" },
+        })
+      }
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
     }
 
