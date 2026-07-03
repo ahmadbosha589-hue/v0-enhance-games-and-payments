@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { LogoFull } from "@/components/icons/logo"
 import { Home, ArrowLeft, Search, HelpCircle } from "lucide-react"
+import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
 
 export default function NotFound() {
   return (
@@ -58,6 +59,9 @@ export default function NotFound() {
           </Button>
         </div>
       </div>
+
+      {/* c.cx.ua floating banner — popup disabled on this error surface */}
+      <PublicAdsLayer disablePopup />
     </div>
   )
 }

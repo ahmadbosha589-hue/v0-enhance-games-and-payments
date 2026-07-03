@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { usePathname } from "next/navigation"
 import { X } from "lucide-react"
 import { CxUaBanner, CxUaPopupLoader } from "@/components/ads/cx-ua-ads"
 import { cn } from "@/lib/utils"
@@ -23,7 +24,10 @@ import { cn } from "@/lib/utils"
  * straight back out). Callers that render this on the public landing
  * page MUST pass `disablePopup` to suppress the redirect script there.
  *
- * The banner is dismissible per-session and remembered in sessionStorage.
+ * The banner is dismissible per page view only: closing it hides it on the
+ * current page, but it reappears as soon as the user navigates to another
+ * page. Dismissal is intentionally NOT persisted (no sessionStorage) to
+ * maximize impressions across the whole site.
  */
 export interface PublicAdsLayerProps {
   /**
@@ -35,26 +39,23 @@ export interface PublicAdsLayerProps {
 }
 
 export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {}) {
-  const [bannerDismissed, setBannerDismissed] = useState(true) // start hidden to avoid hydration mismatch
+  const pathname = usePathname()
+  const [bannerDismissed, setBannerDismissed] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    try {
-      const dismissed = sessionStorage.getItem("cxua_banner_dismissed_v1") === "1"
-      setBannerDismissed(dismissed)
-    } catch {
-      setBannerDismissed(false)
-    }
   }, [])
+
+  // Re-show the banner on every page navigation. This layer is mounted in
+  // persistent layouts, so component state survives client-side navigation —
+  // resetting on pathname change guarantees a fresh impression per page.
+  useEffect(() => {
+    setBannerDismissed(false)
+  }, [pathname])
 
   const handleDismiss = () => {
     setBannerDismissed(true)
-    try {
-      sessionStorage.setItem("cxua_banner_dismissed_v1", "1")
-    } catch {
-      /* ignore */
-    }
   }
 
   return (
