@@ -108,9 +108,14 @@ export function CxUaBanner({
   const [token] = useState<string>(() => Math.random().toString(36).slice(2))
   const [mounted, setMounted] = useState(false)
   const [dnt, setDnt] = useState(false)
-  // Measured creative height reported back from inside the iframe. Falls
-  // back to the reserved height until the first measurement arrives.
-  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null)
+  // Measured creative size reported back from inside the iframe. Falls
+  // back to the reserved size until the first measurement arrives.
+  const [measured, setMeasured] = useState<{ width: number; height: number } | null>(null)
+  // c.cx.ua returns an EMPTY 200 when it has no campaign for this
+  // domain/zone (e.g. referrer not matching the registered site, or no
+  // active campaigns). When the iframe's final check finds no creative we
+  // collapse the whole banner instead of showing an empty white box.
+  const [empty, setEmpty] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
   useEffect(() => {
@@ -124,16 +129,23 @@ export function CxUaBanner({
     setDnt(isDnt)
   }, [])
 
-  // Listen for the height report posted by the iframe document.
+  // Listen for the size / emptiness report posted by the iframe document.
   useEffect(() => {
     if (!mounted || dnt) return
     function onMessage(e: MessageEvent) {
       const data = e.data
       if (!data || typeof data !== "object") return
       if (data.__cxuaBanner !== true || data.token !== token) return
+      if (data.empty === true) {
+        // Final verdict from the iframe: no creative was served.
+        setEmpty(true)
+        return
+      }
       const h = Number(data.height)
-      if (Number.isFinite(h) && h > 0) {
-        setMeasuredHeight(Math.ceil(h))
+      const w = Number(data.width)
+      if (Number.isFinite(h) && h > 0 && Number.isFinite(w) && w > 0) {
+        setEmpty(false)
+        setMeasured({ width: Math.ceil(w), height: Math.ceil(h) })
       }
     }
     window.addEventListener("message", onMessage)
@@ -156,13 +168,34 @@ export function CxUaBanner({
 <script>
   (function(){
     var TOKEN=${JSON.stringify(token)};
+    function creative(){
+      // The serve script document.writes an <a><img></a>. Anything visible
+      // besides our own <script> tags counts as a creative.
+      return document.querySelector("a,img,iframe:not([data-self]),div,table");
+    }
     function report(){
       try{
-        var h=Math.max(
-          document.body?document.body.scrollHeight:0,
-          document.documentElement?document.documentElement.scrollHeight:0
-        );
-        parent.postMessage({__cxuaBanner:true,token:TOKEN,height:h},"*");
+        var el=creative();
+        if(!el){return}
+        var r=el.getBoundingClientRect();
+        var h=Math.max(r.height,document.body?document.body.scrollHeight:0);
+        var w=r.width||0;
+        if(h>0&&w>0){
+          parent.postMessage({__cxuaBanner:true,token:TOKEN,height:h,width:w},"*");
+        }
+      }catch(e){}
+    }
+    function finalCheck(){
+      // After all retries: if nothing was written, tell the parent to
+      // collapse the slot (c.cx.ua returns an empty 200 when it has no
+      // campaign for this site/zone).
+      try{
+        var el=creative();
+        if(!el||el.getBoundingClientRect().width===0){
+          parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
+        }else{
+          report();
+        }
       }catch(e){}
     }
     // Report after initial parse, after full load, after each image loads,
@@ -172,6 +205,7 @@ export function CxUaBanner({
     var imgs=document.images||[];
     for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
     setTimeout(report,300);setTimeout(report,1200);
+    setTimeout(finalCheck,2500);
   })();
 <\/script>
 </body></html>`
@@ -184,7 +218,18 @@ export function CxUaBanner({
     className,
   )
 
-  const frameHeight = measuredHeight ?? height
+  // Size the frame to the actual creative when we know it (c.cx.ua rotates
+  // multiple sizes — 728×90, 468×60, 300×250 … — so a hardcoded 728×90 box
+  // would letterbox or clip other formats).
+  const frameHeight = measured?.height ?? height
+  const frameMaxWidth = Math.min(measured?.width ?? width, maxWidth ?? width)
+
+  // Nothing was served (unregistered referrer domain, no active campaign,
+  // or DNT). Render nothing at all — an empty "Sponsored" box is worse
+  // than no box.
+  if (empty || (mounted && dnt)) {
+    return null
+  }
 
   return (
     <div
@@ -217,10 +262,10 @@ export function CxUaBanner({
           creative (728×90 on desktop, scaled down on mobile). */}
       <div
         className="w-full flex items-center justify-center"
-        style={{ maxWidth: maxWidth ?? width }}
+        style={{ maxWidth: frameMaxWidth }}
         aria-label="Sponsored content"
       >
-        {mounted && !dnt ? (
+        {mounted ? (
           <iframe
             ref={iframeRef}
             title="Sponsored content"
@@ -231,12 +276,17 @@ export function CxUaBanner({
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             scrolling="no"
             loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
+            referrerPolicy="strict-origin-when-cross-origin"
             className="w-full border-0 block"
-            style={{ height: frameHeight, maxWidth: maxWidth ?? width }}
+            style={{
+              height: frameHeight,
+              maxWidth: frameMaxWidth,
+              backgroundColor: "transparent",
+              colorScheme: "normal",
+            }}
           />
         ) : (
-          // Reserve space (DNT users or pre-mount) to avoid layout shift.
+          // Reserve space pre-mount to avoid layout shift.
           <div style={{ minHeight: height, width: "100%" }} />
         )}
       </div>
