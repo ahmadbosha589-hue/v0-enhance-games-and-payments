@@ -3,26 +3,39 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
+import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 
 // Lazy load heavy components
 const Script = dynamic(() => import("next/script").then(mod => mod.default), {
   ssr: false,
 })
 
-// Ad network configurations - 12 networks for maximum profit
+// Ad network configurations - 11 crypto-friendly partner networks.
+//
+// IMPORTANT: Google AdSense must NEVER appear in this list. Every call
+// site of AdSlotMultiNetwork (support-us reward flow, the fullscreen
+// "watch ads to double your reward" modal, PTC watch, shortlinks
+// go/reward, and the shortlink monetization landing page) is an
+// incentivized-ads surface, and Google's Rewarded Ads policy prohibits
+// offering a reward - including cryptocurrency - in exchange for viewing
+// or clicking AdSense creative. A "google" entry used to sit at index 0
+// here, which meant it was ALSO the default ad rendered on first paint
+// (currentNetworkIndex starts at 0) on every one of those pages, not
+// just an occasional rotation. Real AdSense only belongs in
+// <AdsenseBanner />, used exclusively for plain, non-incentivized
+// placements (see components/ads/adsense-banner.tsx).
 const AD_NETWORKS = [
-  { id: "google", name: "Google AdSense", priority: 1 },
-  { id: "a-ads", name: "A-ADS", priority: 2 },
-  { id: "coinzilla", name: "CoinZilla", priority: 3 },
-  { id: "bitmedia", name: "Bitmedia", priority: 4 },
-  { id: "cointraffic", name: "Cointraffic", priority: 5 },
-  { id: "medianet", name: "Media.net", priority: 6 },
-  { id: "hilltopads", name: "HilltopAds", priority: 7 },
-  { id: "adsterra", name: "Adsterra", priority: 8 },
-  { id: "propellerads", name: "PropellerAds", priority: 9 },
-  { id: "trafficstars", name: "TrafficStars", priority: 10 },
-  { id: "mellowads", name: "MellowAds", priority: 11 },
-  { id: "adskeeper", name: "AdsKeeper", priority: 12 },
+  { id: "a-ads", name: "A-ADS", priority: 1 },
+  { id: "coinzilla", name: "CoinZilla", priority: 2 },
+  { id: "bitmedia", name: "Bitmedia", priority: 3 },
+  { id: "cointraffic", name: "Cointraffic", priority: 4 },
+  { id: "medianet", name: "Media.net", priority: 5 },
+  { id: "hilltopads", name: "HilltopAds", priority: 6 },
+  { id: "adsterra", name: "Adsterra", priority: 7 },
+  { id: "propellerads", name: "PropellerAds", priority: 8 },
+  { id: "trafficstars", name: "TrafficStars", priority: 9 },
+  { id: "mellowads", name: "MellowAds", priority: 10 },
+  { id: "adskeeper", name: "AdsKeeper", priority: 11 },
 ] as const
 
 type AdSize = "banner" | "rectangle" | "leaderboard" | "skyscraper" | "large-rectangle"
@@ -95,6 +108,7 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
   const [shouldRender, setShouldRender] = useState(!lazyLoad || priority === "high")
   const [adError, setAdError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const hasMarketingConsent = useAdConsent()
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
 
@@ -160,21 +174,12 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     getAdConfigs().then(setAdConfigs)
   }, [shouldRender])
 
-  // Rotate through non-Google ads
+  // Rotate through the partner networks
   useEffect(() => {
     if (!shouldRender || !adConfigs) return
-    
-    const currentNetwork = AD_NETWORKS[currentNetworkIndex]
-    if (currentNetwork.id === "google") return
 
     refreshTimerRef.current = setInterval(() => {
-      setCurrentNetworkIndex(prev => {
-        const next = (prev + 1) % AD_NETWORKS.length
-        if (AD_NETWORKS[next].id === "google") {
-          return (next + 1) % AD_NETWORKS.length
-        }
-        return next
-      })
+      setCurrentNetworkIndex(prev => (prev + 1) % AD_NETWORKS.length)
     }, refreshInterval)
 
     return () => {
@@ -210,18 +215,6 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     const configTyped = config as Record<string, string | undefined>
 
     switch (currentNetwork.id) {
-      case "google":
-        return (
-          <ins
-            className="adsbygoogle"
-            style={{ display: "block", width: "100%", height: "100%" }}
-            data-ad-client={configTyped.publisherId}
-            data-ad-slot={configTyped.defaultSlot}
-            data-ad-format="auto"
-            data-full-width-responsive="true"
-          />
-        )
-
       case "a-ads":
         return (
           <iframe
@@ -353,14 +346,6 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
 
     return (
       <>
-        {currentNetwork.id === "google" && (
-          <Script
-            async
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${configTyped.publisherId}`}
-            crossOrigin="anonymous"
-            strategy="lazyOnload"
-          />
-        )}
         {currentNetwork.id === "coinzilla" && (
           <Script src="https://coinzillatag.com/lib/display.js" strategy="lazyOnload" />
         )}
@@ -377,24 +362,42 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     )
   }, [shouldRender, config, currentNetwork.id])
 
+  if (!hasMarketingConsent) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center rounded bg-muted/10 border border-dashed border-border/60 text-[10px] text-muted-foreground text-center px-2",
+          sizeConfig.class,
+          "mx-auto",
+          className
+        )}
+      >
+        Enable Marketing cookies to view partner ads
+      </div>
+    )
+  }
+
   return (
     <>
       {renderScripts()}
-      <div
-        ref={containerRef}
-        className={cn(
-          "relative overflow-hidden",
-          sizeConfig.class,
-          "mx-auto",
-          adError && "opacity-50",
-          className
-        )}
-        data-ad-position={position}
-        data-ad-size={size}
-        data-ad-network={currentNetwork.id}
-        data-ad-lazy={lazyLoad}
-      >
-        {renderAdContent()}
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Advertisement</span>
+        <div
+          ref={containerRef}
+          className={cn(
+            "relative overflow-hidden",
+            sizeConfig.class,
+            "mx-auto",
+            adError && "opacity-50",
+            className
+          )}
+          data-ad-position={position}
+          data-ad-size={size}
+          data-ad-network={currentNetwork.id}
+          data-ad-lazy={lazyLoad}
+        >
+          {renderAdContent()}
+        </div>
       </div>
     </>
   )
