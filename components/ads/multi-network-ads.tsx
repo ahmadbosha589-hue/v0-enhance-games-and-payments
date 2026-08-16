@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback, memo } from "react"
 import { cn } from "@/lib/utils"
 import { RefreshCw } from "lucide-react"
 import { CxUaBanner } from "@/components/ads/cx-ua-ads"
+import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 
 // 11 ad networks (excluding Google which is handled separately)
 const AD_NETWORKS = [
@@ -157,9 +158,20 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   const [configLoaded, setConfigLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const intervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
+  const hasMarketingConsent = useAdConsent()
 
-  // Fetch ad config to determine which networks are enabled
+  // Fetch ad config to determine which networks are enabled. Gated on
+  // Marketing consent: these are third-party ad vendors that set their own
+  // cookies/trackers, so we don't even fetch config (let alone render a
+  // slot or inject a script) until the visitor has opted in via the
+  // Cookie Preferences tool.
   useEffect(() => {
+    if (!hasMarketingConsent) {
+      setEnabledNetworks([])
+      setConfigLoaded(true)
+      return
+    }
+
     async function fetchAdConfig() {
       try {
         const response = await fetch("/api/ads/config", { cache: "force-cache" })
@@ -187,7 +199,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     }
 
     fetchAdConfig()
-  }, [])
+  }, [hasMarketingConsent])
 
   // Lazy load with Intersection Observer
   useEffect(() => {
@@ -297,6 +309,27 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     return null
   }
 
+  // Marketing consent not granted: show a small, honest prompt instead of
+  // silently rendering nothing. This matters most on reward pages (PTC,
+  // faucet, coupons, shortlinks, games) where these networks are the
+  // actual earning mechanism - the visitor needs to understand why no ads
+  // (and therefore no reward) are appearing, and how to enable them.
+  if (!hasMarketingConsent) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/10 p-4 text-center text-xs text-muted-foreground",
+          className
+        )}
+      >
+        <span>Partner ads are disabled until you enable Marketing cookies.</span>
+        <a href="/cookies" className="text-primary hover:underline">
+          Manage Cookie Preferences
+        </a>
+      </div>
+    )
+  }
+
   // Don't render if no ad networks are enabled/configured
   if (enabledNetworks.length === 0) {
     return null
@@ -322,6 +355,11 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
         className
       )}
     >
+      {/* Ad disclosure label. Always shown (not gated on the showLabels
+          prop) on top of the grid so this block of third-party creative is
+          never ambiguous with page content - showLabels only controls the
+          extra refresh-indicator styling below it. */}
+      <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">Advertisement</div>
       {showLabels && (
         <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
           <span>Partner Ads</span>
