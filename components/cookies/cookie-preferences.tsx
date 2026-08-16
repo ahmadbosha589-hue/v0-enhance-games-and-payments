@@ -100,6 +100,10 @@ export default function CookiePreferences() {
     localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(prefs))
     setPreferences(prefs)
     setSaved(true)
+    // Notify all ad-loading components in the current tab (useAdConsent)
+    // immediately, since the native `storage` event only fires in OTHER
+    // tabs/windows, not the one that made the change.
+    window.dispatchEvent(new Event("cookie-preferences-updated"))
     toast({
       title: "Cookie preferences saved",
       description: "Your cookie preferences have been updated successfully.",
