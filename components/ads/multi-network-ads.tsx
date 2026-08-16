@@ -380,26 +380,29 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
           />
         ))}
 
-        {/* c.cx.ua — wide leaderboard-format creative (~728x90). Unlike
-            the other 11 partner slots (square/rectangle formats sized
-            for a single grid column), squeezing this into one narrow
-            column scales the whole banner down to fit that column's
-            width, making it look tiny even though its aspect ratio is
-            correct. Giving it the full row width lets it render at its
-            actual leaderboard size instead of a shrunk-down copy. */}
-        <div
-          className={cn(
-            "relative w-full rounded-md overflow-hidden border border-border/40 bg-muted/10 flex items-center justify-center",
-            "col-span-full",
-            density === "compact"
-              ? "min-h-[80px] sm:min-h-[100px]"
-              : "min-h-[100px] sm:min-h-[120px]"
-          )}
-          data-ad-network="cx-ua"
-          data-ad-position={position}
-        >
-          <CxUaBanner variant="compact" showLabel={false} className="w-full" />
-        </div>
+        {/* c.cx.ua — wide leaderboard-format creative (~728x90). This
+            genuinely cannot be shown correctly inside the 300px-wide
+            sidebar slot (layout="stack", position="sidebar"): even at a
+            perfectly correct aspect ratio, a 728-wide banner scaled to a
+            300px column renders at ~37px tall. There's no CSS fix for
+            that — it's the wrong ad shape for that column. So it's
+            skipped there entirely and only shown in wide contexts
+            (header/footer/content), where it gets the full row width. */}
+        {position !== "sidebar" && layout !== "stack" && (
+          <div
+            className={cn(
+              "relative w-full rounded-md overflow-hidden border border-border/40 bg-muted/10 flex items-center justify-center",
+              "col-span-full",
+              density === "compact"
+                ? "min-h-[80px] sm:min-h-[100px]"
+                : "min-h-[100px] sm:min-h-[120px]"
+            )}
+            data-ad-network="cx-ua"
+            data-ad-position={position}
+          >
+            <CxUaBanner variant="compact" showLabel={false} className="w-full" />
+          </div>
+        )}
       </div>
     </div>
   )
