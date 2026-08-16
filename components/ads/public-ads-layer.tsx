@@ -42,6 +42,14 @@ export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {
   const pathname = usePathname()
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [mounted, setMounted] = useState(false)
+  // Whether CxUaBanner has actually measured and is rendering a real
+  // creative. The card chrome below (border, shadow, dismiss button) is
+  // only shown once this is true — otherwise a blocked/empty ad response
+  // (no active campaign, an ad blocker, Do-Not-Track) left the card's
+  // border/padding/dismiss-button rendered around nothing: a collapsed
+  // sliver with just the × floating in it and no ad or "Sponsored" label
+  // anywhere near it.
+  const [adVisible, setAdVisible] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -50,8 +58,12 @@ export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {
   // Re-show the banner on every page navigation. This layer is mounted in
   // persistent layouts, so component state survives client-side navigation —
   // resetting on pathname change guarantees a fresh impression per page.
+  // adVisible resets too, so a stale "had a creative" flag from the
+  // previous page can't render the chrome before the freshly (re)loading
+  // banner on the new page has confirmed there's really something to show.
   useEffect(() => {
     setBannerDismissed(false)
+    setAdVisible(false)
   }, [pathname])
 
   const handleDismiss = () => {
@@ -84,31 +96,42 @@ export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {
         >
           <div
             className={cn(
-              "pointer-events-auto relative",
-              // Sized to the 728×90 creative + chrome: capped just above
-              // the creative's natural width, with padding sized so the
-              // wrapper hugs the ad rather than ballooning into a giant
-              // empty box. On narrower screens CxUaBanner scales the
-              // creative down proportionally.
-              "w-full max-w-[760px]",
-              "rounded-lg border bg-background/95 backdrop-blur-sm shadow-lg",
-              "px-2 py-2"
+              "relative w-full max-w-[760px]",
+              // The border/shadow/padding "card" look — and the dismiss
+              // button below — only apply once CxUaBanner has confirmed a
+              // creative is actually rendering. Until then (or if the slot
+              // ends up empty) this div carries no chrome at all, so there's
+              // nothing to collapse into a stray sliver. Sized to the
+              // 728×90 creative + chrome: capped just above the creative's
+              // natural width, with padding sized so the wrapper hugs the
+              // ad rather than ballooning into a giant empty box. On
+              // narrower screens CxUaBanner scales the creative down
+              // proportionally.
+              adVisible &&
+                "pointer-events-auto rounded-lg border bg-background/95 backdrop-blur-sm shadow-lg px-2 py-2"
             )}
           >
-            <button
-              type="button"
-              onClick={handleDismiss}
-              aria-label="Dismiss sponsored banner"
-              className={cn(
-                "absolute -top-2 -right-2 z-10",
-                "h-6 w-6 rounded-full border bg-background text-muted-foreground",
-                "flex items-center justify-center shadow-sm",
-                "hover:text-foreground hover:bg-muted transition-colors"
-              )}
-            >
-              <X className="h-3 w-3" />
-            </button>
-            <CxUaBanner variant="default" showLabel className="w-full" />
+            {adVisible && (
+              <button
+                type="button"
+                onClick={handleDismiss}
+                aria-label="Dismiss sponsored banner"
+                className={cn(
+                  "absolute -top-2 -right-2 z-10",
+                  "h-6 w-6 rounded-full border bg-background text-muted-foreground",
+                  "flex items-center justify-center shadow-sm",
+                  "hover:text-foreground hover:bg-muted transition-colors"
+                )}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+            <CxUaBanner
+              variant="default"
+              showLabel
+              className="w-full"
+              onVisibilityChange={setAdVisible}
+            />
           </div>
         </div>
       )}
