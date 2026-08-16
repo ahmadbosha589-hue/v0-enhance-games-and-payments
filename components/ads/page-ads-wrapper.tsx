@@ -1,12 +1,24 @@
 "use client"
 
 import { Suspense, lazy, memo, useEffect, useState, useRef } from "react"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
 // Lazy load ad components for performance - only load when needed
-const GoogleRewardedAds = lazy(() =>
-  import("./google-rewarded-ads").then(m => ({ default: m.GoogleRewardedAds }))
+//
+// NOTE: This wrapper renders a passive, dashboard-wide shell on every
+// dashboard page (see app/dashboard/layout.tsx), so it must never carry
+// any "watch to earn" framing or reward logic - only AdsenseBanner
+// (plain display ads) belongs here. The actual pay-to-watch mechanic
+// lives on specific reward pages (PTC, faucet, coupons, shortlinks,
+// games) and is served exclusively by the 11 crypto-friendly networks
+// below (MultiNetworkAds), which permit incentivized ads. The old
+// GoogleRewardedAds component that used to be wired in here has been
+// deleted - it was Google-branded creative wrapped in reward framing,
+// which is exactly what Google's Rewarded Ads policy prohibits.
+const AdsenseBanner = lazy(() =>
+  import("./adsense-banner").then(m => ({ default: m.AdsenseBanner }))
 )
 const MultiNetworkAds = lazy(() =>
   import("./multi-network-ads").then(m => ({ default: m.MultiNetworkAds }))
@@ -146,9 +158,12 @@ const LazyAdSection = memo(function LazyAdSection({
 })
 
 /**
- * PageAdsWrapper - Wraps page content with Google Rewarded Ads (3x 60s static)
- * and 11 other ad networks (auto-refreshing) properly separated per Google policies.
- * 
+ * PageAdsWrapper - Wraps page content with a plain, non-incentivized
+ * AdSense banner (top/bottom) and 11 other, incentive-friendly ad
+ * networks (auto-refreshing sidebar/footer). AdSense here is purely
+ * passive display - it is never tied to a reward, timer-to-earn, or
+ * completion state, per Google's Rewarded Ads policy.
+ *
  * All ads are lazy loaded and don't block page rendering.
  */
 export const PageAdsWrapper = memo(function PageAdsWrapper({
@@ -159,10 +174,33 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
   showSidebarAds = true,
   pageName = "page"
 }: PageAdsWrapperProps) {
+  const pathname = usePathname()
+
+  // AdSense must never appear on a page whose own copy frames ad-viewing
+  // as something the user does "to support us" or "to earn" - Google
+  // explicitly lists "support us" as a banned phrase for encouraging ad
+  // clicks/views, and a reviewer landing on these routes would see real
+  // AdSense inventory sitting inside that exact framing. The 11 non-Google
+  // networks (MultiNetworkAds, sidebar/footer) are unaffected - they are
+  // built for and permit this kind of incentivized placement.
+  const ADSENSE_BLOCKED_ROUTES = [
+    "/dashboard/support-us",
+    "/dashboard/ptc",
+    "/dashboard/manual-faucet",
+    "/dashboard/coupons",
+    "/dashboard/shortlinks",
+    "/dashboard/games",
+  ]
+  const isAdsenseBlockedRoute = ADSENSE_BLOCKED_ROUTES.some(
+    (route) => pathname?.startsWith(route)
+  )
+  const effectiveShowHeaderAds = showHeaderAds && !isAdsenseBlockedRoute
+  const effectiveShowFooterAds = showFooterAds && !isAdsenseBlockedRoute
+
   return (
     <div className={cn("relative", className)}>
-      {/* Top Section: Google Rewarded Ads (Static, 60s each) - Lazy loaded */}
-      {showHeaderAds && (
+      {/* Top Section: plain AdSense banner (no reward/gamification) - Lazy loaded */}
+      {effectiveShowHeaderAds && (
         <div className="mb-4 sm:mb-6">
           <LazyAdSection
             fallback={<GoogleAdSkeleton />}
@@ -171,9 +209,8 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
             timeout={3000}
           >
             <Suspense fallback={<GoogleAdSkeleton />}>
-              <GoogleRewardedAds
-                position="top"
-                lazyLoad={true}
+              <AdsenseBanner
+                slot={`${pageName}_top`}
                 className="animate-in fade-in duration-500"
               />
             </Suspense>
@@ -217,6 +254,9 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
 
       {/* Bottom Section: Other 11 Ad Networks (Auto-refreshing) - Lazy loaded */}
       {showFooterAds && (
+        // Note: the 11-network grid always shows when showFooterAds is
+        // true, even on AdSense-blocked routes - only the plain AdSense
+        // banner below is gated by effectiveShowFooterAds.
         <div className="mt-4 sm:mt-6 space-y-4">
           {/* Other networks grid - Medium priority */}
           <LazyAdSection
@@ -237,23 +277,28 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
             </Suspense>
           </LazyAdSection>
 
-          {/* Bottom Google Rewarded Ads - Load in parallel */}
-          <div className="mt-8 sm:mt-12">
-            <LazyAdSection
-              fallback={<GoogleAdSkeleton />}
-              rootMargin="500px"
-              delay={0}
-              timeout={3000}
-            >
-              <Suspense fallback={<GoogleAdSkeleton />}>
-                <GoogleRewardedAds
-                  position="bottom"
-                  lazyLoad={true}
-                  className="animate-in fade-in duration-500 delay-200"
-                />
-              </Suspense>
-            </LazyAdSection>
-          </div>
+          {/* Bottom plain AdSense banner - Load in parallel. Gated
+              separately from the network grid above: on AdSense-blocked
+              routes (support-us, ptc, manual-faucet, coupons,
+              shortlinks, games) this stays hidden even though the
+              11-network grid still renders. */}
+          {effectiveShowFooterAds && (
+            <div className="mt-8 sm:mt-12">
+              <LazyAdSection
+                fallback={<GoogleAdSkeleton />}
+                rootMargin="500px"
+                delay={0}
+                timeout={3000}
+              >
+                <Suspense fallback={<GoogleAdSkeleton />}>
+                  <AdsenseBanner
+                    slot={`${pageName}_bottom`}
+                    className="animate-in fade-in duration-500 delay-200"
+                  />
+                </Suspense>
+              </LazyAdSection>
+            </div>
+          )}
         </div>
       )}
 
