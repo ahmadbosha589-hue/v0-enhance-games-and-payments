@@ -3,23 +3,22 @@
 import { Suspense, lazy, memo, useEffect, useState, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Skeleton } from "@/components/ui/skeleton"
 
 // Lazy load ad components for performance - only load when needed
 //
 // NOTE: This wrapper renders a passive, dashboard-wide shell on every
 // dashboard page (see app/dashboard/layout.tsx), so it must never carry
-// any "watch to earn" framing or reward logic - only AdsenseBanner
-// (plain display ads) belongs here. The actual pay-to-watch mechanic
-// lives on specific reward pages (PTC, faucet, coupons, shortlinks,
-// games) and is served exclusively by the 11 crypto-friendly networks
-// below (MultiNetworkAds), which permit incentivized ads. The old
-// GoogleRewardedAds component that used to be wired in here has been
-// deleted - it was Google-branded creative wrapped in reward framing,
-// which is exactly what Google's Rewarded Ads policy prohibits.
-const AdsenseBanner = lazy(() =>
-  import("./adsense-banner").then(m => ({ default: m.AdsenseBanner }))
-)
+// any "watch to earn" framing or reward logic - only plain display ads
+// belong here. The actual pay-to-watch mechanic lives on specific reward
+// pages (PTC, faucet, coupons, shortlinks, games) and is served
+// exclusively by the crypto-friendly networks below (MultiNetworkAds),
+// which permit incentivized ads.
+//
+// Both the GoogleRewardedAds and AdsenseBanner components that used to be
+// wired in here have been deleted - Google-branded creative wrapped in
+// reward framing is exactly what Google's Rewarded Ads policy prohibits.
+// Every placement now routes through MultiNetworkAds; the `position` prop
+// selects the appropriate slot size.
 const MultiNetworkAds = lazy(() =>
   import("./multi-network-ads").then(m => ({ default: m.MultiNetworkAds }))
 )
@@ -34,18 +33,6 @@ interface PageAdsWrapperProps {
 }
 
 // Memoized skeletons to prevent re-renders
-const GoogleAdSkeleton = memo(function GoogleAdSkeleton() {
-  return (
-    <div className="rounded-xl border bg-muted/10 p-4 sm:p-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="h-14 bg-muted/30 rounded-lg animate-pulse" />
-        ))}
-      </div>
-    </div>
-  )
-})
-
 const NetworkAdSkeleton = memo(function NetworkAdSkeleton() {
   return (
     <div className="rounded-lg border bg-muted/20 p-3 sm:p-4">
@@ -199,18 +186,22 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Top Section: plain AdSense banner (no reward/gamification) - Lazy loaded */}
+      {/* Top Section: plain, non-incentivized display banner - Lazy loaded */}
       {effectiveShowHeaderAds && (
         <div className="mb-4 sm:mb-6">
           <LazyAdSection
-            fallback={<GoogleAdSkeleton />}
+            fallback={<NetworkAdSkeleton />}
             rootMargin="100px"
             delay={0}
             timeout={3000}
           >
-            <Suspense fallback={<GoogleAdSkeleton />}>
-              <AdsenseBanner
-                slot={`${pageName}_top`}
+            <Suspense fallback={<NetworkAdSkeleton />}>
+              <MultiNetworkAds
+                position="header"
+                layout="inline"
+                showLabels={false}
+                lazyLoad={true}
+                priority="high"
                 className="animate-in fade-in duration-500"
               />
             </Suspense>
@@ -277,22 +268,26 @@ export const PageAdsWrapper = memo(function PageAdsWrapper({
             </Suspense>
           </LazyAdSection>
 
-          {/* Bottom plain AdSense banner - Load in parallel. Gated
-              separately from the network grid above: on AdSense-blocked
+          {/* Bottom plain display banner - Load in parallel. Gated
+              separately from the network grid above: on reward-framed
               routes (support-us, ptc, manual-faucet, coupons,
               shortlinks, games) this stays hidden even though the
               11-network grid still renders. */}
           {effectiveShowFooterAds && (
             <div className="mt-8 sm:mt-12">
               <LazyAdSection
-                fallback={<GoogleAdSkeleton />}
+                fallback={<NetworkAdSkeleton />}
                 rootMargin="500px"
                 delay={0}
                 timeout={3000}
               >
-                <Suspense fallback={<GoogleAdSkeleton />}>
-                  <AdsenseBanner
-                    slot={`${pageName}_bottom`}
+                <Suspense fallback={<NetworkAdSkeleton />}>
+                  <MultiNetworkAds
+                    position="content"
+                    layout="inline"
+                    showLabels={false}
+                    lazyLoad={true}
+                    priority="low"
                     className="animate-in fade-in duration-500 delay-200"
                   />
                 </Suspense>
