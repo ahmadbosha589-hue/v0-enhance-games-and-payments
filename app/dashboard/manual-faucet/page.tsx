@@ -34,7 +34,6 @@ import { CryptoIcon } from "@/components/crypto-icon"
 import confetti from "canvas-confetti"
 import { AntiBotVerification } from "@/components/captcha/anti-bot-verification"
 import { useDeviceFingerprintContext } from "@/components/security/device-fingerprint-provider"
-import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
 import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
@@ -497,7 +496,7 @@ function WatchAdDoubleReward({
         Watch Ads to Double Reward
       </Button>
 
-      {/* Fullscreen Ad Modal with 3 Google Rewarded Ads + 11 Ad Networks */}
+      {/* Fullscreen Ad Modal with 3 Partner Ads + 11 Ad Networks */}
       <FullscreenAdModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -1522,8 +1521,8 @@ function DirectFaucetContent() {
     return (
       <div className="min-h-screen p-4 md:p-6 lg:p-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          {/* Google Rewarded Ads - Top (3x 60s static) */}
-          <GoogleRewardedAds position="top" lazyLoad={false} />
+          {/* Partner Ads - Top (3x 60s static) */}
+          <MultiNetworkAds position="header" layout="grid" priority="high" lazyLoad={false} />
 
           <Card className="border-primary/20">
             <CardHeader className="text-center pb-3">
@@ -1550,9 +1549,9 @@ function DirectFaucetContent() {
           {/* 11 Ad Networks - Grid */}
           <MultiNetworkAds position="content" layout="grid" showLabels={false} priority="high" />
 
-          {/* Google Rewarded Ads - Bottom */}
+          {/* Partner Ads - Bottom */}
           <div className="h-6" aria-hidden="true" />
-          <GoogleRewardedAds position="bottom" lazyLoad={false} />
+          <MultiNetworkAds position="footer" layout="grid" priority="high" lazyLoad={false} />
         </div>
       </div>
     )
@@ -1609,8 +1608,8 @@ function DirectFaucetContent() {
 
         {/* Health indicators are now shown under each crypto in the grid below */}
 
-        {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
-        <GoogleRewardedAds position="top" className="mb-4" />
+        {/* Partner Ads - 3x 60s static (separated from other networks per policy) */}
+        <MultiNetworkAds position="header" layout="grid" className="mb-4" />
 
         {/* Security Warnings */}
         {vpnDetected && (
@@ -2010,9 +2009,9 @@ function DirectFaucetContent() {
         {/* Other 11 Ad Networks - auto-refreshing (except AdsKeeper which only refreshes on page load) */}
         <MultiNetworkAds position="footer" layout="grid" showLabels={false} />
 
-        {/* Bottom Google Rewarded Ads */}
+        {/* Bottom Partner Ads */}
         <div className="h-8" aria-hidden="true" />
-        <GoogleRewardedAds position="bottom" />
+        <MultiNetworkAds position="footer" layout="grid" />
       </div>
     </div>
   )
