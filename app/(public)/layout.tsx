@@ -160,8 +160,12 @@ export default function PublicLayout({
       {/* Footer */}
       <Footer />
 
-      {/* c.cx.ua partner banner (zone 32) + popup redirect (zone 31, ≤1/day).
-          Mounted only on non-admin public surfaces. */}
+      {/* c.cx.ua partner banner (zone 32) - dismissible sticky footer ad.
+          Mounted only on non-admin public surfaces. The zone 31 same-tab
+          popup/click-under redirect that used to load here was removed
+          site-wide (see PublicAdsLayer) because it silently redirected
+          visitors off the page, which violates AdSense's prohibition on
+          publisher pages triggering unwanted redirects. */}
       <PublicAdsLayer />
     </div>
   )
