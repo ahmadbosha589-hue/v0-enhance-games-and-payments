@@ -18,8 +18,18 @@ export function OfferwallVPNGuard({ children, strictMode = true }: OfferwallVPNG
   const [multiAccountDetected, setMultiAccountDetected] = useState(false)
   const [isCheckingMultiAccount, setIsCheckingMultiAccount] = useState(true)
   
+  // v13.0 — was 7s ("relentless"), which meant every offerwall page ran a
+  // full WebRTC-IP collection (2.5s of RTCPeerConnection work) plus a
+  // round trip to the Fortress VPN check, continuously, for as long as the
+  // page stayed open. That's what made offerwall pages feel sluggish —
+  // constant background CPU/network churn stealing cycles from the main
+  // thread, independent of whether the result ever changed. 60s still
+  // catches someone toggling a VPN mid-session, just without re-running
+  // expensive detection every few seconds. Visibility/network/focus
+  // triggers (below) still catch the common "toggled VPN and came back"
+  // case immediately.
   const { vpnDetected, isChecking, lastResult, recheck } = usePersistentVPNCheck({
-    intervalMs: 7000, // v12.0 - check every 7s for offerwalls (was 10s) — relentless
+    intervalMs: 60000,
     checkOnVisibilityChange: true,
     checkOnNetworkChange: true,
   })
