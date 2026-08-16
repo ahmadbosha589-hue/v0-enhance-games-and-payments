@@ -213,7 +213,7 @@ export function WatchAdBonusReward({
         </p>
       )}
 
-      {/* Modal with 3 Google Rewarded Ads + 11 Ad Networks + c.cx.ua.
+      {/* Modal with 3 Partner Ads + 11 Ad Networks + c.cx.ua.
           Sizing strategy is generous on every breakpoint so each ad slot
           renders close to its native 300×250 medium-rectangle size for
           the strongest impressions:
