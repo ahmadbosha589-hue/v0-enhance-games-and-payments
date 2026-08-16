@@ -105,12 +105,110 @@ export default function PrivacyPage() {
           <h2 className="text-2xl font-semibold">9. Cookies</h2>
           <p className="text-muted-foreground">
             We use cookies and similar technologies to maintain your session, remember your preferences, and analyze
-            Service usage. You can control cookies through your browser settings.
+            Service usage. You can control cookies through your browser settings or through our{" "}
+            <a href="/cookies" className="text-primary hover:underline">
+              Cookie Preferences
+            </a>{" "}
+            page.
           </p>
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold">10. Children&apos;s Privacy</h2>
+          <h2 className="text-2xl font-semibold">10. Advertising &amp; Third-Party Vendors</h2>
+          <p className="mb-4 text-muted-foreground">
+            We display advertising to help keep {PLATFORM_CONFIG.name} free to use. Some of this advertising is
+            served by Google and other third-party advertising vendors and ad networks (&quot;Vendors&quot;).
+          </p>
+          <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+            <li>
+              Google, as a third-party vendor, uses cookies (such as the DoubleClick/Google Ads cookie) to serve ads
+              on our Service based on your prior visits to this and other websites.
+            </li>
+            <li>
+              Google&apos;s use of advertising cookies enables it and its partners to serve ads based on your visits
+              to our Service and/or other sites on the Internet.
+            </li>
+            <li>
+              You may opt out of personalized advertising by visiting{" "}
+              <a
+                href="https://adssettings.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Google Ads Settings
+              </a>
+              . You can also opt out of many third-party vendors&apos; use of cookies for personalized advertising by
+              visiting{" "}
+              <a
+                href="https://optout.aboutads.info"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                www.aboutads.info
+              </a>{" "}
+              or, if you are in the EU/UK,{" "}
+              <a
+                href="https://www.youronlinechoices.eu"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                www.youronlinechoices.eu
+              </a>
+              .
+            </li>
+            <li>
+              You can find more information about how Google uses data when you use our partners&apos; sites or apps
+              at{" "}
+              <a
+                href="https://policies.google.com/technologies/partner-sites"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                policies.google.com/technologies/partner-sites
+              </a>
+              .
+            </li>
+            <li>
+              Non-essential advertising and analytics cookies are only set after you provide consent through our{" "}
+              <a href="/cookies" className="text-primary hover:underline">
+                Cookie Preferences
+              </a>{" "}
+              tool. You can withdraw this consent at any time.
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold">11. Your Privacy Rights (GDPR / CCPA)</h2>
+          <p className="mb-4 text-muted-foreground">
+            Depending on where you live, you may have additional rights over your personal information:
+          </p>
+          <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
+            <li>
+              <strong>EEA/UK residents (GDPR):</strong> you have the right to access, rectify, erase, restrict, or
+              object to our processing of your personal data, and the right to data portability and to withdraw
+              consent at any time. You may also lodge a complaint with your local data protection authority.
+            </li>
+            <li>
+              <strong>California residents (CCPA/CPRA):</strong> you have the right to know what personal
+              information we collect, to request deletion, and to opt out of the &quot;sale&quot; or
+              &quot;sharing&quot; of personal information for cross-context behavioral advertising. We do not sell
+              personal information for money; disabling Marketing cookies in our{" "}
+              <a href="/cookies" className="text-primary hover:underline">
+                Cookie Preferences
+              </a>{" "}
+              tool opts you out of interest-based advertising sharing.
+            </li>
+            <li>To exercise any of these rights, contact us using the details in Section 12 below.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-semibold">12. Children&apos;s Privacy</h2>
           <p className="text-muted-foreground">
             Our Service is not intended for individuals under 18 years of age. We do not knowingly collect personal
             information from children.
@@ -118,7 +216,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold">11. Changes to This Policy</h2>
+          <h2 className="text-2xl font-semibold">13. Changes to This Policy</h2>
           <p className="text-muted-foreground">
             We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new
             policy on this page and updating the &quot;Last updated&quot; date.
@@ -126,7 +224,7 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold">12. Contact Us</h2>
+          <h2 className="text-2xl font-semibold">14. Contact Us</h2>
           <p className="text-muted-foreground">
             If you have questions about this Privacy Policy, please contact us at{" "}
             <a href={`mailto:${PLATFORM_CONFIG.supportEmail}`} className="text-primary hover:underline">
