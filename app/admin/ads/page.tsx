@@ -423,7 +423,7 @@ export default async function AdminAdsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base sm:text-lg flex items-center gap-2">
                 <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
-                Google Rewarded Ads Configuration
+                Partner Rewarded Ads Configuration
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
                 Configure the 3 static 60-second rewarded ads that display on every page
@@ -436,7 +436,11 @@ export default async function AdminAdsPage() {
                 <AlertDescription className="text-xs mt-1">
                   Rewarded ads are 60-second video ads that users watch to earn bonus rewards.
                   Three ads run simultaneously on each page for maximum revenue.
-                  Users can also watch ads to double their faucet claim rewards.
+                  Users can also watch ads to double their faucet claim rewards. These are served
+                  by the 11 crypto-friendly partner networks (MultiNetworkAds), never by Google
+                  AdSense - Google's Rewarded Ads policy prohibits tying AdSense creative to a
+                  reward, so real AdSense only ever appears as a plain, non-incentivized banner
+                  elsewhere on the site.
                 </AlertDescription>
               </Alert>
 
@@ -464,7 +468,7 @@ export default async function AdminAdsPage() {
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">Slot ID</span>
                           <code className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
-                            GOOGLE_ADS_SLOT_REWARDED_{slot}
+                            PARTNER_ADS_SLOT_REWARDED_{slot}
                           </code>
                         </div>
                         <div className="flex items-center justify-between text-xs">
