@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { AdBanner, type AdProvider, type AdSize } from "./ad-banner"
 import { createBrowserClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
+import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 
 interface AdConfig {
   provider: AdProvider
@@ -34,10 +35,21 @@ const POSITION_SIZES: Record<string, AdSize> = {
 export function AdSlot({ position, size, className, fallback }: AdSlotProps) {
   const [adConfig, setAdConfig] = useState<AdConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const hasMarketingConsent = useAdConsent()
 
   const effectiveSize = size || POSITION_SIZES[position] || "banner"
 
   useEffect(() => {
+    // These are third-party (non-Google) advertising vendors (A-ADS,
+    // CoinZilla, Bitsmedia) that set their own cookies/trackers. Only load
+    // them once the visitor has granted Marketing consent via the Cookie
+    // Preferences tool, per Google's EU User Consent Policy and general
+    // GDPR/CCPA requirements for third-party ad vendors.
+    if (!hasMarketingConsent) {
+      setIsLoading(false)
+      return
+    }
+
     const fetchAdConfig = async () => {
       try {
         const supabase = createBrowserClient()
@@ -73,7 +85,7 @@ export function AdSlot({ position, size, className, fallback }: AdSlotProps) {
     fetchAdConfig()
 
     return () => clearTimeout(timeoutId)
-  }, [position])
+  }, [position, hasMarketingConsent])
 
   if (isLoading) {
     return (
@@ -84,12 +96,17 @@ export function AdSlot({ position, size, className, fallback }: AdSlotProps) {
     )
   }
 
-  if (!adConfig || !adConfig.enabled) {
+  if (!hasMarketingConsent || !adConfig || !adConfig.enabled) {
     return fallback ? <>{fallback}</> : null
   }
 
   return (
-    <div className={cn("flex justify-center", className)}>
+    <div className={cn("flex flex-col items-center gap-1", className)}>
+      {/* Ad disclosure label - this network's creative carries no
+          built-in "Ad" marker of its own (unlike Google AdSense, which
+          renders its own AdChoices icon), so we render one explicitly to
+          keep the placement clearly distinguishable from page content. */}
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Advertisement</span>
       <AdBanner
         provider={adConfig.provider}
         size={effectiveSize}
