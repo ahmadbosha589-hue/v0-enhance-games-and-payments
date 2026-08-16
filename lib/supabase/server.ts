@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { cookies } from "next/headers"
 import { cache } from "react"
+import { verifyAccessToken, isTokenExpired } from "./jwt-verify"
 
 export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -78,24 +79,27 @@ export const hasSessionCookie = cache(async function hasSessionCookie(): Promise
 })
 
 // ────────────────────────────────────────────────────────────────────────
-// JWT / Supabase-cookie decoder (last-resort, ZERO network calls).
+// Offline identity resolution (ZERO network calls) — SIGNATURE VERIFIED.
 //
-// Why this exists: when Supabase Auth API is slow/down/rate-limited, both
-// supabase.auth.getUser() (network) and supabase.auth.getSession() (which
-// also makes a network call if the access_token is near expiry) can
-// return null even though the user's cookie payload is perfectly valid.
+// Why this exists: when the Supabase Auth API is slow/down/rate-limited,
+// both supabase.auth.getUser() (network) and supabase.auth.getSession()
+// (which also makes a network call if the access_token is near expiry)
+// can return null even though the user's session is perfectly valid.
 // That null caused the dashboard layout to redirect to
 // /auth/login?expired=1 in a tight loop, so the dashboard "never opens".
 //
-// The proxy already trusts cookie presence as the auth signal for
-// routing. Here we go one step further and trust the COOKIE PAYLOAD as
-// the user identity. The JWT inside is signed by Supabase; we don't need
-// to verify the signature ourselves to do a lookup against our own DB
-// (getProfile uses the service-role key and is gated by row-level access
-// inside our own code). If a bad actor forges this cookie, the worst
-// they can do is read their own non-existent profile, which returns
-// nothing. Sensitive operations always go through the admin client with
-// explicit checks.
+// SECURITY (RC-1). A previous version of this block solved that by
+// base64-decoding the cookie and trusting the `user` object inside it,
+// reasoning that a forged cookie could "only read their own non-existent
+// profile". That reasoning was wrong: getProfile() uses the service-role
+// key (RLS bypassed), every admin route resolves `role` through it, and
+// admin user-ids are publicly discoverable (/api/leaderboard selects
+// `id`; /api/2fa/status returned `userId` for any email). A forged
+// cookie therefore granted full admin access to any anonymous visitor.
+//
+// The fix keeps the availability property — verifying a JWT is a local
+// operation, so it works fine while Auth is unreachable — and drops the
+// unverified trust. See lib/supabase/jwt-verify.ts.
 // ────────────────────────────────────────────────────────────────────────
 
 type CookieUser = {
@@ -124,32 +128,21 @@ function base64UrlDecode(input: string): string {
   }
 }
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  const parts = token.split(".")
-  if (parts.length !== 3) return null
-  const json = base64UrlDecode(parts[1])
-  if (!json) return null
-  try {
-    return JSON.parse(json)
-  } catch {
-    return null
-  }
-}
-
 /**
- * Reconstruct the Supabase auth-token cookie payload from request cookies.
- * @supabase/ssr stores the session as either:
- *   - a single `sb-{ref}-auth-token` cookie, OR
- *   - chunked `sb-{ref}-auth-token.0`, `.1`, `.2`, … (when the payload is
- *     too large for a single cookie).
- * The reassembled value may be prefixed with `base64-` and then contain a
- * base64-encoded JSON object `{ access_token, refresh_token, user, … }`,
- * or it may be the raw JSON object, or — for some older sessions — just
- * a raw JWT string.
+ * Reassemble the (possibly chunked) Supabase auth cookie and return the raw
+ * access_token string.
+ *
+ * @supabase/ssr stores the session as either a single `sb-{ref}-auth-token`
+ * cookie or chunked `sb-{ref}-auth-token.0`, `.1`, … when the payload exceeds
+ * one cookie. The reassembled value may be prefixed with `base64-` and contain
+ * base64-encoded JSON, raw JSON, or (older sessions) a bare JWT.
+ *
+ * NOTE: this function deliberately returns ONLY the token. The cookie's
+ * plaintext `user` object is attacker-controlled — even on an otherwise-valid
+ * session — so it must never be used as an identity source. Identity comes from
+ * the verified token claims alone.
  */
-async function readAuthCookiePayload(): Promise<{
-  user: CookieUser | null
-} | null> {
+async function readAccessTokenFromCookies(): Promise<string | null> {
   let cookieStore
   try {
     cookieStore = await cookies()
@@ -157,14 +150,15 @@ async function readAuthCookiePayload(): Promise<{
     return null
   }
 
-  const all = cookieStore.getAll()
-  const authCookies = all.filter(
-    (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token") && !!c.value,
-  )
+  const authCookies = cookieStore
+    .getAll()
+    .filter(
+      (c) => c.name.startsWith("sb-") && c.name.includes("-auth-token") && !!c.value,
+    )
   if (authCookies.length === 0) return null
 
-  // Group by base name (strip trailing ".0" / ".1" / …), then concatenate
-  // chunks in order.
+  // Group by base name (strip a trailing ".0" / ".1" / …) then concatenate in
+  // index order.
   const groups = new Map<string, { idx: number; value: string }[]>()
   for (const c of authCookies) {
     const match = c.name.match(/^(.*?)(?:\.(\d+))?$/)
@@ -178,86 +172,57 @@ async function readAuthCookiePayload(): Promise<{
     chunks.sort((a, b) => a.idx - b.idx)
     let raw = chunks.map((c) => c.value).join("")
 
-    // Strip @supabase/ssr's `base64-` prefix if present and decode.
     if (raw.startsWith("base64-")) {
       raw = base64UrlDecode(raw.slice("base64-".length))
       if (!raw) continue
     }
 
-    // Try JSON parse (the modern format).
     try {
       const parsed = JSON.parse(raw)
-      const u = parsed?.user ?? parsed?.currentSession?.user
-      if (u?.id) {
-        return {
-          user: {
-            id: String(u.id),
-            email: u.email ?? null,
-            user_metadata: u.user_metadata,
-            app_metadata: u.app_metadata,
-            aud: u.aud,
-            role: u.role,
-            __from_cookie: true,
-          },
-        }
-      }
-      // Some payloads only carry access_token. Decode it.
-      const accessToken =
-        parsed?.access_token ?? parsed?.currentSession?.access_token
-      if (typeof accessToken === "string") {
-        const claims = decodeJwtPayload(accessToken)
-        const sub = claims && typeof claims.sub === "string" ? claims.sub : null
-        if (sub) {
-          return {
-            user: {
-              id: sub,
-              email:
-                claims && typeof claims.email === "string"
-                  ? (claims.email as string)
-                  : null,
-              user_metadata:
-                claims && typeof claims.user_metadata === "object"
-                  ? (claims.user_metadata as Record<string, unknown>)
-                  : undefined,
-              app_metadata:
-                claims && typeof claims.app_metadata === "object"
-                  ? (claims.app_metadata as Record<string, unknown>)
-                  : undefined,
-              aud:
-                claims && typeof claims.aud === "string"
-                  ? (claims.aud as string)
-                  : undefined,
-              role:
-                claims && typeof claims.role === "string"
-                  ? (claims.role as string)
-                  : undefined,
-              __from_cookie: true,
-            },
-          }
-        }
-      }
+      const token = parsed?.access_token ?? parsed?.currentSession?.access_token
+      if (typeof token === "string" && token.split(".").length === 3) return token
     } catch {
-      // Not JSON — fall through to bare-JWT case.
-    }
-
-    // Fallback: treat the cookie value as a raw JWT.
-    const claims = decodeJwtPayload(raw)
-    const sub = claims && typeof claims.sub === "string" ? claims.sub : null
-    if (sub) {
-      return {
-        user: {
-          id: sub,
-          email:
-            claims && typeof claims.email === "string"
-              ? (claims.email as string)
-              : null,
-          __from_cookie: true,
-        },
-      }
+      // Not JSON — some older sessions store the bare JWT.
+      if (raw.split(".").length === 3) return raw
     }
   }
 
   return null
+}
+
+/**
+ * Resolve the current user from the session cookie with NO network call, using
+ * a cryptographically verified access token.
+ *
+ * Returns null unless the token's signature, issuer and expiry all check out
+ * (see lib/supabase/jwt-verify.ts). The returned user carries
+ * `__from_cookie: true` so privileged paths can require a live re-verification
+ * — an offline-valid token remains valid until `exp` even if the session was
+ * revoked (logout-everywhere, ban, password reset), which read paths tolerate
+ * but admin/money writes must not.
+ */
+async function readVerifiedCookieUser(): Promise<{ user: CookieUser } | null> {
+  const token = await readAccessTokenFromCookies()
+  if (!token) return null
+
+  // Cheap pre-check so an expired token skips signature work entirely. Never
+  // used as identity on its own.
+  if (isTokenExpired(token)) return null
+
+  const claims = await verifyAccessToken(token)
+  if (!claims?.sub) return null
+
+  return {
+    user: {
+      id: String(claims.sub),
+      email: typeof claims.email === "string" ? claims.email : null,
+      user_metadata: claims.user_metadata,
+      app_metadata: claims.app_metadata,
+      aud: typeof claims.aud === "string" ? claims.aud : undefined,
+      role: typeof claims.role === "string" ? claims.role : undefined,
+      __from_cookie: true,
+    },
+  }
 }
 
 /**
@@ -291,7 +256,7 @@ export const getUser = cache(async function getUser() {
     if (!supabase) {
       // No Supabase client at all (env vars missing) — last-resort cookie
       // decode is the only option.
-      const cookieResult = await readAuthCookiePayload()
+      const cookieResult = await readVerifiedCookieUser()
       return cookieResult?.user ?? null
     }
 
@@ -362,10 +327,10 @@ export const getUser = cache(async function getUser() {
     if (!cookieHere) return null
 
     // Strategy 3 — last-resort manual cookie decode (no network).
-    const cookieResult = await readAuthCookiePayload()
+    const cookieResult = await readVerifiedCookieUser()
     if (cookieResult?.user) {
       console.warn(
-        "[Supabase Server] Falling back to cookie-decoded user — Supabase Auth API unreachable",
+        "[Supabase Server] Using offline VERIFIED token identity — Supabase Auth API unreachable",
       )
       return cookieResult.user
     }
@@ -375,7 +340,7 @@ export const getUser = cache(async function getUser() {
     console.error("[Supabase Server] getUser unexpected error:", err)
     // Even on a thrown exception, try the cookie fallback.
     try {
-      const cookieResult = await readAuthCookiePayload()
+      const cookieResult = await readVerifiedCookieUser()
       return cookieResult?.user ?? null
     } catch {
       return null
