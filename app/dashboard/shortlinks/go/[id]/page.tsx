@@ -20,7 +20,6 @@ import {
 import { toast } from "sonner"
 import Link from "next/link"
 import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
-import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { WatchAdBonusReward } from "@/components/ads/watch-ad-bonus-reward"
 import { useLanguage } from "@/lib/i18n/language-context"
@@ -339,8 +338,8 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
         {/* Spacer to separate Google Ads from other networks per policy */}
         <div className="h-8" aria-hidden="true" />
 
-        {/* Google Rewarded Ads - 3x 60s static ads (MUST be separate from other networks) */}
-        <GoogleRewardedAds position="bottom" className="mt-4" />
+        {/* Partner Ads - 3x 60s static ads (MUST be separate from other networks) */}
+        <MultiNetworkAds position="footer" layout="inline" className="mt-4" />
 
         {/* Another spacer */}
         <div className="h-8" aria-hidden="true" />
