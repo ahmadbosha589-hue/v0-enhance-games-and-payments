@@ -203,19 +203,32 @@ export function CxUaBanner({
       }
       return null;
     }
+    function plausible(m){
+      // Guard against a premature/partial measurement (e.g. the ad's
+      // wrapping element has stretched to full width but its image
+      // hasn't finished loading yet, so the box is only 1-2px tall).
+      // Real ad creatives fall within a known band of aspect ratios;
+      // anything wildly flatter or taller than that is treated as
+      // "not ready yet" rather than locked in as the true size.
+      var ratio=m.w/m.h;
+      return ratio>=1.2 && ratio<=9;
+    }
     function report(){
       try{
         var m=measure();
         if(!m){return}
+        if(!plausible(m)){return}
         parent.postMessage({__cxuaBanner:true,token:TOKEN,width:m.w,height:m.h},"*");
       }catch(e){}
     }
     function finalCheck(){
-      // After all retries: if nothing was written, tell the parent to
-      // collapse the slot (c.cx.ua returns an empty 200 when it has no
-      // campaign for this site/zone).
+      // After all retries: if nothing was written, or what's there never
+      // settled into a plausible ad shape, tell the parent to collapse
+      // the slot (c.cx.ua returns an empty 200 when it has no campaign
+      // for this site/zone).
       try{
-        if(!measure()){
+        var m=measure();
+        if(!m||!plausible(m)){
           parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
         }else{
           report();
