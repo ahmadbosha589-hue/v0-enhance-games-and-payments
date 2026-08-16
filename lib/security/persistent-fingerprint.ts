@@ -29,6 +29,51 @@ const DB_NAME = "v0_security_store"
 const DB_VERSION = 1
 const STORE_NAME = "fingerprints"
 
+/**
+ * Races a promise against a timeout, resolving to `fallback` if the
+ * promise hasn't settled in time.
+ *
+ * Why this exists: `indexedDB.open()`'s request never fires `onsuccess` or
+ * `onerror` if it's `onblocked` (another tab holds an older DB version
+ * open) — and in some browsers/modes (Safari private browsing, some
+ * locked-down enterprise policies, storage-partitioning edge cases)
+ * IndexedDB requests can simply never settle at all. Every caller of
+ * `getIndexedDBFingerprint` / `setIndexedDBFingerprint` sits in the
+ * `generatePersistentFingerprint()` chain that `AuthSecurityGuard` awaits
+ * before it will render the login/signup form — so a stuck IndexedDB
+ * request didn't just fail silently, it left the visitor stuck on
+ * "Verifying your connection..." forever with no way to sign in. This was
+ * the root cause of the sign-in timeout: nothing in the chain had a
+ * ceiling on how long it could take.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        resolve(fallback)
+      }
+    }, ms)
+    promise.then(
+      (value) => {
+        if (!settled) {
+          settled = true
+          clearTimeout(timer)
+          resolve(value)
+        }
+      },
+      () => {
+        if (!settled) {
+          settled = true
+          clearTimeout(timer)
+          resolve(fallback)
+        }
+      },
+    )
+  })
+}
+
 interface StoredFingerprint {
   hash: string
   createdAt: number
@@ -44,9 +89,13 @@ async function getIndexedDBFingerprint(): Promise<StoredFingerprint | null> {
   return new Promise((resolve) => {
     try {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
-      
+
       request.onerror = () => resolve(null)
-      
+      // Fires when another tab has an older-version connection open and
+      // never releases it — without this handler the request just sits
+      // forever (no onsuccess, no onerror). Fail open instead of hanging.
+      request.onblocked = () => resolve(null)
+
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result
         if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -91,7 +140,11 @@ async function setIndexedDBFingerprint(hash: string): Promise<void> {
   return new Promise((resolve) => {
     try {
       const request = indexedDB.open(DB_NAME, DB_VERSION)
-      
+
+      // Same "another tab is blocking the version upgrade" case as
+      // getIndexedDBFingerprint above — resolve instead of hanging.
+      request.onblocked = () => resolve()
+
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result
         if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -322,12 +375,14 @@ export async function generatePersistentFingerprint(): Promise<PersistentFingerp
   // Step 2: Check all storage layers for existing fingerprints
   const storedFingerprints: StoredFingerprint[] = []
   
-  // Check IndexedDB
-  const indexedDBFp = await getIndexedDBFingerprint()
+  // Check IndexedDB — 1.5s ceiling. onblocked/onerror already resolve on
+  // their own; this is the backstop for the rarer "request never fires
+  // any event at all" case (see withTimeout's doc comment above).
+  const indexedDBFp = await withTimeout(getIndexedDBFingerprint(), 1500, null)
   if (indexedDBFp) storedFingerprints.push(indexedDBFp)
   
   // Check Cache API
-  const cacheFp = await getCacheAPIFingerprint()
+  const cacheFp = await withTimeout(getCacheAPIFingerprint(), 1500, null)
   if (cacheFp) storedFingerprints.push(cacheFp)
   
   // Check localStorage
@@ -403,12 +458,12 @@ export async function generatePersistentFingerprint(): Promise<PersistentFingerp
   // Step 4: Store the fingerprint in all available storage methods
   const storageMethodsUsed: string[] = []
   
-  // Store in IndexedDB
-  await setIndexedDBFingerprint(canonicalFingerprint)
+  // Store in IndexedDB (same timeout backstop as the read above)
+  await withTimeout(setIndexedDBFingerprint(canonicalFingerprint), 1500, undefined)
   storageMethodsUsed.push("indexedDB")
   
   // Store in Cache API
-  await setCacheAPIFingerprint(canonicalFingerprint)
+  await withTimeout(setCacheAPIFingerprint(canonicalFingerprint), 1500, undefined)
   storageMethodsUsed.push("cacheAPI")
   
   // Store in localStorage
