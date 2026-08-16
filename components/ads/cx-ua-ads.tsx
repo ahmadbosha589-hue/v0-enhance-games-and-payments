@@ -108,9 +108,15 @@ export function CxUaBanner({
   const [token] = useState<string>(() => Math.random().toString(36).slice(2))
   const [mounted, setMounted] = useState(false)
   const [dnt, setDnt] = useState(false)
-  // Measured creative size reported back from inside the iframe. Falls
-  // back to the reserved size until the first measurement arrives.
-  const [measured, setMeasured] = useState<{ width: number; height: number } | null>(null)
+  // The creative's INTRINSIC size, reported back from inside the iframe.
+  //
+  // This must be the natural (unconstrained) size — NOT the rendered
+  // bounding box. The iframe is already width-constrained by its parent,
+  // so measuring the rendered box and then feeding that back as the
+  // wrapper's max-width creates a shrink feedback loop that ratchets the
+  // banner narrower on every report. We only ever use these numbers to
+  // derive an aspect ratio and an upper size bound.
+  const [natural, setNatural] = useState<{ width: number; height: number } | null>(null)
   // c.cx.ua returns an EMPTY 200 when it has no campaign for this
   // domain/zone (e.g. referrer not matching the registered site, or no
   // active campaigns). When the iframe's final check finds no creative we
@@ -145,7 +151,7 @@ export function CxUaBanner({
       const w = Number(data.width)
       if (Number.isFinite(h) && h > 0 && Number.isFinite(w) && w > 0) {
         setEmpty(false)
-        setMeasured({ width: Math.ceil(w), height: Math.ceil(h) })
+        setNatural({ width: Math.round(w), height: Math.round(h) })
       }
     }
     window.addEventListener("message", onMessage)
@@ -160,9 +166,13 @@ export function CxUaBanner({
     return `<!doctype html><html><head><meta charset="utf-8">
 <style>
   html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+  /* Fill the iframe exactly. The parent sets the iframe's aspect-ratio to
+     the creative's own ratio, so "contain" scales the creative to fit
+     edge-to-edge with no letterboxing and no distortion. */
+  html,body{width:100%;height:100%}
   body{display:flex;align-items:center;justify-content:center}
-  a,img{display:block}
-  img{max-width:100%;height:auto}
+  a{display:block;max-width:100%;max-height:100%}
+  img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 </style></head><body>
 <script src="${src}"><\/script>
 <script>
@@ -173,16 +183,31 @@ export function CxUaBanner({
       // besides our own <script> tags counts as a creative.
       return document.querySelector("a,img,iframe:not([data-self]),div,table");
     }
+    function measure(){
+      // Prefer the <img>'s INTRINSIC dimensions. naturalWidth/Height are
+      // immune to the CSS that shrinks the creative to fit this iframe, so
+      // the parent gets the creative's true size (e.g. 728x90) regardless
+      // of how narrow the current viewport is. The width/height attributes
+      // written by the serve script are the fallback.
+      var img=document.querySelector("img");
+      if(img){
+        var nw=img.naturalWidth||parseInt(img.getAttribute("width"),10)||0;
+        var nh=img.naturalHeight||parseInt(img.getAttribute("height"),10)||0;
+        if(nw>0&&nh>0){return {w:nw,h:nh}}
+      }
+      // Non-image creative (HTML/iframe ad): fall back to its layout box.
+      var el=creative();
+      if(el){
+        var r=el.getBoundingClientRect();
+        if(r.width>0&&r.height>0){return {w:r.width,h:r.height}}
+      }
+      return null;
+    }
     function report(){
       try{
-        var el=creative();
-        if(!el){return}
-        var r=el.getBoundingClientRect();
-        var h=Math.max(r.height,document.body?document.body.scrollHeight:0);
-        var w=r.width||0;
-        if(h>0&&w>0){
-          parent.postMessage({__cxuaBanner:true,token:TOKEN,height:h,width:w},"*");
-        }
+        var m=measure();
+        if(!m){return}
+        parent.postMessage({__cxuaBanner:true,token:TOKEN,width:m.w,height:m.h},"*");
       }catch(e){}
     }
     function finalCheck(){
@@ -190,8 +215,7 @@ export function CxUaBanner({
       // collapse the slot (c.cx.ua returns an empty 200 when it has no
       // campaign for this site/zone).
       try{
-        var el=creative();
-        if(!el||el.getBoundingClientRect().width===0){
+        if(!measure()){
           parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
         }else{
           report();
@@ -218,11 +242,23 @@ export function CxUaBanner({
     className,
   )
 
-  // Size the frame to the actual creative when we know it (c.cx.ua rotates
-  // multiple sizes — 728×90, 468×60, 300×250 … — so a hardcoded 728×90 box
-  // would letterbox or clip other formats).
-  const frameHeight = measured?.height ?? height
-  const frameMaxWidth = Math.min(measured?.width ?? width, maxWidth ?? width)
+  // Size the frame by ASPECT RATIO rather than a fixed pixel height.
+  //
+  // c.cx.ua rotates several formats (728×90, 468×60, 300×250 …), and the
+  // slot is often narrower than the creative's natural width (a 728px
+  // leaderboard inside a 768px viewport, minus page padding). Pinning the
+  // height to 90px while the width shrinks is what produced the
+  // letterboxed banner with a big empty gap: the creative scaled down but
+  // the box didn't.
+  //
+  // Instead we cap the width at the creative's natural width (never
+  // upscale) and let `aspect-ratio` derive the height from whatever width
+  // is actually available. Before the first measurement we use the
+  // default 728×90 ratio so there's no layout shift when it arrives.
+  const naturalWidth = natural?.width ?? width
+  const naturalHeight = natural?.height ?? height
+  const frameMaxWidth = Math.min(naturalWidth, maxWidth ?? Number.POSITIVE_INFINITY)
+  const aspectRatio = `${naturalWidth} / ${naturalHeight}`
 
   // Nothing was served (unregistered referrer domain, no active campaign,
   // or DNT). Render nothing at all — an empty "Sponsored" box is worse
@@ -279,15 +315,18 @@ export function CxUaBanner({
             referrerPolicy="strict-origin-when-cross-origin"
             className="w-full border-0 block"
             style={{
-              height: frameHeight,
+              // Width comes from the parent (w-full, capped at the
+              // creative's natural width); height follows the ratio.
               maxWidth: frameMaxWidth,
+              aspectRatio,
+              height: "auto",
               backgroundColor: "transparent",
               colorScheme: "normal",
             }}
           />
         ) : (
-          // Reserve space pre-mount to avoid layout shift.
-          <div style={{ minHeight: height, width: "100%" }} />
+          // Reserve the same ratio pre-mount to avoid layout shift.
+          <div style={{ width: "100%", maxWidth: frameMaxWidth, aspectRatio }} />
         )}
       </div>
     </div>
