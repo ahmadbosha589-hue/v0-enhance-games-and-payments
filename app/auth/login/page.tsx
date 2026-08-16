@@ -376,13 +376,20 @@ export default function LoginPage() {
 
       // Wait for the server to see the new session (same anti-loop guard as
       // in handleLogin — see comment there).
+      //
+      // Per-attempt timeout is 6000ms — comfortably longer than getUser()'s
+      // own worst-case budget (~3000ms, now run in parallel with the
+      // session check) plus the getProfile() lookup. A shorter client
+      // timeout was aborting requests before the server's own fallback
+      // logic could finish, so every attempt looked like a failure even
+      // when sign-in had actually succeeded.
       let serverSeesSession = false
-      for (let attempt = 0; attempt < 6; attempt++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const res = await fetch("/api/auth/me", {
             credentials: "include",
             cache: "no-store",
-            signal: AbortSignal.timeout(2000),
+            signal: AbortSignal.timeout(6000),
           })
           if (res.ok) {
             const data = await res.json()
@@ -522,15 +529,21 @@ export default function LoginPage() {
       // back to /auth/login, which then sees the session in localStorage and
       // bounces them to /dashboard again → infinite refresh loop.
       //
-      // We poll /api/auth/me (which reads the cookie server-side) for up to
-      // 3 seconds to give @supabase/ssr time to flush its cookie writes.
+      // We poll /api/auth/me (which reads the cookie server-side).
+      //
+      // Per-attempt timeout is 6000ms — comfortably longer than getUser()'s
+      // own worst-case budget (~3000ms, now run in parallel with the
+      // session check) plus the getProfile() lookup. A shorter client
+      // timeout was aborting requests before the server's own fallback
+      // logic could finish, so every attempt looked like a failure even
+      // when sign-in had actually succeeded.
       let serverSeesSession = false
-      for (let attempt = 0; attempt < 6; attempt++) {
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const res = await fetch("/api/auth/me", {
             credentials: "include",
             cache: "no-store",
-            signal: AbortSignal.timeout(2000),
+            signal: AbortSignal.timeout(6000),
           })
           if (res.ok) {
             const data = await res.json()
