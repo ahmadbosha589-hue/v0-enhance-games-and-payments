@@ -56,7 +56,13 @@ export function AuthSecurityGuard({
       const fpResult = await generatePersistentFingerprint()
       setFingerprint(fpResult)
 
-      // Step 2: Call server-side multi-account check with VPN detection
+      // Step 2: Call server-side multi-account check with VPN detection.
+      // The route itself now bounds its VPN-fortress work to ~3.5s (see
+      // lib/security/vpn-fortress.ts), but this call had no client-side
+      // timeout at all — a hung upstream (proxy, DNS, dropped connection)
+      // could leave the login/signup form stuck on "Verifying your
+      // connection..." forever, since nothing here would ever reject.
+      // 6s gives the server call room to finish and still fails safely.
       const response = await fetch("/api/security/multi-account-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -67,6 +73,7 @@ export function AuthSecurityGuard({
           language: navigator.language,
           timestamp: Date.now(),
         }),
+        signal: AbortSignal.timeout(6000),
       })
 
       if (!response.ok) {
