@@ -371,7 +371,7 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS210167: { name: "KeepSolid VPN Unlimited", type: "vpn", confidence: 95, priority: 10, category: "definite" },
   AS206628: { name: "Whoer VPN", type: "vpn", confidence: 94, priority: 10, category: "definite" },
 
-  // ══════════════════════════════════════════════════════════════════════��═══
+  // ══════════════════════════════════════════════════════════════════════  ═══
   // v10.0 - DECENTRALIZED / RESIDENTIAL VPNS (HARDEST TO DETECT)
   // These route traffic through residential nodes which look like real ISPs.
   // We catch them via known node-operator ASNs, exit-node lists, and behavioral
@@ -1607,6 +1607,24 @@ function cleanupCache() {
 // MAIN VPN DETECTION ENGINE v5.0
 // =============================================================================
 
+// Overall hard budget for a full Fortress check. Individual API calls each
+// carry their own 4-8s timeout, but nothing previously capped the SUM of
+// those calls — a slow/unreachable upstream (Tor lists, any of the 18
+// APIs) could stack up to ~20-30s on a single login/signup/offerwall
+// request. That's the direct cause of "sign-in times out": this function
+// sits in the critical path of AuthSecurityGuard before the user's
+// credentials are even submitted.
+//
+// We now race the real detection against this budget. If it wins, great —
+// full detection result, and the cache is populated as before. If the
+// budget expires first, we fail OPEN (allow the request) immediately and
+// let the real detection keep running in the background so the cache is
+// warm for the next request on this IP (see IP_CACHE_TTL_MS). This keeps
+// the "zero false positives" philosophy (we never falsely accuse someone
+// of being a bad actor because an upstream API was slow) while bounding
+// worst-case latency for real users.
+const FORTRESS_OVERALL_BUDGET_MS = 3500
+
 export async function detectVPNFortress(
   ipAddress: string,
   clientData?: ClientVPNData
@@ -1617,7 +1635,56 @@ export async function detectVPNFortress(
     cached.hitCount++
     return cached.result
   }
-  
+
+  const detectionPromise = detectVPNFortressInner(ipAddress, clientData)
+
+  // Always let the detection finish and populate the cache, even if we
+  // time out below — just don't let it crash the process.
+  detectionPromise.catch(() => {})
+
+  const timeoutPromise = new Promise<VPNFortressResult>((resolve) => {
+    setTimeout(() => resolve(buildFailOpenResult()), FORTRESS_OVERALL_BUDGET_MS)
+  })
+
+  return Promise.race([detectionPromise, timeoutPromise])
+}
+
+function buildFailOpenResult(): VPNFortressResult {
+  return {
+    isVPN: false,
+    isProxy: false,
+    isTor: false,
+    isDatacenter: false,
+    isHosting: false,
+    isRelay: false,
+    isResidentialProxy: false,
+    isMobile: false,
+    isCorporateProxy: false,
+    isEducationNetwork: false,
+    confidence: 0,
+    riskScore: 0,
+    methods: ["overall_budget_exceeded_fail_open"],
+    factors: {},
+    shouldBlock: false,
+    riskLevel: "none",
+    details: {},
+    consensus: {
+      totalSources: 0,
+      vpnVotes: 0,
+      proxyVotes: 0,
+      torVotes: 0,
+      datacenterVotes: 0,
+      residentialProxyVotes: 0,
+      agreementRatio: 0,
+      strongAgreement: false,
+    },
+  }
+}
+
+async function detectVPNFortressInner(
+  ipAddress: string,
+  clientData?: ClientVPNData
+): Promise<VPNFortressResult> {
   const startTime = Date.now()
   const methods: string[] = []
   const factors: Record<string, boolean | number | string> = {}
@@ -1636,8 +1703,16 @@ export async function detectVPNFortress(
   // ═══════════════════════════════════════════════════════════════════════════
   // LAYER 1: TOR EXIT NODE CHECK (Most reliable for Tor)
   // ═══════════════════════════════════════════════════════════════════════════
-  
-  await fetchTorExitNodes()
+  //
+  // Previously this was `await`ed here, meaning EVERY check (login/signup/
+  // offerwall) blocked on up to 8s of fetching 6 external Tor-list sources
+  // before the 18-API layer even started. Now we kick off the refresh in
+  // the background (it updates the shared `torExitNodes` set for the NEXT
+  // check) and check against whatever list we already have in memory —
+  // which is empty only on the very first request after a cold start.
+  if (Date.now() - torListLastFetched >= TOR_LIST_CACHE_MS) {
+    fetchTorExitNodes().catch(() => {})
+  }
   
   if (torExitNodes.has(ipAddress)) {
     torVotes += 5 // Tor list is extremely reliable
@@ -1777,7 +1852,7 @@ export async function detectVPNFortress(
     }
   }
   
-  // ═══════════════��═══════════════════════════════════════════════════════════
+  // ═══════════════  ═══════════════════════════════════════════════════════════
   // LAYER 6: TIMEZONE MISMATCH
   // ═══════════════════════════════════════════════════════════════════════════
   
