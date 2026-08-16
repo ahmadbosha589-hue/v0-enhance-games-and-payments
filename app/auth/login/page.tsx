@@ -377,19 +377,20 @@ export default function LoginPage() {
       // Wait for the server to see the new session (same anti-loop guard as
       // in handleLogin — see comment there).
       //
-      // Per-attempt timeout is 6000ms — comfortably longer than getUser()'s
-      // own worst-case budget (~3000ms, now run in parallel with the
-      // session check) plus the getProfile() lookup. A shorter client
-      // timeout was aborting requests before the server's own fallback
-      // logic could finish, so every attempt looked like a failure even
-      // when sign-in had actually succeeded.
+      // Per-attempt timeout is 3000ms — matches getUser()'s own worst-case
+      // budget (~3000ms; the getUser/getSession races run in parallel
+      // server-side, and the VPN-fortress overall budget is now capped at
+      // 3.5s too, see lib/security/vpn-fortress.ts) plus a fast getProfile()
+      // lookup. This used to be 6000ms x 3 attempts (~18.5s worst case) —
+      // most of that was unused slack that just made a failed sign-in look
+      // "stuck" for far longer than the server could actually take.
       let serverSeesSession = false
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const res = await fetch("/api/auth/me", {
             credentials: "include",
             cache: "no-store",
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(3000),
           })
           if (res.ok) {
             const data = await res.json()
@@ -401,7 +402,7 @@ export default function LoginPage() {
         } catch {
           // Network error — retry
         }
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        await new Promise((resolve) => setTimeout(resolve, 300))
       }
 
       if (!serverSeesSession) {
@@ -467,17 +468,26 @@ export default function LoginPage() {
     isManualLoginRef.current = true
 
     try {
-      const twoFACheck = await fetch("/api/2fa/status", {
+      // These two calls are independent (2FA status only needs the email,
+      // not the sign-in result) but were previously run sequentially —
+      // `await`ing the 2FA check before even starting sign-in added its
+      // full round-trip time on top of every login attempt. Running them
+      // in parallel means the total wait is max(2FA check, sign-in), not
+      // the sum.
+      const twoFACheckPromise = fetch("/api/2fa/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.toLowerCase().trim() }),
-      })
+        signal: AbortSignal.timeout(5000),
+      }).catch(() => null)
 
       // Attempt login first to validate credentials
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase().trim(),
         password,
       })
+
+      const twoFACheck = await twoFACheckPromise
 
       if (signInError) {
         setIsManualLogin(false)
@@ -495,7 +505,7 @@ export default function LoginPage() {
       }
 
       // If 2FA is enabled, sign out and show 2FA verification
-      if (twoFACheck.ok) {
+      if (twoFACheck?.ok) {
         const twoFAData = await twoFACheck.json()
         if (twoFAData.requires2FA && signInData.user) {
           // Sign out temporarily until 2FA is verified
@@ -531,19 +541,20 @@ export default function LoginPage() {
       //
       // We poll /api/auth/me (which reads the cookie server-side).
       //
-      // Per-attempt timeout is 6000ms — comfortably longer than getUser()'s
-      // own worst-case budget (~3000ms, now run in parallel with the
-      // session check) plus the getProfile() lookup. A shorter client
-      // timeout was aborting requests before the server's own fallback
-      // logic could finish, so every attempt looked like a failure even
-      // when sign-in had actually succeeded.
+      // Per-attempt timeout is 3000ms — matches getUser()'s own worst-case
+      // budget (~3000ms; the getUser/getSession races run in parallel
+      // server-side, and the VPN-fortress overall budget is now capped at
+      // 3.5s too, see lib/security/vpn-fortress.ts) plus a fast getProfile()
+      // lookup. This used to be 6000ms x 3 attempts (~18.5s worst case) —
+      // most of that was unused slack that just made a failed sign-in look
+      // "stuck" for far longer than the server could actually take.
       let serverSeesSession = false
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           const res = await fetch("/api/auth/me", {
             credentials: "include",
             cache: "no-store",
-            signal: AbortSignal.timeout(6000),
+            signal: AbortSignal.timeout(3000),
           })
           if (res.ok) {
             const data = await res.json()
@@ -555,7 +566,7 @@ export default function LoginPage() {
         } catch {
           // Network error — retry
         }
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        await new Promise((resolve) => setTimeout(resolve, 300))
       }
 
       if (!serverSeesSession) {
