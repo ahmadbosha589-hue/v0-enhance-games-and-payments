@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Ticket, Gift, Clock, CheckCircle, XCircle, Sparkles, Coins, AlertCircle } from "lucide-react"
 import { WatchAdBonusReward } from "@/components/ads/watch-ad-bonus-reward"
-import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { useLanguage } from "@/lib/i18n/language-context"
 
@@ -288,8 +287,8 @@ export default function CouponsPage() {
           </CardContent>
         </Card>
 
-        {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
-        <GoogleRewardedAds position="bottom" className="mt-6" />
+        {/* Partner Ads - 3x 60s static (separated from other networks per policy) */}
+        <MultiNetworkAds position="footer" layout="grid" className="mt-6" />
 
         {/* Spacer to separate Google Ads from other networks per policy */}
         <div className="h-8" aria-hidden="true" />
