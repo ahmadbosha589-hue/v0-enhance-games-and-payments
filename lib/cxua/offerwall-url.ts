@@ -1,13 +1,17 @@
 /**
  * c.cx.ua offerwall URL builder
  * -----------------------------
- * Per the c.cx.ua docs (https://c.cx.ua/docs):
+ * c.cx.ua is a multi-format network (banner, pop-up/clickunder, push, and
+ * offerwall are separate zone types in the publisher panel, each with its
+ * own integration surface). This module covers ONLY the offerwall format:
  *
  *   https://c.cx.ua/offerwall/[API_KEY]/[USER_ID]
  *
- * That is the ONLY public endpoint c.cx.ua exposes to publishers. There is
- * no banner script and no popup-redirect script — the offerwall iframe URL
- * is the entire integration surface.
+ * For the banner and popup zone formats, see lib/cxua/zones.ts and
+ * components/ads/cx-ua-ads.tsx (CxUaBanner / CxUaPopupLoader) — those are
+ * separately configured zones with their own zone IDs, not this offerwall
+ * endpoint. Don't conflate the two: an offerwall API key does not double
+ * as a banner/popup zone ID and vice versa.
  *
  * The API key is exposed to the browser via `NEXT_PUBLIC_CCXUA_API_KEY`
  * (it's a public publisher identifier, not a secret — the secret is the
