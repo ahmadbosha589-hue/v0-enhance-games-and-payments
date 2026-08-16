@@ -85,6 +85,19 @@ interface CxUaBannerProps {
    * creative's natural width.
    */
   maxWidth?: number
+  /**
+   * Fires whenever the "is there really a creative on screen" state
+   * changes: `true` once a real ad has been measured and is rendering,
+   * `false` while loading, once confirmed empty (no campaign / blocked),
+   * or hidden for Do-Not-Track.
+   *
+   * A caller that wraps this component in its own chrome (border, a
+   * "Sponsored" label, a dismiss button, etc.) should use this to decide
+   * whether to show that chrome at all — otherwise an empty ad response
+   * leaves the caller's chrome rendered around nothing, which looks like a
+   * collapsed sliver instead of just not showing up.
+   */
+  onVisibilityChange?: (visible: boolean) => void
 }
 
 /**
@@ -101,6 +114,7 @@ export function CxUaBanner({
   width = DEFAULT_BANNER_WIDTH,
   height = DEFAULT_BANNER_HEIGHT,
   maxWidth,
+  onVisibilityChange,
 }: CxUaBannerProps) {
   const [zone] = useState<string>(zoneId || getBannerZoneId())
   // Unique token so the iframe's height postMessage can be matched to THIS
@@ -157,6 +171,16 @@ export function CxUaBanner({
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)
   }, [mounted, dnt, token])
+
+  // Let the caller know whether there's actually a creative on screen.
+  // "Visible" means we've mounted, aren't hidden for Do-Not-Track, haven't
+  // been told the slot is empty, AND have a real measurement in hand — not
+  // just "haven't been rejected yet" (which is also true during the initial
+  // loading window, before we know either way).
+  useEffect(() => {
+    const visible = mounted && !dnt && !empty && natural !== null
+    onVisibilityChange?.(visible)
+  }, [mounted, dnt, empty, natural, onVisibilityChange])
 
   // The srcDoc embeds the serve <script> as parser-inserted markup so its
   // internal document.write() runs during parse (the whole point), then
