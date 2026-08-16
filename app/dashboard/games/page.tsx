@@ -42,7 +42,6 @@ import { useLanguage } from "@/lib/i18n/language-context"
 import { cn } from "@/lib/utils"
 import useSWR from "swr"
 import Image from "next/image"
-import { GoogleRewardedAds } from "@/components/ads/google-rewarded-ads"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
 
@@ -1209,8 +1208,8 @@ export default function GamesPage() {
         </Card>
       )}
 
-      {/* Google Rewarded Ads - 3x 60s static (separated from other networks per policy) */}
-      <GoogleRewardedAds position="bottom" className="mt-6" />
+      {/* Partner Ads - 3x 60s static (separated from other networks per policy) */}
+      <MultiNetworkAds position="footer" layout="grid" className="mt-6" />
 
       {/* Spacer to separate Google Ads from other networks per policy */}
       <div className="h-8" aria-hidden="true" />
