@@ -295,7 +295,23 @@ export const getUser = cache(async function getUser() {
       return cookieResult?.user ?? null
     }
 
+    // Strategies 1 and 2 used to run sequentially (3000ms budget, THEN a
+    // further 1500ms budget) — a 4.5s worst case on every dashboard
+    // request. They're independent network calls, so run them
+    // concurrently instead and take whichever verified result lands
+    // first. Worst case is now max(3000, 1500) = 3000ms, not the sum.
+    const cookieHere = await hasSessionCookie()
+
     type UserResult = Awaited<ReturnType<typeof supabase.auth.getUser>>
+    const userPromise: Promise<UserResult> = supabase.auth
+      .getUser()
+      .catch(
+        () =>
+          ({
+            data: { user: null },
+            error: new Error("getUser failed") as never,
+          }) as UserResult,
+      )
     const userTimeout = new Promise<UserResult>((resolve) =>
       setTimeout(
         () =>
@@ -307,44 +323,43 @@ export const getUser = cache(async function getUser() {
       ),
     )
 
-    try {
-      const { data, error } = await Promise.race([
-        supabase.auth.getUser(),
-        userTimeout,
-      ])
-      if (!error && data?.user) {
-        return data.user
-      }
-    } catch {
-      // Fall through to next strategy.
-    }
-
-    // Strategy 2 — cookie-decoded session via @supabase/ssr.
-    const cookieHere = await hasSessionCookie()
-    if (!cookieHere) return null
-
-    try {
-      type SessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
-      const sessionTimeout = new Promise<SessionResult>((resolve) =>
-        setTimeout(
+    type SessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
+    const sessionPromise: Promise<SessionResult> = cookieHere
+      ? supabase.auth.getSession().catch(
           () =>
-            resolve({
+            ({
               data: { session: null },
               error: null as never,
-            } as SessionResult),
-          1500,
-        ),
-      )
-      const { data: sessionData } = await Promise.race([
-        supabase.auth.getSession(),
-        sessionTimeout,
+            }) as SessionResult,
+        )
+      : Promise.resolve({ data: { session: null }, error: null as never } as SessionResult)
+    const sessionTimeout = new Promise<SessionResult>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            data: { session: null },
+            error: null as never,
+          } as SessionResult),
+        1500,
+      ),
+    )
+
+    try {
+      const [userResult, sessionResult] = await Promise.all([
+        Promise.race([userPromise, userTimeout]),
+        Promise.race([sessionPromise, sessionTimeout]),
       ])
-      if (sessionData?.session?.user) {
-        return sessionData.session.user
+      if (!userResult.error && userResult.data?.user) {
+        return userResult.data.user
+      }
+      if (sessionResult.data?.session?.user) {
+        return sessionResult.data.session.user
       }
     } catch {
-      // Fall through to next strategy.
+      // Fall through to last-resort strategy.
     }
+
+    if (!cookieHere) return null
 
     // Strategy 3 — last-resort manual cookie decode (no network).
     const cookieResult = await readAuthCookiePayload()
