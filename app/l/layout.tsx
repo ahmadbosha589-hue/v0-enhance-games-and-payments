@@ -1,0 +1,23 @@
+import type React from "react"
+import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
+
+/**
+ * Shortlink view layout
+ * ---------------------
+ * Mounts the c.cx.ua floating banner (zone 32) on all shortlink pages.
+ * The popup redirect script (zone 31) is intentionally disabled here:
+ * its `t=1` mode redirects the CURRENT window, which would rip visitors
+ * out of the countdown flow and break shortlink earnings.
+ */
+export default function ShortlinkLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <>
+      {children}
+      <PublicAdsLayer disablePopup />
+    </>
+  )
+}

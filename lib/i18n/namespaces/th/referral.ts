@@ -1,0 +1,88 @@
+export const referral = {
+  title: "โปรแกรมแนะนำ",
+  subtitle: "เชิญเพื่อนและรับโบนัส",
+  yourCode: "รหัสแนะนำของคุณ",
+  yourLink: "ลิงก์แนะนำของคุณ",
+  copy: "คัดลอก",
+  copied: "คัดลอกแล้ว!",
+  share: "แชร์",
+  shareOn: "แชร์บน {platform}",
+  howItWorks: {
+    title: "วิธีการทำงาน",
+    step1: {
+      title: "แชร์ลิงก์ของคุณ",
+      desc: "แชร์ลิงก์แนะนำเฉพาะของคุณกับเพื่อน",
+    },
+    step2: {
+      title: "เพื่อนสมัคร",
+      desc: "เพื่อนของคุณสมัครสมาชิกโดยใช้ลิงก์ของคุณ",
+    },
+    step3: {
+      title: "รับโบนัส",
+      desc: "รับ {percent}% จากทุกการรับของพวกเขา",
+    },
+  },
+  stats: {
+    title: "สถิติการแนะนำของคุณ",
+    totalReferrals: "แนะนำทั้งหมด",
+    activeReferrals: "แนะนำที่ใช้งาน",
+    totalEarned: "รายได้ทั้งหมด",
+    pendingEarnings: "รายได้รอดำเนินการ",
+    todayEarnings: "รายได้วันนี้",
+    thisWeek: "สัปดาห์นี้",
+    thisMonth: "เดือนนี้",
+    allTime: "ตลอดกาล",
+  },
+  tiers: {
+    title: "ระดับการแนะนำ",
+    currentTier: "ระดับปัจจุบัน",
+    nextTier: "ระดับถัดไป",
+    progress: "ความคืบหน้า",
+    benefits: "สิทธิประโยชน์",
+    bronze: {
+      name: "บรอนซ์",
+      commission: "10% ค่าคอมมิชชั่น",
+    },
+    silver: {
+      name: "ซิลเวอร์",
+      commission: "15% ค่าคอมมิชชั่น",
+    },
+    gold: {
+      name: "โกลด์",
+      commission: "20% ค่าคอมมิชชั่น",
+    },
+    platinum: {
+      name: "แพลตินัม",
+      commission: "25% ค่าคอมมิชชั่น",
+    },
+    diamond: {
+      name: "ไดมอนด์",
+      commission: "30% ค่าคอมมิชชั่น",
+    },
+  },
+  referralsList: {
+    title: "ผู้ถูกแนะนำของคุณ",
+    empty: "ยังไม่มีผู้ถูกแนะนำ",
+    username: "ชื่อผู้ใช้",
+    joinedDate: "วันที่เข้าร่วม",
+    totalClaims: "จำนวนครั้งที่รับ",
+    yourEarnings: "รายได้ของคุณ",
+    status: "สถานะ",
+    active: "ใช้งานอยู่",
+    inactive: "ไม่ได้ใช้งาน",
+  },
+  earnings: {
+    title: "ประวัติรายได้",
+    empty: "ยังไม่มีรายได้",
+    from: "จาก",
+    amount: "จำนวน",
+    date: "วันที่",
+    type: "ประเภท",
+  },
+  promotional: {
+    title: "สื่อโปรโมต",
+    banners: "แบนเนอร์",
+    download: "ดาวน์โหลด",
+    copyEmbed: "คัดลอกโค้ดฝัง",
+  },
+}

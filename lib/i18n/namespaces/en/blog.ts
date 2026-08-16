@@ -1,0 +1,26 @@
+export default {
+  title: "Blog",
+  subtitle: "Latest news and updates",
+  readMore: "Read More",
+  backToBlog: "Back to Blog",
+  publishedOn: "Published on",
+  author: "Author",
+  category: "Category",
+  tags: "Tags",
+  relatedPosts: "Related Posts",
+  noPosts: "No posts available",
+  searchPlaceholder: "Search articles...",
+  categories: {
+    all: "All",
+    news: "News",
+    tutorials: "Tutorials",
+    updates: "Updates",
+    tips: "Tips & Tricks",
+  },
+  pagination: {
+    previous: "Previous",
+    next: "Next",
+    page: "Page",
+    of: "of",
+  },
+}

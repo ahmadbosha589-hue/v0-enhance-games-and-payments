@@ -1,0 +1,18 @@
+export default {
+  title: "Bugün Kazanmaya Başlayın",
+  subtitle: "Ücretsiz RO tokenları kazanan binlerce kullanıcıya katılın",
+  description: "Kayıt ücretsiz ve sadece birkaç dakika sürer. Kredi kartı gerekmez.",
+  getStarted: "Şimdi Başla",
+  learnMore: "Daha Fazla Bilgi",
+  noCreditCard: "Kredi kartı gerekmez",
+  freeForever: "Sonsuza kadar ücretsiz",
+  instantSetup: "Anında kurulum",
+  joinNow: "Şimdi Katıl",
+  startEarning: "Kazanmaya Başla",
+  claimNow: "Şimdi Talep Et",
+  signUpFree: "Ücretsiz Kayıt Ol",
+  limitedOffer: "Sınırlı Teklif",
+  bonusTokens: "Bonus Tokenlar",
+  newUserBonus: "Yeni Kullanıcı Bonusu",
+  referralBonus: "Referans Bonusu",
+}

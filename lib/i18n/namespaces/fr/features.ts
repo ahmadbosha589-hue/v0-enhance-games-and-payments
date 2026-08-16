@@ -1,0 +1,18 @@
+export const features = {
+  title: "Fonctionnalités",
+  subtitle: "Pourquoi choisir FaucetCoin",
+  feature1Title: "Réclamations Gratuites",
+  feature1Desc: "Réclamez des tokens gratuits toutes les heures sans investissement",
+  feature2Title: "Retraits Instantanés",
+  feature2Desc: "Retirez vos gains instantanément vers votre portefeuille",
+  feature3Title: "Programme de Parrainage",
+  feature3Desc: "Gagnez des commissions en invitant vos amis",
+  feature4Title: "Transactions Sécurisées",
+  feature4Desc: "Technologie blockchain pour la sécurité",
+  feature5Title: "Support 24/7",
+  feature5Desc: "Notre équipe de support est toujours disponible pour vous aider",
+  feature6Title: "Compatible Mobile",
+  feature6Desc: "Réclamez des tokens depuis n'importe quel appareil",
+  learnMore: "En savoir plus",
+  getStarted: "Commencer",
+}

@@ -1,0 +1,88 @@
+export const referral = {
+  title: "Program Referral",
+  subtitle: "Undang teman dan dapatkan bonus",
+  yourCode: "Kode referral Anda",
+  yourLink: "Link referral Anda",
+  copy: "Salin",
+  copied: "Disalin!",
+  share: "Bagikan",
+  shareOn: "Bagikan di {platform}",
+  howItWorks: {
+    title: "Cara Kerjanya",
+    step1: {
+      title: "Bagikan link Anda",
+      desc: "Bagikan link referral unik Anda ke teman",
+    },
+    step2: {
+      title: "Teman mendaftar",
+      desc: "Teman Anda mendaftar menggunakan link Anda",
+    },
+    step3: {
+      title: "Dapatkan bonus",
+      desc: "Dapatkan {percent}% dari setiap klaim mereka",
+    },
+  },
+  stats: {
+    title: "Statistik Referral Anda",
+    totalReferrals: "Total referral",
+    activeReferrals: "Referral aktif",
+    totalEarned: "Total diperoleh",
+    pendingEarnings: "Pendapatan tertunda",
+    todayEarnings: "Pendapatan hari ini",
+    thisWeek: "Minggu ini",
+    thisMonth: "Bulan ini",
+    allTime: "Sepanjang waktu",
+  },
+  tiers: {
+    title: "Tier Referral",
+    currentTier: "Tier saat ini",
+    nextTier: "Tier berikutnya",
+    progress: "Kemajuan",
+    benefits: "Keuntungan",
+    bronze: {
+      name: "Bronze",
+      commission: "10% komisi",
+    },
+    silver: {
+      name: "Silver",
+      commission: "15% komisi",
+    },
+    gold: {
+      name: "Gold",
+      commission: "20% komisi",
+    },
+    platinum: {
+      name: "Platinum",
+      commission: "25% komisi",
+    },
+    diamond: {
+      name: "Diamond",
+      commission: "30% komisi",
+    },
+  },
+  referralsList: {
+    title: "Referral Anda",
+    empty: "Belum ada referral",
+    username: "Nama pengguna",
+    joinedDate: "Tanggal bergabung",
+    totalClaims: "Total klaim",
+    yourEarnings: "Pendapatan Anda",
+    status: "Status",
+    active: "Aktif",
+    inactive: "Tidak aktif",
+  },
+  earnings: {
+    title: "Riwayat Pendapatan",
+    empty: "Belum ada pendapatan",
+    from: "Dari",
+    amount: "Jumlah",
+    date: "Tanggal",
+    type: "Tipe",
+  },
+  promotional: {
+    title: "Materi Promosi",
+    banners: "Banner",
+    download: "Unduh",
+    copyEmbed: "Salin kode embed",
+  },
+}

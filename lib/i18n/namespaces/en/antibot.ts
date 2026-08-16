@@ -1,0 +1,16 @@
+export default {
+  title: "Verification Required",
+  subtitle: "Please complete the verification to continue",
+  mathChallenge: "Math Challenge",
+  imageChallenge: "Image Challenge",
+  solveProblem: "Solve this problem",
+  selectMatching: "Select all images matching",
+  attemptsLeft: "{{count}} attempts left",
+  tooManyFailures: "Too many failed attempts",
+  pleaseWait: "Please wait before trying again",
+  verifying: "Verifying...",
+  verified: "Verified!",
+  failed: "Verification failed",
+  retry: "Retry verification",
+  step: "Step {{current}} of {{total}}",
+}

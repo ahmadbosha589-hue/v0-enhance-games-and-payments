@@ -1,0 +1,25 @@
+export const hero = {
+  title: "Dapatkan Ragnarok Online Zeny Gratis",
+  subtitle: "Faucet crypto tercepat dan terpercaya untuk pemain RO",
+  description: "Klaim Zeny gratis setiap 5 menit. Penarikan instan, tanpa minimum. Mulai kumpulkan hari ini!",
+  cta: "Mulai Klaim",
+  ctaSecondary: "Pelajari Lebih Lanjut",
+  stats: {
+    totalClaimed: "Total Diklaim",
+    totalUsers: "Total Pengguna",
+    claimsToday: "Klaim Hari Ini",
+    onlineNow: "Online Sekarang",
+  },
+  features: {
+    fast: "Cepat",
+    fastDesc: "Klaim setiap 5 menit",
+    secure: "Aman",
+    secureDesc: "Verifikasi tingkat lanjut",
+    instant: "Instan",
+    instantDesc: "Penarikan tanpa penundaan",
+    free: "Gratis",
+    freeDesc: "Tidak ada biaya tersembunyi",
+  },
+  trusted: "Dipercaya oleh {count}+ pemain",
+  announcement: "Baru: Sistem bonus referral sudah aktif!",
+}

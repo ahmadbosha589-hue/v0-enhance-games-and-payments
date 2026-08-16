@@ -1,0 +1,20 @@
+// English - Footer namespace
+export default {
+  description: "The most trusted crypto faucet platform. Earn free Bitcoin every 5 minutes.",
+  product: "Product",
+  company: "Company",
+  legal: "Legal",
+  support: "Support",
+  rights: "All rights reserved.",
+  about: "About Us",
+  blog: "Blog",
+  contact: "Contact",
+  terms: "Terms of Service",
+  privacy: "Privacy Policy",
+  cookies: "Cookie Policy",
+  aml: "AML Policy",
+  help: "Help Center",
+  community: "Community",
+  status: "Status",
+  api: "API",
+}

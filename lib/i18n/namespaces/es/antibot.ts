@@ -1,0 +1,16 @@
+export default {
+  title: "Verificación requerida",
+  subtitle: "Completa la verificación para continuar",
+  mathChallenge: "Desafío matemático",
+  imageChallenge: "Desafío de imágenes",
+  solveProblem: "Resuelve este problema",
+  selectMatching: "Selecciona todas las imágenes que coincidan",
+  attemptsLeft: "{{count}} intentos restantes",
+  tooManyFailures: "Demasiados intentos fallidos",
+  pleaseWait: "Espera antes de intentar de nuevo",
+  verifying: "Verificando...",
+  verified: "¡Verificado!",
+  failed: "Verificación fallida",
+  retry: "Reintentar",
+  step: "Paso {{current}} de {{total}}",
+}

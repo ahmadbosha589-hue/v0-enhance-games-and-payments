@@ -1,0 +1,51 @@
+export const footer = {
+  description: "ก๊อกน้ำ Ragnarok Online Zeny ที่เร็ว ปลอดภัย และเชื่อถือได้ที่สุด เริ่มรับ Zeny ฟรีวันนี้!",
+  newsletter: {
+    title: "ติดตามข่าวสาร",
+    subtitle: "รับข่าวสารและโปรโมชั่นล่าสุด",
+    placeholder: "กรอกอีเมลของคุณ",
+    subscribe: "สมัครรับข่าว",
+    subscribing: "กำลังสมัคร...",
+    success: "สมัครสำเร็จ!",
+    error: "ไม่สามารถสมัครได้ กรุณาลองอีกครั้ง",
+  },
+  links: {
+    company: {
+      title: "บริษัท",
+      about: "เกี่ยวกับเรา",
+      careers: "ร่วมงานกับเรา",
+      press: "ข่าวประชาสัมพันธ์",
+      blog: "บล็อก",
+    },
+    product: {
+      title: "บริการ",
+      faucet: "ก๊อกน้ำ",
+      referral: "โปรแกรมแนะนำ",
+      leaderboard: "อันดับ",
+      api: "API",
+    },
+    support: {
+      title: "สนับสนุน",
+      help: "ศูนย์ช่วยเหลือ",
+      faq: "คำถามที่พบบ่อย",
+      contact: "ติดต่อเรา",
+      status: "สถานะระบบ",
+    },
+    legal: {
+      title: "กฎหมาย",
+      terms: "ข้อกำหนดการให้บริการ",
+      privacy: "นโยบายความเป็นส่วนตัว",
+      cookies: "นโยบายคุกกี้",
+      licenses: "สัญญาอนุญาต",
+    },
+  },
+  social: {
+    title: "ติดตามเรา",
+    discord: "Discord",
+    twitter: "Twitter",
+    telegram: "Telegram",
+    facebook: "Facebook",
+  },
+  copyright: "© {year} FaucetRO สงวนลิขสิทธิ์",
+  madeWith: "สร้างด้วย ❤️ สำหรับผู้เล่น RO",
+}

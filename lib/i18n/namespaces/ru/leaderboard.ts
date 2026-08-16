@@ -1,0 +1,46 @@
+export default {
+  title: "Рейтинг",
+  subtitle: "Лучшие пользователи",
+  tabs: {
+    daily: "За день",
+    weekly: "За неделю",
+    monthly: "За месяц",
+    allTime: "За всё время",
+  },
+  table: {
+    rank: "Место",
+    user: "Пользователь",
+    claimed: "Получено",
+    referrals: "Рефералы",
+    streak: "Серия",
+    joinDate: "Дата регистрации",
+  },
+  yourPosition: {
+    title: "Ваша позиция",
+    rank: "Ваше место",
+    claimed: "Получено",
+    topPercentage: "Вы в топ {percent}%",
+    notRanked: "Ещё не в рейтинге",
+  },
+  filters: {
+    sortBy: "Сортировка",
+    country: "Страна",
+    allCountries: "Все страны",
+  },
+  rewards: {
+    title: "Награды рейтинга",
+    description: "Лучшие получают дополнительные призы!",
+    first: "1 место",
+    second: "2 место",
+    third: "3 место",
+    top10: "Топ 10",
+    top100: "Топ 100",
+  },
+  empty: {
+    title: "Рейтинг пуст",
+    description: "Станьте первым в рейтинге!",
+  },
+  loading: "Загрузка рейтинга...",
+  error: "Не удалось загрузить рейтинг",
+  retry: "Попробовать снова",
+}

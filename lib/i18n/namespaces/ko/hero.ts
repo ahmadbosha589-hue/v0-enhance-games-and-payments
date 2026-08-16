@@ -1,0 +1,21 @@
+export default {
+  title: "무료 USDT를 청구하세요",
+  titleHighlight: "매일",
+  subtitle:
+    "가장 신뢰할 수 있는 암호화폐 포셋에서 무료 USDT를 받으세요. 투자 없이 청구하고 수익을 창출하고 성장하세요.",
+  cta: "지금 청구 시작",
+  secondaryCta: "작동 방식",
+  trustedBy: "전 세계 수천 명의 사용자가 신뢰",
+  users: "활성 사용자",
+  claimed: "청구된 USDT",
+  countries: "지원 국가",
+  rating: "사용자 평점",
+  featuredIn: "소개된 곳",
+  scrollDown: "더 알아보기",
+  watchVideo: "영상 보기",
+  learnMore: "더 알아보기",
+  noInvestment: "투자 불필요",
+  instantWithdraw: "즉시 출금",
+  secureReliable: "안전하고 신뢰할 수 있음",
+  support247: "24/7 지원",
+}

@@ -1,0 +1,400 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Separator } from "@/components/ui/separator"
+import { toast } from "sonner"
+import {
+  Loader2, Save, Trash2, CheckCircle2, AlertCircle,
+  Eye, EyeOff, RefreshCw, Shield, Info, Lock, Key, Settings, Link2
+} from "lucide-react"
+
+interface EnvVarConfig {
+  key: string
+  label: string
+  description: string
+  category: "ads" | "payments" | "security" | "api" | "shortlink"
+  isSet: boolean
+  lastUpdated?: string
+}
+
+const ENV_VAR_CONFIGS: EnvVarConfig[] = [
+  // Ad Networks
+  { key: "GOOGLE_ADSENSE_ID", label: "Google AdSense ID", description: "Publisher ID for Google AdSense", category: "ads", isSet: false },
+  { key: "COINTRAFFIC_ZONE_ID", label: "Cointraffic Zone ID", description: "Zone ID for Cointraffic ads", category: "ads", isSet: false },
+  { key: "MEDIANET_ID", label: "Media.net ID", description: "Customer ID for Media.net", category: "ads", isSet: false },
+  { key: "HILLTOPADS_ID", label: "HilltopAds ID", description: "Publisher ID for HilltopAds", category: "ads", isSet: false },
+  { key: "ADSTERRA_ID", label: "Adsterra ID", description: "Publisher ID for Adsterra", category: "ads", isSet: false },
+  { key: "PROPELLERADS_ID", label: "PropellerAds ID", description: "Zone ID for PropellerAds", category: "ads", isSet: false },
+  { key: "TRAFFICSTARS_ID", label: "TrafficStars ID", description: "Spot ID for TrafficStars", category: "ads", isSet: false },
+  { key: "ADSKEEPER_ID", label: "Adskeeper ID", description: "Widget ID for Adskeeper", category: "ads", isSet: false },
+  { key: "AADS_ID", label: "A-ADS ID", description: "Unit ID for A-ADS", category: "ads", isSet: false },
+  { key: "COINZILLA_ZONE", label: "Coinzilla Zone", description: "Zone ID for Coinzilla", category: "ads", isSet: false },
+  { key: "BITSMEDIA_ID", label: "Bitsmedia ID", description: "Publisher ID for Bitsmedia", category: "ads", isSet: false },
+  { key: "BITMEDIA_ID", label: "Bitmedia ID", description: "Zone ID for Bitmedia", category: "ads", isSet: false },
+
+  // Payment Processors
+  { key: "FAUCETPAY_API_KEY", label: "FaucetPay API Key", description: "API key for FaucetPay withdrawals", category: "payments", isSet: false },
+  { key: "CCPAYMENT_APP_ID", label: "CCPayment App ID", description: "App ID for CCPayment", category: "payments", isSet: false },
+  { key: "CCPAYMENT_APP_SECRET", label: "CCPayment App Secret", description: "App Secret for CCPayment", category: "payments", isSet: false },
+  { key: "CWALLET_API_KEY", label: "CWallet API Key", description: "API key for CWallet integration", category: "payments", isSet: false },
+
+  // Security
+  { key: "TURNSTILE_SECRET_KEY", label: "Turnstile Secret", description: "Cloudflare Turnstile secret key", category: "security", isSet: false },
+  { key: "HCAPTCHA_SECRET", label: "hCaptcha Secret", description: "hCaptcha secret key", category: "security", isSet: false },
+
+  // c.cx.ua Banner / Popup Network (zones 31, 32)
+  { key: "CCXUA_API_KEY", label: "c.cx.ua API Key", description: "Server-side API key for c.cx.ua reporting", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CCXUA_API_KEY", label: "c.cx.ua Public ID", description: "Public publisher ID for c.cx.ua banner/popup zones", category: "ads", isSet: false },
+  { key: "CCXUA_SECRET_KEY", label: "c.cx.ua Secret Key", description: "Secret used to verify c.cx.ua server postbacks", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CXUA_BANNER_ZONE_ID", label: "c.cx.ua Banner Zone ID", description: "Numeric banner zone id from the c.cx.ua panel (default: 32)", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CXUA_POPUP_ZONE_ID", label: "c.cx.ua Popup Zone ID", description: "Numeric popup zone id from the c.cx.ua panel (default: 31)", category: "ads", isSet: false },
+  { key: "NEXT_PUBLIC_CXUA_POPUP_PARAMS", label: "c.cx.ua Popup Params", description: "Frequency params for popup script (default: f=4&t=1)", category: "ads", isSet: false },
+
+  // Offerwall Public Keys
+  { key: "NEXT_PUBLIC_CPX_APP_ID", label: "CPX Research App ID", description: "App ID for CPX Research", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_TOROX_PUB_ID", label: "Torox Publisher ID", description: "Publisher ID for Torox", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_ADGATE_WALL_CODE", label: "AdGate Wall Code", description: "Wall code for AdGate Media", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_LOOTABLY_PLACEMENT_ID", label: "Lootably Placement ID", description: "Placement ID for Lootably", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_BITLABS_TOKEN", label: "BitLabs Token", description: "API token for BitLabs", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_TIMEWALL_KEY", label: "Timewall API Key", description: "API key for Timewall", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_AYET_ADSLOT", label: "ayeT-Studios Ad Slot", description: "Ad slot ID for ayeT-Studios", category: "api", isSet: false },
+  { key: "NEXT_PUBLIC_ADGEM_PLAYER_ID", label: "AdGem Player ID", description: "Player ID for AdGem", category: "api", isSet: false },
+
+  // Offerwall Secret Keys (Postback Verification)
+  { key: "CPX_SECRET_KEY", label: "CPX Secret Key", description: "Secret key for CPX Research postbacks", category: "api", isSet: false },
+  { key: "TOROX_SECRET_KEY", label: "Torox Secret Key", description: "Secret key for Torox postbacks", category: "api", isSet: false },
+  { key: "LOOTABLY_SECRET_KEY", label: "Lootably Secret Key", description: "Secret key for Lootably postbacks", category: "api", isSet: false },
+  { key: "ADGATE_SECRET_KEY", label: "AdGate Secret Key", description: "Secret key for AdGate postbacks", category: "api", isSet: false },
+  { key: "BITLABS_SECRET_KEY", label: "BitLabs Secret Key", description: "Secret key for BitLabs postbacks", category: "api", isSet: false },
+  { key: "TIMEWALL_SECRET_KEY", label: "Timewall Secret Key", description: "Secret key for Timewall postbacks", category: "api", isSet: false },
+  { key: "AYET_STUDIOS_SECRET_KEY", label: "ayeT-Studios Secret Key", description: "Secret key for ayeT-Studios postbacks", category: "api", isSet: false },
+  { key: "MM_WALL_SECRET_KEY", label: "MM Wall Secret Key", description: "Secret key for MM Wall postbacks", category: "api", isSet: false },
+  { key: "OFFERWALLME_SECRET_KEY", label: "Offerwall.me Secret Key", description: "Secret key for Offerwall.me postbacks", category: "api", isSet: false },
+  { key: "BICOTASKS_SECRET_KEY", label: "BicoTasks Secret Key", description: "Secret key for BicoTasks postbacks", category: "api", isSet: false },
+  { key: "ADSCEND_SECRET_KEY", label: "Adscend Secret Key", description: "Secret key for Adscend postbacks", category: "api", isSet: false },
+  { key: "HANG_MY_ADS_SECRET_KEY", label: "Hang My Ads Secret Key", description: "Secret key for Hang My Ads postbacks", category: "api", isSet: false },
+  { key: "NOTIK_SECRET_KEY", label: "Notik Secret Key", description: "Secret key for Notik postbacks", category: "api", isSet: false },
+  { key: "MONLIX_APP_ID", label: "Monlix App ID", description: "App ID for Monlix", category: "api", isSet: false },
+  { key: "MONLIX_SECRET_KEY", label: "Monlix Secret Key", description: "Secret key for Monlix postbacks", category: "api", isSet: false },
+  { key: "HIDEOUT_SECRET_KEY", label: "Hideout Secret Key", description: "Secret key for Hideout.tv postbacks", category: "api", isSet: false },
+
+  // Cron Jobs
+  { key: "CRON_SECRET", label: "Cron Secret", description: "Secret for cron job authentication", category: "security", isSet: false },
+
+  // Shortlink Providers — admins can configure any subset; the library
+  // auto-falls-back to any configured provider when shortening URLs.
+  { key: "SHORTLINK_PROVIDER",  label: "Active Shortlink Provider", description: "shrinkme | shrinkearn | exeio | fclc | gplinks | ouoio | linkvertise | shortest | shareus | stfly | cuty | adfocus | linkpays | clk", category: "shortlink", isSet: false },
+  { key: "SHRINKME_API_KEY",    label: "ShrinkMe.io API Key",   description: "Highest-paying URL shortener (up to $22 CPM)",  category: "shortlink", isSet: false },
+  { key: "SHRINKEARN_API_KEY",  label: "ShrinkEarn API Key",    description: "Trusted shortener since 2018 (up to $20 CPM)",   category: "shortlink", isSet: false },
+  { key: "EXEIO_API_KEY",       label: "Exe.io API Key",        description: "Bitcoin payouts available (up to $15 CPM)",      category: "shortlink", isSet: false },
+  { key: "FCLC_API_KEY",        label: "FC.LC API Key",         description: "Fast redirect network",                          category: "shortlink", isSet: false },
+  { key: "GPLINKS_API_KEY",     label: "GPLinks.in API Key",    description: "India-friendly shortener",                       category: "shortlink", isSet: false },
+  { key: "OUOIO_API_KEY",       label: "Ouo.io API Key",        description: "Fast & reliable redirects (up to $7 CPM)",       category: "shortlink", isSet: false },
+  { key: "LINKVERTISE_API_KEY", label: "Linkvertise API Token", description: "Premium rewards platform (up to $5 CPM)",        category: "shortlink", isSet: false },
+  { key: "SHORTEST_API_KEY",    label: "Shorte.st API Token",   description: "Veteran shortlink network",                      category: "shortlink", isSet: false },
+  { key: "SHAREUS_API_KEY",     label: "ShareUs.io API Key",    description: "Crypto-friendly shortener (up to $10 CPM)",      category: "shortlink", isSet: false },
+  { key: "STFLY_API_KEY",       label: "Stfly.io API Key",      description: "Free, fast shortener (up to $9 CPM)",            category: "shortlink", isSet: false },
+  { key: "CUTY_API_KEY",        label: "Cuty.io API Key",       description: "Multi-tier earnings (up to $14 CPM)",            category: "shortlink", isSet: false },
+  { key: "ADFOCUS_API_KEY",     label: "AdFoc.us API Key",      description: "Daily payouts shortener",                        category: "shortlink", isSet: false },
+  { key: "LINKPAYS_API_KEY",    label: "LinkPays.in API Key",   description: "Worldwide audience (up to $12 CPM)",             category: "shortlink", isSet: false },
+  { key: "CLK_API_KEY",         label: "Clk.sh API Key",        description: "Reliable, established network (up to $11 CPM)",  category: "shortlink", isSet: false },
+]
+
+const CATEGORY_INFO = {
+  ads: { label: "Ad Networks", icon: Settings, color: "text-amber-500", bgColor: "bg-amber-500/10" },
+  payments: { label: "Payment Processors", icon: Key, color: "text-green-500", bgColor: "bg-green-500/10" },
+  security: { label: "Security", icon: Shield, color: "text-blue-500", bgColor: "bg-blue-500/10" },
+  api: { label: "Offerwall APIs", icon: Lock, color: "text-purple-500", bgColor: "bg-purple-500/10" },
+  shortlink: { label: "Shortlink Providers", icon: Link2, color: "text-cyan-500", bgColor: "bg-cyan-500/10" },
+}
+
+export function EnvVarsSettings() {
+  const [configs, setConfigs] = useState<EnvVarConfig[]>(ENV_VAR_CONFIGS)
+  const [isLoading, setIsLoading] = useState(true)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [inputValue, setInputValue] = useState("")
+  const [showValue, setShowValue] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState<string | null>(null)
+
+  const fetchStatus = useCallback(async () => {
+    setIsLoading(true)
+
+    // Add timeout to prevent hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+    try {
+      const res = await fetch("/api/admin/env-vars/status", {
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
+      if (!res.ok) {
+        // Don't throw, just keep defaults
+        console.error("Env vars status returned error:", res.status)
+        return
+      }
+
+      const data = await res.json()
+
+      setConfigs(prev => prev.map(config => ({
+        ...config,
+        isSet: data.configured?.includes(config.key) || false,
+        lastUpdated: data.lastUpdated?.[config.key]
+      })))
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (error instanceof Error && error.name === "AbortError") {
+        console.error("Env vars status request timed out")
+      } else {
+        console.error("Failed to fetch env var status:", error)
+      }
+      // Keep defaults, don't crash
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchStatus()
+  }, [fetchStatus])
+
+  const handleSave = async (key: string) => {
+    if (!inputValue.trim()) {
+      toast.error("Please enter a value")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+      const res = await fetch("/api/admin/env-vars", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value: inputValue }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save")
+      }
+
+      // Show informational message - env vars can't be modified at runtime
+      if (data.message) {
+        toast.info(data.message, { duration: 8000 })
+      } else {
+        toast.success(`${key} configured successfully`)
+      }
+
+      setEditingKey(null)
+      setInputValue("")
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        toast.error("Request timed out")
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to save")
+      }
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDelete = async (key: string) => {
+    if (!confirm(`Are you sure you want to delete ${key}? This action cannot be undone.`)) {
+      return
+    }
+
+    setIsDeleting(key)
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+      const res = await fetch("/api/admin/env-vars", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+        signal: controller.signal,
+      })
+      clearTimeout(timeoutId)
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete")
+      }
+
+      // Show informational message - env vars can't be deleted at runtime
+      if (data.message) {
+        toast.info(data.message, { duration: 8000 })
+      } else {
+        toast.success(`${key} deleted`)
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        toast.error("Request timed out")
+      } else {
+        toast.error(error instanceof Error ? error.message : "Failed to delete")
+      }
+    } finally {
+      setIsDeleting(null)
+    }
+  }
+
+  const groupedConfigs = configs.reduce((acc, config) => {
+    if (!acc[config.category]) acc[config.category] = []
+    acc[config.category].push(config)
+    return acc
+  }, {} as Record<string, EnvVarConfig[]>)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-3 py-8 justify-center text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span>Loading configuration status...</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <Alert className="border-blue-500/30 bg-blue-500/5">
+        <Shield className="h-4 w-4 text-blue-500" />
+        <AlertTitle className="text-blue-600 dark:text-blue-400">Secure Configuration</AlertTitle>
+        <AlertDescription className="text-xs sm:text-sm">
+          All sensitive values are encrypted using AES-256 before storage.
+          Once configured, values cannot be viewed again - only replaced or deleted.
+        </AlertDescription>
+      </Alert>
+
+      {Object.entries(groupedConfigs).map(([category, categoryConfigs]) => {
+        const categoryInfo = CATEGORY_INFO[category as keyof typeof CATEGORY_INFO]
+        const Icon = categoryInfo.icon
+
+        return (
+          <Card key={category}>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <div className={`p-1.5 rounded-lg ${categoryInfo.bgColor}`}>
+                  <Icon className={`h-4 w-4 ${categoryInfo.color}`} />
+                </div>
+                {categoryInfo.label}
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Configure your {categoryInfo.label.toLowerCase()} credentials
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {categoryConfigs.map((config) => (
+                <div
+                  key={config.key}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border bg-muted/20"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{config.label}</span>
+                      {config.isSet ? (
+                        <Badge variant="default" className="bg-green-500/10 text-green-500 border-green-500/20 text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Configured
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          Not Set
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{config.description}</p>
+                    <code className="text-[10px] text-muted-foreground/70 font-mono">{config.key}</code>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {editingKey === config.key ? (
+                      <>
+                        <div className="relative">
+                          <Input
+                            type={showValue ? "text" : "password"}
+                            placeholder="Enter value..."
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            className="pr-8 w-40 sm:w-48 h-8 text-xs font-mono"
+                            autoComplete="off"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowValue(!showValue)}
+                          >
+                            {showValue ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSave(config.key)}
+                          disabled={isSaving}
+                          className="h-8 px-3"
+                        >
+                          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { setEditingKey(null); setInputValue(""); }}
+                          className="h-8 px-2"
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setEditingKey(config.key); setInputValue(""); setShowValue(false); }}
+                          className="h-8 px-3 text-xs"
+                        >
+                          {config.isSet ? "Replace" : "Configure"}
+                        </Button>
+                        {config.isSet && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(config.key)}
+                            disabled={isDeleting === config.key}
+                            className="h-8 px-2 text-destructive hover:text-destructive"
+                          >
+                            {isDeleting === config.key ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )
+      })}
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Info className="h-4 w-4" />
+        <p>Changes take effect immediately. Some services may require a page refresh.</p>
+      </div>
+    </div>
+  )
+}

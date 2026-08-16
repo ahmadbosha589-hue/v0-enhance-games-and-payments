@@ -1,0 +1,21 @@
+export default {
+  title: "Ücretsiz Kripto Para Kazan",
+  subtitle: "RO tokenlarını talep eden ve ödüller kazanan binlerce kullanıcıya katılın",
+  description:
+    "FaucetRO, ücretsiz RO tokenları kazanmanın en kolay yoludur. Her gün talep edin, arkadaşlarınızı davet edin ve sıralamada yükselirken bakiyenizin büyümesini izleyin.",
+  claimNow: "Şimdi Talep Et",
+  learnMore: "Daha Fazla Bilgi",
+  getStarted: "Başla",
+  watchVideo: "Videoyu İzle",
+  totalClaimed: "Toplam Talep Edilen",
+  activeUsers: "Aktif Kullanıcılar",
+  countriesServed: "Hizmet Verilen Ülkeler",
+  totalPayout: "Toplam Ödeme",
+  trustedBy: "Dünya Genelinde Güvenilir",
+  featured: "Öne Çıkanlar",
+  joinCommunity: "Topluluğa Katıl",
+  startEarning: "Hemen Kazanmaya Başla",
+  noCreditCard: "Kredi kartı gerekmez",
+  freeForever: "Sonsuza kadar ücretsiz",
+  instantSetup: "Anında kurulum",
+}

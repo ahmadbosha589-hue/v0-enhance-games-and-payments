@@ -1,0 +1,21 @@
+export default {
+  title: "Zarabiaj Darmową Kryptowalutę",
+  subtitle: "Dołącz do tysięcy użytkowników odbierających tokeny RO i zdobywających nagrody",
+  description:
+    "FaucetRO to najprostszy sposób na zdobycie darmowych tokenów RO. Odbieraj codziennie, zapraszaj znajomych i obserwuj jak twoje saldo rośnie.",
+  claimNow: "Odbierz teraz",
+  learnMore: "Dowiedz się więcej",
+  getStarted: "Rozpocznij",
+  watchVideo: "Obejrzyj wideo",
+  totalClaimed: "Łącznie odebrano",
+  activeUsers: "Aktywni użytkownicy",
+  countriesServed: "Obsługiwane kraje",
+  totalPayout: "Łączna wypłata",
+  trustedBy: "Zaufanie na całym świecie",
+  featured: "Wyróżnione",
+  joinCommunity: "Dołącz do społeczności",
+  startEarning: "Zacznij zarabiać teraz",
+  noCreditCard: "Karta kredytowa nie jest wymagana",
+  freeForever: "Na zawsze za darmo",
+  instantSetup: "Natychmiastowa konfiguracja",
+}

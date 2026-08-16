@@ -1,0 +1,16 @@
+export const stats = {
+  title: "สถิติแพลตฟอร์ม",
+  subtitle: "ตัวเลขเรียลไทม์ของ FaucetRO",
+  totalUsers: "ผู้ใช้ทั้งหมด",
+  totalClaims: "จำนวนครั้งที่รับทั้งหมด",
+  totalDistributed: "แจกจ่ายทั้งหมด",
+  activeToday: "ใช้งานวันนี้",
+  claimsToday: "รับวันนี้",
+  withdrawalsToday: "ถอนวันนี้",
+  avgClaimTime: "เวลาเฉลี่ยต่อการรับ",
+  uptime: "ระยะเวลาให้บริการ",
+  serverStatus: "สถานะเซิร์ฟเวอร์",
+  online: "ออนไลน์",
+  offline: "ออฟไลน์",
+  maintenance: "บำรุงรักษา",
+}

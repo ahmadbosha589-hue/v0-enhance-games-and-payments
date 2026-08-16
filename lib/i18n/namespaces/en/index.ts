@@ -1,0 +1,12 @@
+// English namespace index - for static imports when needed
+export { default as common } from "./common"
+export { default as nav } from "./nav"
+export { default as hero } from "./hero"
+export { default as features } from "./features"
+export { default as howItWorks } from "./howItWorks"
+export { default as stats } from "./stats"
+export { default as faq } from "./faq"
+export { default as cta } from "./cta"
+export { default as footer } from "./footer"
+export { default as auth } from "./auth"
+export { default as errors } from "./errors"

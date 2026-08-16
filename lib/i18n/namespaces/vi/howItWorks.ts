@@ -1,0 +1,16 @@
+export default {
+  title: "Cách Thức Hoạt Động",
+  subtitle: "Bắt đầu chỉ với ba bước đơn giản",
+  step1Title: "Tạo tài khoản",
+  step1Description: "Đăng ký miễn phí chỉ trong vài giây với email hoặc ví của bạn.",
+  step2Title: "Nhận tiền điện tử",
+  step2Description: "Hoàn thành captcha đơn giản để nhận tiền điện tử miễn phí mỗi giờ.",
+  step3Title: "Rút tiền",
+  step3Description: "Rút tiền thu nhập của bạn trực tiếp vào ví khi đạt ngưỡng tối thiểu.",
+  step4Title: "Giới thiệu và kiếm thêm",
+  step4Description: "Chia sẻ liên kết giới thiệu của bạn để kiếm hoa hồng từ lượt nhận của bạn bè.",
+  whyChooseUs: "Tại sao chọn chúng tôi",
+  trustedBy: "Được tin tưởng bởi hơn 1 triệu người dùng",
+  supported: "Hỗ trợ nhiều loại tiền điện tử",
+  fast: "Thanh toán nhanh chóng và đáng tin cậy",
+}

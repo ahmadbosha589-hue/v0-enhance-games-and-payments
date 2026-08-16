@@ -1,0 +1,99 @@
+{
+  "name": "Faucero - Earn Free Bitcoin",
+  "short_name": "Faucero",
+  "description": "Claim free satoshis every 5 minutes. Build your streak, refer friends, and withdraw to FaucetPay. The most trusted crypto faucet platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#f7931a",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["finance", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Dashboard showing claim interface"
+    },
+    {
+      "src": "/screenshots/mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile view of Faucero"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Claim Now",
+      "short_name": "Claim",
+      "description": "Claim your free satoshis",
+      "url": "/dashboard?action=claim",
+      "icons": [
+        {
+          "src": "/icons/claim.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Referrals",
+      "short_name": "Refer",
+      "description": "View your referral stats",
+      "url": "/dashboard/referrals",
+      "icons": [
+        {
+          "src": "/icons/referral.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Withdraw",
+      "short_name": "Withdraw",
+      "description": "Withdraw your earnings",
+      "url": "/dashboard/withdraw",
+      "icons": [
+        {
+          "src": "/icons/withdraw.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}
