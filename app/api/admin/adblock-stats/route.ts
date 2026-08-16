@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createAdminClient, requireAdmin } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
 
 export async function GET(request: Request) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const supabase = createAdminClient()
 

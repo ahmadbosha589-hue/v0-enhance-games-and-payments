@@ -36,16 +36,25 @@ export async function createClient() {
 export const createAdminClient = cache(function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl) {
     console.warn("[Supabase Admin] NEXT_PUBLIC_SUPABASE_URL not configured")
     return null
   }
 
-  const keyToUse = serviceRoleKey || anonKey
+  const keyToUse = serviceRoleKey
   if (!keyToUse) {
-    console.warn("[Supabase Admin] No API key configured")
+    // SECURITY (S20): this previously fell back to the anon key
+    // (`serviceRoleKey || anonKey`). Every caller of this client depends on RLS
+    // being bypassed — role lookups, balance writes, fraud queries. Under the
+    // anon key those reads return RLS-filtered or empty results, which is
+    // indistinguishable from a legitimate "no rows". That is how a missing env
+    // var turns into an authorization bug: getProfile() returns null, so an
+    // admin looks like a non-admin (or worse, a default profile is substituted).
+    // Callers already handle null, so failing closed is strictly safer.
+    console.error(
+      "[Supabase Admin] SUPABASE_SERVICE_ROLE_KEY missing — admin client unavailable (refusing to downgrade to the anon key)",
+    )
     return null
   }
 
@@ -367,6 +376,65 @@ export const getUserWithProfile = cache(async function getUserWithProfile() {
   const user = await getUser()
   if (!user) return { user: null, profile: null }
   const profile = await getProfile(user.id)
+  return { user, profile }
+})
+
+/**
+ * Identity that is good enough for PRIVILEGED actions (admin operations,
+ * balance mutation, withdrawals, 2FA changes).
+ *
+ * getUser() may resolve a user from an offline-verified access token
+ * (`__from_cookie: true`). That token's signature is valid, but it stays valid
+ * until `exp` even if the session was revoked in the meantime — logout
+ * everywhere, a ban, or a password reset. Read paths can tolerate that
+ * staleness; privileged writes cannot. So when the identity came from the
+ * offline path we force one live verification against the Supabase Auth API.
+ */
+export const getVerifiedUser = cache(async function getVerifiedUser() {
+  const user = await getUser()
+  if (!user) return null
+
+  if (!(user as { __from_cookie?: true }).__from_cookie) return user
+
+  const supabase = await createClient()
+  if (!supabase) return null
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (error || !data?.user) return null
+    return data.user
+  } catch {
+    return null
+  }
+})
+
+export type AdminRole = "admin" | "superadmin" | "owner" | "moderator"
+
+const DEFAULT_ADMIN_ROLES: AdminRole[] = ["admin", "superadmin", "owner"]
+
+/**
+ * Single choke point for administrative authorization.
+ *
+ * Returns the live-verified user plus their profile, or null. Callers MUST treat
+ * null as 403 and must not fall back to any default profile.
+ *
+ * Why centralized: before this existed, each admin route inlined its own
+ * `getUser()` + role lookup, and three different allow-lists had drifted apart
+ * (["admin","superadmin"], ["admin","superadmin","owner"],
+ * ["admin","superadmin","moderator"]). Two routes had no check at all. A single
+ * function makes the policy auditable and greppable.
+ */
+export const requireAdmin = cache(async function requireAdmin(
+  allowed: AdminRole[] = DEFAULT_ADMIN_ROLES,
+) {
+  const user = await getVerifiedUser()
+  if (!user) return null
+
+  const profile = await getProfile(user.id)
+  if (!profile) return null
+
+  const role = (profile as { role?: string }).role
+  if (!role || !allowed.includes(role as AdminRole)) return null
+
   return { user, profile }
 })
 

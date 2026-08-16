@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { createAdminClient, getUser, requireAdmin } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
 
@@ -15,6 +15,11 @@ async function verifyAdmin() {
 }
 
 export async function GET() {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const admin = await verifyAdmin()
     if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -28,6 +33,11 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const admin = await verifyAdmin()
     if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

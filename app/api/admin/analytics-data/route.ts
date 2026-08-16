@@ -1,9 +1,14 @@
-import { createAdminClient } from "@/lib/supabase/server"
+import { createAdminClient, requireAdmin } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const supabase = createAdminClient()
 

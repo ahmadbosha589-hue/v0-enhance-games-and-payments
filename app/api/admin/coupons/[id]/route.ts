@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { createAdminClient, getUser, requireAdmin } from "@/lib/supabase/server"
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const { id } = await params
     const user = await getUser()
@@ -74,6 +79,11 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const { id } = await params
     const user = await getUser()

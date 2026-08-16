@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { createAdminClient, getUser, requireAdmin } from "@/lib/supabase/server"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     // Verify the requester is an admin
     const user = await getUser()

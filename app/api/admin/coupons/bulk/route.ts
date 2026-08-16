@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { createAdminClient, getUser, requireAdmin } from "@/lib/supabase/server"
 import { generateSecureCouponCode } from "@/lib/utils/secure-coupon-generator"
 
 export async function POST(req: NextRequest) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const user = await getUser()
     if (!user) {

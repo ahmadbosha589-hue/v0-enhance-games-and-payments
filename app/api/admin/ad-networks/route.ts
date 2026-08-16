@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getUser, getProfile, createAdminClient } from "@/lib/supabase/server"
+import { getUser, getProfile, createAdminClient, requireAdmin } from "@/lib/supabase/server"
 import crypto from "crypto"
 
 // AES-256 encryption for storing sensitive credentials
@@ -29,6 +29,11 @@ function decrypt(text: string): string {
 }
 
 export async function POST(request: NextRequest) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const user = await getUser()
     if (!user) {
@@ -85,6 +90,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const user = await getUser()
     if (!user) {
@@ -131,6 +141,11 @@ export async function DELETE(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const user = await getUser()
     if (!user) {

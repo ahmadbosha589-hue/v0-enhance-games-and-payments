@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { createAdminClient, getUser, requireAdmin } from "@/lib/supabase/server"
 
 export async function GET() {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const adminSupabase = createAdminClient()
     if (!adminSupabase) {
@@ -69,6 +74,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   try {
     const user = await getUser()
     if (!user) {
