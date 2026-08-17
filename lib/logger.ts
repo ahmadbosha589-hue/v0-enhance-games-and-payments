@@ -112,3 +112,22 @@ class Logger {
 export const logger = new Logger()
 
 export const log = logger
+
+/**
+ * Coerce an unknown caught value into an Error for `log.error()`.
+ *
+ * `catch (e)` gives `unknown`, and log.error's second parameter is positional
+ * (`error?: Error`) — not a context object. Many call sites were written as
+ * `log.error("msg", { error })`, which type-fails and drops the value into the
+ * Error slot where only `.message`/`.stack` are read, so the detail was lost.
+ * This makes the correct call shape a one-liner: `log.error("msg", toError(e))`.
+ */
+export function toError(value: unknown): Error {
+  if (value instanceof Error) return value
+  if (typeof value === "string") return new Error(value)
+  try {
+    return new Error(JSON.stringify(value))
+  } catch {
+    return new Error(String(value))
+  }
+}
