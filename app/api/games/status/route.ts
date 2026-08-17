@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { getUser } from "@/lib/supabase/server"
 import { calculateDifficulty, BASE_WIN_THRESHOLDS, getAdjustedWinThreshold } from "@/lib/games/game-engine"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const GAME_COOLDOWN_MINUTES = 3
 const MAX_GAMES_PER_DAY = 20
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     let adminSupabase
     try {
-      adminSupabase = createAdminClient()
+      adminSupabase = requireAdminClient()
     } catch (err) {
       console.error("Failed to create admin client:", err)
       // Return default response without database

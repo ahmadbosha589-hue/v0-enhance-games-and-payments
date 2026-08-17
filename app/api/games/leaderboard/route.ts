@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { getUser } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export const dynamic = "force-dynamic"
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid game type" }, { status: 400 })
     }
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     // Fetch top 15 scores for this game type from completed sessions
     const { data: sessions, error } = await adminSupabase

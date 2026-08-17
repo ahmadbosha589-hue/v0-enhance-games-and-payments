@@ -1,8 +1,9 @@
-import { createAdminClient } from "@/lib/supabase/server"
+
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import { detectVPNFortress } from "@/lib/security/vpn-fortress"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ULTIMATE MULTI-ACCOUNT CHECK API v3.0
@@ -26,7 +27,7 @@ const MAX_ACCOUNTS_PER_IP_PER_DAY = 2
 const MAX_SIGNUP_ATTEMPTS_PER_IP_HOUR = 5
 
 export async function POST(request: Request): Promise<NextResponse<MultiAccountCheckResult>> {
-  const adminSupabase = createAdminClient()
+  const adminSupabase = requireAdminClient()
   const headersList = await headers()
 
   // Get IP address

@@ -1,8 +1,9 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { log } from "@/lib/logger"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // Ad Networks supported
 const AD_NETWORKS = {
@@ -33,7 +34,7 @@ const createCampaignSchema = z.object({
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     const {
       data: { user },
@@ -280,7 +281,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     const {
       data: { user },

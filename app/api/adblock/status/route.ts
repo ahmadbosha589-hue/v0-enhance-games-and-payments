@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // =============================================================================
 // PERSISTENT ADBLOCK STATUS ENDPOINT (v13.0)
@@ -34,7 +35,7 @@ export async function GET() {
     }
 
     // Read persisted state via admin client (bypasses RLS for this self-lookup)
-    const admin = createAdminClient()
+    const admin = requireAdminClient()
     const { data: profile, error } = await admin
       .from("profiles")
       .select(

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import {
@@ -9,6 +9,7 @@ import {
   getHoneypotProbes,
   type ServerVerificationRequest,
 } from "@/lib/security/server-fortress"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // =============================================================================
 // =============================================================================
@@ -191,7 +192,7 @@ export async function POST(request: Request) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     if (verificationResult.shouldBlock) {
-      const adminClient = createAdminClient()
+      const adminClient = requireAdminClient()
 
       // Update user profile
       await adminClient
@@ -246,7 +247,7 @@ export async function POST(request: Request) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     try {
-      const adminClient = createAdminClient()
+      const adminClient = requireAdminClient()
       
       await adminClient.from("adblock_analytics").upsert({
         user_id: user.id,

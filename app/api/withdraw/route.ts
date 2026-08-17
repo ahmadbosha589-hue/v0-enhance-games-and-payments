@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { withdrawalRequestSchema } from "@/lib/api/validators"
@@ -6,13 +6,14 @@ import { checkRateLimit, RATE_LIMITS } from "@/lib/api/rate-limiter"
 import { WITHDRAWAL_CONFIG, FRAUD_CONFIG } from "@/lib/constants/config"
 import { log } from "@/lib/logger"
 import { v4 as uuidv4 } from "uuid"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export async function POST(request: Request) {
   const startTime = Date.now()
 
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
     const headersList = await headers()
 
     const {

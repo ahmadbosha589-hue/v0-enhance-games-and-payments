@@ -1,9 +1,10 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { getCCPaymentClient } from "@/lib/ccpayment/client"
 import { log } from "@/lib/logger"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const withdrawSchema = z.object({
   coinId: z.string(),
@@ -19,7 +20,7 @@ const SATOSHI_TO_USD = 0.0000004 // Approximate, should be fetched dynamically
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     const {
       data: { user },

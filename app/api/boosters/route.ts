@@ -1,12 +1,13 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     if (!supabase || !adminSupabase) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })
@@ -164,7 +165,7 @@ function getDefaultTiers() {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     if (!supabase || !adminSupabase) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })

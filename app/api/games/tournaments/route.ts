@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { getUser } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export const dynamic = "force-dynamic"
 
@@ -8,7 +9,7 @@ export async function GET() {
     const user = await getUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     // Try to fetch real tournaments from DB
     const { data: tournaments, error } = await adminSupabase

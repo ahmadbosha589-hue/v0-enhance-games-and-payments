@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { logFraudFlag, updateUserFraudScore } from "@/lib/fraud/detector"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // =============================================================================
 // =============================================================================
@@ -335,7 +336,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const adminClient = createAdminClient()
+    const adminClient = requireAdminClient()
 
     // ═══════════════════════════════════════════════════════════════════════════
     // CHECK FOR RECENT DETECTION (AVOID SPAM)

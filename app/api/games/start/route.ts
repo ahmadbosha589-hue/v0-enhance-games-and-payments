@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import crypto from "crypto"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const GAME_COOLDOWN_MINUTES = 3 // 3 minutes cooldown per game
 const MAX_GAMES_PER_DAY = 20 // 20 games per day
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     let adminSupabase
     try {
-      adminSupabase = createAdminClient()
+      adminSupabase = requireAdminClient()
     } catch (err) {
       console.error("Failed to create admin client:", err)
       // Return a fallback response that allows the game to start without database tracking

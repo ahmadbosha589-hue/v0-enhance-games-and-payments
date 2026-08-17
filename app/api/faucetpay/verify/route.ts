@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { verifyFaucetPayEmail, isFaucetPayConfigured, FaucetPayError } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid email format" }, { status: 400 })
     }
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
     const normalizedEmail = email.trim().toLowerCase()
 
     // Check if FaucetPay API key is configured

@@ -1,8 +1,9 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { getFaucetPayClient, FaucetPayError, isFaucetPayConfigured } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // Called directly by /api/cron/run (unified cron handler)
 
@@ -42,7 +43,7 @@ export async function runProcessWithdrawals() {
     return { processed: 0, message: "FaucetPay not configured - please set FAUCETPAY_API_KEY" }
   }
 
-  const adminSupabase = createAdminClient()
+  const adminSupabase = requireAdminClient()
 
   const results = {
     processed: 0,
@@ -221,7 +222,10 @@ export async function runProcessWithdrawals() {
 }
 
 async function refundWithdrawal(
-  db: ReturnType<typeof createAdminClient>,
+  // NonNullable: the caller obtains this via requireAdminClient(), which throws
+  // rather than returning null, so this helper must not re-widen the type back
+  // to nullable (that is what allowed the unchecked `.from()` calls).
+  db: NonNullable<ReturnType<typeof createAdminClient>>,
   withdrawal: any,
   reason: string,
   isUserError = false

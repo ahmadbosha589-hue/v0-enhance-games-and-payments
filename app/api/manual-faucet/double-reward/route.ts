@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { getUser, getProfile, createAdminClient } from "@/lib/supabase/server"
+import { getUser, getProfile } from "@/lib/supabase/server"
 import { getFaucetPayClient } from "@/lib/faucetpay/client"
 import { logger } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export async function POST(request: Request) {
   try {
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
     }
 
     // Log the double reward claim
-    const supabase = createAdminClient()
+    const supabase = requireAdminClient()
     await supabase.from("double_reward_claims").insert({
       user_id: user.id,
       crypto_symbol: cryptoSymbol,

@@ -1,7 +1,8 @@
-import { createAdminClient } from "@/lib/supabase/server"
+
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // Called directly by /api/cron/run (unified cron handler)
 
@@ -10,7 +11,7 @@ const BATCH_SIZE = 20
 
 export async function runRetryPostbacks() {
   const startTime = Date.now()
-  const db = createAdminClient()
+  const db = requireAdminClient()
 
   // Find pending conversions with failed balance updates
   const { data: pending, error: fetchError } = await db

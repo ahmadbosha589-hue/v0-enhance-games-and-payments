@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import {
   calculateDifficulty,
   getAdjustedWinThreshold,
   MIN_GAME_DURATIONS_MS,
 } from "@/lib/games/game-engine"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const GAME_REWARD_SATOSHIS = 3
 const GAME_COOLDOWN_MINUTES = 3
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     let adminSupabase
     try {
-      adminSupabase = createAdminClient()
+      adminSupabase = requireAdminClient()
     } catch (err) {
       console.error("Failed to create admin client:", err)
       // Return success response without database tracking

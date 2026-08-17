@@ -1,8 +1,9 @@
-import { createAdminClient } from "@/lib/supabase/server"
+
 import { NextResponse } from "next/server"
 import { getFaucetPayClientAsync, isFaucetPayConfiguredAsync } from "@/lib/faucetpay/client"
 import { logger } from "@/lib/logger"
 import { logHoneypotProbeRequest } from "@/lib/security/honeypot-logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // These thresholds define the health tiers based on your faucet balance
 const BALANCE_TIERS = {
@@ -34,7 +35,7 @@ export async function GET() {
 
   try {
     // Create admin client - returns null if not configured
-    const supabase = createAdminClient()
+    const supabase = requireAdminClient()
 
     let faucetPayBalance = 0
     let faucetPayConnected = false

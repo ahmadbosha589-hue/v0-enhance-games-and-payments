@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const DAILY_BONUS_CONFIG = {
   minAmount: 2, // Reduced from 3 - stricter limits
@@ -49,7 +50,7 @@ export async function GET() {
 
     let adminSupabase
     try {
-      adminSupabase = createAdminClient()
+      adminSupabase = requireAdminClient()
     } catch (e) {
       // Fallback to regular client if admin client fails
       adminSupabase = supabase
@@ -114,7 +115,7 @@ export async function POST() {
 
     let adminSupabase
     try {
-      adminSupabase = createAdminClient()
+      adminSupabase = requireAdminClient()
     } catch (e) {
       adminSupabase = supabase
     }

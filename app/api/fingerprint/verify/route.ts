@@ -1,9 +1,10 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import { parseUserAgent, calculateDeviceTrustScore } from "@/lib/security/device-fingerprint"
 import { detectVPN } from "@/lib/security/vpn-detection"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // =====================================================
 // ULTIMATE FINGERPRINT VERIFICATION API v3.0
@@ -14,7 +15,7 @@ import { detectVPN } from "@/lib/security/vpn-detection"
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     const {
       data: { user },

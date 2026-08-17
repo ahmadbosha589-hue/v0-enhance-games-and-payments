@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { claimRequestSchema } from "@/lib/api/validators"
@@ -8,6 +8,7 @@ import { checkIPAddress, getIPClaimsInLastHour } from "@/lib/security/ip-check"
 import { verifyTurnstileToken } from "@/lib/captcha/turnstile"
 import { log } from "@/lib/logger"
 import { validateSecurityServerSide, banUserIfNeeded, type ClientSecurityPayload } from "@/lib/security/server-validation"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const TURNSTILE_ENABLED = !!process.env.TURNSTILE_SECRET_KEY
 
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
 
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
     const headersList = await headers()
 
     // Handle case where Supabase clients couldn't be created

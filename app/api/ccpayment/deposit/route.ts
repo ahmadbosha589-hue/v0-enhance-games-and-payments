@@ -1,9 +1,10 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { getCCPaymentClient } from "@/lib/ccpayment/client"
 import { log } from "@/lib/logger"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const depositSchema = z.object({
   amount: z.number().min(1).max(10000),
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     // Store the deposit record
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
     await adminSupabase.from("ccpayment_deposits").insert({
       id: uuidv4(),
       user_id: user.id,

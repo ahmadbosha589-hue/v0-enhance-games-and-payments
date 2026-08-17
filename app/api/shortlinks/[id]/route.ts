@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { getUser } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export async function GET(
   request: NextRequest,
@@ -13,7 +14,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     // Get the specific shortlink
     const { data: shortlink, error } = await adminSupabase

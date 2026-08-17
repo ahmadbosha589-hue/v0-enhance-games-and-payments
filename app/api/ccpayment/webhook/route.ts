@@ -1,8 +1,9 @@
-import { createAdminClient } from "@/lib/supabase/server"
+
 import { NextResponse } from "next/server"
 import { getCCPaymentClient } from "@/lib/ccpayment/client"
 import { log } from "@/lib/logger"
 import { headers } from "next/headers"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 const SATOSHI_PER_USD = 2500000 // Approximate conversion rate
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     const data = JSON.parse(body)
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     log.info("CCPayment webhook received", { type: data.type, orderId: data.order_id })
 

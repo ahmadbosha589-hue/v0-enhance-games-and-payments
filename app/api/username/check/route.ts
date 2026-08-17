@@ -1,6 +1,7 @@
-import { createAdminClient } from "@/lib/supabase/server"
+
 import { type NextRequest, NextResponse } from "next/server"
 import { logger } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ available: false, reason: "Invalid username format" }, { status: 200 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = requireAdminClient()
 
     // Check if username exists (excluding current user)
     let query = supabase.from("profiles").select("id").ilike("username", username).limit(1)

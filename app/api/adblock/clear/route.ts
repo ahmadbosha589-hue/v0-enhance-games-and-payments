@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // =============================================================================
 // SELF-HEAL CLEAR ENDPOINT (v17.0)
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const admin = createAdminClient()
+    const admin = requireAdminClient()
 
     // ─────────────────────────────────────────────────────────────────────
     // Check whether there is an admin-confirmed or high-severity flag.

@@ -41,8 +41,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { detectVPNFortress, type ClientVPNData } from "@/lib/security/vpn-fortress"
 import { headers } from "next/headers"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export async function POST(request: NextRequest) {
   try {
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
 
       // Store in fraud_flags for tracking
       if (result.shouldBlock || result.riskLevel === "high" || result.riskLevel === "critical") {
-        const adminSupabase = createAdminClient()
+        const adminSupabase = requireAdminClient()
         
         await adminSupabase.from("fraud_flags").upsert({
           user_id: user.id,
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
 
       // Store in IP reputation log
       try {
-        const adminSupabase = createAdminClient()
+        const adminSupabase = requireAdminClient()
         
         await adminSupabase.from("vpn_detection_log").insert({
           user_id: user.id,

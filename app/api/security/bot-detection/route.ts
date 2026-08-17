@@ -1,8 +1,9 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import { validateSecurityServerSide, type ClientSecurityPayload } from "@/lib/security/server-validation"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 // =====================================================
 // ULTIMATE BOT DETECTION LOGGING API v3.0
@@ -13,7 +14,7 @@ import { validateSecurityServerSide, type ClientSecurityPayload } from "@/lib/se
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
     const headersList = await headers()
     
     // Get IP
