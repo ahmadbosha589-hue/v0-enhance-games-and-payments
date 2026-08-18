@@ -2,9 +2,9 @@
 // German Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const de: Dictionary = {
+export const de: PartialDictionary = {
   common: {
     loading: "Laden...",
     error: "Ein Fehler ist aufgetreten",
@@ -90,6 +90,10 @@ export const de: Dictionary = {
     statistics: "Statistiken",
     security: "Sicherheit",
     preferences: "Präferenzen",
+    blog: "Blog",
+    earn: "Verdienen",
+    offerwalls: "Offerwalls",
+    ptc: "PTC-Anzeigen",
   },
   auth: {
     loginTitle: "Willkommen zurück",
@@ -283,6 +287,10 @@ export const de: Dictionary = {
     bonus: "Bonus",
     penalty: "Strafe",
     adjustment: "Anpassung",
+    adManagement: "Anzeigenverwaltung",
+    fraudReview: "Betrugsprüfung",
+    systemSettings: "Systemeinstellungen",
+    backToUserView: "Zurück zur Benutzeransicht",
   },
   errors: {
     notFound: "Seite nicht gefunden",
@@ -334,6 +342,7 @@ export const de: Dictionary = {
     legal: "Rechtliches",
     resources: "Ressourcen",
     company: "Unternehmen",
+    aml: "AML-Richtlinie",
   },
   settings: {
     title: "Einstellungen",

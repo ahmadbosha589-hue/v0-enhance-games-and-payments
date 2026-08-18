@@ -152,7 +152,7 @@ export default function AdminFundsPage() {
           action: "adjust_balance",
           userId: selectedUser.id,
           type: adjustForm.type,
-          action: adjustForm.action,
+          adjustAction: adjustForm.action,
           amount: parseFloat(adjustForm.amount),
           reason: adjustForm.reason
         })

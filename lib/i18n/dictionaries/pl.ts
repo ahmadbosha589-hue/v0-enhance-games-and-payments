@@ -2,9 +2,9 @@
 // Polish Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const pl: Dictionary = {
+export const pl: PartialDictionary = {
   common: {
     loading: "Ładowanie...",
     error: "Wystąpił błąd",
@@ -90,6 +90,10 @@ export const pl: Dictionary = {
     statistics: "Statystyki",
     security: "Bezpieczeństwo",
     preferences: "Preferencje",
+    blog: "Blog",
+    earn: "Zarabiaj",
+    offerwalls: "Offerwalle",
+    ptc: "Reklamy PTC",
   },
   auth: {
     loginTitle: "Witaj ponownie",
@@ -283,6 +287,10 @@ export const pl: Dictionary = {
     bonus: "Bonus",
     penalty: "Kara",
     adjustment: "Korekta",
+    adManagement: "Zarządzanie reklamami",
+    fraudReview: "Przegląd oszustw",
+    systemSettings: "Ustawienia systemu",
+    backToUserView: "Powrót do widoku użytkownika",
   },
   errors: {
     notFound: "Strona nie znaleziona",
@@ -334,6 +342,7 @@ export const pl: Dictionary = {
     legal: "Prawne",
     resources: "Zasoby",
     company: "Firma",
+    aml: "Polityka AML",
   },
   settings: {
     title: "Ustawienia",

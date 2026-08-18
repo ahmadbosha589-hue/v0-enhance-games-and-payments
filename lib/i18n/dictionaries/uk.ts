@@ -2,9 +2,9 @@
 // Ukrainian Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const uk: Dictionary = {
+export const uk: PartialDictionary = {
   common: {
     loading: "Завантаження...",
     error: "Сталася помилка",
@@ -90,6 +90,10 @@ export const uk: Dictionary = {
     statistics: "Статистика",
     security: "Безпека",
     preferences: "Налаштування",
+    blog: "Блог",
+    earn: "Заробляти",
+    offerwalls: "Офервол",
+    ptc: "PTC-реклама",
   },
   auth: {
     loginTitle: "З поверненням",
@@ -283,6 +287,10 @@ export const uk: Dictionary = {
     bonus: "Бонус",
     penalty: "Штраф",
     adjustment: "Коригування",
+    adManagement: "Керування рекламою",
+    fraudReview: "Перевірка шахрайства",
+    systemSettings: "Системні налаштування",
+    backToUserView: "Повернутися до вигляду користувача",
   },
   errors: {
     notFound: "Сторінку не знайдено",
@@ -334,6 +342,7 @@ export const uk: Dictionary = {
     legal: "Юридична інформація",
     resources: "Ресурси",
     company: "Компанія",
+    aml: "Політика AML",
   },
   settings: {
     title: "Налаштування",

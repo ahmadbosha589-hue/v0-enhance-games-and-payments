@@ -2,9 +2,9 @@
 // Vietnamese Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const vi: Dictionary = {
+export const vi: PartialDictionary = {
   common: {
     loading: "Đang tải...",
     error: "Đã xảy ra lỗi",
@@ -90,6 +90,10 @@ export const vi: Dictionary = {
     statistics: "Thống kê",
     security: "Bảo mật",
     preferences: "Tùy chọn",
+    blog: "Blog",
+    earn: "Kiếm tiền",
+    offerwalls: "Tường ưu đãi",
+    ptc: "Quảng cáo PTC",
   },
   auth: {
     loginTitle: "Chào mừng trở lại",
@@ -283,6 +287,10 @@ export const vi: Dictionary = {
     bonus: "Thưởng",
     penalty: "Phạt",
     adjustment: "Điều chỉnh",
+    adManagement: "Quản lý quảng cáo",
+    fraudReview: "Xem xét gian lận",
+    systemSettings: "Cài đặt hệ thống",
+    backToUserView: "Trở về chế độ người dùng",
   },
   errors: {
     notFound: "Không tìm thấy trang",
@@ -334,6 +342,7 @@ export const vi: Dictionary = {
     legal: "Pháp lý",
     resources: "Tài nguyên",
     company: "Công ty",
+    aml: "Chính sách AML",
   },
   settings: {
     title: "Cài đặt",

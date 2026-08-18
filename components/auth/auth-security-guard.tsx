@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Shield, AlertTriangle, Loader2, RefreshCw, Ban } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,11 @@ interface AuthSecurityGuardProps {
   children: React.ReactNode
   isSignup?: boolean
   onSecurityCheck?: (result: SecurityCheckResult) => void
+  /**
+   * Receives the in-flight check promise so the parent can AWAIT it on submit
+   * rather than rejecting with "Please wait for security verification".
+   */
+  onCheckStarted?: (promise: Promise<void>) => void
 }
 
 export interface SecurityCheckResult {
@@ -42,11 +47,29 @@ interface CheckState {
 export function AuthSecurityGuard({
   children,
   isSignup = false,
-  onSecurityCheck
+  onSecurityCheck,
+  onCheckStarted
 }: AuthSecurityGuardProps) {
   const [checkState, setCheckState] = useState<CheckState>({ status: "checking" })
   const [fingerprint, setFingerprint] = useState<PersistentFingerprintResult | null>(null)
   const [retryCount, setRetryCount] = useState(0)
+
+  // PERF (T1): these MUST be refs, not state, and must NOT appear in
+  // performSecurityCheck's dependency array.
+  //
+  // The previous version listed `fingerprint?.fingerprint` in the deps of the
+  // useCallback (line 171) while the callback itself called
+  // setFingerprint(fpResult) near its start. So: run -> setState -> new
+  // callback identity -> the useEffect that depends on that identity fires
+  // again -> the ENTIRE check runs a second time. That doubled the slowest
+  // thing on the login critical path: a full persistent-fingerprint pass
+  // (5 sequential storage awaits) plus the /api/security/multi-account-check
+  // round trip (which itself runs VPN Fortress against up to 18 external APIs).
+  const fingerprintRef = useRef<PersistentFingerprintResult | null>(null)
+  const hasRunRef = useRef(false)
+  // Exposed to the parent so a submit can await the in-flight check instead of
+  // being rejected outright when it hasn't finished yet.
+  const inFlightRef = useRef<Promise<void> | null>(null)
 
   const performSecurityCheck = useCallback(async () => {
     setCheckState({ status: "checking" })
@@ -54,6 +77,7 @@ export function AuthSecurityGuard({
     try {
       // Step 1: Generate persistent fingerprint
       const fpResult = await generatePersistentFingerprint()
+      fingerprintRef.current = fpResult
       setFingerprint(fpResult)
 
       // Step 2: Call server-side multi-account check with VPN detection.
@@ -162,40 +186,60 @@ export function AuthSecurityGuard({
       setCheckState({ status: "allowed" })
       onSecurityCheck?.({
         isAllowed: true,
-        fingerprint: fingerprint?.fingerprint || null,
+        fingerprint: fingerprintRef.current?.fingerprint || null,
         vpnDetected: false,
         multiAccountBlocked: false,
         requiresAdditionalVerification: false,
       })
     }
-  }, [isSignup, onSecurityCheck, fingerprint?.fingerprint])
+    // deps: `fingerprint` is intentionally ABSENT — it is read through
+    // fingerprintRef above. Including it recreated this callback on every
+    // setFingerprint() and re-ran the whole check (see the ref comment above).
+  }, [isSignup, onSecurityCheck])
 
   useEffect(() => {
-    performSecurityCheck()
-  }, [performSecurityCheck])
+    // Run exactly once per mount. React 19 StrictMode double-invokes effects in
+    // development, and the check is expensive + has server-side side effects
+    // (it writes fraud/attempt records), so it must be idempotent per mount.
+    if (hasRunRef.current) return
+    hasRunRef.current = true
+    const promise = performSecurityCheck()
+    inFlightRef.current = promise
+    onCheckStarted?.(promise)
+    void promise
+  }, [performSecurityCheck, onCheckStarted])
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1)
-    performSecurityCheck()
+    // Re-arm the once-per-mount guard: an explicit user retry is a new attempt.
+    hasRunRef.current = true
+    const promise = performSecurityCheck()
+    inFlightRef.current = promise
+    onCheckStarted?.(promise)
+    void promise
   }
 
-  // Show checking state
+  // PERF (T2): the "checking" state no longer REPLACES the form.
+  //
+  // Previously this returned a standalone spinner, so the sign-in form did not
+  // exist in the DOM until the fingerprint pass and the multi-account/VPN round
+  // trip had both finished — several seconds during which the user could not
+  // even read the page, let alone start typing. Security is unchanged: the
+  // parent gates SUBMISSION on the verdict (it awaits the in-flight promise via
+  // onCheckStarted), and the "blocked" state below is still a hard stop.
   if (checkState.status === "checking") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[200px] gap-4">
-        <div className="relative">
-          <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-          <div className="relative p-4 rounded-full bg-primary/10">
-            <Shield className="h-8 w-8 text-primary animate-pulse" />
-          </div>
+      <div className="w-full max-w-md space-y-2">
+        <div
+          className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" aria-hidden="true" />
+          <Shield className="h-3.5 w-3.5 flex-shrink-0 text-primary" aria-hidden="true" />
+          <span>Verifying your connection…</span>
         </div>
-        <div className="text-center space-y-1">
-          <p className="text-sm font-medium flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Security Check
-          </p>
-          <p className="text-xs text-muted-foreground">Verifying your connection...</p>
-        </div>
+        {children}
       </div>
     )
   }

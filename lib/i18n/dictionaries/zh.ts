@@ -2,9 +2,9 @@
 // Chinese (Simplified) Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const zh: Dictionary = {
+export const zh: PartialDictionary = {
   common: {
     loading: "加载中...",
     error: "发生错误",
@@ -90,6 +90,10 @@ export const zh: Dictionary = {
     statistics: "统计",
     security: "安全",
     preferences: "偏好设置",
+    blog: "博客",
+    earn: "赚取",
+    offerwalls: "任务墙",
+    ptc: "PTC广告",
   },
   auth: {
     loginTitle: "欢迎回来",
@@ -283,6 +287,10 @@ export const zh: Dictionary = {
     bonus: "奖励",
     penalty: "惩罚",
     adjustment: "调整",
+    adManagement: "广告管理",
+    fraudReview: "欺诈审查",
+    systemSettings: "系统设置",
+    backToUserView: "返回用户视图",
   },
   errors: {
     notFound: "页面未找到",
@@ -334,6 +342,7 @@ export const zh: Dictionary = {
     legal: "法律",
     resources: "资源",
     company: "公司",
+    aml: "反洗钱政策",
   },
   settings: {
     title: "设置",

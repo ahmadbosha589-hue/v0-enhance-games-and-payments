@@ -2,9 +2,9 @@
 // Thai Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const th: Dictionary = {
+export const th: PartialDictionary = {
   common: {
     loading: "กำลังโหลด...",
     error: "เกิดข้อผิดพลาด",
@@ -90,6 +90,10 @@ export const th: Dictionary = {
     statistics: "สถิติ",
     security: "ความปลอดภัย",
     preferences: "ค่ากำหนด",
+    blog: "บล็อก",
+    earn: "หารายได้",
+    offerwalls: "ออฟเฟอร์วอลล์",
+    ptc: "โฆษณา PTC",
   },
   auth: {
     loginTitle: "ยินดีต้อนรับกลับ",
@@ -283,6 +287,10 @@ export const th: Dictionary = {
     bonus: "โบนัส",
     penalty: "บทลงโทษ",
     adjustment: "การปรับ",
+    adManagement: "การจัดการโฆษณา",
+    fraudReview: "ตรวจสอบการทุจริต",
+    systemSettings: "การตั้งค่าระบบ",
+    backToUserView: "กลับไปที่มุมมองผู้ใช้",
   },
   errors: {
     notFound: "ไม่พบหน้า",
@@ -334,6 +342,7 @@ export const th: Dictionary = {
     legal: "กฎหมาย",
     resources: "แหล่งข้อมูล",
     company: "บริษัท",
+    aml: "นโยบาย AML",
   },
   settings: {
     title: "การตั้งค่า",

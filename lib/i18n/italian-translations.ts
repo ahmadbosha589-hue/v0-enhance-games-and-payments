@@ -3,8 +3,10 @@
 // =============================================================================
 
 import type { TranslationKey } from "./translations"
+import { en } from "./translations"
 
 const it: Record<TranslationKey, string> = {
+  ...en,
   "nav.features": "Funzionalità",
   "nav.howItWorks": "Come Funziona",
   "nav.faq": "FAQ",

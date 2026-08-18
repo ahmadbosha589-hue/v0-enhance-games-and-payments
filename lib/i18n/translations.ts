@@ -195,9 +195,16 @@ export type TranslationKey =
   | "contact.form.sending"
   | "contact.form.success"
   | "contact.form.error"
+  | "contact.form.other"
+  | "contact.response.title"
+  | "contact.response.description"
   | "contact.success.title"
   | "contact.success.description"
   | "contact.success.another"
+  | "testimonials.badge"
+  | "testimonials.title"
+  | "testimonials.titleHighlight"
+  | "testimonials.subtitle"
   | "blog.badge"
   | "blog.title"
   | "blog.titleHighlight"
@@ -430,7 +437,7 @@ export const languages: { code: LanguageCode; name: string; nativeName: string; 
 // =============================================================================
 // ENGLISH (English) - Base translations
 // =============================================================================
-const en: Record<TranslationKey, string> = {
+export const en: Record<TranslationKey, string> = {
   "nav.features": "Features",
   "nav.howItWorks": "How It Works",
   "nav.faq": "FAQ",
@@ -640,6 +647,13 @@ const en: Record<TranslationKey, string> = {
   "contact.success.title": "Message Sent!",
   "contact.success.description": "Thank you for reaching out. We'll respond within 24 hours.",
   "contact.success.another": "Send another message",
+  "contact.form.other": "Other",
+  "contact.response.title": "Response Time",
+  "contact.response.description": "We typically respond within 24 hours on business days.",
+  "testimonials.badge": "Testimonials",
+  "testimonials.title": "Trusted by",
+  "testimonials.titleHighlight": "thousands of earners",
+  "testimonials.subtitle": "See what our community has to say about earning with us.",
   "blog.badge": "Recent Updates",
   "blog.title": "Our",
   "blog.titleHighlight": "Blog",
@@ -1636,7 +1650,6 @@ const zh: Record<TranslationKey, string> = {
   "hero.trust.secure": "安全且经过验证",
   "hero.trust.instant": "即时支付",
   "hero.trust.trusted": "超过10K用户信任",
-  "footer.rights": "版权所有。",
   "common.loading": "加载中...",
   "time.justNow": "刚刚",
   "features.title": "您需要的一切，以",
@@ -1951,7 +1964,6 @@ const zh: Record<TranslationKey, string> = {
   "userMenu.signOut": "登出",
   "userMenu.signIn": "登录",
   "userMenu.getStarted": "开始",
-  "common.loading": "加载中...",
   "common.error": "错误",
   "common.success": "成功",
   "common.save": "保存",
@@ -1980,7 +1992,6 @@ const zh: Record<TranslationKey, string> = {
   "common.seeAll": "查看全部",
   "common.showMore": "显示更多",
   "common.showLess": "显示更少",
-  "time.justNow": "刚刚",
   "time.minutesAgo": "分钟前",
   "time.hoursAgo": "小时前",
   "time.daysAgo": "天前",
@@ -2104,7 +2115,6 @@ const ja: Record<TranslationKey, string> = {
   "footer.company": "会社",
   "footer.legal": "法的情報",
   "footer.support": "サポート",
-  "footer.rights": "全著作権所有。",
   "footer.about": "私たちについて",
   "footer.blog": "ブログ",
   "footer.contact": "お問い合わせ",
@@ -2341,7 +2351,6 @@ const ja: Record<TranslationKey, string> = {
   "userMenu.signOut": "ログアウト",
   "userMenu.signIn": "サインイン",
   "userMenu.getStarted": "始める",
-  "common.loading": "読み込み中...",
   "common.error": "エラー",
   "common.success": "成功",
   "common.save": "保存",
@@ -2370,7 +2379,6 @@ const ja: Record<TranslationKey, string> = {
   "common.seeAll": "すべて表示",
   "common.showMore": "もっと表示",
   "common.showLess": "少なく表示",
-  "time.justNow": "たった今",
   "time.minutesAgo": "分前",
   "time.hoursAgo": "時間前",
   "time.daysAgo": "日前",
@@ -2489,7 +2497,6 @@ const ko: Record<TranslationKey, string> = {
   "footer.company": "회사",
   "footer.legal": "법률",
   "footer.support": "지원",
-  "footer.rights": "모든 권리 보유.",
   "footer.about": "소개",
   "footer.blog": "블로그",
   "footer.contact": "연락처",
@@ -2725,7 +2732,6 @@ const ko: Record<TranslationKey, string> = {
   "userMenu.signOut": "로그아웃",
   "userMenu.signIn": "로그인",
   "userMenu.getStarted": "시작하기",
-  "common.loading": "로딩 중...",
   "common.error": "오류",
   "common.success": "성공",
   "common.save": "저장",
@@ -2754,7 +2760,6 @@ const ko: Record<TranslationKey, string> = {
   "common.seeAll": "모두 보기",
   "common.showMore": "더 보기",
   "common.showLess": "덜 보기",
-  "time.justNow": "방금",
   "time.minutesAgo": "분 전",
   "time.hoursAgo": "시간 전",
   "time.daysAgo": "일 전",

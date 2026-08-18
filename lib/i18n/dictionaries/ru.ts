@@ -2,9 +2,9 @@
 // Russian Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const ru: Dictionary = {
+export const ru: PartialDictionary = {
   common: {
     loading: "Загрузка...",
     error: "Произошла ошибка",
@@ -90,6 +90,10 @@ export const ru: Dictionary = {
     statistics: "Статистика",
     security: "Безопасность",
     preferences: "Предпочтения",
+    blog: "Блог",
+    earn: "Заработок",
+    offerwalls: "Офферволлы",
+    ptc: "PTC-реклама",
   },
   auth: {
     loginTitle: "С возвращением",
@@ -283,6 +287,10 @@ export const ru: Dictionary = {
     bonus: "Бонус",
     penalty: "Штраф",
     adjustment: "Корректировка",
+    adManagement: "Управление рекламой",
+    fraudReview: "Проверка мошенничества",
+    systemSettings: "Системные настройки",
+    backToUserView: "Вернуться к виду пользователя",
   },
   errors: {
     notFound: "Страница не найдена",
@@ -334,6 +342,7 @@ export const ru: Dictionary = {
     legal: "Юридическая информация",
     resources: "Ресурсы",
     company: "Компания",
+    aml: "Политика AML",
   },
   settings: {
     title: "Настройки",

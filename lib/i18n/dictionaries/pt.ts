@@ -2,9 +2,9 @@
 // Portuguese Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const pt: Dictionary = {
+export const pt: PartialDictionary = {
   common: {
     loading: "Carregando...",
     error: "Ocorreu um erro",
@@ -90,6 +90,10 @@ export const pt: Dictionary = {
     statistics: "Estatísticas",
     security: "Segurança",
     preferences: "Preferências",
+    blog: "Blog",
+    earn: "Ganhar",
+    offerwalls: "Murais de ofertas",
+    ptc: "Anúncios PTC",
   },
   auth: {
     loginTitle: "Bem-vindo de volta",
@@ -283,6 +287,10 @@ export const pt: Dictionary = {
     bonus: "Bônus",
     penalty: "Penalidade",
     adjustment: "Ajuste",
+    adManagement: "Gestão de anúncios",
+    fraudReview: "Revisão de fraude",
+    systemSettings: "Configurações do sistema",
+    backToUserView: "Voltar à visão do usuário",
   },
   errors: {
     notFound: "Página não encontrada",
@@ -334,6 +342,7 @@ export const pt: Dictionary = {
     legal: "Legal",
     resources: "Recursos",
     company: "Empresa",
+    aml: "Política AML",
   },
   settings: {
     title: "Configurações",

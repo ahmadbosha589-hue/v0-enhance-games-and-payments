@@ -2,9 +2,9 @@
 // Spanish Dictionary - Complete
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const es: Dictionary = {
+export const es: PartialDictionary = {
   common: {
     loading: "Cargando...",
     error: "Ocurrió un error",
@@ -287,6 +287,10 @@ export const es: Dictionary = {
     bonus: "Bono",
     penalty: "Penalización",
     adjustment: "Ajuste",
+    adManagement: "Gestión de anuncios",
+    fraudReview: "Revisión de fraude",
+    systemSettings: "Configuración del sistema",
+    backToUserView: "Volver a la vista de usuario",
   },
   errors: {
     notFound: "Página no encontrada",
@@ -1098,7 +1102,7 @@ export const es: Dictionary = {
       withdrawals: "Retiros",
       referrals: "Referidos",
       bonuses: "Bonos",
-      adjustments: "Ajustes",
+      achievements: "Logros",
     },
     columns: {
       date: "Fecha",

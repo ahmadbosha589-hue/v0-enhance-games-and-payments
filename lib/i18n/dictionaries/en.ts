@@ -1099,6 +1099,7 @@ export const en = {
     reward: "+{{amount}} satoshis",
     dailyLimit: "Daily Limit",
     dailyLimitReached: "You've reached your daily limit. Come back tomorrow!",
+    adsWatched: "{{count}} of {{total}} ads watched",
   },
   // History Page
   history: {
@@ -1120,9 +1121,13 @@ export const en = {
       details: "Details",
     },
     noTransactions: "No transactions found",
+    noHistory: "No transactions yet",
+    noHistoryDesc: "Your transaction history will appear here.",
     export: "Export",
     exportCSV: "Export as CSV",
     exportPDF: "Export as PDF",
+    dateRange: "Date range",
+    showing: "Showing {{count}} transactions",
   },
   // User Menu
   userMenu: {

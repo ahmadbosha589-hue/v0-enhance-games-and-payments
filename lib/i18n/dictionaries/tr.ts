@@ -2,9 +2,9 @@
 // Turkish Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const tr: Dictionary = {
+export const tr: PartialDictionary = {
   common: {
     loading: "Yükleniyor...",
     error: "Bir hata oluştu",
@@ -90,6 +90,10 @@ export const tr: Dictionary = {
     statistics: "İstatistikler",
     security: "Güvenlik",
     preferences: "Tercihler",
+    blog: "Blog",
+    earn: "Kazan",
+    offerwalls: "Teklif duvarları",
+    ptc: "PTC Reklamları",
   },
   auth: {
     loginTitle: "Tekrar hoş geldiniz",
@@ -283,6 +287,10 @@ export const tr: Dictionary = {
     bonus: "Bonus",
     penalty: "Ceza",
     adjustment: "Düzeltme",
+    adManagement: "Reklam Yönetimi",
+    fraudReview: "Dolandırıcılık İncelemesi",
+    systemSettings: "Sistem Ayarları",
+    backToUserView: "Kullanıcı Görünümüne Dön",
   },
   errors: {
     notFound: "Sayfa bulunamadı",
@@ -334,6 +342,7 @@ export const tr: Dictionary = {
     legal: "Yasal",
     resources: "Kaynaklar",
     company: "Şirket",
+    aml: "AML Politikası",
   },
   settings: {
     title: "Ayarlar",

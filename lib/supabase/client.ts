@@ -8,12 +8,7 @@ const globalForSupabase = globalThis as unknown as {
   supabaseInitError: boolean | undefined
 }
 
-function getClient(): SupabaseClient | null {
-  // If we already failed to initialize, return null immediately
-  if (globalForSupabase.supabaseInitError) {
-    return null
-  }
-
+function getClient(): SupabaseClient {
   // Return cached client if available
   if (globalForSupabase.supabaseBrowserClient) {
     return globalForSupabase.supabaseBrowserClient
@@ -25,26 +20,24 @@ function getClient(): SupabaseClient | null {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     globalForSupabase.supabaseInitError = true
-    return null
+    // Fail fast with a diagnosable message instead of returning null and
+    // crashing later with an opaque null-dereference at some call site.
+    throw new Error(
+      "[Supabase Client] Missing NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    )
   }
 
-  try {
-    // Use default storage (localStorage) - it's the standard for browser clients
-    // The server handles cookie-based auth, and the browser client syncs via onAuthStateChange
-    globalForSupabase.supabaseBrowserClient = createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey)
-    return globalForSupabase.supabaseBrowserClient
-  } catch (err) {
-    console.error("[Supabase Client] Failed to create client:", err)
-    globalForSupabase.supabaseInitError = true
-    return null
-  }
+  // Use default storage (localStorage) - it's the standard for browser clients
+  // The server handles cookie-based auth, and the browser client syncs via onAuthStateChange
+  globalForSupabase.supabaseBrowserClient = createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey)
+  return globalForSupabase.supabaseBrowserClient
 }
 
-export function createClient(): SupabaseClient | null {
+export function createClient(): SupabaseClient {
   return getClient()
 }
 
-export function createBrowserClient(): SupabaseClient | null {
+export function createBrowserClient(): SupabaseClient {
   return getClient()
 }
 

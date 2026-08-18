@@ -368,35 +368,44 @@ export interface PersistentFingerprintResult {
   }
 }
 
-export async function generatePersistentFingerprint(): Promise<PersistentFingerprintResult> {
-  // Step 1: Get hardware-based fingerprint (always fresh)
-  const hardwareFingerprint = await generateDeviceFingerprint()
-  
-  // Step 2: Check all storage layers for existing fingerprints
+/**
+ * Compute the persistent fingerprint. Prefer generatePersistentFingerprint(),
+ * which memoizes this per page load.
+ */
+async function computePersistentFingerprint(): Promise<PersistentFingerprintResult> {
+  // PERF (T3): every read below is INDEPENDENT, but they used to be awaited one
+  // after another — hardware, then IndexedDB (1.5s ceiling), then Cache API
+  // (1.5s ceiling), then three synchronous reads. On a cold profile that is up
+  // to ~3s of pure serial waiting on the login critical path, for no reason:
+  // none of these inputs feeds another. Running them together makes the cost
+  // max(individual) instead of sum(individual).
+  const [
+    hardwareFingerprint,
+    indexedDBFp,
+    cacheFp,
+    localFp,
+    sessionFp,
+    cookieFp,
+  ] = await Promise.all([
+    generateDeviceFingerprint(),
+    // 1.5s ceiling each. onblocked/onerror already resolve on their own; this is
+    // the backstop for the rarer "request never fires any event at all" case
+    // (see withTimeout's doc comment above).
+    withTimeout(getIndexedDBFingerprint(), 1500, null),
+    withTimeout(getCacheAPIFingerprint(), 1500, null),
+    Promise.resolve(getLocalStorageFingerprint()),
+    Promise.resolve(getSessionStorageFingerprint()),
+    Promise.resolve(getCookieFingerprint()),
+  ])
+
+  // Step 2: Collect whatever the storage layers returned, in priority order.
   const storedFingerprints: StoredFingerprint[] = []
-  
-  // Check IndexedDB — 1.5s ceiling. onblocked/onerror already resolve on
-  // their own; this is the backstop for the rarer "request never fires
-  // any event at all" case (see withTimeout's doc comment above).
-  const indexedDBFp = await withTimeout(getIndexedDBFingerprint(), 1500, null)
   if (indexedDBFp) storedFingerprints.push(indexedDBFp)
-  
-  // Check Cache API
-  const cacheFp = await withTimeout(getCacheAPIFingerprint(), 1500, null)
   if (cacheFp) storedFingerprints.push(cacheFp)
-  
-  // Check localStorage
-  const localFp = getLocalStorageFingerprint()
   if (localFp) storedFingerprints.push(localFp)
-  
-  // Check sessionStorage
-  const sessionFp = getSessionStorageFingerprint()
   if (sessionFp) storedFingerprints.push(sessionFp)
-  
-  // Check cookies
-  const cookieFp = getCookieFingerprint()
   if (cookieFp) storedFingerprints.push(cookieFp)
-  
+
   // Step 3: Determine the canonical fingerprint using consensus
   let canonicalFingerprint: string
   let isPersisted = false
@@ -455,26 +464,27 @@ export async function generatePersistentFingerprint(): Promise<PersistentFingerp
     isNewDevice = true
   }
   
-  // Step 4: Store the fingerprint in all available storage methods
+  // Step 4: Persist the fingerprint to every available storage layer.
+  //
+  // PERF (T3): these writes are FIRE-AND-FORGET. The caller only needs the
+  // fingerprint VALUE; whether it has finished being mirrored into IndexedDB and
+  // the Cache API is irrelevant to this request and cost up to 3s of blocking
+  // time on the login path. The synchronous writes stay inline (they are free);
+  // the two async ones are kicked off and not awaited.
   const storageMethodsUsed: string[] = []
-  
-  // Store in IndexedDB (same timeout backstop as the read above)
-  await withTimeout(setIndexedDBFingerprint(canonicalFingerprint), 1500, undefined)
-  storageMethodsUsed.push("indexedDB")
-  
-  // Store in Cache API
-  await withTimeout(setCacheAPIFingerprint(canonicalFingerprint), 1500, undefined)
-  storageMethodsUsed.push("cacheAPI")
-  
-  // Store in localStorage
+
+  void Promise.allSettled([
+    withTimeout(setIndexedDBFingerprint(canonicalFingerprint), 1500, undefined),
+    withTimeout(setCacheAPIFingerprint(canonicalFingerprint), 1500, undefined),
+  ])
+  storageMethodsUsed.push("indexedDB", "cacheAPI")
+
   setLocalStorageFingerprint(canonicalFingerprint)
   storageMethodsUsed.push("localStorage")
-  
-  // Store in sessionStorage
+
   setSessionStorageFingerprint(canonicalFingerprint)
   storageMethodsUsed.push("sessionStorage")
-  
-  // Store in cookie
+
   setCookieFingerprint(canonicalFingerprint)
   storageMethodsUsed.push("cookie")
   
@@ -500,6 +510,51 @@ export async function generatePersistentFingerprint(): Promise<PersistentFingerp
       hardwareMatch: storedFingerprints.some(fp => fp.hash === hardwareFingerprint),
     },
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PER-PAGE MEMOIZATION
+//
+// PERF (T3/T4): the fingerprint is deterministic for a given page load, but it
+// was computed independently by BOTH the login page (its own useEffect) and
+// AuthSecurityGuard — and, before the T1 fix, twice more because the guard's
+// effect re-fired. That is up to four full passes over IndexedDB, the Cache API,
+// canvas/WebGL hardware probing and cookie storage per sign-in.
+//
+// A module-level memo makes every call after the first free, and de-duplicates
+// concurrent callers onto a single in-flight computation so simultaneous mounts
+// cannot race.
+// ═══════════════════════════════════════════════════════════════════════════
+
+let cachedResult: PersistentFingerprintResult | null = null
+let inFlight: Promise<PersistentFingerprintResult> | null = null
+
+export function generatePersistentFingerprint(): Promise<PersistentFingerprintResult> {
+  if (cachedResult) return Promise.resolve(cachedResult)
+  if (inFlight) return inFlight
+
+  inFlight = computePersistentFingerprint()
+    .then((result) => {
+      cachedResult = result
+      return result
+    })
+    .finally(() => {
+      // Clear the in-flight handle either way: on success `cachedResult` now
+      // serves subsequent callers, and on failure the next caller should be able
+      // to retry rather than being stuck with a rejected promise forever.
+      inFlight = null
+    })
+
+  return inFlight
+}
+
+/**
+ * Drop the memoized fingerprint. Intended for tests and for the explicit
+ * "re-check connection" retry path, where the user is asking for fresh work.
+ */
+export function resetPersistentFingerprintCache(): void {
+  cachedResult = null
+  inFlight = null
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -2,9 +2,9 @@
 // French Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const fr: Dictionary = {
+export const fr: PartialDictionary = {
   common: {
     loading: "Chargement...",
     error: "Une erreur est survenue",
@@ -90,6 +90,10 @@ export const fr: Dictionary = {
     statistics: "Statistiques",
     security: "Sécurité",
     preferences: "Préférences",
+    blog: "Blog",
+    earn: "Gagner",
+    offerwalls: "Murs d'offres",
+    ptc: "Annonces PTC",
   },
   auth: {
     loginTitle: "Bon retour",
@@ -283,6 +287,10 @@ export const fr: Dictionary = {
     bonus: "Bonus",
     penalty: "Pénalité",
     adjustment: "Ajustement",
+    adManagement: "Gestion des annonces",
+    fraudReview: "Examen des fraudes",
+    systemSettings: "Paramètres système",
+    backToUserView: "Retour à la vue utilisateur",
   },
   errors: {
     notFound: "Page non trouvée",
@@ -334,6 +342,7 @@ export const fr: Dictionary = {
     legal: "Mentions légales",
     resources: "Ressources",
     company: "Entreprise",
+    aml: "Politique AML",
   },
   settings: {
     title: "Paramètres",

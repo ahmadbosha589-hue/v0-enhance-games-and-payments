@@ -16,7 +16,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
 import { useTranslations } from "@/hooks/use-translations"
 import { TwoFactorVerify } from "@/components/auth/two-factor-verify"
-import { generatePersistentFingerprint, type PersistentFingerprintResult } from "@/lib/security/persistent-fingerprint"
 import { AuthSecurityGuard, type SecurityCheckResult } from "@/components/auth/auth-security-guard"
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -57,7 +56,12 @@ export default function LoginPage() {
   const [vpnBlocked, setVpnBlocked] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [isRetrying, setIsRetrying] = useState(false)
-  const [isCheckingSession, setIsCheckingSession] = useState(true)
+  // T6: starts FALSE. The proxy (lib/supabase/proxy.ts) already redirects a
+  // cookie-bearing visitor away from /auth/login server-side BEFORE any HTML is
+  // sent, so blocking first paint on a client re-check duplicated that decision
+  // and showed a blank spinner for up to 5s. The background check below still
+  // runs to catch an already-signed-in visitor whose cookie the proxy passed.
+  const [isCheckingSession, setIsCheckingSession] = useState(false)
   const [isManualLogin, setIsManualLogin] = useState(false)
   const [supabaseAvailable, setSupabaseAvailable] = useState(true)
   const [show2FA, setShow2FA] = useState(false)
@@ -173,6 +177,8 @@ export default function LoginPage() {
       // this branch twice, so the toast can't loop even on TOKEN_REFRESHED.
       redirectingRef.current = true
       toast.success("Welcome back!")
+      // The early returns above already confirmed data.user via /api/auth/me,
+      // so this branch is always the server-confirmed case — no warm marker.
       window.location.replace(safeRedirect)
     })
 
@@ -198,11 +204,10 @@ export default function LoginPage() {
     }
   }, [])
 
-  useEffect(() => {
-    generatePersistentFingerprint()
-      .then((result: PersistentFingerprintResult) => setDeviceFingerprint(result.fingerprint))
-      .catch(console.error)
-  }, [])
+  // T4: the fingerprint is NOT computed here any more. AuthSecurityGuard
+  // computes it and passes it back through handleSecurityCheck() below, so
+  // doing it again on this page was a second full pass over IndexedDB, the
+  // Cache API and canvas/WebGL hardware probing per sign-in.
 
   const handleSecurityCheck = useCallback((result: SecurityCheckResult) => {
     setSecurityCheckResult(result)
@@ -384,38 +389,39 @@ export default function LoginPage() {
       // lookup. This used to be 6000ms x 3 attempts (~18.5s worst case) —
       // most of that was unused slack that just made a failed sign-in look
       // "stuck" for far longer than the server could actually take.
+      // T5: single bounded confirmation instead of a 3x(3000+300)ms ladder.
+      //
+      // The Supabase browser client has already written the session cookie by
+      // the time signInWithPassword() resolves, and the proxy routes on cookie
+      // PRESENCE (lib/supabase/proxy.ts) rather than a live getUser() call — so
+      // the /dashboard -> /auth/login -> /dashboard bounce this loop guarded
+      // against can no longer happen. One short probe is enough.
       let serverSeesSession = false
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const res = await fetch("/api/auth/me", {
-            credentials: "include",
-            cache: "no-store",
-            signal: AbortSignal.timeout(3000),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            if (data?.user) {
-              serverSeesSession = true
-              break
-            }
-          }
-        } catch {
-          // Network error — retry
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+          signal: AbortSignal.timeout(1200),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          serverSeesSession = !!data?.user
         }
-        await new Promise((resolve) => setTimeout(resolve, 300))
+      } catch {
+        // Timed out or offline — fall through and redirect anyway (below).
       }
 
-      if (!serverSeesSession) {
-        setError("Signed in, but the server couldn't read your session. Please refresh and try again.")
-        setShow2FA(false)
-        setPendingCredentials(null)
-        setPending2FAUserId(null)
-        return
-      }
+      // Redirect REGARDLESS of the probe result. The dashboard layout runs its
+      // own resilient getUser() and the proxy has a loop-breaker (?expired=1)
+      // for a genuinely dead session, so stranding the user on the login page
+      // after a successful credential check was strictly worse than letting the
+      // dashboard resolve it. ?warm=1 marks the unconfirmed case for debugging.
 
       redirectingRef.current = true
       toast.success("Welcome back!")
-      window.location.replace(safeRedirect)
+      window.location.replace(
+        serverSeesSession ? safeRedirect : `${safeRedirect}${safeRedirect.includes("?") ? "&" : "?"}warm=1`
+      )
     } catch (err) {
       console.error("Login completion error:", err)
       setError("Failed to complete login. Please try again.")
@@ -548,40 +554,39 @@ export default function LoginPage() {
       // lookup. This used to be 6000ms x 3 attempts (~18.5s worst case) —
       // most of that was unused slack that just made a failed sign-in look
       // "stuck" for far longer than the server could actually take.
+      // T5: single bounded confirmation instead of a 3x(3000+300)ms ladder.
+      //
+      // The Supabase browser client has already written the session cookie by
+      // the time signInWithPassword() resolves, and the proxy routes on cookie
+      // PRESENCE (lib/supabase/proxy.ts) rather than a live getUser() call — so
+      // the /dashboard -> /auth/login -> /dashboard bounce this loop guarded
+      // against can no longer happen. One short probe is enough.
       let serverSeesSession = false
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const res = await fetch("/api/auth/me", {
-            credentials: "include",
-            cache: "no-store",
-            signal: AbortSignal.timeout(3000),
-          })
-          if (res.ok) {
-            const data = await res.json()
-            if (data?.user) {
-              serverSeesSession = true
-              break
-            }
-          }
-        } catch {
-          // Network error — retry
+      try {
+        const res = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+          signal: AbortSignal.timeout(1200),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          serverSeesSession = !!data?.user
         }
-        await new Promise((resolve) => setTimeout(resolve, 300))
+      } catch {
+        // Timed out or offline — fall through and redirect anyway (below).
       }
 
-      if (!serverSeesSession) {
-        // Cookies never propagated — surface a clear error instead of looping
-        setIsManualLogin(false)
-        isManualLoginRef.current = false
-        setError(
-          "Signed in, but the server couldn't read your session. Please refresh the page and try again, or clear your cookies if this persists."
-        )
-        return
-      }
+      // Redirect REGARDLESS of the probe result. The dashboard layout runs its
+      // own resilient getUser() and the proxy has a loop-breaker (?expired=1)
+      // for a genuinely dead session, so stranding the user on the login page
+      // after a successful credential check was strictly worse than letting the
+      // dashboard resolve it. ?warm=1 marks the unconfirmed case for debugging.
 
       redirectingRef.current = true
       toast.success("Welcome back!")
-      window.location.replace(safeRedirect)
+      window.location.replace(
+        serverSeesSession ? safeRedirect : `${safeRedirect}${safeRedirect.includes("?") ? "&" : "?"}warm=1`
+      )
     } catch (err) {
       console.error("Login error:", err)
       setIsManualLogin(false)
@@ -603,15 +608,6 @@ export default function LoginPage() {
           setPendingCredentials(null)
         }}
       />
-    )
-  }
-
-  if (isCheckingSession) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-sm text-muted-foreground">{t("checkingSession", "common")}</p>
-      </div>
     )
   }
 

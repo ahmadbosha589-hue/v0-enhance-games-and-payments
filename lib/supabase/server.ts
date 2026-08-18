@@ -9,8 +9,13 @@ export async function createClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("[Supabase Server] Environment variables not configured")
-    return null
+    // Fail fast with a diagnosable message. The old `return null` pushed the
+    // failure into ~40 route handlers as an opaque null-dereference; a route
+    // 500s either way when env vars are missing, so surface the real cause.
+    // (Matches the requireAdminClient() fail-fast pattern in admin-client.ts.)
+    throw new Error(
+      "[Supabase Server] Missing NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    )
   }
 
   const cookieStore = await cookies()

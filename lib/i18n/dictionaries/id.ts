@@ -2,9 +2,9 @@
 // Indonesian Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const id: Dictionary = {
+export const id: PartialDictionary = {
   common: {
     loading: "Memuat...",
     error: "Terjadi kesalahan",
@@ -90,6 +90,10 @@ export const id: Dictionary = {
     statistics: "Statistik",
     security: "Keamanan",
     preferences: "Preferensi",
+    blog: "Blog",
+    earn: "Hasilkan",
+    offerwalls: "Offerwall",
+    ptc: "Iklan PTC",
   },
   auth: {
     loginTitle: "Selamat datang kembali",
@@ -283,6 +287,10 @@ export const id: Dictionary = {
     bonus: "Bonus",
     penalty: "Penalti",
     adjustment: "Penyesuaian",
+    adManagement: "Manajemen Iklan",
+    fraudReview: "Tinjauan Penipuan",
+    systemSettings: "Pengaturan Sistem",
+    backToUserView: "Kembali ke Tampilan Pengguna",
   },
   errors: {
     notFound: "Halaman tidak ditemukan",
@@ -334,6 +342,7 @@ export const id: Dictionary = {
     legal: "Hukum",
     resources: "Sumber Daya",
     company: "Perusahaan",
+    aml: "Kebijakan AML",
   },
   settings: {
     title: "Pengaturan",

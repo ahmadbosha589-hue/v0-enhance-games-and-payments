@@ -2,9 +2,9 @@
 // Japanese Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const ja: Dictionary = {
+export const ja: PartialDictionary = {
   common: {
     loading: "読み込み中...",
     error: "エラーが発生しました",
@@ -90,6 +90,10 @@ export const ja: Dictionary = {
     statistics: "統計",
     security: "セキュリティ",
     preferences: "設定",
+    blog: "ブログ",
+    earn: "稼ぐ",
+    offerwalls: "オファーウォール",
+    ptc: "PTC広告",
   },
   auth: {
     loginTitle: "おかえりなさい",
@@ -283,6 +287,10 @@ export const ja: Dictionary = {
     bonus: "ボーナス",
     penalty: "ペナルティ",
     adjustment: "調整",
+    adManagement: "広告管理",
+    fraudReview: "不正レビュー",
+    systemSettings: "システム設定",
+    backToUserView: "ユーザービューに戻る",
   },
   errors: {
     notFound: "ページが見つかりません",
@@ -334,6 +342,7 @@ export const ja: Dictionary = {
     legal: "法的情報",
     resources: "リソース",
     company: "会社",
+    aml: "AMLポリシー",
   },
   settings: {
     title: "設定",

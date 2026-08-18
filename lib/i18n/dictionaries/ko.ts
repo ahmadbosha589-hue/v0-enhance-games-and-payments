@@ -2,9 +2,9 @@
 // Korean Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const ko: Dictionary = {
+export const ko: PartialDictionary = {
   common: {
     loading: "로딩 중...",
     error: "오류가 발생했습니다",
@@ -90,6 +90,10 @@ export const ko: Dictionary = {
     statistics: "통계",
     security: "보안",
     preferences: "환경설정",
+    blog: "블로그",
+    earn: "수익",
+    offerwalls: "오퍼월",
+    ptc: "PTC 광고",
   },
   auth: {
     loginTitle: "다시 오신 것을 환영합니다",
@@ -283,6 +287,10 @@ export const ko: Dictionary = {
     bonus: "보너스",
     penalty: "패널티",
     adjustment: "조정",
+    adManagement: "광고 관리",
+    fraudReview: "사기 검토",
+    systemSettings: "시스템 설정",
+    backToUserView: "사용자 보기로 돌아가기",
   },
   errors: {
     notFound: "페이지를 찾을 수 없습니다",
@@ -334,6 +342,7 @@ export const ko: Dictionary = {
     legal: "법적 정보",
     resources: "리소스",
     company: "회사",
+    aml: "AML 정책",
   },
   settings: {
     title: "설정",

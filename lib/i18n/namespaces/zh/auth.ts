@@ -66,6 +66,5 @@ export default {
   invalidEmail: "请输入有效的邮箱地址",
   passwordMismatch: "两次输入的密码不一致",
   accountCreated: "账户创建成功！",
-  welcomeBack: "欢迎回来！",
   signOutConfirm: "确定要退出登录吗？",
 }

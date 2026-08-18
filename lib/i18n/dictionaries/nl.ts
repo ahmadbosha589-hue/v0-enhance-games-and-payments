@@ -2,9 +2,9 @@
 // Dutch Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const nl: Dictionary = {
+export const nl: PartialDictionary = {
   common: {
     loading: "Laden...",
     error: "Er is een fout opgetreden",
@@ -90,6 +90,10 @@ export const nl: Dictionary = {
     statistics: "Statistieken",
     security: "Beveiliging",
     preferences: "Voorkeuren",
+    blog: "Blog",
+    earn: "Verdienen",
+    offerwalls: "Offerwalls",
+    ptc: "PTC-advertenties",
   },
   auth: {
     loginTitle: "Welkom terug",
@@ -283,6 +287,10 @@ export const nl: Dictionary = {
     bonus: "Bonus",
     penalty: "Straf",
     adjustment: "Aanpassing",
+    adManagement: "Advertentiebeheer",
+    fraudReview: "Fraudebeoordeling",
+    systemSettings: "Systeeminstellingen",
+    backToUserView: "Terug naar gebruikersweergave",
   },
   errors: {
     notFound: "Pagina niet gevonden",
@@ -334,6 +342,7 @@ export const nl: Dictionary = {
     legal: "Juridisch",
     resources: "Bronnen",
     company: "Bedrijf",
+    aml: "AML-beleid",
   },
   settings: {
     title: "Instellingen",

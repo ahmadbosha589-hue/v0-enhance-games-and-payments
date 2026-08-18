@@ -2,9 +2,9 @@
 // Czech Dictionary - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
+import type { PartialDictionary } from "../get-dictionary"
 
-export const cs: Dictionary = {
+export const cs: PartialDictionary = {
   common: {
     loading: "Načítání...",
     error: "Nastala chyba",
@@ -90,6 +90,10 @@ export const cs: Dictionary = {
     statistics: "Statistiky",
     security: "Zabezpečení",
     preferences: "Předvolby",
+    blog: "Blog",
+    earn: "Vydělávat",
+    offerwalls: "Offerwally",
+    ptc: "PTC reklamy",
   },
   auth: {
     loginTitle: "Vítejte zpět",
@@ -283,6 +287,10 @@ export const cs: Dictionary = {
     bonus: "Bonus",
     penalty: "Penále",
     adjustment: "Úprava",
+    adManagement: "Správa reklam",
+    fraudReview: "Kontrola podvodů",
+    systemSettings: "Nastavení systému",
+    backToUserView: "Zpět na zobrazení uživatele",
   },
   errors: {
     notFound: "Stránka nenalezena",
@@ -334,6 +342,7 @@ export const cs: Dictionary = {
     legal: "Právní informace",
     resources: "Zdroje",
     company: "Společnost",
+    aml: "Zásady AML",
   },
   settings: {
     title: "Nastavení",

@@ -55,12 +55,38 @@ class Logger {
     this.logInternal("warn", message, context)
   }
 
-  error(message: string, error?: Error, context?: LogContext) {
-    this.logInternal("error", message, {
-      ...context,
-      errorMessage: error?.message,
-      ...(this.isDev && { errorStack: error?.stack }),
-    })
+  error(message: string, errorOrContext?: unknown, context?: LogContext) {
+    // Accept both call styles used across the codebase:
+    //   log.error("msg", err)                    — Error instance (message/stack extracted)
+    //   log.error("msg", { userId, error })      — structured context object
+    // The old `error?: Error` annotation rejected the second style (~98 TS2353s)
+    // and rejected `unknown` catch variables from strict catch clauses.
+    if (errorOrContext instanceof Error) {
+      this.logInternal("error", message, {
+        ...context,
+        errorMessage: errorOrContext.message,
+        ...(this.isDev && { errorStack: errorOrContext.stack }),
+      })
+      return
+    }
+
+    const extra =
+      typeof errorOrContext === "object" && errorOrContext !== null
+        ? { ...(errorOrContext as LogContext) }
+        : errorOrContext !== undefined
+          ? { errorValue: String(errorOrContext) }
+          : undefined
+
+    // Normalize an embedded `error` key: JSON.stringify(new Error(...)) yields
+    // "{}", so raw Error objects inside context were logging as empty braces.
+    if (extra && extra.error instanceof Error) {
+      const err = extra.error
+      delete extra.error
+      extra.errorMessage = err.message
+      if (this.isDev) extra.errorStack = err.stack
+    }
+
+    this.logInternal("error", message, { ...extra, ...context })
   }
 
   // Specialized logging methods

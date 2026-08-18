@@ -110,7 +110,6 @@ const VPN_HOSTING_ASNS: Record<
   AS51395: { name: "Serveroid", type: "tor", confidence: 70 },
   AS44103: { name: "The Calyx Institute", type: "tor", confidence: 90 },
   AS208323: { name: "Emerald Onion", type: "tor", confidence: 95 },
-  AS42708: { name: "Portlane (Tor relay)", type: "tor", confidence: 80 },
 }
 
 // Extended datacenter IP ranges with CIDR notation
