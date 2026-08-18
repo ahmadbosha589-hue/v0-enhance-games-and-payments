@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/server"
+import { requireAdmin } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
@@ -18,7 +19,6 @@ export interface SupabaseStatus {
     dbQuery: boolean
   }
   details?: {
-    projectUrl?: string
     tableCount?: number
     lastSuccessfulQuery?: string
   }
@@ -33,6 +33,11 @@ function jsonResponse(data: SupabaseStatus, cacheSeconds = 10) {
 }
 
 export async function GET() {
+  const admin = await requireAdmin(["admin", "superadmin"])
+  if (!admin) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
   const timestamp = new Date().toISOString()
   const checks = {
     envVars: false,
@@ -59,19 +64,9 @@ export async function GET() {
   checks.envVars = true
 
   // Check 2: Client creation
-  let adminClient: ReturnType<typeof createAdminClient>
+  let adminClient: ReturnType<typeof requireAdminClient>
   try {
-    adminClient = createAdminClient()
-    if (!adminClient) {
-      return jsonResponse({
-        connected: false,
-        status: "disconnected",
-        latency: null,
-        message: "Failed to create Supabase client. Check your API keys.",
-        timestamp,
-        checks,
-      })
-    }
+    adminClient = requireAdminClient()
     checks.clientCreation = true
   } catch {
     return jsonResponse({
@@ -161,7 +156,6 @@ export async function GET() {
       timestamp,
       checks,
       details: {
-        projectUrl: supabaseUrl?.replace("https://", "").split(".")[0],
         tableCount,
         lastSuccessfulQuery: new Date().toISOString(),
       },

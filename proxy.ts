@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { updateSession } from "@/lib/supabase/proxy"
+import { checkRateLimit as checkRedisRateLimit } from "@/lib/redis/rate-limiter"
 
 // ============================================================================
 // ENTERPRISE SECURITY PROXY (Next.js 16)
@@ -12,37 +13,20 @@ import { updateSession } from "@/lib/supabase/proxy"
 // ============================================================================
 
 // Rate limiting configuration
-const RATE_LIMITS: Record<string, { windowMs: number; maxRequests: number }> = {
-  api: { windowMs: 60000, maxRequests: 60 },
-  // Only genuine credential mutations (POST sign-in / sign-up / reset) land
-  // in this strict bucket. Auth *page* navigations and the read-only
-  // /api/auth/me session probe are routed to "page"/"api" respectively —
-  // see getRateLimitType(). 30/min comfortably covers retries + 2FA flows.
-  auth: { windowMs: 60000, maxRequests: 30 },
-  claim: { windowMs: 60000, maxRequests: 5 },
-  page: { windowMs: 60000, maxRequests: 200 },
+const RATE_LIMITS: Record<string, { windowSeconds: number; limit: number; prefix: string }> = {
+  api: { windowSeconds: 60, limit: 60, prefix: "rl:proxy:api" },
+  auth: { windowSeconds: 60, limit: 30, prefix: "rl:proxy:auth" },
+  claim: { windowSeconds: 60, limit: 5, prefix: "rl:proxy:claim" },
+  page: { windowSeconds: 60, limit: 200, prefix: "rl:proxy:page" },
 }
-
-// In-memory rate limit store
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
 
 // Security headers
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options": "DENY",
-  "X-XSS-Protection": "1; mode=block",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   "X-DNS-Prefetch-Control": "on",
 }
-
-// Suspicious patterns
-const SUSPICIOUS_PATTERNS = [
-  /\.\.\//,                    // Path traversal
-  /<script/i,                  // XSS attempt
-  /union\s+select/i,           // SQL injection
-  /javascript:/i,              // JS injection
-]
 
 function getClientIP(request: NextRequest): string {
   return request.headers.get("cf-connecting-ip") ||
@@ -52,55 +36,74 @@ function getClientIP(request: NextRequest): string {
 }
 
 function getRateLimitType(pathname: string, method: string): keyof typeof RATE_LIMITS {
-  // The session-probe endpoint is read-only and gets polled MANY times during
-  // a single login attempt (the login page polls it up to 6× while waiting for
-  // the auth cookie to propagate). It must NOT share the strict auth bucket,
-  // otherwise a normal sign-in trips the limiter and the client interprets the
-  // resulting 429 as "no session" — bouncing the user straight back out.
   if (pathname === "/api/auth/me" || pathname.startsWith("/api/auth/me/")) return "api"
-
-  // Auth *pages* (GET /auth/login, /auth/sign-up, …) are ordinary navigations.
-  // Actual credential submission happens client-side against Supabase, so the
-  // only POSTs that reach us here are first-party auth API calls — keep those
-  // strict, let the page views use the generous "page" bucket.
   if (pathname.startsWith("/auth")) return method === "POST" ? "auth" : "page"
   if (pathname.startsWith("/api/auth")) return method === "POST" ? "auth" : "api"
-
   if (pathname.includes("/claim") || pathname.includes("/faucet")) return "claim"
   if (pathname.startsWith("/api/")) return "api"
   return "page"
 }
 
-function checkRateLimit(ip: string, path: string, method: string): { allowed: boolean; remaining: number } {
+async function checkRateLimit(ip: string, path: string, method: string) {
   const limitType = getRateLimitType(path, method)
-  const { windowMs, maxRequests } = RATE_LIMITS[limitType]
-  const key = `${ip}:${limitType}`
-  const now = Date.now()
-
-  let record = rateLimitStore.get(key)
-
-  // Cleanup old records periodically
-  if (rateLimitStore.size > 10000) {
-    for (const [k, v] of rateLimitStore.entries()) {
-      if (v.resetTime < now) rateLimitStore.delete(k)
-    }
-  }
-
-  if (!record || record.resetTime < now) {
-    record = { count: 1, resetTime: now + windowMs }
-    rateLimitStore.set(key, record)
-    return { allowed: true, remaining: maxRequests - 1 }
-  }
-
-  record.count++
+  const config = RATE_LIMITS[limitType]
+  const result = await checkRedisRateLimit(ip, config)
   return {
-    allowed: record.count <= maxRequests,
-    remaining: Math.max(0, maxRequests - record.count),
+    allowed: result.success,
+    remaining: result.remaining,
+    retryAfter: result.retryAfter,
   }
 }
 
-function detectSuspiciousRequest(url: string): boolean {
-  return SUSPICIOUS_PATTERNS.some(pattern => pattern.test(url))
+function isCrossSiteMutation(request: NextRequest, isWebhookPath: boolean): boolean {
+  if (isWebhookPath || !["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) return false
+
+  const fetchSite = request.headers.get("sec-fetch-site")
+  if (fetchSite === "cross-site") return true
+
+  const origin = request.headers.get("origin")
+  if (!origin) return false
+
+  try {
+    const originHost = new URL(origin).host
+    const requestHost = request.headers.get("host") || request.nextUrl.host
+    return originHost !== requestHost
+  } catch {
+    return true
+  }
+}
+
+// Only block traversal in the decoded path and executable schemes/scripts in
+// redirect-like parameters. Do not scan the complete URL: legitimate search
+// terms, blog slugs, offerwall subids, and provider payloads may contain words
+// such as "union select" or "javascript" without being executable.
+const REDIRECT_PARAMS = ["redirect", "next", "return", "returnTo", "url", "target", "callback"]
+const PATH_TRAVERSAL = /(?:^|[\\/])\.\.(?:[\\/]|$)/
+
+function decodeOnce(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+function detectSuspiciousRequest(request: NextRequest): { blocked: boolean; reason?: string } {
+  const pathname = decodeOnce(request.nextUrl.pathname)
+  if (PATH_TRAVERSAL.test(pathname)) {
+    return { blocked: true, reason: "path_traversal" }
+  }
+
+  for (const name of REDIRECT_PARAMS) {
+    const value = request.nextUrl.searchParams.get(name)
+    if (!value) continue
+    const decoded = decodeOnce(value).trim()
+    if (/^(?:javascript|data):/i.test(decoded) || /<script\b/i.test(decoded)) {
+      return { blocked: true, reason: `unsafe_${name}` }
+    }
+  }
+
+  return { blocked: false }
 }
 
 function addSecurityHeaders(response: NextResponse): NextResponse {
@@ -116,6 +119,11 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const ip = getClientIP(request)
+  const isWebhookPath =
+    pathname.startsWith("/api/postback") ||
+    pathname.startsWith("/api/webhook") ||
+    pathname.startsWith("/api/webhooks") ||
+    pathname.startsWith("/api/cron")
 
   // Static assets - skip entirely
   if (pathname.startsWith("/_next/") || pathname.startsWith("/static/") ||
@@ -124,35 +132,31 @@ export default async function proxy(request: NextRequest) {
   }
 
   // Check for suspicious requests (potential attacks)
-  if (detectSuspiciousRequest(request.url)) {
-    console.warn(`[Security] Blocked suspicious request from ${ip}: ${pathname}`)
+  const suspicious = detectSuspiciousRequest(request)
+  if (!isWebhookPath && suspicious.blocked) {
+    console.warn(`[Security] Blocked suspicious request from ${ip}: ${pathname} (${suspicious.reason})`)
     return new NextResponse(
       JSON.stringify({ error: "Request blocked", code: "SECURITY_BLOCK" }),
       {
         status: 403,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS }
-      }
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      },
     )
   }
 
-  // Server-to-server webhook routes must NEVER hit the in-memory rate
-  // limiter. Offerwall providers (c.cx.ua, CPX, Lootably, Torox, etc.) can
-  // burst many postbacks from a single egress IP, and a 429 with a JSON
-  // body causes them to mark the offer as "Failed" in their dashboard
-  // (see https://c.cx.ua/docs/#ow_response — the response body must be
-  // exactly "ok"). Each route enforces signature + IP whitelist checks of
-  // its own, so this bypass is the correct trust boundary.
-  const isWebhookPath =
-    pathname.startsWith("/api/postback") ||
-    pathname.startsWith("/api/webhook") ||
-    pathname.startsWith("/api/webhooks") ||
-    pathname.startsWith("/api/cron")
+  if (!isWebhookPath && isCrossSiteMutation(request, isWebhookPath)) {
+    console.warn(`[Security] Blocked cross-site mutation from ${ip}: ${pathname}`)
+    return new NextResponse(JSON.stringify({ error: "Cross-site mutation blocked" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    })
+  }
 
   // Rate limiting (skip for Cloudflare-verified requests with ray ID
   // and for server-to-server webhook endpoints).
   const cfRay = request.headers.get("cf-ray")
   if (!cfRay && !isWebhookPath) {
-    const rateLimit = checkRateLimit(ip, pathname, request.method)
+    const rateLimit = await checkRateLimit(ip, pathname, request.method)
     if (!rateLimit.allowed) {
       console.warn(`[RateLimit] IP ${ip} exceeded limit for ${pathname}`)
       return new NextResponse(

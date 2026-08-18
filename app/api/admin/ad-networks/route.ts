@@ -1,33 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUser, getProfile, requireAdmin } from "@/lib/supabase/server"
-import crypto from "crypto"
-
 import { requireAdminClient } from "@/lib/supabase/admin-client"
-// AES-256 encryption for storing sensitive credentials
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 32) || "default-key-must-be-32-chars!!"
-const IV_LENGTH = 16
-
-function encrypt(text: string): string {
-  const iv = crypto.randomBytes(IV_LENGTH)
-  const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)), iv)
-  let encrypted = cipher.update(text, "utf8", "hex")
-  encrypted += cipher.final("hex")
-  return iv.toString("hex") + ":" + encrypted
-}
-
-function decrypt(text: string): string {
-  try {
-    const [ivHex, encryptedText] = text.split(":")
-    if (!ivHex || !encryptedText) return text
-    const iv = Buffer.from(ivHex, "hex")
-    const decipher = crypto.createDecipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32)), iv)
-    let decrypted = decipher.update(encryptedText, "hex", "utf8")
-    decrypted += decipher.final("utf8")
-    return decrypted
-  } catch {
-    return text
-  }
-}
+import { encryptNetworkConfig } from "@/lib/ads/network-config-crypto"
 
 export async function POST(request: NextRequest) {
   const admin = await requireAdmin(["admin", "superadmin"])
@@ -55,7 +29,7 @@ export async function POST(request: NextRequest) {
     const adminSupabase = requireAdminClient()
 
     // Encrypt the configuration
-    const encryptedConfig = encrypt(JSON.stringify(config))
+    const encryptedConfig = encryptNetworkConfig(JSON.stringify(config))
 
     // Upsert the configuration
     const { error } = await adminSupabase

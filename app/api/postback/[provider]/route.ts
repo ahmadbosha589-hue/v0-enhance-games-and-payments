@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { createHmac, createHash } from "crypto"
+import { createHmac, createHash, timingSafeEqual } from "crypto"
 
 interface PostbackParams {
   userId: string
@@ -87,18 +87,25 @@ function getSupabaseAdmin() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
+function signaturesEqual(received: string, expected: string): boolean {
+  const receivedBytes = Buffer.from(received.trim().toLowerCase(), "utf8")
+  const expectedBytes = Buffer.from(expected.trim().toLowerCase(), "utf8")
+  if (receivedBytes.length !== expectedBytes.length) return false
+  return timingSafeEqual(receivedBytes, expectedBytes)
+}
+
 function validateSignature(provider: string, params: Record<string, string>, signature: string): boolean {
   const secret = PROVIDER_SECRETS[provider]
 
-  // If no secret is configured, skip validation (with a loud warning).
-  // We intentionally allow this in production so a freshly-configured
-  // provider doesn't silently start rejecting every postback as 403; the
-  // operator sets the secret env var (e.g. CCXUA_SECRET_KEY) when ready.
+  // A missing secret must never turn a balance-credit endpoint into an
+  // unauthenticated public API. Development can still use unsigned local
+  // callbacks, but production fails closed until the provider secret exists.
   if (!secret) {
-    console.warn(
-      `[Postback] No secret configured for provider "${provider}" — signature check skipped. ` +
-        `Set the corresponding env var (e.g. CCXUA_SECRET_KEY) to enable verification.`,
-    )
+    if (process.env.NODE_ENV === "production") {
+      console.error(`[Postback] Rejecting ${provider}: provider secret is not configured`)
+      return false
+    }
+    console.warn(`[Postback] DEV ONLY: no secret for "${provider}" — accepting unsigned callback`)
     return true
   }
 
@@ -109,7 +116,7 @@ function validateSignature(provider: string, params: Record<string, string>, sig
         const expectedSig = createHash("md5")
           .update(`${params.subId}${params.transId}${params.reward}${secret}`)
           .digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "cpx-research": {
@@ -119,7 +126,7 @@ function validateSignature(provider: string, params: Record<string, string>, sig
             `${params.trans_id || params.transaction_id}-${params.user_id || params.ext_user_id}-${params.amount_usd}-${secret}`,
           )
           .digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "torox": {
@@ -130,19 +137,19 @@ function validateSignature(provider: string, params: Record<string, string>, sig
           .map((k) => `${k}=${params[k]}`)
           .join("&")
         const expectedSig = createHmac("sha256", secret).update(sortedParams).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "lootably": {
         // Lootably uses SHA1: sha1(transactionId + secret)
         const expectedSig = createHash("sha1").update(`${params.transactionId}${secret}`).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "adgate": {
         // AdGate uses MD5: md5(transaction_id + secret)
         const expectedSig = createHash("md5").update(`${params.transaction_id}${secret}`).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "mm-wall": {
@@ -150,14 +157,14 @@ function validateSignature(provider: string, params: Record<string, string>, sig
         const expectedSig = createHash("sha256")
           .update(`${params.user_id || params.subid}${params.offer_id}${params.reward}${secret}`)
           .digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "timewall": {
         // Timewall uses HMAC-SHA256
         const dataStr = `${params.user_id}${params.amount}${params.transaction_id}`
         const expectedSig = createHmac("sha256", secret).update(dataStr).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
 
@@ -165,7 +172,7 @@ function validateSignature(provider: string, params: Record<string, string>, sig
         // Offerwall.me uses HMAC-SHA256: hmac_sha256(user_id + transaction_id, secret)
         const dataStr = `${params.user_id}${params.transaction_id}`
         const expectedSig = createHmac("sha256", secret).update(dataStr).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "bicotasks": {
@@ -173,21 +180,21 @@ function validateSignature(provider: string, params: Record<string, string>, sig
         const expectedSig = createHash("sha256")
           .update(`${params.user_id}${params.offer_id}${params.amount}${secret}`)
           .digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "adscend": {
         // Adscend uses SHA256 HMAC
         const dataStr = `${params.user_id || params.subid1}${params.click_id}${params.currency_amount}`
         const expectedSig = createHmac("sha256", secret).update(dataStr).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "bitlabs": {
         // BitLabs uses HMAC-SHA1: hmac_sha1(user_id + tx_id, secret)
         const dataStr = `${params.user_id}${params.tx_id || params.transaction_id}`
         const expectedSig = createHmac("sha1", secret).update(dataStr).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "ayet-studios": {
@@ -195,7 +202,7 @@ function validateSignature(provider: string, params: Record<string, string>, sig
         const expectedSig = createHash("md5")
           .update(`${params.external_identifier || params.user_id}${params.amount}${params.transaction_id}${secret}`)
           .digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "hang-my-ads": {
@@ -203,14 +210,14 @@ function validateSignature(provider: string, params: Record<string, string>, sig
         const expectedSig = createHash("sha256")
           .update(`${params.user_id}${params.offer_id}${params.payout}${secret}`)
           .digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       case "notik": {
         // Notik uses HMAC-SHA256
         const dataStr = `${params.userId || params.user_id}${params.transactionId || params.transaction_id}${params.reward}`
         const expectedSig = createHmac("sha256", secret).update(dataStr).digest("hex")
-        return signature.toLowerCase() === expectedSig.toLowerCase()
+        return signaturesEqual(signature, expectedSig)
       }
 
       default:

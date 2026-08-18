@@ -47,6 +47,10 @@ export const RATE_LIMITS = {
   WITHDRAWAL: { limit: 3, windowSeconds: 3600, prefix: "rl:withdraw" },
 } as const
 
+// Missing Redis is an explicit local-development fallback. Warn once per
+// process rather than flooding logs on every request.
+let warnedNoRedis = false
+
 /**
  * Check and update rate limit for a given identifier
  * Uses sliding window algorithm with Redis sorted sets
@@ -58,8 +62,10 @@ export async function checkRateLimit(
   const redis = getRedisClient()
 
   if (!redis) {
-    // If Redis is unavailable, allow request but log warning
-    console.warn("[RateLimit] Redis unavailable, allowing request")
+    if (!warnedNoRedis) {
+      warnedNoRedis = true
+      console.warn("[RateLimit] Redis unavailable; using non-durable local-development fallback")
+    }
     return { success: true, remaining: config.limit, resetAt: Date.now() + config.windowSeconds * 1000 }
   }
 

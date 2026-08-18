@@ -1,5 +1,6 @@
-import { createAdminClient, requireAdmin } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { requireAdmin } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
 export const dynamic = "force-dynamic"
 
@@ -10,20 +11,7 @@ export async function GET() {
   }
 
   try {
-    const supabase = createAdminClient()
-
-    if (!supabase) {
-      // Return empty data with a proper structure instead of error
-      return NextResponse.json({
-        dailyData: generateEmptyDailyData(),
-        fraudData: [
-          { type: "Clean", value: 85 },
-          { type: "Low Risk", value: 10 },
-          { type: "Medium Risk", value: 4 },
-          { type: "High Risk", value: 1 },
-        ],
-      })
-    }
+    const supabase = requireAdminClient()
 
     // Get the last 7 days
     const dates: string[] = []

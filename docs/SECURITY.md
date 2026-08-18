@@ -70,9 +70,22 @@ CryptoFaucet implements multiple layers of security to prevent fraud and protect
 
 ### Implementation
 
-- In-memory rate limiting (scales per instance)
-- Headers returned: X-RateLimit-Remaining, X-RateLimit-Reset
-- 429 status with Retry-After header when exceeded
+- Shared API/proxy buckets use the Redis-backed limiter in `lib/redis/rate-limiter.ts`.
+- If Redis is not configured, the limiter allows local development traffic and emits
+  one explicit non-durable-fallback warning; production must configure Upstash.
+- Responses should include a `Retry-After` value when a durable bucket rejects a request.
+
+## Cross-Site Request Protection
+
+First-party mutating requests (`POST`, `PUT`, `PATCH`, and `DELETE`) are checked in
+`proxy.ts` using `Origin` and `Sec-Fetch-Site`. Requests marked `cross-site`, or
+with an origin whose host does not match the request host, are rejected before the
+route handler runs. Signed server-to-server postbacks, webhooks, and cron routes are
+exempt because they authenticate with provider-specific signatures/secrets.
+
+Supabase session cookies remain `SameSite=Lax`; state-changing endpoints must not
+be exposed through `GET`. The former unused `lib/security/csrf.ts` module was
+removed rather than leaving an unconfigured token API that no route enforced.
 
 ## Data Protection
 

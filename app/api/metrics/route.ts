@@ -1,15 +1,25 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { timingSafeEqual } from "node:crypto"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
-  // Simple auth check - in production use proper API key
   const authHeader = request.headers.get("authorization")
-  const expectedKey = process.env.METRICS_API_KEY
+  const expectedKey = process.env.METRICS_API_KEY?.trim()
 
-  if (expectedKey && authHeader !== `Bearer ${expectedKey}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!expectedKey && process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Metrics endpoint is not configured" }, { status: 503 })
+  }
+
+  if (expectedKey) {
+    const receivedKey = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : ""
+    const receivedBytes = Buffer.from(receivedKey, "utf8")
+    const expectedBytes = Buffer.from(expectedKey, "utf8")
+    const valid = receivedBytes.length === expectedBytes.length && timingSafeEqual(receivedBytes, expectedBytes)
+    if (!valid) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
   }
 
   try {
