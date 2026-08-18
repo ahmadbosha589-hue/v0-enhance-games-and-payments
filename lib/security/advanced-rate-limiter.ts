@@ -452,7 +452,7 @@ async function recordRateLimitViolation(
       await adminSupabase.rpc("increment_fraud_score", {
         p_user_id: context.userId,
         p_amount: result.penaltyLevel * 2,
-      }).catch(() => {
+      }).then(undefined, () => {
         // Fallback if RPC doesn't exist
         adminSupabase
           .from("profiles")

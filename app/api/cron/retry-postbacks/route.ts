@@ -121,7 +121,7 @@ export async function runRetryPostbacks() {
       status: "completed",
       description: `${conversion.offer_name} (retry)`,
       metadata: { conversion_id: conversion.id, retried: true },
-    }).catch(() => { /* non-critical */ })
+    }).then(undefined, () => { /* non-critical */ })
 
     // Notify user
     await db.from("notifications").insert({
@@ -130,7 +130,7 @@ export async function runRetryPostbacks() {
       title: "Offerwall Reward Credited",
       message: `You earned ${conversion.payout_satoshis} satoshis from ${conversion.offer_name}`,
       metadata: { amount: conversion.payout_satoshis, conversion_id: conversion.id },
-    }).catch(() => { /* non-critical */ })
+    }).then(undefined, () => { /* non-critical */ })
 
     log.info("[RetryPostbacks] Successfully retried conversion", {
       id: conversion.id,

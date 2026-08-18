@@ -35,11 +35,17 @@ function EarnPageSkeleton() {
   )
 }
 
+interface EarnProfile {
+  balance_satoshis: number | null
+  total_earned_satoshis: number | null
+  total_claims: number | null
+}
+
 async function EarnStats({ userId }: { userId: string }) {
   const adminSupabase = requireAdminClient()
 
   const [profile, offerwallEarnings, ptcEarnings, achievements] = await Promise.all([
-    safeQuery(
+    safeQuery<EarnProfile>(
       () =>
         adminSupabase
           .from("profiles")

@@ -70,7 +70,7 @@ class Logger {
       return
     }
 
-    const extra =
+    const extra: LogContext | undefined =
       typeof errorOrContext === "object" && errorOrContext !== null
         ? { ...(errorOrContext as LogContext) }
         : errorOrContext !== undefined

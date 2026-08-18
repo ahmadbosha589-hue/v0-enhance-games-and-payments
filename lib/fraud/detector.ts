@@ -310,7 +310,7 @@ export async function updateUserFraudScore(supabase: SupabaseClient, userId: str
     .from("profiles")
     .update({
       fraud_score: newScore,
-      is_flagged: newScore >= FRAUD_CONFIG.MANUAL_REVIEW_SCORE,
+      is_flagged: newScore >= FRAUD_CONFIG.manualReviewScore,
     })
     .eq("id", userId)
 }

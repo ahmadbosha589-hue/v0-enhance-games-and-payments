@@ -56,11 +56,11 @@ export default async function AnalyticsPage() {
         claimsWeekResult,
         withdrawalsResult,
       ] = await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }).catch(() => ({ count: 0 })),
-        supabase.from("claims").select("*", { count: "exact", head: true }).catch(() => ({ count: 0 })),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
-        supabase.from("claims").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
-        supabase.from("withdrawals").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).then(undefined, () => ({ count: 0 })),
+        supabase.from("claims").select("*", { count: "exact", head: true }).then(undefined, () => ({ count: 0 })),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).then(undefined, () => ({ count: 0 })),
+        supabase.from("claims").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).then(undefined, () => ({ count: 0 })),
+        supabase.from("withdrawals").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).then(undefined, () => ({ count: 0 })),
       ])
 
       totalUsers = totalUsersResult.count || 0
@@ -71,9 +71,13 @@ export default async function AnalyticsPage() {
 
       // Get adblock stats
       try {
-        const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+        const { data: rawData, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+        const data = rawData as Partial<typeof adblockStats> | null
         if (!error && data) {
-          adblockStats = data
+          adblockStats = {
+            ...adblockStats,
+            ...data,
+          }
         } else {
           // Fallback query
           const { data: analyticsData } = await supabase

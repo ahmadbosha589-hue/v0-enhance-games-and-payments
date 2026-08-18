@@ -1544,7 +1544,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     baitConfigs.forEach((config) => {
       const element = document.createElement(config.tag)
       element.className = config.className
-      element.id = config.id
+      element.id = config.id || `ad-bait-${elements.length}`
       element.style.cssText = "width:300px;height:250px;display:block;visibility:visible;opacity:1;"
       element.innerHTML = '<span class="ad-text">Advertisement</span>'
       if ((config as any).attrs) {

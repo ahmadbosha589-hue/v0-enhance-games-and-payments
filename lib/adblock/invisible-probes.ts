@@ -395,7 +395,7 @@ export async function runAllInvisibleProbes(): Promise<InvisibleProbeResult> {
       runWebRtcProbe(),
     ])
 
-  const probeResults = [
+  const probeOutcomes = [
     beaconBlocked,
     prefetchBlocked,
     cssBackgroundBlocked,
@@ -404,8 +404,8 @@ export async function runAllInvisibleProbes(): Promise<InvisibleProbeResult> {
     webRtcBlocked,
   ]
 
-  const blockedCount = probeResults.filter(Boolean).length
-  const probeCount = probeResults.length
+  const blockedCount = probeOutcomes.filter(Boolean).length
+  const probeCount = probeOutcomes.length
 
   // Calculate confidence based on blocked probes
   // Each probe has different weight

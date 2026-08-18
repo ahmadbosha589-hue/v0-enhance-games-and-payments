@@ -34,14 +34,16 @@ export async function POST(request: Request) {
     const doubleAmount = baseAmount * 2
 
     // Get FaucetPay client and send the double reward
-    const faucetPay = getFaucetPayClient()
+    const currency = cryptoSymbol.toUpperCase()
+    const faucetPay = getFaucetPayClient(currency)
+    const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
 
-    const result = await faucetPay.send({
-      to: profile.faucetpay_email,
-      amount: doubleAmount,
-      currency: cryptoSymbol.toLowerCase(),
-      referral: false,
-    })
+    const result = await faucetPay.sendPayment(
+      profile.faucetpay_email,
+      doubleAmount,
+      ipAddress,
+      false,
+    )
 
     if (result.status !== 200) {
       logger.warn("Double reward failed", {
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
       double_amount: doubleAmount,
       ads_watched: 3,
       created_at: new Date().toISOString()
-    }).catch(() => {
+    }).then(undefined, () => {
       // Table might not exist, that's okay
     })
 
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
         total_ads_watched: (existingStats.total_ads_watched || 0) + 3,
         total_support_earnings: (existingStats.total_support_earnings || 0) + doubleAmount,
         updated_at: new Date().toISOString()
-      }).eq("user_id", user.id).catch(() => { })
+      }).eq("user_id", user.id).then(undefined, () => { })
     } else {
       await supabase.from("support_stats").insert({
         user_id: user.id,
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
         total_ads_watched: 3,
         total_support_earnings: doubleAmount,
         updated_at: new Date().toISOString()
-      }).catch(() => {
+      }).then(undefined, () => {
         // Table might not exist
       })
     }

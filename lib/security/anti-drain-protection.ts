@@ -808,7 +808,7 @@ async function recordFraudAttempt(
     await adminSupabase.rpc("increment_fraud_score", {
       p_user_id: context.userId,
       p_amount: Math.ceil(riskScore / 10)
-    }).catch(() => {
+    }).then(undefined, () => {
       // Fallback if RPC doesn't exist
       adminSupabase
         .from("profiles")

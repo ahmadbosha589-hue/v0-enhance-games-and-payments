@@ -26,7 +26,8 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 10
 
 async function safeQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any; count?: number | null }>,
+  // Supabase builders implement PromiseLike, not native Promise.
+  queryFn: () => PromiseLike<{ data: T | null; error: any; count?: number | null }>,
   fallback: T,
   timeoutMs = 5000,
 ): Promise<{ data: T; count: number }> {
@@ -423,7 +424,8 @@ async function AdblockDetectionStats() {
 
     // Method 1: Try database function
     try {
-      const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+      const { data: rawData, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+      const data = rawData as Partial<typeof stats> | null
       if (!error && data) {
         stats = {
           total_visits: Number(data.total_visits) || 0,

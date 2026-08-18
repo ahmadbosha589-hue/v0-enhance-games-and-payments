@@ -180,7 +180,7 @@ export async function POST(request: Request) {
       timestamp: timestamp || Date.now(),
       clientSignals: signals,
       clientConfidence: clientConfidence || 0,
-      clientBlockerType: blockerType,
+      clientBlockerType: blockerType ?? undefined,
       challengeResponse,
       honeypotResults,
     }

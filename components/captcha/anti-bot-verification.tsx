@@ -78,8 +78,8 @@ interface StepStatus {
   turnstile: "pending" | "active" | "complete" | "skipped"
   slider: "pending" | "active" | "complete" | "failed"
   math: "pending" | "active" | "complete" | "failed"
-  image: "pending" | "active" | "complete" | "failed"
-  pow: "pending" | "active" | "complete" | "skipped"
+  image: "pending" | "active" | "complete" | "failed" | "skipped"
+  pow: "pending" | "active" | "complete" | "failed" | "skipped"
 }
 
 export function AntiBotVerification({

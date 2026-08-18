@@ -71,26 +71,39 @@ const AdSkeleton = memo(function AdSkeleton({ height }: { height: number }) {
   )
 })
 
-// Cache for ad configs to avoid refetching
+type AdConfigResponse = { configs?: Record<string, unknown> }
+
 let configCache: Record<string, unknown> | null = null
 let configFetchPromise: Promise<Record<string, unknown>> | null = null
 
 async function getAdConfigs(): Promise<Record<string, unknown>> {
   if (configCache) return configCache
-  
   if (configFetchPromise) return configFetchPromise
-  
+
   configFetchPromise = fetch("/api/ads/config", {
     // Use cache for performance
     next: { revalidate: 300 }, // 5 min cache
   })
-    .then(res => res.ok ? res.json() : { configs: {} })
-    .then(data => {
-      configCache = data.configs || {}
+    .then(async (res): Promise<AdConfigResponse> => {
+      if (!res.ok) return { configs: {} }
+      const data: unknown = await res.json()
+      if (typeof data !== "object" || data === null) return { configs: {} }
+      const configs = (data as { configs?: unknown }).configs
+      return {
+        configs: configs && typeof configs === "object" && !Array.isArray(configs)
+          ? configs as Record<string, unknown>
+          : {},
+      }
+    })
+    .then((data) => {
+      configCache = data.configs ?? {}
       return configCache
     })
-    .catch(() => ({}))
-  
+    .catch(() => {
+      configCache = {}
+      return configCache
+    })
+
   return configFetchPromise
 }
 

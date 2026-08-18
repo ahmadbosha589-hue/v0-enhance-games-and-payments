@@ -494,7 +494,7 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
                 <Button
                   ref={buttonRef}
                   size="lg"
-                  disabled={state === "claiming" || isClaimInFlight.current}
+                  disabled={isClaimInFlight.current}
                   className="gap-2 px-8 sm:px-12 py-5 sm:py-6 text-base sm:text-lg shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                   onClick={handleClaim}
                 >

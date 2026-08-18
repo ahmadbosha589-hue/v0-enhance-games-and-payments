@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic"
 const adjustBalanceSchema = z.object({
   userId: z.string().uuid("Invalid user ID format"),
   type: z.enum(["ad_balance", "satoshis"], { errorMap: () => ({ message: "Type must be 'ad_balance' or 'satoshis'" }) }),
-  action: z.enum(["add", "subtract", "set"], { errorMap: () => ({ message: "Action must be 'add', 'subtract', or 'set'" }) }),
+  balanceAction: z.enum(["add", "subtract", "set"], { errorMap: () => ({ message: "Balance action must be 'add', 'subtract', or 'set'" }) }),
   amount: z.number()
     .min(0, "Amount cannot be negative")
     .max(1_000_000_000, "Amount exceeds maximum allowed (1 billion)"), // Safety cap
@@ -341,7 +341,7 @@ export async function POST(request: Request) {
         }, { status: 400 })
       }
 
-      const { userId, type, action: balanceAction, amount, reason } = validated.data
+      const { userId, type, balanceAction, amount, reason } = validated.data
       const field = type === "satoshis" ? "balance_satoshis" : "ad_balance_usd"
 
       // Create idempotency key to prevent duplicate operations
@@ -379,7 +379,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "User not found" }, { status: 404 })
       }
 
-      const currentValue = Number(targetProfile[field] || 0)
+      const currentValue = Number((targetProfile as Record<string, unknown>)[field] || 0)
       const originalUpdatedAt = targetProfile.updated_at
 
       // STEP 2: Calculate new value with safety bounds
@@ -485,7 +485,7 @@ export async function POST(request: Request) {
       }
 
       // STEP 5: Verify the update was applied correctly
-      const actualNewValue = Number(updateResult[field])
+      const actualNewValue = Number((updateResult as Record<string, unknown>)[field])
       if (actualNewValue !== newValue) {
         log.error("Balance verification failed after update", {
           operationId,

@@ -57,7 +57,7 @@ export async function POST(request: Request) {
             p_referred_user_id: userId,
             p_tier: tier.tier,
           })
-          .catch(async () => {
+          .then(undefined, async () => {
             // Fallback if RPC doesn't exist - manual update
             const { data: currentProfile } = await supabase
               .from("profiles")

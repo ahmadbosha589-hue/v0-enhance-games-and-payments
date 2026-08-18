@@ -141,37 +141,40 @@ export const SupabaseStatusProvider = SupabaseStatusContext.Provider
  * - Outside: falls back to the global singleton cache with its own polling
  */
 export function useSupabaseStatus(pollInterval?: number) {
-  // Try context first
+  // Hooks must be called unconditionally. The standalone fallback is disabled
+  // while a provider value is available, but it still keeps hook order stable.
   const ctx = useContext(SupabaseStatusContext)
-  if (ctx) return ctx
-
-  // Fallback: standalone polling via global cache
-  return useSupabaseStatusStandalone(pollInterval)
+  const standalone = useSupabaseStatusStandalone(pollInterval, ctx === null)
+  return ctx ?? standalone
 }
 
-function useSupabaseStatusStandalone(pollInterval?: number) {
+function useSupabaseStatusStandalone(pollInterval?: number, enabled = true) {
   const [status, setStatus] = useState<SupabaseStatus>(cachedStatus)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const effectivePoll = pollInterval ?? (status.connected ? POLL_CONNECTED : POLL_DISCONNECTED)
 
   useEffect(() => {
+    if (!enabled) return
+
     listeners.add(setStatus)
     fetchStatus()
 
     return () => {
       listeners.delete(setStatus)
     }
-  }, [])
+  }, [enabled])
 
   // Adaptive polling: faster when disconnected
   useEffect(() => {
+    if (!enabled) return
+
     if (intervalRef.current) clearInterval(intervalRef.current)
     intervalRef.current = setInterval(() => fetchStatus(true), effectivePoll)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [effectivePoll])
+  }, [enabled, effectivePoll])
 
   const refresh = useCallback(async () => {
     notifyListeners({ ...cachedStatus, isRefreshing: true })

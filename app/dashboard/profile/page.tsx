@@ -12,23 +12,7 @@ import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { maskEmail } from "@/lib/utils/mask-email"
 import { Skeleton } from "@/components/ui/skeleton"
-
-interface Profile {
-  id: string
-  username?: string
-  display_name?: string
-  avatar_url?: string
-  role?: string
-  is_verified?: boolean
-  balance_satoshis: number
-  total_withdrawn_satoshis?: number
-  total_claims?: number
-  claim_streak?: number
-  max_claim_streak?: number
-  referral_count?: number
-  created_at?: string
-  last_claim_at?: string
-}
+import type { Profile } from "@/lib/types/database"
 
 function ProfileSkeleton() {
   return (
@@ -283,11 +267,6 @@ export default function ProfilePage() {
                 <Badge variant={profile.role === "admin" || profile.role === "superadmin" ? "default" : "secondary"}>
                   {profile.role || "user"}
                 </Badge>
-                {profile.is_verified && (
-                  <Badge variant="outline" className="border-green-500 text-green-500">
-                    Verified
-                  </Badge>
-                )}
               </div>
               {profile.username && <p className="text-muted-foreground">@{profile.username}</p>}
               <p className="text-sm text-muted-foreground mt-1">{maskEmail(user.email, true)}</p>

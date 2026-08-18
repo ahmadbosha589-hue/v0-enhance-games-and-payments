@@ -670,7 +670,7 @@ async function recordAbuseDetection(
       await supabase.rpc("increment_fraud_score", {
         p_user_id: context.userId,
         p_amount: Math.ceil(result.riskScore / 10),
-      }).catch(() => {
+      }).then(undefined, () => {
         // Fallback
         supabase
           .from("profiles")

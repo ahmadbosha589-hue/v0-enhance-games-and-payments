@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
         total_ads_watched: 3,
         total_support_earnings: bonusAmount,
         updated_at: new Date().toISOString()
-      }).catch(() => {
+      }).then(undefined, () => {
         // Table might not exist yet
       })
     }

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      logger.error("Username check error", error instanceof Error ? error : new Error(error.message))
+      logger.error("Username check error", { error })
       return NextResponse.json({ error: "Failed to check username" }, { status: 500 })
     }
 

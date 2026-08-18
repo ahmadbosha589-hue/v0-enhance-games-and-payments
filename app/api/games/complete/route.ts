@@ -25,6 +25,10 @@ const SCORE_RANGES: Record<string, { min: number; max: number }> = {
 }
 
 export async function POST(req: NextRequest) {
+  // Keep this outside the outer try so the error response can safely include
+  // the parsed game type even when a later operation fails.
+  let bodyGameType: string | undefined
+
   try {
     const user = await getUser()
     if (!user) {
@@ -35,12 +39,6 @@ export async function POST(req: NextRequest) {
     const ip = headersList.get("x-forwarded-for")?.split(",")[0] ||
       headersList.get("x-real-ip") ||
       "unknown"
-
-    // Hoisted so the outer catch can still report which game was attempted.
-    // (Previously the catch referenced `bodyGameType` from this inner scope,
-    // which does not exist there — a guaranteed ReferenceError on the error
-    // path, i.e. the error handler itself threw.)
-    let bodyGameType: unknown
 
     let body
     try {
@@ -56,10 +54,11 @@ export async function POST(req: NextRequest) {
       challengeAnswer,
       gameData,
       fingerprint,
-      gameType: destructuredGameType
+      gameType: destructuredGameType,
     } = body
 
-    bodyGameType = destructuredGameType
+    // The error handler can use this normalized string value.
+    bodyGameType = typeof destructuredGameType === "string" ? destructuredGameType : undefined
 
     if (!sessionId || !sessionToken || score === undefined || !challengeAnswer) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })

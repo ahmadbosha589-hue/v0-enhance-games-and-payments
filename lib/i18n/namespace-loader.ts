@@ -616,8 +616,8 @@ export async function loadNamespace(lang: LanguageCode, namespace: Namespace): P
       const enImportFn = namespaceImports[enKey]
       if (enImportFn) {
         try {
-          const module = await enImportFn()
-          const translations = extractTranslations(module)
+          const loadedModule = await enImportFn()
+          const translations = extractTranslations(loadedModule)
           translationCache[key] = translations
           return translations
         } catch {
@@ -631,8 +631,8 @@ export async function loadNamespace(lang: LanguageCode, namespace: Namespace): P
   }
 
   try {
-    const module = await importFn()
-    const translations = extractTranslations(module)
+    const loadedModule = await importFn()
+    const translations = extractTranslations(loadedModule)
     translationCache[key] = translations
     return translations
   } catch (error) {

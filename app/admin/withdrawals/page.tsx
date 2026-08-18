@@ -43,7 +43,7 @@ export default async function WithdrawalsPage({ searchParams }: WithdrawalsPageP
           total_claims,
           balance_satoshis
         )
-      `)
+      `, { count: "exact" })
 
     // Status filter
     if (Array.isArray(status)) {
@@ -94,9 +94,9 @@ export default async function WithdrawalsPage({ searchParams }: WithdrawalsPageP
     { data: recentWithdrawals, count: recentCount },
     { data: flaggedWithdrawals, count: flaggedCount },
   ] = await Promise.all([
-    buildQuery("pending").select("*", { count: "exact" }),
-    buildQuery("processing").select("*", { count: "exact" }),
-    buildQuery(["completed", "failed", "rejected"]).limit(100).select("*", { count: "exact" }),
+    buildQuery("pending"),
+    buildQuery("processing"),
+    buildQuery(["completed", "failed", "rejected"]).limit(100),
     supabase
       .from("withdrawals")
       .select("*", { count: "exact" })

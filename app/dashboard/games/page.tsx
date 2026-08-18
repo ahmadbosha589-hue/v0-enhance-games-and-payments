@@ -1085,7 +1085,6 @@ export default function GamesPage() {
                 onScoreUpdate={handleScoreUpdate}
                 isActive={isPlaying && gameReady}
                 difficulty={gameStatus?.difficulty}
-                initialScore={currentScore}
               />
             )}
             {selectedGame === "flappy" && (

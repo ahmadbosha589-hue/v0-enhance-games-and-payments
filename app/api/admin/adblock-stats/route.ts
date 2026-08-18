@@ -70,10 +70,13 @@ export async function GET(request: Request) {
       })
     }
 
+    const normalizedStats =
+      stats && typeof stats === "object" ? (stats as Record<string, unknown>) : {}
+
     return NextResponse.json({
       success: true,
       data: {
-        ...stats,
+        ...normalizedStats,
         days,
       },
     })

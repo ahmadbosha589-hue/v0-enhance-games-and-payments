@@ -358,7 +358,7 @@ export async function GET(request: Request) {
         await adminSupabase.rpc("increment_fraud_score", {
           p_user_id: userId,
           p_amount: fraudScoreIncrease,
-        }).catch(() => {
+        }).then(undefined, () => {
           // RPC might not exist, update directly
           adminSupabase
             .from("profiles")
@@ -392,7 +392,7 @@ export async function GET(request: Request) {
         .then(() => {
           log.info("Device fingerprint stored", { userId })
         })
-        .catch((err) => {
+        .then(undefined, (err) => {
           log.error("Failed to store fingerprint", { error: err, userId })
         })
     }
@@ -415,7 +415,7 @@ export async function GET(request: Request) {
       .then(() => {
         console.log("[Auth Callback] Profile updated")
       })
-      .catch((err) => {
+      .then(undefined, (err) => {
         console.error("[Auth Callback] Failed to update profile:", err)
       })
 
@@ -462,7 +462,7 @@ export async function GET(request: Request) {
             // Increment referrer's count
             await adminSupabase.rpc("increment_referral_count", {
               p_referrer_id: referrer.id,
-            }).catch(() => {
+            }).then(undefined, () => {
               // Fallback if RPC doesn't exist
               adminSupabase
                 .from("profiles")
@@ -504,7 +504,7 @@ export async function GET(request: Request) {
               await adminSupabase.rpc("increment_fraud_score", {
                 p_user_id: referrer.id,
                 p_amount: 20,
-              }).catch(() => {
+              }).then(undefined, () => {
                 adminSupabase
                   .from("profiles")
                   .update({

@@ -15,8 +15,8 @@ function getCacheKey(locale: SupportedLocale, namespace: Namespace): string {
 // Dynamic import function for namespaces
 async function importNamespace(locale: SupportedLocale, namespace: Namespace): Promise<Record<string, unknown>> {
   try {
-    const module = await import(`./${locale}/${namespace}`)
-    return module.default || module[namespace] || module
+    const loadedModule = await import(`./${locale}/${namespace}`)
+    return loadedModule.default || loadedModule[namespace] || loadedModule
   } catch {
     // Fallback to English if locale not found
     if (locale !== "en") {

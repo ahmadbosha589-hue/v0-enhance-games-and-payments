@@ -443,10 +443,19 @@ export const requireAdmin = cache(async function requireAdmin(
   return { user, profile }
 })
 
+type SafeQueryFn<T> = (
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>,
+) => PromiseLike<{ data: T | null; error: any }>
+
+export function safeQuery<T>(queryFn: SafeQueryFn<T>, defaultValue: T): Promise<T>
+export function safeQuery<T>(queryFn: SafeQueryFn<T>, defaultValue: null): Promise<T | null>
 export async function safeQuery<T>(
-  queryFn: (supabase: NonNullable<ReturnType<typeof createAdminClient>>) => Promise<{ data: T | null; error: any }>,
-  defaultValue: T,
-): Promise<T> {
+  // Supabase query builders are thenables (`PromiseLike`), not native
+  // Promises. Requiring Promise here rejected every `.from().select()` query
+  // and caused downstream results to infer as `never`.
+  queryFn: SafeQueryFn<T>,
+  defaultValue: T | null,
+): Promise<T | null> {
   try {
     const adminSupabase = createAdminClient()
     if (!adminSupabase) return defaultValue

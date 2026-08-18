@@ -149,7 +149,7 @@ export default async function FraudPage() {
           <div className="flex flex-wrap gap-2">
             {Object.entries(flagsByType).map(([type, count]) => (
               <Badge key={type} variant="outline" className="text-xs sm:text-sm py-1 px-2 sm:px-3">
-                {type.replace(/_/g, " ")}: {count}
+                {type.replace(/_/g, " ")}: {String(count)}
               </Badge>
             ))}
             {Object.keys(flagsByType).length === 0 && (

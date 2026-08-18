@@ -330,7 +330,7 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
   const getBlockerInfo = () => {
     const blockerName = blockerType || "Ad Blocker"
 
-    switch (blockerType) {
+    switch (blockerType as string) {
       case "Brave Shields":
         return {
           title: "Brave Shields Detected",

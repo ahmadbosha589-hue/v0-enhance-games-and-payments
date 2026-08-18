@@ -248,6 +248,8 @@ async function robustFetch<T>(
 
 // SWR fetcher
 const swrFetcher = async (url: string) => robustFetch(url, undefined, 2, 5000)
+const pricesFetcher = (url: string) =>
+  robustFetch<{ prices: Record<string, { price: number }> }>(url, undefined, 2, 5000)
 
 // Detailed loading screen
 function DetailedLoadingScreen({
@@ -579,7 +581,7 @@ function DirectFaucetContent() {
   // Crypto prices (SWR - loads independently)
   const { data: pricesData, error: pricesError, isLoading: pricesLoading } = useSWR<{
     prices: Record<string, { price: number }>
-  }>("/api/crypto/prices", swrFetcher, {
+  }>("/api/crypto/prices", pricesFetcher, {
     refreshInterval: 60000,
     revalidateOnFocus: false,
     errorRetryCount: 3,
@@ -1967,7 +1969,7 @@ function DirectFaucetContent() {
                       {/* Watch Ad to Double Reward Button */}
                       <WatchAdDoubleReward
                         cryptoSymbol={crypto.symbol}
-                        baseAmount={rawAmount}
+                        baseAmount={Number(rawAmount)}
                         isAvailable={!isOnCooldown && hasPriceData && claimCount > 0}
                       />
                     </CardContent>

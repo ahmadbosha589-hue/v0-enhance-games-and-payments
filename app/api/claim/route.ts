@@ -43,7 +43,7 @@ function updateClaimTournamentScores(
       }),
     ),
   ]
-  Promise.allSettled(calls).catch(() => { })
+  Promise.allSettled(calls).then(undefined, () => { })
 }
 
 function calculateClaimAmount(streak: number): {
@@ -65,11 +65,11 @@ function calculateClaimAmount(streak: number): {
   return { base, streakBonus, total }
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs = 8000): Promise<T> {
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs = 8000): Promise<T> {
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error("Operation timed out")), timeoutMs)
   })
-  return Promise.race([promise, timeoutPromise])
+  return Promise.race([Promise.resolve(promise), timeoutPromise])
 }
 
 function calculateStreak(lastClaimAt: string | null, currentStreak: number): number {
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const body = await request.json().catch(() => ({}))
+    const body = await request.json().then(undefined, () => ({}))
     const validatedData = claimRequestSchema.safeParse(body)
 
     if (TURNSTILE_ENABLED && validatedData.success && validatedData.data.captchaToken) {
@@ -455,7 +455,7 @@ export async function POST(request: Request) {
               p_commission_rate: CLAIM_CONFIG.referralBonusPercentage / 100,
             })
             .then(() => { })
-            .catch((err: unknown) => log.error("Referral commission failed", { error: err }))
+            .then(undefined, (err: unknown) => log.error("Referral commission failed", { error: err }))
         }
       }
 

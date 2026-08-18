@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
       original_amount: baseAmount,
       bonus_amount: doubleAmount,
       claim_type: "faucet"
-    }).catch(() => {
+    }).then(undefined, () => {
       // Table might not exist yet
     })
 
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
         total_ads_watched: (existingStats.total_ads_watched || 0) + 3,
         total_support_earnings: (existingStats.total_support_earnings || 0) + doubleAmount,
         updated_at: new Date().toISOString()
-      }).eq("user_id", user.id).catch(() => { })
+      }).eq("user_id", user.id).then(undefined, () => { })
     } else {
       await supabase.from("support_stats").insert({
         user_id: user.id,
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
         total_ads_watched: 3,
         total_support_earnings: doubleAmount,
         updated_at: new Date().toISOString()
-      }).catch(() => { })
+      }).then(undefined, () => { })
     }
 
     // Increment daily usage counter in Redis

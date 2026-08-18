@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState, Suspense } from "react"
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { LogoFull } from "@/components/icons/logo"
@@ -62,7 +63,7 @@ function HomePageContent() {
     // work for non-logged-in visitors or fight with the server decision.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (cancelled) return
       if (event !== "SIGNED_IN") return
       if (!session?.user) return

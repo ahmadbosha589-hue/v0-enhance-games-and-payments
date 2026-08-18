@@ -265,7 +265,7 @@ export function SystemSettingsForm({ category, settings }: SystemSettingsFormPro
                 id={field.key}
                 name={field.key}
                 type="number"
-                value={formValues[field.key] ?? field.default}
+                value={Number(formValues[field.key] ?? field.default)}
                 onChange={(e) => handleInputChange(field.key, e.target.value, "number")}
                 min={field.min}
                 max={field.max}

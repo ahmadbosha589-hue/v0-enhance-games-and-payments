@@ -74,7 +74,7 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
 
         // Add fraud flags as notifications
         if (fraudFlags && fraudFlags.length > 0) {
-          fraudFlags.forEach((flag) => {
+          fraudFlags.forEach((flag: { id: string; fraud_type: string; severity: string; created_at: string }) => {
             notifs.push({
               id: `fraud-${flag.id}`,
               type: "fraud",
@@ -87,7 +87,7 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
 
         // Add pending withdrawals as notifications
         if (withdrawals && withdrawals.length > 0) {
-          withdrawals.forEach((w) => {
+          withdrawals.forEach((w: { id: string; amount_satoshis: number; created_at: string }) => {
             notifs.push({
               id: `withdrawal-${w.id}`,
               type: "withdrawal",

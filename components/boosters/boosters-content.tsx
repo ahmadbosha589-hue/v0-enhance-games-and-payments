@@ -167,7 +167,7 @@ function BoosterTierCard({
       "relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col",
       isPopular && "border-2 border-primary shadow-lg shadow-primary/10",
       isCurrentTier && "border-2 ring-2 ring-offset-2"
-    )} style={isCurrentTier ? { borderColor: tier.badge_color, ringColor: tier.badge_color } : {}}>
+    )} style={isCurrentTier ? { borderColor: tier.badge_color, ["--tw-ring-color" as string]: tier.badge_color } : undefined}>
       {/* Header gradient */}
       <div className={cn("h-2 w-full bg-gradient-to-r", gradient)} />
 

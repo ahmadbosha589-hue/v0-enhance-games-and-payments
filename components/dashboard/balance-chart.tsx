@@ -72,7 +72,8 @@ export function BalanceChart({ initialData }: BalanceChartProps) {
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={180} role="img" aria-label="Weekly earnings chart">
+      <div role="img" aria-label="Weekly earnings chart">
+        <ResponsiveContainer width="100%" height={180}>
         <BarChart data={data} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
           <XAxis
@@ -103,7 +104,8 @@ export function BalanceChart({ initialData }: BalanceChartProps) {
           />
           <Bar dataKey="earnings" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} maxBarSize={40} />
         </BarChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }

@@ -58,7 +58,9 @@ interface PTCView {
   created_at: string
   ad: {
     title: string
-  }
+  } | Array<{
+    title: string
+  }>
 }
 
 async function PTCStats({ userId }: { userId: string }) {
@@ -233,7 +235,9 @@ async function WatchHistory({ userId }: { userId: string }) {
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm truncate">{view.ad?.title || "Advertisement"}</p>
+                <p className="font-medium text-sm truncate">
+                  {(Array.isArray(view.ad) ? view.ad[0]?.title : view.ad?.title) || "Advertisement"}
+                </p>
                 <p className="text-xs text-muted-foreground">{new Date(view.created_at).toLocaleString()}</p>
               </div>
             </div>

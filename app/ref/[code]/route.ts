@@ -101,7 +101,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
       clicked_at: new Date().toISOString(),
     })
     .then(() => {})
-    .catch(() => {})
+    .then(undefined, () => {})
 
   redirect("/auth/sign-up")
 }

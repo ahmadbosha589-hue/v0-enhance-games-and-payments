@@ -3260,8 +3260,8 @@ export const translations: Record<LanguageCode, Record<TranslationKey, string>> 
   pl,
   uk,
   cs,
-  it: itTranslations,
-  hi: hiTranslations,
+  it: { ...en, ...itTranslations },
+  hi: { ...en, ...hiTranslations },
 }
 
 // Helper function to get translation

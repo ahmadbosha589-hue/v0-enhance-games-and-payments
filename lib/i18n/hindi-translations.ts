@@ -3,10 +3,8 @@
 // =============================================================================
 
 import type { TranslationKey } from "./translations"
-import { en } from "./translations"
 
-const hi: Record<TranslationKey, string> = {
-  ...en,
+const hi: Partial<Record<TranslationKey, string>> = {
   "nav.features": "विशेषताएं",
   "nav.howItWorks": "कैसे काम करता है",
   "nav.faq": "अक्सर पूछे जाने वाले प्रश्न",

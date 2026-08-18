@@ -90,7 +90,7 @@ export default async function AuditLogsPage() {
   }
 
   const getDisplayName = (
-    profile: { username?: string | null; display_name?: string | null; faucetpay_email?: string | null } | null,
+    profile: { username?: string | null; display_name?: string | null; faucetpay_email?: string | null } | null | undefined,
     id?: string | null,
   ) => {
     if (!profile && !id) return "System"
@@ -101,7 +101,7 @@ export default async function AuditLogsPage() {
     return "Unknown"
   }
 
-  const getEmail = (profile: { faucetpay_email?: string | null } | null) => {
+  const getEmail = (profile: { faucetpay_email?: string | null } | null | undefined) => {
     return profile?.faucetpay_email || "No email"
   }
 
