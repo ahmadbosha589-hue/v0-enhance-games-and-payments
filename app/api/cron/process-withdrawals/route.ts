@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { getFaucetPayClient, FaucetPayError, isFaucetPayConfigured } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
-import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { requireAdminClient, type AdminClient } from "@/lib/supabase/admin-client"
 
 // Called directly by /api/cron/run (unified cron handler)
 
@@ -225,7 +225,7 @@ async function refundWithdrawal(
   // NonNullable: the caller obtains this via requireAdminClient(), which throws
   // rather than returning null, so this helper must not re-widen the type back
   // to nullable (that is what allowed the unchecked `.from()` calls).
-  db: NonNullable<ReturnType<typeof createAdminClient>>,
+  db: AdminClient,
   withdrawal: any,
   reason: string,
   isUserError = false

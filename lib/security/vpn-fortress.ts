@@ -26,10 +26,11 @@
 // =============================================================================
 
 import { log } from "@/lib/logger"
-import { createAdminClient } from "@/lib/supabase/server"
+
 import crypto from "crypto"
 import { detectResidentialVPN } from "./residential-vpn-detection"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -2291,7 +2292,7 @@ async function detectVPNFortressInner(
 
 async function storeVPNResult(ipAddress: string, result: VPNFortressResult): Promise<void> {
   try {
-    const supabase = createAdminClient()
+    const supabase = requireAdminClient()
     
     // Create hash of IP for privacy
     const ipHash = crypto.createHash("sha256").update(ipAddress + (process.env.IP_HASH_SALT || "salt")).digest("hex")

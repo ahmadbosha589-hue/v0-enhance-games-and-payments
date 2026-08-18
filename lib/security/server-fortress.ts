@@ -24,11 +24,12 @@
 //
 // =============================================================================
 
-import { createAdminClient } from "@/lib/supabase/server"
+
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import crypto from "crypto"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -603,7 +604,7 @@ async function analyzeUserBehavior(
   userId: string,
   currentFingerprint: RequestFingerprint
 ): Promise<BehaviorAnalysisResult> {
-  const supabase = createAdminClient()
+  const supabase = requireAdminClient()
   const factors: Record<string, boolean | number | string> = {}
   const patterns: string[] = []
   let anomalyScore = 0
@@ -823,7 +824,7 @@ async function checkCrossSessionFingerprints(
   userId: string,
   fingerprint: RequestFingerprint
 ): Promise<{ isLinked: boolean; linkedUsers: string[]; confidence: number }> {
-  const supabase = createAdminClient()
+  const supabase = requireAdminClient()
 
   // Create fingerprint hash (privacy-preserving)
   const fpData = [
@@ -1088,7 +1089,7 @@ export async function performServerVerification(
   // LAYER 7: HISTORICAL PATTERN MATCHING
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const supabase = createAdminClient()
+  const supabase = requireAdminClient()
 
   const { data: detectionHistory } = await supabase
     .from("adblock_analytics")

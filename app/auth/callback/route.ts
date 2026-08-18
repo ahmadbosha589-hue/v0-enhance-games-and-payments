@@ -1,10 +1,11 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { detectVPNFortress } from "@/lib/security/vpn-fortress"
 import { validateReferral } from "@/lib/security/referral-fraud-detector"
 import { log } from "@/lib/logger"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
@@ -126,7 +127,7 @@ export async function GET(request: Request) {
             isNewUser,
           })
 
-          const adminSupabase = createAdminClient()
+          const adminSupabase = requireAdminClient()
 
           // Record VPN usage in fraud_flags with detailed info
           await adminSupabase.from("fraud_flags").upsert({
@@ -223,7 +224,7 @@ export async function GET(request: Request) {
     // ── MULTI-ACCOUNT CHECK (BLOCKING FOR NEW SIGNUPS + SESSION INVALIDATION) ──
     // Check if this fingerprint is associated with other accounts
     if (fingerprint) {
-      const adminSupabase = createAdminClient()
+      const adminSupabase = requireAdminClient()
 
       // Find other accounts with this fingerprint
       const { data: existingFingerprints } = await adminSupabase
@@ -421,7 +422,7 @@ export async function GET(request: Request) {
     // Handle referral for new users with ROBUST fraud detection
     if (isNewUser && ref) {
       try {
-        const adminSupabase = createAdminClient()
+        const adminSupabase = requireAdminClient()
 
         // Find the referrer
         const { data: referrer } = await adminSupabase

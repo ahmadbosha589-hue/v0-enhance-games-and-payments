@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { getUser, getProfile, safeQuery, createAdminClient } from "@/lib/supabase/server"
+import { getUser, getProfile, safeQuery } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target, Gamepad2, Ticket, Link2, HandCoins, Crown, Heart } from "lucide-react"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 export const metadata = {
   title: "All Earning Options | CryptoFaucet",
   description: "10+ ways to earn free Bitcoin and crypto - Faucet claims, Direct Crypto Faucet to FaucetPay, Games, Shortlinks, Offerwalls, PTC Ads, Coupons, Achievements, Tournaments, and more!",
@@ -35,7 +36,7 @@ function EarnPageSkeleton() {
 }
 
 async function EarnStats({ userId }: { userId: string }) {
-  const adminSupabase = createAdminClient()
+  const adminSupabase = requireAdminClient()
 
   const [profile, offerwallEarnings, ptcEarnings, achievements] = await Promise.all([
     safeQuery(

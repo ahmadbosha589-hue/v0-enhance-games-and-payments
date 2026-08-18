@@ -29,7 +29,7 @@ export class ServiceUnavailableError extends Error {
   }
 }
 
-type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>
+export type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>
 
 /**
  * Returns a non-null admin (service-role) client or throws

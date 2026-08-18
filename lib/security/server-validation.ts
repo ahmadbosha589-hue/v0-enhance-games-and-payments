@@ -7,12 +7,13 @@
 // =====================================================
 
 import { headers } from "next/headers"
-import { createAdminClient } from "@/lib/supabase/server"
+
 import { detectVPN } from "./vpn-detection"
 import { verifyHoneypotResults, type HoneypotVerificationResult } from "./server-fortress"
 import { detectVPNFortress, type VPNFortressResult } from "./vpn-fortress"
 import type { VPNDetectionResult } from "./vpn-detection"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 export interface ServerValidationResult {
   isValid: boolean
   isBlocked: boolean
@@ -268,7 +269,7 @@ async function validateFingerprint(
   let score = 0
   const flags: string[] = []
 
-  const supabase = createAdminClient()
+  const supabase = requireAdminClient()
 
   // Check if this fingerprint is linked to banned accounts
   const { data: bannedLinks } = await supabase
@@ -404,7 +405,7 @@ async function analyzeTimingPatterns(
   let score = 0
   const flags: string[] = []
 
-  const supabase = createAdminClient()
+  const supabase = requireAdminClient()
 
   // Get recent claims for this user
   const { data: recentClaims } = await supabase
@@ -453,7 +454,7 @@ async function verifyAdblockDetection(
   let score = 0
   const flags: string[] = []
 
-  const supabase = createAdminClient()
+  const supabase = requireAdminClient()
 
   // Check if user has been flagged for adblock before
   const { data: profile } = await supabase
@@ -781,7 +782,7 @@ export async function banUserIfNeeded(
 ): Promise<boolean> {
   if (!validationResult.banReason) return false
 
-  const supabase = createAdminClient()
+  const supabase = requireAdminClient()
 
   const { error } = await supabase
     .from("profiles")

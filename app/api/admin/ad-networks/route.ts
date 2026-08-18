@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getUser, getProfile, createAdminClient, requireAdmin } from "@/lib/supabase/server"
+import { getUser, getProfile, requireAdmin } from "@/lib/supabase/server"
 import crypto from "crypto"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 // AES-256 encryption for storing sensitive credentials
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 32) || "default-key-must-be-32-chars!!"
 const IV_LENGTH = 16
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Network ID required" }, { status: 400 })
     }
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     // Encrypt the configuration
     const encryptedConfig = encrypt(JSON.stringify(config))
@@ -113,7 +114,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Network ID required" }, { status: 400 })
     }
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     const { error } = await adminSupabase
       .from("ad_network_configs")
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     const { data: configs, error } = await adminSupabase
       .from("ad_network_configs")

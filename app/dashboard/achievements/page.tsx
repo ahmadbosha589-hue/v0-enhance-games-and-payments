@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { getUser, getProfile, safeQuery, createAdminClient } from "@/lib/supabase/server"
+import { getUser, getProfile, safeQuery } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AchievementCard } from "@/components/dashboard/achievement-card"
 import { Trophy, Flame, Coins, Star, Gift } from "lucide-react"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 export const metadata = {
   title: "Achievements | CryptoFaucet",
   description: "Complete challenges and earn bonus satoshis",
@@ -39,7 +40,7 @@ interface UserAchievement {
 }
 
 async function AchievementStats({ userId }: { userId: string }) {
-  const adminSupabase = createAdminClient()
+  const adminSupabase = requireAdminClient()
 
   const [achievements, userAchievements, profile] = await Promise.all([
     safeQuery(() => adminSupabase.from("achievements").select("*").eq("is_active", true), []),
@@ -145,7 +146,7 @@ async function AchievementStats({ userId }: { userId: string }) {
 }
 
 async function AchievementsList({ userId, category }: { userId: string; category: string }) {
-  const adminSupabase = createAdminClient()
+  const adminSupabase = requireAdminClient()
 
   const [achievements, userAchievements, profile] = await Promise.all([
     safeQuery(

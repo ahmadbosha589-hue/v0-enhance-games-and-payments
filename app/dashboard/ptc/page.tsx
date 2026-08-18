@@ -12,6 +12,7 @@ import { PTCAdCard } from "@/components/dashboard/ptc-ad-card"
 import { OfferwallVPNGuard } from "@/components/dashboard/offerwall-vpn-guard"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 export const metadata = {
   title: "PTC Ads | CryptoFaucet",
   description: "Watch ads and earn satoshis",
@@ -61,7 +62,7 @@ interface PTCView {
 }
 
 async function PTCStats({ userId }: { userId: string }) {
-  const adminSupabase = createAdminClient()
+  const adminSupabase = requireAdminClient()
 
   const views = await safeQuery(
     () => adminSupabase.from("ptc_views").select("reward_satoshis, completed").eq("user_id", userId),
@@ -192,7 +193,7 @@ async function AvailableAds({ userId }: { userId: string }) {
 }
 
 async function WatchHistory({ userId }: { userId: string }) {
-  const adminSupabase = createAdminClient()
+  const adminSupabase = requireAdminClient()
 
   const views = (await safeQuery(
     () =>

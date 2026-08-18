@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 export async function POST(request: NextRequest) {
   try {
     // Get user session
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Achievement ID is required" }, { status: 400 })
     }
 
-    const adminSupabase = createAdminClient()
+    const adminSupabase = requireAdminClient()
 
     const { data: achievement, error: achError } = await adminSupabase
       .from("achievements")

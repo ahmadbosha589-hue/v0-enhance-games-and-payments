@@ -36,6 +36,12 @@ export async function POST(req: NextRequest) {
       headersList.get("x-real-ip") ||
       "unknown"
 
+    // Hoisted so the outer catch can still report which game was attempted.
+    // (Previously the catch referenced `bodyGameType` from this inner scope,
+    // which does not exist there — a guaranteed ReferenceError on the error
+    // path, i.e. the error handler itself threw.)
+    let bodyGameType: unknown
+
     let body
     try {
       body = await req.json()
@@ -50,8 +56,10 @@ export async function POST(req: NextRequest) {
       challengeAnswer,
       gameData,
       fingerprint,
-      gameType: bodyGameType
+      gameType: destructuredGameType
     } = body
+
+    bodyGameType = destructuredGameType
 
     if (!sessionId || !sessionToken || score === undefined || !challengeAnswer) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })

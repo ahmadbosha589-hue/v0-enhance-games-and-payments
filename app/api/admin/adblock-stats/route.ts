@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
-import { createAdminClient, requireAdmin } from "@/lib/supabase/server"
+import { requireAdmin } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 export async function GET(request: Request) {
   const admin = await requireAdmin(["admin", "superadmin"])
   if (!admin) {
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createAdminClient()
+    const supabase = requireAdminClient()
 
     // Get query parameters
     const url = new URL(request.url)

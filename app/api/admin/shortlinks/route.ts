@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic"
 
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { shortenUrl, isShortlinkConfigured } from "@/lib/shortlinks/provider"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 async function getAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,7 +17,7 @@ async function getAdmin() {
 export async function GET() {
   const admin = await getAdmin()
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const db = createAdminClient()
+  const db = requireAdminClient()
   const { data, error } = await db.from("shortlinks").select("*").order("created_at", { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ shortlinks: data ?? [] })
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
   if (!title || !destination_url || !reward_satoshis || !view_time_seconds) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
-  const db = createAdminClient()
+  const db = requireAdminClient()
 
   // Auto-shorten the destination URL if a shortlink provider is configured
   let finalUrl = destination_url
@@ -69,7 +70,7 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  const db = createAdminClient()
+  const db = requireAdminClient()
   const { data, error } = await db
     .from("shortlinks")
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -86,7 +87,7 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 })
-  const db = createAdminClient()
+  const db = requireAdminClient()
   const { error } = await db.from("shortlinks").delete().eq("id", id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })

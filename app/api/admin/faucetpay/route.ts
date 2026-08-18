@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
 import { clearFaucetPayApiKeyCache } from "@/lib/faucetpay/client"
 
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 const ADMIN_ROLES = ["admin", "superadmin"]
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
 const SETTINGS_KEY = "faucetpay_api_key"
@@ -74,7 +75,7 @@ export async function GET() {
   const admin = await requireAdmin()
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const db = createAdminClient()
+  const db = requireAdminClient()
 
   // Try DB first, then env var
   const { data: row } = await db
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Save to system_settings
-  const db = createAdminClient()
+  const db = requireAdminClient()
   const { error: saveError } = await db
     .from("system_settings")
     .upsert(
@@ -182,7 +183,7 @@ export async function DELETE() {
   const admin = await requireAdmin()
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const db = createAdminClient()
+  const db = requireAdminClient()
   const { error } = await db
     .from("system_settings")
     .delete()
