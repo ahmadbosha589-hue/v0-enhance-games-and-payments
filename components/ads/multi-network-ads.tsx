@@ -7,6 +7,7 @@ import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 import { useAdConfig } from "@/lib/ads/use-ad-config"
 import { subscribeAdRefresh } from "@/lib/ads/ad-refresh-bus"
+import { isNetworkRenderable } from "@/lib/ads/registry"
 
 // 11 ad networks (excluding Google which is handled separately)
 const AD_NETWORKS = [
@@ -23,6 +24,8 @@ const AD_NETWORKS = [
   // AdsKeeper only refreshes on page load, not on timer
   { id: "adskeeper", name: "AdsKeeper", refreshInterval: 0, color: "bg-emerald-500", pageLoadOnly: true },
 ] as const
+
+const RENDERABLE_NETWORKS = AD_NETWORKS.filter((network) => isNetworkRenderable(network.id))
 
 // c.cx.ua is a separate partner banner — rendered as a 12th slot inside the
 // network grid so it visually sits alongside the other 11 networks for
@@ -72,7 +75,7 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
     <div className="rounded-lg border bg-muted/20 p-3 sm:p-4 animate-pulse">
       <div className={getLayoutClasses()}>
         {/* 11 networks + cx.ua = 12 placeholders */}
-        {[...AD_NETWORKS, { id: "cx-ua" }].map((network) => (
+        {[...RENDERABLE_NETWORKS, { id: "cx-ua" }].map((network) => (
           <div
             key={network.id}
             className="min-h-[180px] sm:min-h-[220px] rounded-md bg-muted/50"
@@ -160,7 +163,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   const hasMarketingConsent = useAdConsent()
   const { configs: adConfigs, isLoading: configLoading } = useAdConfig(hasMarketingConsent)
 
-  const enabledNetworks = AD_NETWORKS
+  const enabledNetworks = RENDERABLE_NETWORKS
     .filter((network) => {
       const config = adConfigs?.[network.id] as AdNetworkConfig | undefined
       if (!config?.enabled) return false
@@ -234,7 +237,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   useEffect(() => {
     if (!shouldRender) return
 
-    const unsubscribe = AD_NETWORKS
+    const unsubscribe = RENDERABLE_NETWORKS
       .filter((network) => !("pageLoadOnly" in network && network.pageLoadOnly))
       .map((network) => subscribeAdRefresh(network.id, (event) => {
         setRefreshCounts((prev) => ({
@@ -302,7 +305,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   }
 
   // Filter to only enabled networks
-  const networksToRender = AD_NETWORKS.filter(n => enabledNetworks.includes(n.id))
+  const networksToRender = RENDERABLE_NETWORKS.filter(n => enabledNetworks.includes(n.id))
 
   return (
     <div
@@ -380,7 +383,7 @@ export const SingleNetworkAd = memo(function SingleNetworkAd({
   const [isVisible, setIsVisible] = useState(!lazyLoad)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const network = AD_NETWORKS.find(n => n.id === networkId)
+  const network = RENDERABLE_NETWORKS.find(n => n.id === networkId)
 
   useEffect(() => {
     if (!lazyLoad || isVisible || !containerRef.current) return

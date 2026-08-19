@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { decryptNetworkConfig, parseNetworkConfig } from "@/lib/ads/network-config-crypto"
+import { isNetworkRenderable, providerNetworkId } from "@/lib/ads/registry"
 
 // Default ad network configurations (used if not configured in database)
 const DEFAULT_CONFIGS: Record<string, any> = {
@@ -205,7 +206,7 @@ export async function GET() {
       .select("position, provider, enabled, aads_id, coinzilla_zone, bitsmedia_id, bitsmedia_slot")
 
     const adSettings = (positionRows || []).reduce((acc, row) => {
-      if (!row.position) return acc
+      if (!row.position || !row.provider || !isNetworkRenderable(providerNetworkId(row.provider) || "")) return acc
       acc[row.position] = {
         provider: row.provider,
         enabled: row.enabled,
@@ -220,7 +221,7 @@ export async function GET() {
     // Remove sensitive data that shouldn't be exposed to client
     const sanitizedConfigs = Object.entries(configs).reduce((acc, [key, value]) => {
       acc[key] = {
-        enabled: value.enabled,
+        enabled: Boolean(value.enabled && isNetworkRenderable(key)),
         publisherId: value.publisherId || "",
         zoneId: value.zoneId || "",
         slotId: value.slotId || value.defaultSlot || "",

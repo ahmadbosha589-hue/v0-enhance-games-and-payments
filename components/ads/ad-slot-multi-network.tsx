@@ -6,6 +6,7 @@ import dynamic from "next/dynamic"
 import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 import { useAdConfig } from "@/lib/ads/use-ad-config"
 import { subscribeAdRefresh } from "@/lib/ads/ad-refresh-bus"
+import { isNetworkRenderable } from "@/lib/ads/registry"
 
 // Lazy load heavy components
 const Script = dynamic(() => import("next/script").then(mod => mod.default), {
@@ -39,6 +40,8 @@ const AD_NETWORKS = [
   { id: "mellowads", name: "MellowAds", priority: 10 },
   { id: "adskeeper", name: "AdsKeeper", priority: 11 },
 ] as const
+
+const RENDERABLE_NETWORKS = AD_NETWORKS.filter((network) => isNetworkRenderable(network.id))
 
 type AdSize = "banner" | "rectangle" | "leaderboard" | "skyscraper" | "large-rectangle"
 type AdPosition = "header" | "sidebar" | "content" | "footer"
@@ -150,17 +153,19 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     if (!shouldRender || !adConfigs || configLoading) return
 
     return subscribeAdRefresh(`slot:${position}`, () => {
-      setCurrentNetworkIndex((prev) => (prev + 1) % AD_NETWORKS.length)
+      setCurrentNetworkIndex((prev) => (prev + 1) % RENDERABLE_NETWORKS.length)
     }, refreshInterval)
   }, [position, refreshInterval, shouldRender, adConfigs, configLoading])
 
   const handleAdError = useCallback(() => {
     setAdError(true)
-    setCurrentNetworkIndex(prev => (prev + 1) % AD_NETWORKS.length)
+    setCurrentNetworkIndex(prev => (prev + 1) % RENDERABLE_NETWORKS.length)
     setTimeout(() => setAdError(false), 100)
   }, [])
 
-  const currentNetwork = AD_NETWORKS[currentNetworkIndex]
+  if (!hasMarketingConsent || RENDERABLE_NETWORKS.length === 0) return null
+
+  const currentNetwork = RENDERABLE_NETWORKS[currentNetworkIndex]
   const config = adConfigs?.[currentNetwork.id] as Record<string, unknown> | undefined
 
   // Render ad content
@@ -170,7 +175,7 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     }
 
     if (!config || !(config as { enabled?: boolean }).enabled) {
-      if (currentNetworkIndex < AD_NETWORKS.length - 1) {
+      if (currentNetworkIndex < RENDERABLE_NETWORKS.length - 1) {
         // Use microtask to avoid setState during render
         queueMicrotask(handleAdError)
       }
