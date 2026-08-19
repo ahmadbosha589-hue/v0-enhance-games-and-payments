@@ -14,14 +14,19 @@ const VERSION = "v2"
 const GCM_IV_LENGTH = 12
 const CBC_IV_LENGTH = 16
 
+function legacyKeyBuffer(): Buffer {
+  const configured = process.env.ENCRYPTION_KEY?.trim()
+  if (!configured) {
+    throw new Error("ENCRYPTION_KEY is required to decrypt legacy ad network configuration")
+  }
+  return Buffer.from(configured.padEnd(32).slice(0, 32))
+}
+
 function keyBuffer(): Buffer {
   const configured = process.env.ENCRYPTION_KEY?.trim()
   if (!configured) {
     throw new Error("ENCRYPTION_KEY is required to encrypt or decrypt ad network configuration")
   }
-
-  // Hashing the configured secret gives the cipher an exact 32-byte key while
-  // allowing operators to use a high-entropy passphrase or a 32-byte value.
   return crypto.createHash("sha256").update(configured, "utf8").digest()
 }
 
@@ -67,7 +72,7 @@ export function decryptNetworkConfig(text: string): string | null {
       const iv = Buffer.from(ivHex, "hex")
       if (iv.length !== CBC_IV_LENGTH) return null
 
-      const decipher = crypto.createDecipheriv("aes-256-cbc", keyBuffer(), iv)
+      const decipher = crypto.createDecipheriv("aes-256-cbc", legacyKeyBuffer(), iv)
       return Buffer.concat([
         decipher.update(Buffer.from(ciphertextHex, "hex")),
         decipher.final(),

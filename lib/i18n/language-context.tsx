@@ -9,8 +9,7 @@ import {
   DEFAULT_LOCALE,
 } from "./namespaces/types"
 import { loadNamespaces, preloadNamespaces, getCachedTranslation } from "./namespace-loader"
-
-import { translations as flatTranslations, type TranslationKey } from "./translations"
+import { flatLookup, primeFlatFallback } from "./flat-fallback"
 
 interface LanguageContextType {
   language: LanguageCode
@@ -49,28 +48,10 @@ function interpolate(str: string, variables?: Record<string, string | number>): 
   return str.replace(/\{\{(\w+)\}\}/g, (_, key) => String(variables[key] ?? `{{${key}}}`))
 }
 
-function getFlatTranslation(lang: LanguageCode, key: string): string | undefined {
-  // Try to get the language's translations
-  const langTranslations = flatTranslations[lang]
-  if (langTranslations) {
-    // Check if key exists directly
-    const value = langTranslations[key as TranslationKey]
-    if (value !== undefined) {
-      return value
-    }
-  }
-  return undefined
-}
-
-function getEnglishFlatTranslation(key: string): string | undefined {
-  const enTranslations = flatTranslations["en"]
-  if (enTranslations) {
-    const value = enTranslations[key as TranslationKey]
-    if (value !== undefined) {
-      return value
-    }
-  }
-  return undefined
+function updateDocumentDirection(lang: LanguageCode) {
+  if (typeof document === "undefined") return
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr"
+  document.documentElement.lang = lang
 }
 
 const validNamespaces: Namespace[] = [
@@ -135,6 +116,7 @@ export function LanguageProvider({
   const [language, setLanguageState] = useState<LanguageCode>(defaultLanguage)
   const [mounted, setMounted] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [flatFallbackReady, setFlatFallbackReady] = useState(false)
   const [translations, setTranslations] = useState<Record<Namespace, TranslationRecord>>(
     {} as Record<Namespace, TranslationRecord>,
   )
@@ -167,6 +149,40 @@ export function LanguageProvider({
   }, [])
 
   useEffect(() => {
+    if (!mounted || typeof window === "undefined") return
+
+    let cancelled = false
+    const prime = () => {
+      void primeFlatFallback()
+        .then(() => {
+          if (!cancelled) setFlatFallbackReady(true)
+        })
+        .catch(() => {
+          // Namespace translations remain the primary path if the legacy
+          // fallback chunk cannot be loaded.
+        })
+    }
+
+    if ("requestIdleCallback" in window) {
+      const idleWindow = window as Window & {
+        requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number
+        cancelIdleCallback: (id: number) => void
+      }
+      const idleId = idleWindow.requestIdleCallback(prime, { timeout: 4000 })
+      return () => {
+        cancelled = true
+        idleWindow.cancelIdleCallback(idleId)
+      }
+    }
+
+    const timer = setTimeout(prime, 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [mounted])
+
+  useEffect(() => {
     if (!mounted) return
 
     let cancelled = false
@@ -191,12 +207,6 @@ export function LanguageProvider({
       cancelled = true
     }
   }, [language, mounted])
-
-  const updateDocumentDirection = (lang: LanguageCode) => {
-    if (typeof document === "undefined") return
-    document.documentElement.dir = lang === "ar" ? "rtl" : "ltr"
-    document.documentElement.lang = lang
-  }
 
   const setLanguage = useCallback((lang: LanguageCode) => {
     setLanguageState(lang)
@@ -231,14 +241,15 @@ export function LanguageProvider({
       const namespace = isDefaultValue ? undefined : (namespaceOrDefault as Namespace | undefined)
       const defaultValue = isDefaultValue ? namespaceOrDefault : undefined
 
-      // STRATEGY 1: Try flat translations for current language
-      const flatValue = getFlatTranslation(currentLang, key)
+      // Legacy flat keys are loaded lazily after first paint. Namespace files
+      // remain the primary translation path and do not pull every locale into
+      // the shared client chunk.
+      const flatValue = flatLookup(currentLang, key)
       if (flatValue) {
         return interpolate(flatValue, variables)
       }
 
-      // STRATEGY 2: Try English flat translations as fallback
-      const enFlatValue = getEnglishFlatTranslation(key)
+      const enFlatValue = flatFallbackReady ? flatLookup("en", key) : undefined
       if (enFlatValue) {
         return interpolate(enFlatValue, variables)
       }
@@ -292,7 +303,7 @@ export function LanguageProvider({
       // STRATEGY 8: Return key as last resort
       return key
     },
-    [translations, loadedNamespaces, language, mounted, defaultLanguage],
+    [translations, loadedNamespaces, language, mounted, defaultLanguage, flatFallbackReady],
   )
 
   const isRTL = useMemo(() => {

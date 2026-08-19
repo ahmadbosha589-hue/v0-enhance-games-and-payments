@@ -1,27 +1,29 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { readConsent } from "@/lib/consent/store"
 
-/**
- * Returns true only after the visitor has explicitly opted into marketing
- * cookies. The consent store is shared with the root banner and preferences
- * page, including its version/cookie-mirror semantics.
- */
-export function useAdConsent(): boolean {
-  const [hasConsent, setHasConsent] = useState(false)
+export function ConsentAwareAnalytics() {
+  const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {
-    const sync = () => setHasConsent(readConsent().marketing === true)
+    const sync = () => setEnabled(readConsent().analytics === true)
     sync()
     window.addEventListener("storage", sync)
     window.addEventListener("cookie-preferences-updated", sync)
-
     return () => {
       window.removeEventListener("storage", sync)
       window.removeEventListener("cookie-preferences-updated", sync)
     }
   }, [])
 
-  return hasConsent
+  if (!enabled) return null
+  return (
+    <>
+      <Analytics />
+      <SpeedInsights />
+    </>
+  )
 }

@@ -10,6 +10,7 @@ import {
   getPopupZoneId,
   CXUA_ORIGIN,
 } from "@/lib/cxua/zones"
+import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 
 /**
  * c.cx.ua integration — using the REAL ad-serving endpoints from the
@@ -116,6 +117,7 @@ export function CxUaBanner({
   maxWidth,
   onVisibilityChange,
 }: CxUaBannerProps) {
+  const hasMarketingConsent = useAdConsent()
   const [zone] = useState<string>(zoneId || getBannerZoneId())
   // Unique token so the iframe's height postMessage can be matched to THIS
   // instance even when several banners share the same zone on one page.
@@ -151,7 +153,7 @@ export function CxUaBanner({
 
   // Listen for the size / emptiness report posted by the iframe document.
   useEffect(() => {
-    if (!mounted || dnt) return
+    if (!mounted || !hasMarketingConsent || dnt) return
     function onMessage(e: MessageEvent) {
       const data = e.data
       if (!data || typeof data !== "object") return
@@ -170,7 +172,7 @@ export function CxUaBanner({
     }
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)
-  }, [mounted, dnt, token])
+  }, [mounted, hasMarketingConsent, dnt, token])
 
   // Let the caller know whether there's actually a creative on screen.
   // "Visible" means we've mounted, aren't hidden for Do-Not-Track, haven't
@@ -178,9 +180,9 @@ export function CxUaBanner({
   // just "haven't been rejected yet" (which is also true during the initial
   // loading window, before we know either way).
   useEffect(() => {
-    const visible = mounted && !dnt && !empty && natural !== null
+    const visible = mounted && hasMarketingConsent && !dnt && !empty && natural !== null
     onVisibilityChange?.(visible)
-  }, [mounted, dnt, empty, natural, onVisibilityChange])
+  }, [mounted, hasMarketingConsent, dnt, empty, natural, onVisibilityChange])
 
   // The srcDoc embeds the serve <script> as parser-inserted markup so its
   // internal document.write() runs during parse (the whole point), then
@@ -235,7 +237,7 @@ export function CxUaBanner({
       // anything wildly flatter or taller than that is treated as
       // "not ready yet" rather than locked in as the true size.
       var ratio=m.w/m.h;
-      return ratio>=1.2 && ratio<=9;
+      return ratio>=0.2 && ratio<=12;
     }
     function report(){
       try{
@@ -265,8 +267,8 @@ export function CxUaBanner({
     window.addEventListener("load",report);
     var imgs=document.images||[];
     for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
-    setTimeout(report,300);setTimeout(report,1200);
-    setTimeout(finalCheck,2500);
+    setTimeout(report,300);setTimeout(report,1200);setTimeout(report,2000);
+    setTimeout(finalCheck,4000);
   })();
 <\/script>
 </body></html>`
@@ -300,7 +302,7 @@ export function CxUaBanner({
   // Nothing was served (unregistered referrer domain, no active campaign,
   // or DNT). Render nothing at all — an empty "Sponsored" box is worse
   // than no box.
-  if (empty || (mounted && dnt)) {
+  if (!hasMarketingConsent || empty || (mounted && dnt)) {
     return null
   }
 
@@ -401,7 +403,10 @@ export function CxUaPopupLoader({
   zoneId,
   params,
 }: CxUaPopupLoaderProps = {}) {
+  const hasMarketingConsent = useAdConsent()
+
   useEffect(() => {
+    if (!hasMarketingConsent) return
     if (typeof window === "undefined") return
     if (typeof document === "undefined") return
 
@@ -444,7 +449,7 @@ export function CxUaPopupLoader({
     // popunder script installs document-level event listeners on first
     // load; removing the <script> tag wouldn't remove those listeners
     // anyway, and re-adding the script would create duplicate handlers.
-  }, [zoneId, params])
+  }, [hasMarketingConsent, zoneId, params])
 
   return null
 }

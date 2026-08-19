@@ -1,14 +1,14 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
-import { Analytics } from "@vercel/analytics/next"
-import { SpeedInsights } from "@vercel/speed-insights/next"
 import { ThemeProvider } from "@/components/providers/theme-provider"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { LanguageProvider } from "@/lib/i18n/language-context"
 import { PWAProvider } from "@/components/pwa/pwa-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { SecurityInit } from "@/components/security/security-init"
+import { ConsentBanner } from "@/components/consent/consent-banner"
+import { ConsentAwareAnalytics } from "@/components/consent/consent-aware-analytics"
 import "./globals.css"
 
 const inter = Inter({
@@ -115,31 +115,8 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-        
-        {/* Ad network preconnects for faster loading - non-blocking */}
-        <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://a-ads.com" crossOrigin="anonymous" />
-        <link rel="preconnect" href="https://coinzilla.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com" />
-        <link rel="dns-prefetch" href="https://a-ads.com" />
-        <link rel="dns-prefetch" href="https://coinzilla.com" />
-        <link rel="dns-prefetch" href="https://bitmedia.io" />
-        <link rel="dns-prefetch" href="https://cointraffic.io" />
-        <link rel="dns-prefetch" href="https://adsterra.com" />
-        <link rel="dns-prefetch" href="https://hilltopads.com" />
-        <link rel="dns-prefetch" href="https://mellowads.com" />
-        <link rel="preconnect" href="https://c.cx.ua" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://c.cx.ua" />
 
-        {/*
-          Structured data for SEO.
-          suppressHydrationWarning: required because the v0 preview sandbox
-          (and some browser extensions / ad blockers in production) inject
-          into the first <script> tag in <head>, which causes a benign
-          server/client attribute mismatch. The script is still rendered
-          correctly server-side for SEO crawlers — we just don't want React
-          to log a hydration warning for the injection.
-        */}
+        {/* Structured data for SEO. */}
         <script
           type="application/ld+json"
           suppressHydrationWarning
@@ -164,6 +141,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <SecurityInit />
+        <ConsentBanner />
         <QueryProvider>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
             <LanguageProvider>
@@ -172,8 +150,7 @@ export default function RootLayout({
             </LanguageProvider>
           </ThemeProvider>
         </QueryProvider>
-        <Analytics />
-        <SpeedInsights />
+        <ConsentAwareAnalytics />
       </body>
     </html>
   )

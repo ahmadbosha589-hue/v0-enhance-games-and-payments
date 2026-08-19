@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { X } from "lucide-react"
 import { CxUaBanner, CxUaPopupLoader } from "@/components/ads/cx-ua-ads"
 import { cn } from "@/lib/utils"
+import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 
 /**
  * PublicAdsLayer
@@ -40,6 +41,7 @@ export interface PublicAdsLayerProps {
 
 export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {}) {
   const pathname = usePathname()
+  const hasMarketingConsent = useAdConsent()
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [mounted, setMounted] = useState(false)
   // Whether CxUaBanner has actually measured and is rendering a real
@@ -69,6 +71,8 @@ export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {
   const handleDismiss = () => {
     setBannerDismissed(true)
   }
+
+  if (!hasMarketingConsent) return null
 
   return (
     <>

@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label"
 import { PLATFORM_CONFIG } from "@/lib/constants/config"
 import { Cookie, Shield, BarChart3, Target, Settings, Check } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-
-const COOKIE_CONSENT_KEY = "cookie_preferences"
+import { readConsent, writeConsent } from "@/lib/consent/store"
 
 interface CookiePreferencesState {
   analytics: boolean
@@ -85,25 +84,18 @@ export default function CookiePreferences() {
 
   // Load saved preferences on mount
   useEffect(() => {
-    const savedPrefs = localStorage.getItem(COOKIE_CONSENT_KEY)
-    if (savedPrefs) {
-      try {
-        const parsed = JSON.parse(savedPrefs)
-        setPreferences(parsed)
-      } catch {
-        // Invalid saved preferences, use defaults
-      }
-    }
+    const saved = readConsent()
+    setPreferences({
+      analytics: saved.analytics,
+      functional: saved.functional,
+      marketing: saved.marketing,
+    })
   }, [])
 
   const savePreferences = (prefs: CookiePreferencesState) => {
-    localStorage.setItem(COOKIE_CONSENT_KEY, JSON.stringify(prefs))
+    writeConsent(prefs)
     setPreferences(prefs)
     setSaved(true)
-    // Notify all ad-loading components in the current tab (useAdConsent)
-    // immediately, since the native `storage` event only fires in OTHER
-    // tabs/windows, not the one that made the change.
-    window.dispatchEvent(new Event("cookie-preferences-updated"))
     toast({
       title: "Cookie preferences saved",
       description: "Your cookie preferences have been updated successfully.",

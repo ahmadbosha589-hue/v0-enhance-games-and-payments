@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 import { RefreshCw } from "lucide-react"
 import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 import { useAdConsent } from "@/lib/hooks/use-ad-consent"
+import { useAdConfig } from "@/lib/ads/use-ad-config"
+import { subscribeAdRefresh } from "@/lib/ads/ad-refresh-bus"
 
 // 11 ad networks (excluding Google which is handled separately)
 const AD_NETWORKS = [
@@ -154,52 +156,17 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   const [refreshCounts, setRefreshCounts] = useState<Record<string, number>>({})
   const [isVisible, setIsVisible] = useState(!lazyLoad || priority === "high")
   const [shouldRender, setShouldRender] = useState(!lazyLoad || priority === "high")
-  const [enabledNetworks, setEnabledNetworks] = useState<string[]>([])
-  const [configLoaded, setConfigLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const intervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map())
   const hasMarketingConsent = useAdConsent()
+  const { configs: adConfigs, isLoading: configLoading } = useAdConfig(hasMarketingConsent)
 
-  // Fetch ad config to determine which networks are enabled. Gated on
-  // Marketing consent: these are third-party ad vendors that set their own
-  // cookies/trackers, so we don't even fetch config (let alone render a
-  // slot or inject a script) until the visitor has opted in via the
-  // Cookie Preferences tool.
-  useEffect(() => {
-    if (!hasMarketingConsent) {
-      setEnabledNetworks([])
-      setConfigLoaded(true)
-      return
-    }
-
-    async function fetchAdConfig() {
-      try {
-        const response = await fetch("/api/ads/config", { cache: "force-cache" })
-        if (response.ok) {
-          const data = await response.json()
-          const configs = data.configs as Record<string, AdNetworkConfig>
-
-          // Filter to only enabled networks that have required IDs
-          const enabled = AD_NETWORKS
-            .filter(network => {
-              const config = configs[network.id]
-              if (!config?.enabled) return false
-              // Check if network has any required ID configured
-              return config.publisherId || config.zoneId || config.slotId
-            })
-            .map(n => n.id)
-
-          setEnabledNetworks(enabled)
-        }
-      } catch {
-        // If config fetch fails, don't show any ad slots
-        setEnabledNetworks([])
-      }
-      setConfigLoaded(true)
-    }
-
-    fetchAdConfig()
-  }, [hasMarketingConsent])
+  const enabledNetworks = AD_NETWORKS
+    .filter((network) => {
+      const config = adConfigs?.[network.id] as AdNetworkConfig | undefined
+      if (!config?.enabled) return false
+      return Boolean(config.publisherId || config.zoneId || config.slotId)
+    })
+    .map((network) => network.id)
 
   // Lazy load with Intersection Observer
   useEffect(() => {
@@ -262,31 +229,21 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     return () => clearTimeout(timer)
   }, [shouldRender])
 
-  // Setup auto-refresh for each network - only when fully rendered
+  // One shared, visibility-aware scheduler replaces one interval per network
+  // per component instance.
   useEffect(() => {
     if (!shouldRender) return
 
-    AD_NETWORKS.forEach(network => {
-      // Skip AdsKeeper - it only refreshes on page load
-      if (("pageLoadOnly" in network && network.pageLoadOnly) || network.refreshInterval === 0) return
-
-      const existingInterval = intervalsRef.current.get(network.id)
-      if (existingInterval) clearInterval(existingInterval)
-
-      const interval = setInterval(() => {
-        setRefreshCounts(prev => ({
+    const unsubscribe = AD_NETWORKS
+      .filter((network) => !("pageLoadOnly" in network && network.pageLoadOnly))
+      .map((network) => subscribeAdRefresh(network.id, (event) => {
+        setRefreshCounts((prev) => ({
           ...prev,
-          [network.id]: (prev[network.id] || 0) + 1
+          [event.networkId]: event.tick,
         }))
-      }, network.refreshInterval)
+      }, network.refreshInterval))
 
-      intervalsRef.current.set(network.id, interval)
-    })
-
-    return () => {
-      intervalsRef.current.forEach(interval => clearInterval(interval))
-      intervalsRef.current.clear()
-    }
+    return () => unsubscribe.forEach((stop) => stop())
   }, [shouldRender])
 
   const getLayoutClasses = useCallback(() => {
@@ -304,8 +261,8 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     }
   }, [layout])
 
-  // Don't render anything while loading config
-  if (!configLoaded) {
+  // Don't render anything while the shared config request is pending.
+  if (hasMarketingConsent && configLoading) {
     return null
   }
 

@@ -2,11 +2,10 @@
 
 import type React from "react"
 
-import { useEffect, useState } from "react"
 import { AdBanner, type AdProvider, type AdSize } from "./ad-banner"
-import { createBrowserClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { useAdConsent } from "@/lib/hooks/use-ad-consent"
+import { useAdConfig } from "@/lib/ads/use-ad-config"
 
 interface AdConfig {
   provider: AdProvider
@@ -33,59 +32,21 @@ const POSITION_SIZES: Record<string, AdSize> = {
 }
 
 export function AdSlot({ position, size, className, fallback }: AdSlotProps) {
-  const [adConfig, setAdConfig] = useState<AdConfig | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const hasMarketingConsent = useAdConsent()
-
+  const { adSettings, isLoading: configLoading } = useAdConfig(hasMarketingConsent)
+  const isLoading = hasMarketingConsent && configLoading
   const effectiveSize = size || POSITION_SIZES[position] || "banner"
-
-  useEffect(() => {
-    // These are third-party (non-Google) advertising vendors (A-ADS,
-    // CoinZilla, Bitsmedia) that set their own cookies/trackers. Only load
-    // them once the visitor has granted Marketing consent via the Cookie
-    // Preferences tool, per Google's EU User Consent Policy and general
-    // GDPR/CCPA requirements for third-party ad vendors.
-    if (!hasMarketingConsent) {
-      setIsLoading(false)
-      return
-    }
-
-    const fetchAdConfig = async () => {
-      try {
-        const supabase = createBrowserClient()
-        const { data } = await supabase
-          .from("ad_settings")
-          .select("*")
-          .eq("position", position)
-          .eq("enabled", true)
-          .single()
-
-        if (data) {
-          setAdConfig({
-            provider: data.provider as AdProvider,
-            enabled: data.enabled,
-            aads_id: data.aads_id,
-            coinzilla_zone: data.coinzilla_zone,
-            bitsmedia_id: data.bitsmedia_id,
-            bitsmedia_slot: data.bitsmedia_slot,
-          })
-        }
-      } catch (error) {
-        // No ad configured for this position - just finish loading
-      } finally {
-        setIsLoading(false)
+  const settings = adSettings?.[position]
+  const adConfig: AdConfig | null = settings?.provider
+    ? {
+        provider: settings.provider as AdProvider,
+        enabled: Boolean(settings.enabled),
+        aads_id: settings.aads_id,
+        coinzilla_zone: settings.coinzilla_zone,
+        bitsmedia_id: settings.bitsmedia_id,
+        bitsmedia_slot: settings.bitsmedia_slot,
       }
-    }
-
-    // Set a timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      setIsLoading(false)
-    }, 3000)
-
-    fetchAdConfig()
-
-    return () => clearTimeout(timeoutId)
-  }, [position, hasMarketingConsent])
+    : null
 
   if (isLoading) {
     return (

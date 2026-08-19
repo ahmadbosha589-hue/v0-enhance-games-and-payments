@@ -40,7 +40,8 @@ describe("network config crypto", () => {
 
   it("still reads legacy CBC values made with the explicit key", () => {
     setTestKey()
-    const key = crypto.createHash("sha256").update(process.env.ENCRYPTION_KEY!, "utf8").digest()
+    const configuredKey = process.env.ENCRYPTION_KEY!
+    const key = Buffer.from(configuredKey.padEnd(32).slice(0, 32))
     const iv = crypto.randomBytes(16)
     const cipher = crypto.createCipheriv("aes-256-cbc", key, iv)
     const ciphertext = Buffer.concat([cipher.update("legacy config", "utf8"), cipher.final()])

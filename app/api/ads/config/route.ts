@@ -65,13 +65,27 @@ const DEFAULT_CONFIGS: Record<string, any> = {
   },
 }
 
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+}
+
+function configResponse(
+  configs: Record<string, unknown>,
+  adSettings: Record<string, unknown> = {},
+) {
+  return NextResponse.json({ configs, adSettings }, { headers: CACHE_HEADERS })
+}
+
+export const dynamic = "force-dynamic"
+export const revalidate = 300
+
 export async function GET() {
   try {
     const adminSupabase = createAdminClient()
     
     if (!adminSupabase) {
       // Return default configs if database not available
-      return NextResponse.json({ configs: DEFAULT_CONFIGS })
+      return configResponse(DEFAULT_CONFIGS)
     }
 
     // Try to fetch from database. NOTE: we intentionally do NOT filter on
@@ -184,6 +198,25 @@ export async function GET() {
       }
     }
 
+    // Position-level legacy ad settings are folded into this same public,
+    // sanitized response so clients never query Supabase directly per slot.
+    const { data: positionRows } = await adminSupabase
+      .from("ad_settings")
+      .select("position, provider, enabled, aads_id, coinzilla_zone, bitsmedia_id, bitsmedia_slot")
+
+    const adSettings = (positionRows || []).reduce((acc, row) => {
+      if (!row.position) return acc
+      acc[row.position] = {
+        provider: row.provider,
+        enabled: row.enabled,
+        aads_id: row.aads_id || undefined,
+        coinzilla_zone: row.coinzilla_zone || undefined,
+        bitsmedia_id: row.bitsmedia_id || undefined,
+        bitsmedia_slot: row.bitsmedia_slot || undefined,
+      }
+      return acc
+    }, {} as Record<string, unknown>)
+
     // Remove sensitive data that shouldn't be exposed to client
     const sanitizedConfigs = Object.entries(configs).reduce((acc, [key, value]) => {
       acc[key] = {
@@ -200,9 +233,9 @@ export async function GET() {
       return acc
     }, {} as Record<string, any>)
 
-    return NextResponse.json({ configs: sanitizedConfigs })
+    return configResponse(sanitizedConfigs, adSettings)
   } catch (error) {
     console.error("Error fetching ad configs:", error)
-    return NextResponse.json({ configs: DEFAULT_CONFIGS })
+    return configResponse(DEFAULT_CONFIGS)
   }
 }

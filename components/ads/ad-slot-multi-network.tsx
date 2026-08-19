@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback, memo } from "react"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import { useAdConsent } from "@/lib/hooks/use-ad-consent"
+import { useAdConfig } from "@/lib/ads/use-ad-config"
+import { subscribeAdRefresh } from "@/lib/ads/ad-refresh-bus"
 
 // Lazy load heavy components
 const Script = dynamic(() => import("next/script").then(mod => mod.default), {
@@ -71,42 +73,6 @@ const AdSkeleton = memo(function AdSkeleton({ height }: { height: number }) {
   )
 })
 
-type AdConfigResponse = { configs?: Record<string, unknown> }
-
-let configCache: Record<string, unknown> | null = null
-let configFetchPromise: Promise<Record<string, unknown>> | null = null
-
-async function getAdConfigs(): Promise<Record<string, unknown>> {
-  if (configCache) return configCache
-  if (configFetchPromise) return configFetchPromise
-
-  configFetchPromise = fetch("/api/ads/config", {
-    // Use cache for performance
-    next: { revalidate: 300 }, // 5 min cache
-  })
-    .then(async (res): Promise<AdConfigResponse> => {
-      if (!res.ok) return { configs: {} }
-      const data: unknown = await res.json()
-      if (typeof data !== "object" || data === null) return { configs: {} }
-      const configs = (data as { configs?: unknown }).configs
-      return {
-        configs: configs && typeof configs === "object" && !Array.isArray(configs)
-          ? configs as Record<string, unknown>
-          : {},
-      }
-    })
-    .then((data) => {
-      configCache = data.configs ?? {}
-      return configCache
-    })
-    .catch(() => {
-      configCache = {}
-      return configCache
-    })
-
-  return configFetchPromise
-}
-
 export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({ 
   position, 
   size, 
@@ -116,13 +82,12 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
   lazyLoad = true,
 }: AdSlotMultiNetworkProps) {
   const [currentNetworkIndex, setCurrentNetworkIndex] = useState(0)
-  const [adConfigs, setAdConfigs] = useState<Record<string, unknown> | null>(configCache)
   const [isVisible, setIsVisible] = useState(!lazyLoad || priority === "high")
   const [shouldRender, setShouldRender] = useState(!lazyLoad || priority === "high")
   const [adError, setAdError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const hasMarketingConsent = useAdConsent()
-  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const { configs: adConfigs, isLoading: configLoading } = useAdConfig(hasMarketingConsent)
   const observerRef = useRef<IntersectionObserver | null>(null)
 
   const sizeConfig = SIZE_CONFIG[size]
@@ -180,27 +145,14 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     return () => clearTimeout(timer)
   }, [isVisible, shouldRender, priority])
 
-  // Fetch ad configs asynchronously
+  // Rotate through partner networks using the shared visibility-aware bus.
   useEffect(() => {
-    if (!shouldRender) return
-    
-    getAdConfigs().then(setAdConfigs)
-  }, [shouldRender])
+    if (!shouldRender || !adConfigs || configLoading) return
 
-  // Rotate through the partner networks
-  useEffect(() => {
-    if (!shouldRender || !adConfigs) return
-
-    refreshTimerRef.current = setInterval(() => {
-      setCurrentNetworkIndex(prev => (prev + 1) % AD_NETWORKS.length)
+    return subscribeAdRefresh(`slot:${position}`, () => {
+      setCurrentNetworkIndex((prev) => (prev + 1) % AD_NETWORKS.length)
     }, refreshInterval)
-
-    return () => {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current)
-      }
-    }
-  }, [currentNetworkIndex, refreshInterval, shouldRender, adConfigs])
+  }, [position, refreshInterval, shouldRender, adConfigs, configLoading])
 
   const handleAdError = useCallback(() => {
     setAdError(true)
