@@ -116,70 +116,20 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-2xl font-semibold">10. Advertising &amp; Third-Party Vendors</h2>
           <p className="mb-4 text-muted-foreground">
-            We display advertising to help keep {PLATFORM_CONFIG.name} free to use. Some of this advertising is
-            served by Google and other third-party advertising vendors and ad networks (&quot;Vendors&quot;).
+            Our current advertising-partner registry is the source of truth for publisher-network status. Every network
+            currently marked as unverified is disabled, and no Google AdSense publisher integration is active. See our{" "}
+            <a href="/advertising-partners" className="text-primary hover:underline">
+              Advertising Partners Disclosure
+            </a>{" "}
+            for the current registry-backed list.
           </p>
-          <ul className="list-disc space-y-2 pl-6 text-muted-foreground">
-            <li>
-              Google, as a third-party vendor, uses cookies (such as the DoubleClick/Google Ads cookie) to serve ads
-              on our Service based on your prior visits to this and other websites.
-            </li>
-            <li>
-              Google&apos;s use of advertising cookies enables it and its partners to serve ads based on your visits
-              to our Service and/or other sites on the Internet.
-            </li>
-            <li>
-              You may opt out of personalized advertising by visiting{" "}
-              <a
-                href="https://adssettings.google.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                Google Ads Settings
-              </a>
-              . You can also opt out of many third-party vendors&apos; use of cookies for personalized advertising by
-              visiting{" "}
-              <a
-                href="https://optout.aboutads.info"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                www.aboutads.info
-              </a>{" "}
-              or, if you are in the EU/UK,{" "}
-              <a
-                href="https://www.youronlinechoices.eu"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                www.youronlinechoices.eu
-              </a>
-              .
-            </li>
-            <li>
-              You can find more information about how Google uses data when you use our partners&apos; sites or apps
-              at{" "}
-              <a
-                href="https://policies.google.com/technologies/partner-sites"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
-                policies.google.com/technologies/partner-sites
-              </a>
-              .
-            </li>
-            <li>
-              Non-essential advertising and analytics cookies are only set after you provide consent through our{" "}
-              <a href="/cookies" className="text-primary hover:underline">
-                Cookie Preferences
-              </a>{" "}
-              tool. You can withdraw this consent at any time.
-            </li>
-          </ul>
+          <p className="text-muted-foreground">
+            Optional marketing technology is gated behind an explicit choice in our{" "}
+            <a href="/cookies" className="text-primary hover:underline">
+              Cookie Preferences
+            </a>{" "}
+            tool. That consent choice does not enable a network that is disabled in the registry.
+          </p>
         </section>
 
         <section>
