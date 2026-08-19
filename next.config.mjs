@@ -18,9 +18,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  images: {
-    unoptimized: true,
-  },
+  // Keep first-party /public images on Next's optimized image pipeline. External
+  // images that cannot be allowlisted opt into `unoptimized` at the call site.
+  images: {},
   async headers() {
     return [
       {

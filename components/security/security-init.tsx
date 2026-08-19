@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { initConsoleProtection } from "@/lib/security/console-protection"
+import { scheduleIdleTask } from "@/lib/perf/idle-scheduler"
 
 /**
  * SecurityInit Component
@@ -128,20 +129,67 @@ export function SecurityInit() {
       }
     }
 
-    // Run checks
-    document.addEventListener("selectstart", disableSelection)
+    // Run checks during idle time and pause them entirely while the tab is
+    // hidden. Security monitoring is still re-armed immediately when the tab
+    // becomes visible, but it no longer competes with first paint or spends
+    // work on a background page.
+    const SECURITY_CHECK_INTERVAL_MS = 15000
+    const SECURITY_CHECK_IDLE_TIMEOUT_MS = 5000
+    let checkTimer: number | null = null
+    let cancelIdleCheck: (() => void) | null = null
 
-    // Periodic integrity checks
-    const integrityInterval = setInterval(() => {
+    const clearScheduledCheck = () => {
+      if (checkTimer !== null) {
+        window.clearTimeout(checkTimer)
+        checkTimer = null
+      }
+      cancelIdleCheck?.()
+      cancelIdleCheck = null
+    }
+
+    const runIntegrityChecks = () => {
+      if (document.visibilityState !== "visible") return
       checkDOMIntegrity()
       checkForIframes()
       checkNewWindowProps()
-    }, 10000)
+    }
+
+    const scheduleIntegrityCheck = (delay = 0) => {
+      clearScheduledCheck()
+      if (document.visibilityState !== "visible") return
+
+      checkTimer = window.setTimeout(() => {
+        checkTimer = null
+        cancelIdleCheck = scheduleIdleTask(
+          () => {
+            cancelIdleCheck = null
+            runIntegrityChecks()
+            scheduleIntegrityCheck(SECURITY_CHECK_INTERVAL_MS)
+          },
+          { timeout: SECURITY_CHECK_IDLE_TIMEOUT_MS },
+        )
+      }, delay)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        scheduleIntegrityCheck()
+      } else {
+        clearScheduledCheck()
+      }
+    }
+
+    // Keep the existing protected-element selection guard active for the whole
+    // lifetime of the component; only the expensive scans are idle-scheduled.
+    document.addEventListener("selectstart", disableSelection)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    scheduleIntegrityCheck()
 
     // Cleanup
     return () => {
       document.removeEventListener("selectstart", disableSelection)
-      clearInterval(integrityInterval)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      clearScheduledCheck()
     }
   }, [])
 

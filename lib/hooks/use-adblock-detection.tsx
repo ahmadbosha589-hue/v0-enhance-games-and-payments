@@ -41,6 +41,7 @@ import {
   shouldImmediatelyFlag,
 } from "../adblock/cross-session-scoring"
 import { runAllInvisibleProbes, type InvisibleProbeResult } from "../adblock/invisible-probes"
+import { scheduleIdleTask } from "../perf/idle-scheduler"
 
 // =============================================================================
 // =============================================================================
@@ -3234,14 +3235,17 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
    * Main detection function that orchestrates all detection methods.
    */
   const runDetection = useCallback(async () => {
-    if (isChecking) return
+    // Timers and interaction events can arrive close together. Keep this guard
+    // in a ref so an older callback cannot start a second full probe sweep while
+    // the current one is still awaiting network/browser probes.
+    if (isCheckingRef.current) return
 
-    setIsChecking(true)
+    _setIsChecking(true)
 
     try {
       // Check grace period
       if (isInGracePeriod()) {
-        setIsChecking(false)
+        _setIsChecking(false)
         return
       }
 
@@ -3280,7 +3284,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       // here. We just exit silently.
       if (CONFIG.CONTROL_MUST_BE_VISIBLE && !baitTestResult.controlVisible) {
         if (!wasFlaggedAtCycleStart) setIsDetected(false)
-        setIsChecking(false)
+        _setIsChecking(false)
         return
       }
 
@@ -3870,10 +3874,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     } catch (error) {
       console.error("[Adblock Detection] Error:", error)
     } finally {
-      setIsChecking(false)
+      _setIsChecking(false)
     }
   }, [
-    isChecking,
     consecutiveDetections,
     runControlledBaitTest,
     detectBaitImages,
@@ -3903,6 +3906,13 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     verifyWithServer,
   ])
 
+  // Timers and browser events intentionally call through refs so scheduling does
+  // not retain an obsolete callback while a detection cycle is in flight.
+  useEffect(() => {
+    runDetectionRef.current = runDetection
+    calibrateBaselineRef.current = calibrateBaseline
+  }, [runDetection, calibrateBaseline])
+
   // =========================================================================
   // FORCE RECHECK
   // =========================================================================
@@ -3922,7 +3932,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     setConsecutiveDetections(0)
     setMethodCount(0)
     setDetectionResult(null)
-    setIsChecking(true)
+    _setIsChecking(true)
 
     // Reset session state
     resetConsecutiveDetections()
@@ -3932,6 +3942,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
     // Clear grace period before running detection
     clearGracePeriod()
+    // The guard ref covers the waiting period above; release it before the
+    // actual forced cycle so runDetection can start normally.
+    _setIsChecking(false)
 
     // Run fresh detection
     await runDetection()
@@ -3970,67 +3983,96 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     // Start mutation observer for DOM changes
     startMutationObserver()
 
-    // Initial delay before first check - allows page to fully load
-    const initialTimer = setTimeout(() => {
-      calibrateBaseline().then(() => runDetection())
-    }, CONFIG.INITIAL_DELAY_MS)
+    // Keep one adaptive timer instead of a normal timer plus a second
+    // post-flag timer. Both old timers invoked the same full probe sweep, so
+    // they frequently duplicated network/browser work. The next delay is
+    // selected from the current persisted flag state and the timer is paused
+    // while the document is hidden.
+    let disposed = false
+    const scheduleNextDetection = () => {
+      if (disposed) return
+      if (intervalRef.current !== null) {
+        clearTimeout(intervalRef.current)
+        intervalRef.current = null
+      }
+      if (document.visibilityState !== "visible") return
 
-    // v12.0 PERSISTENCE LAYER: dual-interval scheduling
-    //   • Normal interval (CHECK_INTERVAL_MS): runs while NOT flagged.
-    //   • Reverify interval (REVERIFY_INTERVAL_MS): runs ALWAYS, faster than
-    //     before so a user toggling their blocker on or off is caught quickly.
-    // This guarantees detection is genuinely persistent across the whole
-    // session — the user can never "wait out" the check.
-    intervalRef.current = setInterval(() => {
-      if (isInGracePeriod()) return
-      runDetection()
-    }, CONFIG.CHECK_INTERVAL_MS)
+      const delay = isUserBlockedInSession()
+        ? CONFIG.REVERIFY_INTERVAL_MS
+        : CONFIG.CHECK_INTERVAL_MS
+      intervalRef.current = setTimeout(async () => {
+        intervalRef.current = null
+        if (disposed) return
+        if (!isInGracePeriod()) await runDetectionRef.current()
+        if (!disposed) scheduleNextDetection()
+      }, delay)
+    }
 
-    // v12.0: continuous post-flag reverification timer — fires even when the
-    // main interval has been suppressed (e.g. flagged state, paused tabs that
-    // briefly become visible again). Independent from CHECK_INTERVAL_MS so a
-    // flagged user is still re-tested every REVERIFY_INTERVAL_MS.
-    const reverifyTimer = setInterval(() => {
-      if (isInGracePeriod()) return
-      runDetection()
-    }, CONFIG.REVERIFY_INTERVAL_MS)
+    // Defer the initial calibration and first full sweep until the browser is
+    // idle, but retain a bounded timeout so a busy page cannot postpone it
+    // indefinitely.
+    const cancelInitialWork = scheduleIdleTask(
+      () => {
+        if (disposed || document.visibilityState !== "visible") return
+        calibrateBaselineRef.current()
+          .then(() => {
+            if (!disposed) runDetectionRef.current()
+          })
+          .catch(() => {})
+      },
+      { timeout: 1500 },
+    )
+    scheduleNextDetection()
 
     // v12.0: Aggressive re-check triggers — make detection PERSISTENT and react
     // immediately to user behaviour that might toggle their blocker.
     let visibilityTimer: ReturnType<typeof setTimeout> | null = null
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && !isInGracePeriod()) {
+      if (document.visibilityState !== "visible") {
+        if (intervalRef.current !== null) {
+          clearTimeout(intervalRef.current)
+          intervalRef.current = null
+        }
         if (visibilityTimer) clearTimeout(visibilityTimer)
-        visibilityTimer = setTimeout(() => runDetection(), 400)
+        visibilityTimer = null
+        return
       }
+      if (isInGracePeriod()) return
+
+      scheduleNextDetection()
+      if (visibilityTimer) clearTimeout(visibilityTimer)
+      visibilityTimer = setTimeout(() => {
+        runDetectionRef.current()
+        scheduleNextDetection()
+      }, 400)
     }
     let focusTimer: ReturnType<typeof setTimeout> | null = null
     const handleFocus = () => {
-      if (isInGracePeriod()) return
+      if (document.visibilityState !== "visible" || isInGracePeriod()) return
       if (focusTimer) clearTimeout(focusTimer)
-      focusTimer = setTimeout(() => runDetection(), 500)
+      focusTimer = setTimeout(() => runDetectionRef.current(), 500)
     }
     let networkTimer: ReturnType<typeof setTimeout> | null = null
     const handleNetworkChange = () => {
-      if (isInGracePeriod()) return
+      if (document.visibilityState !== "visible" || isInGracePeriod()) return
       if (networkTimer) clearTimeout(networkTimer)
-      networkTimer = setTimeout(() => runDetection(), 1200)
+      networkTimer = setTimeout(() => runDetectionRef.current(), 1200)
     }
     // v12.0: bfcache restore — when user navigates back/forward we re-test
     let pageShowTimer: ReturnType<typeof setTimeout> | null = null
     const handlePageShow = (e: PageTransitionEvent) => {
-      if (e.persisted && !isInGracePeriod()) {
+      if (e.persisted && document.visibilityState === "visible" && !isInGracePeriod()) {
         if (pageShowTimer) clearTimeout(pageShowTimer)
-        pageShowTimer = setTimeout(() => runDetection(), 250)
+        pageShowTimer = setTimeout(() => runDetectionRef.current(), 250)
       }
     }
     // v12.0: SPA route change (Next.js) — pushState / replaceState patched once
     let routeChangeTimer: ReturnType<typeof setTimeout> | null = null
     let routePatched = false
     const handleRouteChange = () => {
-      if (isInGracePeriod()) return
+      if (document.visibilityState !== "visible" || isInGracePeriod()) return
       if (routeChangeTimer) clearTimeout(routeChangeTimer)
-      routeChangeTimer = setTimeout(() => runDetection(), 700)
+      routeChangeTimer = setTimeout(() => runDetectionRef.current(), 700)
     }
     try {
       if (typeof window !== "undefined" && !(window as unknown as { __adblockPatched?: boolean }).__adblockPatched) {
@@ -4056,11 +4098,11 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     // cheap, but defeats users who try to dismiss the warning and keep scrolling.
     let lastInteractionCheck = 0
     const handleInteraction = () => {
-      if (isInGracePeriod()) return
+      if (document.visibilityState !== "visible" || isInGracePeriod()) return
       const now = Date.now()
       if (now - lastInteractionCheck < 8000) return
       lastInteractionCheck = now
-      runDetection()
+      runDetectionRef.current()
     }
 
     // v13.0: Additional event triggers — keydown (devtools shortcuts), resize
@@ -4082,18 +4124,12 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
       connection.addEventListener("change", handleNetworkChange)
     }
 
-    // v15.0 WATCHDOG: every 4s verify the main interval is still alive. If
-    // any extension/userscript has cleared it, re-install. Defeats users who
-    // try to evade by patching setInterval/clearInterval at runtime, and
-    // recovers quickly enough that a tampering user can't get more than one
-    // missed cycle before we re-arm. Lowered from 10s → 4s for far more
-    // aggressive persistence.
+    // v15.0 WATCHDOG: every 4s verify the adaptive timer is still armed. If
+    // an extension/userscript clears it, re-install one next cycle; hidden tabs
+    // remain paused by the same visibility gate as the main scheduler.
     const watchdogTimer = setInterval(() => {
-      if (intervalRef.current === null && !isInGracePeriod()) {
-        intervalRef.current = setInterval(() => {
-          if (isInGracePeriod()) return
-          runDetection()
-        }, CONFIG.CHECK_INTERVAL_MS)
+      if (document.visibilityState === "visible" && intervalRef.current === null && !isInGracePeriod()) {
+        scheduleNextDetection()
       }
     }, 4000)
 
@@ -4118,12 +4154,11 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
 
     // Cleanup function
     return () => {
-      clearTimeout(initialTimer)
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
+      cancelInitialWork()
+      if (intervalRef.current !== null) {
+        clearTimeout(intervalRef.current)
         intervalRef.current = null
       }
-      clearInterval(reverifyTimer)
       clearInterval(watchdogTimer)
       if (visibilityTimer) clearTimeout(visibilityTimer)
       if (focusTimer) clearTimeout(focusTimer)
