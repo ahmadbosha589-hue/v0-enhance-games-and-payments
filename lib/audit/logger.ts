@@ -25,6 +25,8 @@ export type AuditAction =
   | "offerwall_provider_updated"
   | "ptc_ad_approved"
   | "ptc_ad_rejected"
+  | "ad_campaign_approved"
+  | "ad_campaign_rejected"
 
 export type ResourceType =
   | "user"
@@ -34,6 +36,7 @@ export type ResourceType =
   | "offerwall_conversion"
   | "offerwall_provider"
   | "ptc_ad"
+  | "ad_campaign"
 
 export interface AuditLogEntry {
   actor_id: string
