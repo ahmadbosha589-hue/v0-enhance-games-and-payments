@@ -227,11 +227,11 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   // ═══════════════════════════════════════════════════════════════════════════
   // TIER 1: HIGH-WEIGHT AD NETWORK HONEYPOTS (Most blocked by adblockers)
   // ═══════════════════════════════════════════════════════════════════════════
-  { id: "hp_adsense", url: "/api/ads/adsense.js", type: "ad", weight: 98, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
-  { id: "hp_doubleclick", url: "/api/ads/doubleclick.js", type: "ad", weight: 98, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
-  { id: "hp_googlesyndication", url: "/api/ads/googlesyndication.js", type: "ad", weight: 98, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
+  { id: "hp_adsense", url: "/api/ads/beacon-probe", type: "ad", weight: 98, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
+  { id: "hp_doubleclick", url: "/api/ads/css-probe-1.gif", type: "ad", weight: 98, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
+  { id: "hp_googlesyndication", url: "/api/ads/worker-probe-1.js", type: "ad", weight: 98, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
   { id: "hp_prebid", url: "/api/ads/prebid.js", type: "ad", weight: 95, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
-  { id: "hp_gpt", url: "/api/ads/gpt.js", type: "ad", weight: 95, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
+  { id: "hp_gpt", url: "/api/ads/css-probe-2.gif", type: "ad", weight: 95, expectedTiming: { min: 10, max: 500 }, requiredForDetection: true },
   { id: "hp_criteo", url: "/api/ads/criteo.js", type: "ad", weight: 94, expectedTiming: { min: 10, max: 500 }, requiredForDetection: false },
   { id: "hp_pubmatic", url: "/api/ads/pubmatic.js", type: "ad", weight: 94, expectedTiming: { min: 10, max: 500 }, requiredForDetection: false },
   { id: "hp_rubicon", url: "/api/ads/rubicon.js", type: "ad", weight: 93, expectedTiming: { min: 10, max: 500 }, requiredForDetection: false },
@@ -251,8 +251,8 @@ const HONEYPOT_PROBES: HoneypotProbe[] = [
   // ═══════════════════════════════════════════════════════════════════════════
   // TIER 3: ANALYTICS HONEYPOTS
   // ═══════════════════════════════════════════════════════════════════════════
-  { id: "hp_gtm", url: "/api/ads/gtm.js", type: "analytics", weight: 85, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
-  { id: "hp_gtag", url: "/api/ads/gtag.js", type: "analytics", weight: 85, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
+  { id: "hp_gtm", url: "/api/ads/worker-probe-2.js", type: "analytics", weight: 85, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
+  { id: "hp_gtag", url: "/api/ads/beacon-test", type: "analytics", weight: 85, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_analytics", url: "/api/ads/analytics.js", type: "analytics", weight: 82, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_analytics_loader", url: "/api/ads/analytics-loader.js", type: "analytics", weight: 80, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },
   { id: "hp_hotjar", url: "/api/ads/hotjar.js", type: "analytics", weight: 78, expectedTiming: { min: 10, max: 400 }, requiredForDetection: false },

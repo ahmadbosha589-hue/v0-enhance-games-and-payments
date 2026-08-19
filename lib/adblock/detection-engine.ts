@@ -817,21 +817,11 @@ export const KNOWN_BLOCKERS = {
 
 export const BAIT_PATTERNS = {
   google: [
-    "/api/ads/ad-banner.js",
-    "/api/ads/sponsored.js",
-    "/api/ads/analytics.js",
-    "/api/ads/doubleclick.js",
-    "/api/pagead/show_ads.js",
-    "/api/ads/adsense-loader.js",
-    "/api/ads/gpt.js",
-    "/pagead/js/adsbygoogle.js",
-    "/pagead/show_ads.js",
-    "/api/ads/googlesyndication.js",
-    "/api/ads/googletagservices.js",
-    "/api/ads/googletagmanager.js",
-    "/api/ads/google-analytics.js",
-    "/api/ads/ga.js",
-    "/api/ads/gtag.js",
+    "/api/ads/beacon-probe",
+    "/api/ads/css-probe-1.gif",
+    "/api/ads/css-probe-2.gif",
+    "/api/ads/worker-probe-1.js",
+    "/api/ads/worker-probe-2.js",
   ],
 
   networks: [
@@ -990,11 +980,11 @@ export const BAIT_PATTERNS = {
 
   // v12.0 NEW: CDN / 3rd-party domains that filter lists block by hostname
   cdn: [
-    "/api/ads/cdn/static.doubleclick.net.js",
-    "/api/ads/cdn/pagead2.googlesyndication.com.js",
-    "/api/ads/cdn/securepubads.g.doubleclick.net.js",
-    "/api/ads/cdn/adservice.google.com.js",
-    "/api/ads/cdn/connect.facebook.net.js",
+    "/api/ads/cdn/neutral-ad-cdn-1.js",
+    "/api/ads/cdn/neutral-ad-cdn-2.js",
+    "/api/ads/cdn/neutral-ad-cdn-3.js",
+    "/api/ads/cdn/neutral-ad-cdn-4.js",
+    "/api/ads/cdn/neutral-social-cdn.js",
     "/api/ads/cdn/static.ads-twitter.com.js",
     "/api/ads/cdn/analytics.tiktok.com.js",
     "/api/ads/cdn/static.criteo.net.js",

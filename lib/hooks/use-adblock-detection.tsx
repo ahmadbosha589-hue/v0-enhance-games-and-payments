@@ -531,21 +531,11 @@ export interface UseAdblockDetectionResult {
 const BAIT_PATTERNS = {
   // Google Ad Network - Primary target for all adblockers
   google: [
-    "/api/ads/ad-banner.js",
-    "/api/ads/analytics.js",
-    "/api/ads/banner.gif",
-    "/api/ads/sponsored.js",
-    "/api/ads/tracking-pixel.gif",
-    "/api/ads/doubleclick.js",
-    "/api/pagead/show_ads.js",
-    "/api/ads/prebid.js",
-    "/api/ads/amazon-adsystem.js",
-    "/api/ads/adsense-loader.js",
-    "/api/ads/gpt.js",
-    "/api/ads/ima3.js",
-    "/api/ads/conversion.js",
-    "/api/ads/gtag.js",
-    "/api/ads/gtm.js",
+    "/api/ads/beacon-probe",
+    "/api/ads/css-probe-1.gif",
+    "/api/ads/css-probe-2.gif",
+    "/api/ads/worker-probe-1.js",
+    "/api/ads/worker-probe-2.js",
   ],
 
   // Major Ad Networks - High coverage across filter lists
@@ -877,7 +867,7 @@ const BAIT_CLASSES = [
   "ad-banner",
   "ad-container",
   "ad-placement",
-  "adsbygoogle",
+  "ad-slot-marker",
   "sponsored-ad",
   "sponsored-content",
   "sponsored",
@@ -1297,7 +1287,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         // EasyList / uBlock / AdBlock Plus universal targets
         { className: "adsbox", id: "adsbox" },
         { className: "ad-banner ad-placement", id: "ad-banner-container" },
-        { className: "adsbygoogle", id: "google-ad-slot-1" },
+        { className: "ad-slot-marker", id: "google-ad-slot-1" },
         { className: "sponsored-ad sponsored", id: "sponsored-content-wrapper" },
         { className: "ad-unit ad_unit ad_box", id: "ad-unit-main" },
         { className: "textad text-ad text_ad text_ads", id: "text-ad-slot" },
@@ -1411,27 +1401,11 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     // without an adblocker (a v13.x false-positive bug we just removed). The
     // browser still loads the image natively and onerror fires only if the
     // request itself is blocked.
-    const firstParty = [...BAIT_PATTERNS.images, ...BAIT_PATTERNS.google.slice(0, 4)]
-    // v14.1: ONLY actual image/pixel endpoints — no .js URLs. JS responses
-    // would fail Image decoding and produce `onerror` even without an
-    // adblocker, causing false positives. Every URL below returns an image
-    // or 1x1 pixel response under normal conditions.
-    const thirdParty = [
-      // Google ad image endpoints
-      "https://pagead2.googlesyndication.com/pagead/imgad?id=CICAgKDV1ZeoIxABGAEyCH-iY1qD5kPx",
-      "https://www.googleadservices.com/pagead/conversion/1/?label=test&guid=ON",
-      "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/1/?value=0&guid=ON",
-      // Tracking pixels (return 1x1 GIF/PNG under normal conditions)
-      "https://www.google-analytics.com/collect?v=1&tid=UA-0-0&cid=test&t=pageview",
-      "https://www.facebook.com/tr?id=0&ev=PageView&noscript=1",
-      "https://sb.scorecardresearch.com/p?c1=2&c2=demo",
-      "https://b.scorecardresearch.com/b?c1=2&c2=demo",
-      "https://t.co/i/adsct?type=javascript&version=2.3.30",
-      "https://analytics.twitter.com/i/adsct?type=javascript",
-      "https://px.ads.linkedin.com/collect/?pid=000&fmt=gif",
-      "https://bat.bing.com/action/0?ti=000&Ver=2",
-      "https://insight.adsrvr.org/track/pxl/?adv=00&ct=0:00",
+    const firstParty = [
+      "/api/ads/css-probe-1.gif",
+      "/api/ads/css-probe-2.gif",
     ]
+    const thirdParty: string[] = []
     const adPaths = [...firstParty, ...thirdParty]
     let blocked = 0
     let firstPartyBlocked = 0
@@ -1518,8 +1492,8 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
   const detectBaitElements = useCallback(async (): Promise<DetectionSignal | null> => {
     const baitConfigs = [
       { tag: "div", className: "ad-banner ad-container adsbox", id: "ad-slot-1" },
-      { tag: "div", className: "adsbygoogle google-ad sponsored-content", id: "google-ad" },
-      { tag: "ins", className: "adsbygoogle", attrs: { "data-ad-client": "ca-pub-1234567890" } },
+      { tag: "div", className: "ad-slot-marker google-ad sponsored-content", id: "google-ad" },
+      { tag: "ins", className: "ad-slot-marker", attrs: { "data-ad-client": "ca-pub-1234567890" } },
       { tag: "div", className: "ad-placement banner-ad advertisement", id: "banner-ad-container" },
       { tag: "div", className: "textads commercial-unit sponsored-links", id: "sponsored-links" },
       { tag: "div", className: "ad-wrapper ad-unit ad-zone", id: "ad-zone-header" },
@@ -1603,37 +1577,16 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     //                    domains are the ONLY ones reliably blocked across
     //                    the entire blocker ecosystem.
     const firstPartyAdUrls = [
-      "/api/ads/ad-banner.js",
-      "/api/ads/analytics.js",
-      "/api/ads/sponsored.js",
-      "/api/ads/banner.gif",
-      "/api/ads/tracking-pixel.gif",
-      "/api/ads/doubleclick.js",
-      "/api/pagead/show_ads.js",
-      "/api/ads/prebid.js",
-      "/api/ads/amazon-adsystem.js",
-      "/api/ads/taboola.js",
-      "/api/ads/facebook-pixel.js",
-      "/api/ads/hotjar.js",
-      "/api/ads/adsense-loader.js",
+      "/api/ads/beacon-probe",
+      "/api/ads/css-probe-1.gif",
+      "/api/ads/css-probe-2.gif",
+      "/api/ads/worker-probe-1.js",
+      "/api/ads/worker-probe-2.js",
     ]
     // These URLs are HARDCODED in every major ad-blocker filter list. If even
     // 3 of them load successfully, no adblocker is active. If 4+ are blocked
     // while controls succeed, an adblocker is mathematically guaranteed.
-    const thirdPartyAdUrls = [
-      "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
-      "https://googleads.g.doubleclick.net/pagead/id",
-      "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
-      "https://static.doubleclick.net/instream/ad_status.js",
-      "https://www.googletagmanager.com/gtag/js?id=GTM-TEST",
-      "https://www.google-analytics.com/analytics.js",
-      "https://connect.facebook.net/en_US/fbevents.js",
-      "https://static.ads-twitter.com/uwt.js",
-      "https://cdn.taboola.com/libtrc/impl.js",
-      "https://static.criteo.net/js/ld/ld.js",
-      "https://s.amazon-adsystem.com/aax2/apstag.js",
-      "https://analytics.tiktok.com/i18n/pixel/static/pixel.js",
-    ]
+    const thirdPartyAdUrls: string[] = []
 
     // v14.0: TRIPLE control fetches to eliminate network-issue false positives.
     // We need at least 2 of 3 same-origin controls to succeed before we trust
@@ -1719,7 +1672,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     const totalBlocked = firstPartyBlocked + thirdPartyBlocked
     const total = firstPartyAdUrls.length + thirdPartyAdUrls.length
     const blockedRatio = totalBlocked / total
-    const thirdPartyRatio = thirdPartyBlocked / thirdPartyAdUrls.length
+    const thirdPartyRatio = thirdPartyAdUrls.length > 0 ? thirdPartyBlocked / thirdPartyAdUrls.length : 0
 
     // v14.1: Trigger if EITHER:
     //   a) Overall ratio meets threshold (catches mixed cases), OR
@@ -1766,18 +1719,10 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
   const detectDNSBlocking = useCallback(async (timeout: number): Promise<DetectionSignal | null> => {
     // Ad domains that DNS blockers (AdGuard DNS, Pi-hole, NextDNS, etc.) will block
     const adDomains = [
-      "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
-      "https://www.googleadservices.com/pagead/conversion.js",
-      "https://static.doubleclick.net/instream/ad_status.js",
-      "https://connect.facebook.net/en_US/fbevents.js",
-      "https://cdn.taboola.com/libtrc/impl.js",
-      "https://static.criteo.net/js/ld/ld.js",
-      "https://s.amazon-adsystem.com/aax2/apstag.js",
-      "https://c.amazon-adsystem.com/aax2/apstag.js",
-      "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
-      "https://www.google-analytics.com/analytics.js",
-      "https://www.googletagmanager.com/gtag/js",
-      "https://ad.doubleclick.net/ddm/ad/",
+      "/api/ads/beacon-probe",
+      "/api/ads/css-probe-1.gif",
+      "/api/ads/css-probe-2.gif",
+      "/api/ads/worker-probe-1.js",
     ]
 
     // v11.0 - Control domains that should NEVER be blocked by any adblocker but
@@ -1785,11 +1730,9 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     // succeed before trusting any "ad blocked" claim. Without ALL controls
     // succeeding, the result is treated as a network issue (zero FP gate).
     const controlDomains = [
-      "https://www.google.com/generate_204",
-      "https://www.cloudflare.com/cdn-cgi/trace",
-      "https://detectportal.firefox.com/canonical.html",
-      "https://1.1.1.1/cdn-cgi/trace",
-      "https://www.apple.com/library/test/success.html",
+      "/api/health",
+      "/api/ping",
+      "/favicon.ico",
     ]
 
     // First, verify network connectivity with control domains
@@ -1924,27 +1867,12 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
           try {
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), 2000)
-            const testRes = await fetch(`/api/ads/ad-banner.js?_=${Date.now()}`, {
+            const testRes = await fetch(`/api/ads/beacon-probe?_=${Date.now()}`, {
               cache: "no-store",
               signal: controller.signal,
             })
             clearTimeout(timeoutId)
-            // If we get here AND response is ok, shields might not be blocking first-party
-            // But Brave shields primarily blocks third-party; test an external ad domain
-            const extController = new AbortController()
-            const extTimeout = setTimeout(() => extController.abort(), 2000)
-            try {
-              await fetch("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js", {
-                method: "HEAD",
-                mode: "no-cors",
-                cache: "no-store",
-                signal: extController.signal,
-              })
-              clearTimeout(extTimeout)
-            } catch {
-              clearTimeout(extTimeout)
-              shieldsActive = true
-            }
+            if (!testRes.ok) shieldsActive = true
           } catch {
             shieldsActive = true
           }
@@ -2646,7 +2574,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     try {
       const preconnect = document.createElement("link")
       preconnect.rel = "preconnect"
-      preconnect.href = "https://pagead2.googlesyndication.com"
+      preconnect.href = window.location.origin
       document.head.appendChild(preconnect)
 
       await new Promise((r) => setTimeout(r, 300))
@@ -2661,7 +2589,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
     try {
       const dnsPrefetch = document.createElement("link")
       dnsPrefetch.rel = "dns-prefetch"
-      dnsPrefetch.href = "//ad.doubleclick.net"
+      dnsPrefetch.href = window.location.origin
       document.head.appendChild(dnsPrefetch)
 
       await new Promise((r) => setTimeout(r, 200))
@@ -2763,16 +2691,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         "/api/ads/analytics-loader.js",
         "/api/ads/tracking-script.js",
       ]
-      const thirdPartyScripts = [
-        "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js",
-        "https://www.googletagmanager.com/gtag/js?id=GTM-TEST",
-        "https://www.google-analytics.com/analytics.js",
-        "https://securepubads.g.doubleclick.net/tag/js/gpt.js",
-        "https://connect.facebook.net/en_US/fbevents.js",
-        "https://static.ads-twitter.com/uwt.js",
-        "https://cdn.taboola.com/libtrc/impl.js",
-        "https://static.criteo.net/js/ld/ld.js",
-      ]
+      const thirdPartyScripts: string[] = []
 
       let firstPartyBlocked = 0
       let thirdPartyBlocked = 0
