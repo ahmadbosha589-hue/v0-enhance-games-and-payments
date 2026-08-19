@@ -14,8 +14,23 @@ const AD_NETWORKS = {
   "banner-network": { name: "Banner Network", minBudget: 5, cpm: 1.5 },
   "native-ads": { name: "Native Ads", minBudget: 10, cpm: 2.8 },
   "push-notifications": { name: "Push Notifications", minBudget: 5, cpm: 0.5 },
-  "popup-ads": { name: "Popup Ads", minBudget: 5, cpm: 1.0 }
+  "popup-ads": { name: "Popup Ads", minBudget: 5, cpm: 1.0 },
+  "crypto-ads": { name: "Crypto Ad Inventory (first-party review required)", minBudget: 25, cpm: 2.0 },
 }
+
+const DEFAULT_TARGETING = {
+  countries: [] as string[],
+  devices: ["desktop", "mobile", "tablet"] as ("desktop" | "mobile" | "tablet")[],
+  os: [] as string[],
+  languages: [] as string[],
+}
+
+const targetingSchema = z.object({
+  countries: z.array(z.string().length(2)).max(50).default([]),
+  devices: z.array(z.enum(["desktop", "mobile", "tablet"])).default([...DEFAULT_TARGETING.devices]),
+  os: z.array(z.string().min(2).max(32)).max(20).default([]),
+  languages: z.array(z.string().min(2).max(5)).max(20).default([]),
+}).strict().default(DEFAULT_TARGETING)
 
 const createCampaignSchema = z.object({
   name: z.string().min(3).max(100),
@@ -26,7 +41,10 @@ const createCampaignSchema = z.object({
   title: z.string().min(5).max(100),
   description: z.string().min(10).max(500).optional(),
   imageUrl: z.string().url().optional(),
-  targetCountries: z.array(z.string()).optional(),
+  targeting: targetingSchema,
+  // Legacy clients may still send only targetCountries; keep accepting it
+  // while persisting the canonical nested targeting object.
+  targetCountries: z.array(z.string().length(2)).max(50).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional()
 })
@@ -53,8 +71,9 @@ export async function POST(request: Request) {
 
     const {
       name, network, budget, dailyBudget, targetUrl,
-      title, description, imageUrl, targetCountries, startDate, endDate
+      title, description, imageUrl, targeting, targetCountries, startDate, endDate
     } = validatedData.data
+    const canonicalCountries = targeting.countries.length > 0 ? targeting.countries : (targetCountries || [])
 
     // Get user profile to check advertising balance
     const { data: profile, error: profileError } = await adminSupabase
@@ -102,7 +121,8 @@ export async function POST(request: Request) {
         title,
         description,
         image_url: imageUrl,
-        target_countries: targetCountries,
+        target_countries: canonicalCountries,
+        targeting,
         start_date: startDate || new Date().toISOString(),
         end_date: endDate,
         status: "pending",

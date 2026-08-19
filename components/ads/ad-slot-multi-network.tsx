@@ -163,9 +163,7 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     setTimeout(() => setAdError(false), 100)
   }, [])
 
-  if (!hasMarketingConsent || RENDERABLE_NETWORKS.length === 0) return null
-
-  const currentNetwork = RENDERABLE_NETWORKS[currentNetworkIndex]
+  const currentNetwork = RENDERABLE_NETWORKS[currentNetworkIndex] ?? AD_NETWORKS[0]
   const config = adConfigs?.[currentNetwork.id] as Record<string, unknown> | undefined
 
   // Render ad content
@@ -332,20 +330,7 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
     )
   }, [shouldRender, config, currentNetwork.id])
 
-  if (!hasMarketingConsent) {
-    return (
-      <div
-        className={cn(
-          "flex items-center justify-center rounded bg-muted/10 border border-dashed border-border/60 text-[10px] text-muted-foreground text-center px-2",
-          sizeConfig.class,
-          "mx-auto",
-          className
-        )}
-      >
-        Enable Marketing cookies to view partner ads
-      </div>
-    )
-  }
+  if (!hasMarketingConsent || RENDERABLE_NETWORKS.length === 0) return null
 
   return (
     <>
