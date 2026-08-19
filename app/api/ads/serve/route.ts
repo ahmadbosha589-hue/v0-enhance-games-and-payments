@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server"
 import { createAdminClient } from "@/lib/supabase/server"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/redis/rate-limiter"
 import { getConsentMarketing, getDeviceClass, getViewerHash } from "@/lib/ads/viewer-hash"
+import { isSafeTargetUrl } from "@/lib/ads/safe-target-url"
 
 export const runtime = "nodejs"
 export const maxDuration = 5
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
 
   const row = Array.isArray(data) ? data[0] : data
   if (!row?.campaign_id || !row.creative_url || !row.target_url) return noContent()
+  if (!isSafeTargetUrl(row.creative_url) || !isSafeTargetUrl(row.target_url)) return noContent()
 
   return NextResponse.json({
     campaignId: row.campaign_id,

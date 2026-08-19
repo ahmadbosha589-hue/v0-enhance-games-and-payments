@@ -8,6 +8,7 @@ import { useAdConsent } from "@/lib/hooks/use-ad-consent"
 import { useAdConfig } from "@/lib/ads/use-ad-config"
 import { subscribeAdRefresh } from "@/lib/ads/ad-refresh-bus"
 import { isNetworkRenderable } from "@/lib/ads/registry"
+import { FirstPartyAdSlot } from "@/components/ads/adapters/first-party"
 
 // 11 ad networks (excluding Google which is handled separately)
 const AD_NETWORKS = [
@@ -266,7 +267,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
 
   // Don't render anything while the shared config request is pending.
   if (hasMarketingConsent && configLoading) {
-    return null
+    return <FirstPartyAdSlot placement={position} className={className} />
   }
 
   // Marketing consent not granted: show a small, honest prompt instead of
@@ -292,7 +293,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
 
   // Don't render if no ad networks are enabled/configured
   if (enabledNetworks.length === 0) {
-    return null
+    return <FirstPartyAdSlot placement={position} className={className} />
   }
 
   // Show skeleton while lazy loading
@@ -328,6 +329,12 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
       )}
 
       <div className={getLayoutClasses()}>
+        <FirstPartyAdSlot
+          placement={position}
+          className="col-span-full"
+          width={position === "sidebar" ? 300 : 728}
+          height={position === "sidebar" ? 250 : 90}
+        />
         {networksToRender.map((network) => (
           <NetworkAdSlot
             key={network.id}

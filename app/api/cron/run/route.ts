@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
+import { timingSafeEqual } from "node:crypto"
 import { log } from "@/lib/logger"
 import { runProcessWithdrawals } from "@/app/api/cron/process-withdrawals/route"
 import { runRetryPostbacks } from "@/app/api/cron/retry-postbacks/route"
@@ -9,10 +10,18 @@ import { runCleanup } from "@/app/api/cron/cleanup/route"
 export async function GET() {
   const headersList = await headers()
   const authHeader = headersList.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
+  const cronSecret = process.env.CRON_SECRET?.trim()
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!cronSecret && process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Cron endpoint is not configured" }, { status: 503 })
+  }
+
+  if (cronSecret) {
+    const received = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : ""
+    const receivedBytes = Buffer.from(received, "utf8")
+    const expectedBytes = Buffer.from(cronSecret, "utf8")
+    const valid = receivedBytes.length === expectedBytes.length && timingSafeEqual(receivedBytes, expectedBytes)
+    if (!valid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const now = new Date()
