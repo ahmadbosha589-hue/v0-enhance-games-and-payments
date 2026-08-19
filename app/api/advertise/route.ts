@@ -4,6 +4,7 @@ import { log } from "@/lib/logger"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { isSafeTargetUrl } from "@/lib/ads/safe-target-url"
 
 // Ad Networks supported
 const AD_NETWORKS = {
@@ -37,7 +38,7 @@ const createCampaignSchema = z.object({
   network: z.enum(Object.keys(AD_NETWORKS) as [string, ...string[]]),
   budget: z.number().min(5).max(100000),
   dailyBudget: z.number().min(1).max(10000),
-  targetUrl: z.string().url(),
+  targetUrl: z.string().url().refine(isSafeTargetUrl, "Target URL must use HTTPS and a public hostname"),
   title: z.string().min(5).max(100),
   description: z.string().min(10).max(500).optional(),
   imageUrl: z.string().url().optional(),
