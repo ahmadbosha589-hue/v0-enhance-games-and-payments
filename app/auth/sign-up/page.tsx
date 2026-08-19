@@ -19,7 +19,6 @@ import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { toast } from "sonner"
 import { useTranslations } from "@/hooks/use-translations"
-import { generatePersistentFingerprint, type PersistentFingerprintResult } from "@/lib/security/persistent-fingerprint"
 import { AuthSecurityGuard, type SecurityCheckResult } from "@/components/auth/auth-security-guard"
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -68,7 +67,6 @@ export default function SignUpPage() {
   const [securityCheckResult, setSecurityCheckResult] = useState<SecurityCheckResult | null>(null)
   const [signupBlocked, setSignupBlocked] = useState(false)
   const [blockReason, setBlockReason] = useState<string | null>(null)
-  const [isCheckingSession, setIsCheckingSession] = useState(true)
   const [supabaseAvailable, setSupabaseAvailable] = useState(true)
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -92,7 +90,6 @@ export default function SignUpPage() {
     if (!supabase) {
       console.warn("[SignUp] Supabase client not available")
       setSupabaseAvailable(false)
-      setIsCheckingSession(false)
       return
     }
 
@@ -116,9 +113,7 @@ export default function SignUpPage() {
       } catch (err) {
         console.warn("[SignUp] Session check failed:", err)
       } finally {
-        if (!cancelled && !redirectingRef.current) {
-          setIsCheckingSession(false)
-        }
+        // Session confirmation is advisory; the form stays interactive.
       }
     }
 
@@ -209,12 +204,6 @@ export default function SignUpPage() {
 
     return () => clearTimeout(timer)
   }, [referralCode, isReferralFromUrl])
-
-  useEffect(() => {
-    generatePersistentFingerprint()
-      .then((result: PersistentFingerprintResult) => setDeviceFingerprint(result.fingerprint))
-      .catch(console.error)
-  }, [])
 
   const handleSecurityCheck = useCallback((result: SecurityCheckResult) => {
     setSecurityCheckResult(result)
@@ -440,16 +429,7 @@ export default function SignUpPage() {
     }
   }, [])
 
-  // Updated error messages and loading text to use translations
-  if (isCheckingSession) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="mt-4 text-sm text-muted-foreground">{t("loading", "common")}</p>
-      </div>
-    )
-  }
-
+  // Session confirmation and security checks run without blocking first paint.
   if (!supabaseAvailable) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
