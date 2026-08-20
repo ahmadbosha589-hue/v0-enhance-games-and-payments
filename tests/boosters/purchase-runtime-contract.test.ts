@@ -17,6 +17,13 @@ describe("booster purchase runtime contracts", () => {
     expect(api).not.toContain("/api/webhooks/ccpayment")
   })
 
+  it("routes CWallet payments through the verified CCPayment invoice flow", () => {
+    const api = read("app/api/boosters/route.ts")
+    expect(api).toContain("cwallet: ccpaymentEnabled")
+    expect(api).toContain('case "cwallet":\n      case "ccpayment": {')
+    expect(api).toContain("createOrder")
+    expect(api).not.toContain("cwallet.com/checkout")
+  })
   it("has a server-side booster activation path", () => {
     const claim = read("app/api/claim/route.ts")
     const migrationFiles = [

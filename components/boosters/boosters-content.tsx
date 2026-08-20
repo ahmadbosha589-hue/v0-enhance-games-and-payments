@@ -512,9 +512,11 @@ function PurchaseDialog({
                 <Label htmlFor="cwallet" className={cn("flex-1", paymentMethods.cwallet ? "cursor-pointer" : "cursor-not-allowed")}>
                   <div className="flex items-center gap-2">
                     <Coins className="h-4 w-4" />
-                    <span>CWallet</span>
+                    <span>CWallet via CCPayment</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Unavailable until a verified checkout and webhook are configured</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {paymentMethods.cwallet ? "Open CCPayment checkout and pay from your Cwallet wallet" : "Unavailable until CCPayment is configured"}
+                  </p>
                 </Label>
               </div>
               <div className={cn(

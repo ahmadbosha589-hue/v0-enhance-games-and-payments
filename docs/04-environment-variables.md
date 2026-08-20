@@ -84,11 +84,16 @@ order through CCPayment before any booster, deposit, or withdrawal state is
 changed. Risk-flagged, processing, underpaid, and expired payments are not
 automatically fulfilled.
 
+The booster UI's **CWallet via CCPayment** option intentionally uses the same
+verified CCPayment hosted invoice and `ApiDeposit` webhook path. No separate
+unverified `cwallet.com/checkout` URL or standalone callback is used; a Cwallet
+user can pay the CCPayment invoice from their Cwallet wallet.
+
 ---
 
 ## FaucetPay Integration
 
-\`\`\`env
+```env
 # FaucetPay API Key
 FAUCETPAY_API_KEY=your-faucetpay-api-key
 \`\`\`

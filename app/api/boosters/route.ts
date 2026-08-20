@@ -94,14 +94,16 @@ export async function GET(request: Request) {
       orderStatus = purchase?.payment_status ?? null
     }
 
+    const ccpaymentEnabled = Boolean(process.env.CCPAYMENT_APP_ID && process.env.CCPAYMENT_APP_SECRET)
+
     return NextResponse.json({
       tiers: tiers || getDefaultTiers(),
       activeBooster,
       orderStatus,
       paymentMethods: {
         faucetpay: true,
-        ccpayment: Boolean(process.env.CCPAYMENT_APP_ID && process.env.CCPAYMENT_APP_SECRET),
-        cwallet: false,
+        ccpayment: ccpaymentEnabled,
+        cwallet: ccpaymentEnabled,
         wallet_connect: false,
       },
     })
@@ -280,6 +282,7 @@ export async function POST(request: Request) {
         })
       }
 
+      case "cwallet":
       case "ccpayment": {
         // Real CCPayment integration - create hosted checkout URL
         const ccAppId = process.env.CCPAYMENT_APP_ID
@@ -293,6 +296,7 @@ export async function POST(request: Request) {
           }, { status: 503 })
         }
 
+        const paymentProviderLabel = paymentMethod === "cwallet" ? "CWallet through CCPayment hosted checkout" : "CCPayment"
         const expiresAt = new Date()
         expiresAt.setHours(expiresAt.getHours() + 1)
 
@@ -331,9 +335,9 @@ export async function POST(request: Request) {
             paymentAddress: order.payAddress,
             amountUsd: tierData.price_usd,
             expiresAt: expiresAt.toISOString(),
-            message: `Complete your $${tierData.price_usd} payment via CCPayment. Booster activates automatically after blockchain confirmation.`,
+            message: `Complete your $${tierData.price_usd} payment via ${paymentProviderLabel}. Booster activates automatically after blockchain confirmation.`,
             instructions: [
-              "Click the payment link to open CCPayment checkout",
+              "Open the CCPayment hosted checkout (CWallet users can pay from their Cwallet wallet)",
               "Choose your preferred cryptocurrency (BTC, ETH, USDT, and 50+ more)",
               "Send the exact amount shown",
               "Your booster will be activated automatically once confirmed",
@@ -347,53 +351,6 @@ export async function POST(request: Request) {
             message: ccErr?.message || "Could not create payment order. Please try again later.",
           }, { status: 502 })
         }
-      }
-
-      case "cwallet": {
-        // CWallet checkout is intentionally disabled until its callback
-        // signature and activation webhook are implemented.
-        const cwalletKey: string | null = null
-        if (!cwalletKey) {
-          return NextResponse.json({
-            success: false,
-            error: "Payment provider not configured",
-            message: "CWallet is temporarily unavailable. Please use CCPayment, Direct Wallet Transfer, or Pay with Satoshis.",
-          }, { status: 503 })
-        }
-
-        const expiresAt = new Date()
-        expiresAt.setHours(expiresAt.getHours() + 1)
-
-        await adminSupabase.from("booster_purchases").insert({
-          user_id: user.id,
-          booster_tier_id: tierData.id,
-          payment_method: paymentMethod,
-          payment_status: "pending",
-          payment_reference: orderId,
-          amount_usd: tierData.price_usd,
-          amount_satoshis: tierData.price_satoshis,
-        })
-
-        // CWallet hosted-checkout URL (uses public API key in URL)
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || ""
-        const cwalletUrl = `https://cwallet.com/checkout?merchant=${encodeURIComponent(cwalletKey)}&order=${encodeURIComponent(orderId)}&amount=${tierData.price_usd}&currency=USD&callback=${encodeURIComponent(appUrl + "/api/webhooks/cwallet")}`
-
-        return NextResponse.json({
-          success: true,
-          paymentCompleted: false,
-          orderId,
-          paymentMethod,
-          paymentUrl: cwalletUrl,
-          amountUsd: tierData.price_usd,
-          expiresAt: expiresAt.toISOString(),
-          message: `Complete your $${tierData.price_usd} payment via CWallet. Booster activates after confirmation.`,
-          instructions: [
-            "Click the payment link to open CWallet checkout",
-            "Sign in or create a CWallet account",
-            "Confirm the payment from your balance",
-            "Your booster will be activated automatically",
-          ],
-        })
       }
 
       case "wallet_connect": {

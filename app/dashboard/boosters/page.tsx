@@ -142,7 +142,7 @@ export default async function BoostersPage() {
           <div>
             <h4 className="text-sm font-medium mb-1">What payment methods are accepted?</h4>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Pay with your in-app satoshi balance. CCPayment becomes available after the buyer configures the merchant credentials and webhook. CWallet and direct wallet transfer are not enabled until their verified callbacks and confirmation logic are implemented.
+              Pay with your in-app satoshi balance. CCPayment and CWallet payments use the buyer-configured CCPayment hosted checkout and webhook. Direct wallet transfer remains unavailable until chain-confirmation logic is configured.
             </p>
           </div>
           <div>
