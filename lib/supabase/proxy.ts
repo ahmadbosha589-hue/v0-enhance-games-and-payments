@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+const AUTH_REFRESH_TIMEOUT_MS = 8000
+
 /**
  * Updates the session for the current request.
  * Returns early if Supabase is not configured.
@@ -66,18 +68,17 @@ export async function updateSession(request: NextRequest) {
     // followed by the dashboard layout doing ANOTHER unbounded getUser(),
     // appearing to the user as "logged out after 5 seconds").
     //
-    // We still need supabase.auth.getUser() to be CALLED — that's how
     // @supabase/ssr refreshes the access-token cookie when it's near
-    // expiry. We kick it off with a short 2-second budget purely for the
-    // side-effect of writing refreshed cookies onto supabaseResponse via
-    // the setAll() callback above. If it doesn't finish in 2s, we don't
-    // care — the cookies stay as they are and the next request will try
-    // again. Routing is decided ONLY from hasSessionCookie.
+    // expiry. We wait up to AUTH_REFRESH_TIMEOUT_MS for that operation so
+    // the rotated cookie is actually copied to the response before the
+    // browser refresh completes. Returning earlier drops the new cookie and
+    // makes the next refresh appear logged out.
+    // Routing is decided ONLY from hasSessionCookie.
     // ────────────────────────────────────────────────────────────────────
     try {
       await Promise.race([
         supabase.auth.getUser(),
-        new Promise((resolve) => setTimeout(resolve, 2000)),
+        new Promise((resolve) => setTimeout(resolve, AUTH_REFRESH_TIMEOUT_MS)),
       ])
     } catch {
       // Best effort — ignore.

@@ -96,11 +96,11 @@ export const hasSessionCookie = cache(async function hasSessionCookie(): Promise
 // Offline identity resolution (ZERO network calls) — SIGNATURE VERIFIED.
 //
 // Why this exists: when the Supabase Auth API is slow/down/rate-limited,
-// both supabase.auth.getUser() (network) and supabase.auth.getSession()
-// (which also makes a network call if the access_token is near expiry)
-// can return null even though the user's session is perfectly valid.
-// That null caused the dashboard layout to redirect to
-// /auth/login?expired=1 in a tight loop, so the dashboard "never opens".
+// supabase.auth.getUser() can return null even though the user's session is
+// perfectly valid. Running getUser() and getSession() concurrently here was
+// unsafe: both operations may rotate the same refresh token and invalidate
+// the other request. The resolver now performs one refresh-capable getUser()
+// call, then falls back to the verified cookie.
 //
 // SECURITY (RC-1). A previous version of this block solved that by
 // base64-decoding the cookie and trusting the `user` object inside it,
@@ -253,12 +253,9 @@ async function readVerifiedCookieUser(): Promise<{ user: CookieUser } | null> {
  * Strategy (in order, all fall through on failure):
  *   1. supabase.auth.getUser() — verified against Supabase Auth API.
  *      Hard 3s budget.
- *   2. supabase.auth.getSession() — may decode the JWT locally OR make a
- *      refresh-token call. Hard 1.5s budget.
- *   3. Decode the auth-token cookie payload DIRECTLY — zero network,
- *      always available as long as the cookie is present. This is the
- *      step that finally unblocks users when Supabase Auth API is
- *      misbehaving but the session cookie is still on the browser.
+ *   2. Decode the auth-token cookie payload DIRECTLY — zero network,
+ *      available when the cookie carries a valid signed access token. This
+ *      avoids a second concurrent refresh operation.
  *
  * Memoized with React.cache() so the dashboard layout and the dashboard
  * page share the same result within a single request (no duplicate
@@ -274,11 +271,10 @@ export const getUser = cache(async function getUser() {
       return cookieResult?.user ?? null
     }
 
-    // Strategies 1 and 2 used to run sequentially (3000ms budget, THEN a
-    // further 1500ms budget) — a 4.5s worst case on every dashboard
-    // request. They're independent network calls, so run them
-    // concurrently instead and take whichever verified result lands
-    // first. Worst case is now max(3000, 1500) = 3000ms, not the sum.
+    // One refresh-capable getUser() call is intentional. Do not start a
+    // concurrent getSession() call here: both can rotate the same refresh
+    // token and make a browser refresh look like an expired session.
+
     const cookieHere = await hasSessionCookie()
 
     type UserResult = Awaited<ReturnType<typeof supabase.auth.getUser>>
@@ -302,37 +298,10 @@ export const getUser = cache(async function getUser() {
       ),
     )
 
-    type SessionResult = Awaited<ReturnType<typeof supabase.auth.getSession>>
-    const sessionPromise: Promise<SessionResult> = cookieHere
-      ? supabase.auth.getSession().catch(
-          () =>
-            ({
-              data: { session: null },
-              error: null as never,
-            }) as SessionResult,
-        )
-      : Promise.resolve({ data: { session: null }, error: null as never } as SessionResult)
-    const sessionTimeout = new Promise<SessionResult>((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            data: { session: null },
-            error: null as never,
-          } as SessionResult),
-        1500,
-      ),
-    )
-
     try {
-      const [userResult, sessionResult] = await Promise.all([
-        Promise.race([userPromise, userTimeout]),
-        Promise.race([sessionPromise, sessionTimeout]),
-      ])
+      const userResult = await Promise.race([userPromise, userTimeout])
       if (!userResult.error && userResult.data?.user) {
         return userResult.data.user
-      }
-      if (sessionResult.data?.session?.user) {
-        return sessionResult.data.session.user
       }
     } catch {
       // Fall through to last-resort strategy.
