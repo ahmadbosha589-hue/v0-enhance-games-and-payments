@@ -146,11 +146,9 @@ $$;
 REVOKE ALL ON FUNCTION public.email_requires_2fa(TEXT)
   FROM PUBLIC, anon, authenticated;
 
--- Supports the lookup above. auth.users.email is citext-ish in practice but the
--- explicit lower() index guarantees the plan is an index scan, not a seq scan
--- over every user on every login attempt.
-CREATE INDEX IF NOT EXISTS idx_auth_users_email_lower
-  ON auth.users (LOWER(email));
+-- The managed `auth.users` table is owned by Supabase and cannot be indexed by
+-- the application database role. Supabase already maintains its email lookup
+-- indexes; do not attempt DDL against `auth.users` here.
 
 -- ---------------------------------------------------------------------------
 -- Housekeeping: drop stale ledger rows (called from the cleanup cron)

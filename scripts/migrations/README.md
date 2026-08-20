@@ -10,6 +10,8 @@ are applied in lexical order:
 4. `074_ad_serve_rpc.sql`
 5. `075_ad_balance_atomic.sql`
 6. `076_postback_replay_guard.sql`
+7. `077_ad_delivery_rpc_fix.sql`
+8. `078_ad_delivery_daily_fix.sql`
 
 `075_ad_balance_atomic.sql` locks the advertiser profile, inserts the campaign,
 deducts the budget, and records the transaction in one database transaction.
@@ -18,10 +20,12 @@ Use the runner from the repository root:
 
 ```bash
 node scripts/migrate.mjs --dry-run
-DATABASE_URL='[REDACTED]' node scripts/migrate.mjs --apply
+node scripts/migrate.mjs --apply
 ```
 
-The apply mode requires the native `psql` client and a `DATABASE_URL`; it never prints
-that value. Each applied file is recorded in `public.schema_migrations` with a SHA-256
-checksum. If a previously applied file changes, the runner refuses to continue. Review
-SQL and take a database backup before applying to staging or production.
+The runner loads `.env.local` without printing values and accepts
+`DATABASE_URL`, `POSTGRES_URL_NON_POOLING`, or `POSTGRES_URL`. It uses the
+Node `pg` client, so a native `psql` installation is not required. Each applied
+file is recorded in `public.schema_migrations` with a SHA-256 checksum. If a
+previously applied file changes, the runner refuses to continue. Review SQL and
+take a database backup before applying to staging or production.

@@ -1,5 +1,8 @@
--- Atomic first-party serving, click dedupe, and refund RPCs.
--- Apply after scripts/073_ad_delivery.sql.
+-- Corrective RPC migration for live delivery-schema compatibility.
+-- 074 used a conflict target named campaign_id inside a RETURNS TABLE
+-- function whose output variable has the same name. PostgreSQL resolves that
+-- as an ambiguous PL/pgSQL reference. The delivery tables have one relevant
+-- dedupe unique index, so an unqualified ON CONFLICT DO NOTHING is sufficient.
 
 CREATE OR REPLACE FUNCTION public.serve_ad(
   p_slot TEXT,
@@ -65,7 +68,7 @@ BEGIN
     v_campaign.id, p_slot, p_slot, p_viewer_hash, p_country, p_device,
     v_cost, v_bucket
   )
-  ON CONFLICT (campaign_id, viewer_hash, slot, dedupe_bucket) DO NOTHING
+  ON CONFLICT DO NOTHING
   RETURNING id INTO v_impression_id;
 
   IF v_impression_id IS NULL THEN
@@ -132,7 +135,7 @@ BEGIN
     v_campaign_id, p_impression_id, p_viewer_hash, p_country, p_device,
     TRUE, v_bucket
   )
-  ON CONFLICT (campaign_id, viewer_hash, dedupe_bucket) DO NOTHING
+  ON CONFLICT DO NOTHING
   RETURNING id INTO v_inserted;
 
   IF v_inserted IS NULL THEN
@@ -153,56 +156,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.refund_campaign(p_campaign_id UUID)
-RETURNS NUMERIC(12,4)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_campaign public.ad_campaigns;
-  v_remaining NUMERIC(12,4);
-  v_profile public.profiles;
-  v_new_balance NUMERIC(12,4);
-BEGIN
-  SELECT * INTO v_campaign
-    FROM public.ad_campaigns
-   WHERE id = p_campaign_id
-   FOR UPDATE;
-
-  IF NOT FOUND OR v_campaign.refunded_at IS NOT NULL THEN RETURN 0; END IF;
-
-  v_remaining := GREATEST(COALESCE(v_campaign.budget, 0) - COALESCE(v_campaign.spent, 0), 0);
-  SELECT * INTO v_profile FROM public.profiles WHERE id = v_campaign.user_id FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'campaign owner not found'; END IF;
-
-  v_new_balance := COALESCE(v_profile.ad_balance_usd, 0) + v_remaining;
-  UPDATE public.profiles
-     SET ad_balance_usd = v_new_balance, updated_at = NOW()
-   WHERE id = v_campaign.user_id;
-
-  UPDATE public.ad_campaigns
-     SET status = 'stopped', refunded_at = NOW(), updated_at = NOW()
-   WHERE id = v_campaign.id;
-
-  IF v_remaining > 0 THEN
-    INSERT INTO public.ad_transactions (
-      user_id, campaign_id, type, amount, balance_before,
-      balance_after, description
-    ) VALUES (
-      v_campaign.user_id, v_campaign.id, 'campaign_refund', v_remaining,
-      v_profile.ad_balance_usd, v_new_balance,
-      'Campaign refund: ' || v_campaign.name
-    );
-  END IF;
-
-  RETURN v_remaining;
-END;
-$$;
-
 REVOKE ALL ON FUNCTION public.serve_ad(TEXT, TEXT, TEXT, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.record_ad_click(BIGINT, TEXT, TEXT, TEXT)
-  FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.refund_campaign(UUID)
   FROM PUBLIC, anon, authenticated;
