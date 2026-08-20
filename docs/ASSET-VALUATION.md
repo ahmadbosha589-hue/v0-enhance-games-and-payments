@@ -20,7 +20,7 @@ Live aggregate Supabase snapshot:
 - No withdrawals.
 - No recorded operating revenue in the queried tables.
 
-The repository itself is substantial: a multi-route Next.js application with authentication, security controls, advertiser workflows, database migrations, payment/provider adapters, games, faucet features, tests, and operational documentation. That increases replacement value but does not create buyer value by itself.
+The repository itself is substantial: a multi-route Next.js application with authentication, security controls, advertiser workflows, database migrations, CCPayment v2/CWallet checkout paths, verified EVM wallet payment primitives, games, faucet features, tests, and operational documentation. That increases replacement value but does not create buyer value by itself.
 
 ## Estimated current value
 
@@ -33,7 +33,8 @@ Reasoning:
 - The project currently has no demonstrated recurring revenue.
 - User traction is very small and recent activity is limited.
 - Advertiser revenue is zero in the current database snapshot.
-- Withdrawals and payment-provider operations are not production-verified.
+- Withdrawals and provider accounts are not production-verified.
+- CCPayment v2, CWallet-via-CCPayment, and EVM wallet flows are implemented but require the buyer's provider configuration and controlled live transactions.
 - Redis, CMP/TCF, external ad providers, and authenticated rollout testing remain incomplete.
 - A buyer would assume compliance, fraud, payout, and user-acquisition risk.
 
@@ -41,7 +42,7 @@ This is closer to a pre-revenue digital asset/codebase sale than a sale of a cas
 
 ### Code/IP replacement value
 
-A reasonable asking range for the codebase, database migrations, documentation, and brand/domain package could be **$5,000–$15,000**, depending on:
+A reasonable asking range for the codebase, database migrations, documentation, and brand/domain package could be **$5,000–$12,000**, depending on:
 
 - Domain ownership and quality.
 - Whether the buyer receives clean deployment access and a handover.
@@ -50,7 +51,7 @@ A reasonable asking range for the codebase, database migrations, documentation, 
 - Security review results.
 - Whether the buyer accepts the remaining provider/compliance work.
 
-This is an asking/negotiation range, not a guaranteed sale price. Buyers usually discount replacement cost heavily when there is no revenue or audience.
+For the current package, a practical listing strategy is **$7,500 OBO**, a likely negotiated close around **$4,000–$6,000**, and a quick-sale range around **$2,500–$3,500**. These are negotiation estimates, not guaranteed sale prices.
 
 ## Market reference points
 
