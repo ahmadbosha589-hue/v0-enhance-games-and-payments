@@ -15,29 +15,33 @@
 ## Step 2: Get API Credentials
 
 1. Go to **Settings** → **API**
-2. Copy these values to your `.env.local`:
+2. Copy these values to your local secret store or `.env.local`:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **service_role** → `SUPABASE_SERVICE_ROLE_KEY`
+   - **anon public/publishable key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **service role/secret key** → `SUPABASE_SERVICE_ROLE_KEY`
+3. From **Connect**, obtain a migration-compatible PostgreSQL URL and configure one of:
+   - `DATABASE_URL`
+   - `POSTGRES_URL_NON_POOLING`
+   - `POSTGRES_URL`
+
+Never commit these values or paste them into chat.
 
 ---
 
 ## Step 3: Run Database Migrations
 
-The `/scripts` folder contains SQL migration files. Run them in order:
+Run the reviewed migration set from the repository root. The runner loads the
+local environment without printing secrets and uses the Node `pg` client.
 
-### Option A: Using Supabase Dashboard
+```bash
+node scripts/migrate.mjs --dry-run
+node scripts/migrate.mjs --apply
+```
 
-1. Go to **SQL Editor** in your Supabase dashboard
-2. Open each script file in the `/scripts` folder
-3. Run them in numerical order:
-   - `001_create_users_table.sql`
-   - `002_create_transactions_table.sql`
-   - `003_...` etc.
-
-### Option B: Using v0 (if deployed there)
-
-The scripts can be run directly from the v0 interface.
+The current hardening/delivery migrations are listed in
+`scripts/migrations/README.md` and include `071` through `078`. Do not manually
+run historical SQL files against a database that already has the application
+schema without reviewing dependencies and checksums first.
 
 ---
 
@@ -47,16 +51,19 @@ After running migrations, verify these tables exist:
 
 | Table | Purpose |
 |-------|---------|
-| `users` | User accounts and profiles |
-| `transactions` | All financial transactions |
-| `offers` | Completed offerwall offers |
-| `withdrawals` | Withdrawal requests |
-| `referrals` | Referral relationships |
-| `daily_claims` | Faucet claim tracking |
+| `profiles` | User balances, roles, activity, and account state |
+| `transactions` | User financial transactions |
+| `offerwall_conversions` | Provider conversion records |
+| `withdrawals` | Withdrawal requests and review state |
+| `claims` | Faucet claim tracking |
 | `audit_logs` | Security audit trail |
 | `system_settings` | Platform configuration |
-| `ad_settings` | Ad network configuration |
-| `fraud_flags` | Fraud detection data |
+| `ad_network_configs` | Ad provider configuration |
+| `ad_campaigns` | Advertiser campaigns and budgets |
+| `ad_delivery_impressions` | First-party campaign impressions |
+| `ad_delivery_clicks` | First-party campaign clicks |
+| `ad_campaign_daily` | Daily advertiser rollups |
+| `postback_receipts` | Provider-scoped replay ledger |
 
 ---
 

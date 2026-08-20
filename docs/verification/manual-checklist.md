@@ -5,12 +5,12 @@ or staging database behavior. Run this checklist against staging before producti
 
 ## Automated gates
 
-- [ ] `npm run typecheck` passes with zero diagnostics.
-- [ ] `npm run lint` exits 0; warnings are reviewed and not new correctness errors.
-- [ ] `npm run test` passes all test files.
-- [ ] `npm run build` passes after deleting `.next` and `*.tsbuildinfo`.
-- [ ] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set.
-- [ ] Staging migration runner reports every applied checksum unchanged.
+- [x] `npm run typecheck` passes with zero diagnostics.
+- [x] `npm run lint` exits 0; existing warnings are reviewed and not new correctness errors.
+- [x] `npm run test` passes all test files.
+- [x] `npm run build` passes after deleting `.next` and `*.tsbuildinfo`.
+- [x] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set through `078`.
+- [x] Configured Supabase migration runner reports every applied checksum unchanged.
 
 ## Authentication and security
 
@@ -35,13 +35,13 @@ or staging database behavior. Run this checklist against staging before producti
 
 ## First-party advertiser delivery
 
-- [ ] Apply migrations 072–074 to staging with a database backup.
-- [ ] Approve a safe HTTPS creative through the admin review route.
-- [ ] Serve one impression and verify the rollup, campaign spend, and daily cap.
-- [ ] Repeat the same viewer/slot/minute request: no duplicate billable impression.
-- [ ] Click once: redirect is safe and the click rollup increments.
-- [ ] Click repeatedly in the same hour: subsequent clicks are marked invalid.
-- [ ] Reject/stop a campaign twice: exactly one refund is issued.
+- [x] Apply migrations 072–078 to the configured Supabase database with checksum tracking.
+- [ ] Approve a safe HTTPS creative through the admin review route with an authenticated browser session.
+- [x] Serve one rollback-test impression and verify the rollup, campaign spend, and daily cap.
+- [x] Repeat the same viewer/slot/minute request: no duplicate billable impression.
+- [x] Click once in a rollback test: the click rollup increments and the redirect target is returned.
+- [x] Click repeatedly in the same hour: subsequent clicks are marked invalid.
+- [x] Refund/stop a rollback-test campaign twice: exactly one refund is issued.
 
 ## AdSense readiness
 

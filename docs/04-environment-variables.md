@@ -20,13 +20,16 @@ NEXT_PUBLIC_APP_URL=https://your-domain.com
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 
 # Supabase Anonymous Key (safe for client-side)
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[REDACTED_PUBLISHABLE_KEY]
 
 # Supabase Service Role Key (server-side only, keep secret!)
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=[REDACTED_SERVICE_ROLE_KEY]
 
-# Supabase JWT Secret
-SUPABASE_JWT_SECRET=your-jwt-secret
+# Migration-compatible Postgres URL (server-side only)
+DATABASE_URL=[REDACTED_DATABASE_URL]
+
+# Supabase JWT secret, if required by the deployed auth verification path
+SUPABASE_JWT_SECRET=[REDACTED_JWT_SECRET]
 \`\`\`
 
 **Where to find these:**

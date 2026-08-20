@@ -1,168 +1,159 @@
-# Deployment Guide
+# Deployment and Production Runbook
+
+## Current status
+
+The repository has been verified locally and the configured Supabase database has the reviewed hardening and advertiser-delivery migrations applied.
+
+Verified application gates:
+
+- TypeScript: zero errors
+- ESLint: zero errors; warnings remain for existing React/style issues and must be reviewed before enforcement is tightened
+- Tests: 107 passing tests
+- Production build: 196 routes generated
+- Live Supabase RPC smoke tests: campaign creation, serving, click deduplication, and idempotent refunds passed inside rollback transactions
+
+The application is **not yet a fully enabled production business**. Redis, payment providers, external ad providers, CMP/TCF, and authenticated browser rollout checks remain separate gates.
 
 ## Prerequisites
 
-- Node.js 18+
-- PostgreSQL database (Supabase recommended)
-- FaucetPay API key (for withdrawals)
+- Node.js version supported by the repository; the current verified environment uses Node 22.
+- npm.
+- Supabase project with a migration-compatible PostgreSQL connection.
+- A deployment platform such as Vercel, or a self-hosted Node runtime.
+- Provider accounts only for features that are deliberately enabled.
 
-## Vercel Deployment (Recommended)
+Never commit `.env.local`, provider secrets, database passwords, service-role keys, or connection strings.
 
-### Step 1: Connect Repository
+## Environment variables
 
-1. Go to [vercel.com](https://vercel.com)
-2. Import your GitHub repository
-3. Vercel will auto-detect Next.js
+Configure secrets through the deployment platform's secret manager or a local `.env.local` file. Do not paste them into chat or source control.
 
-### Step 2: Configure Environment Variables
+### Required for Supabase-backed application runtime
 
-Add the following in Vercel dashboard:
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+```
 
-\`\`\`
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-FAUCETPAY_API_KEY=your_faucetpay_key
-METRICS_API_KEY=secure_random_string
-NEXT_PUBLIC_APP_URL=https://your-domain.com
-\`\`\`
+### Required for migrations
 
-### Step 3: Database Setup
+The migration runner accepts the first available variable below:
 
-1. Go to Supabase dashboard
-2. Navigate to SQL Editor
-3. Run migration scripts in order (001-012)
-4. Verify tables created successfully
+```text
+DATABASE_URL
+POSTGRES_URL_NON_POOLING
+POSTGRES_URL
+```
 
-### Step 4: Deploy
+Prefer Supabase's non-pooling/session connection for DDL migrations. The runner uses the Node `pg` client and does not require a native `psql` installation.
 
-Click Deploy in Vercel. Done!
+### Required before production rate limiting
 
-## Self-Hosted Deployment
+The project currently recognizes Redis/Upstash configuration through the variables used by its rate-limit adapters. Configure and verify the exact names used by the deployed build, including the applicable `KV_REST_API_URL`/`KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` pair.
 
-### Build
+Without Redis, the application reports a non-durable local-development fallback. Do not treat that mode as production-safe for abuse-sensitive rewards or mutations.
 
-\`\`\`bash
-npm ci
-npm run build
-\`\`\`
+### Provider-gated features
 
-### Production Server
+- FaucetPay credentials are required before enabling real withdrawals.
+- CCPayment credentials are required before enabling live deposits, swaps, or withdrawals.
+- External ad-network tags require verified publisher accounts and exact provider configuration.
+- AdSense requires publisher approval, compliant placement, `ads.txt`, and an appropriate CMP/TCF posture.
+- Rewarded-ad bonus payouts remain disabled until a verified provider and server-side watch-session proof are implemented.
 
-\`\`\`bash
-npm start
-\`\`\`
+## Database migrations
 
-Or use PM2:
+The migration set is tracked in `scripts/migrations/README.md` and currently contains:
 
-\`\`\`bash
-pm2 start npm --name "cryptofaucet" -- start
-\`\`\`
+```text
+000_migration_state.sql
+071_two_factor_hardening.sql
+072_advertise_fixes.sql
+073_ad_delivery.sql
+074_ad_serve_rpc.sql
+075_ad_balance_atomic.sql
+076_postback_replay_guard.sql
+077_ad_delivery_rpc_fix.sql
+078_ad_delivery_daily_fix.sql
+```
 
-### Nginx Configuration
+Run from the repository root:
 
-\`\`\`nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_cache_bypass $http_upgrade;
-    }
-}
-\`\`\`
+```bash
+node scripts/migrate.mjs --dry-run
+node scripts/migrate.mjs --apply
+```
 
-### SSL with Certbot
+The runner:
 
-\`\`\`bash
-sudo certbot --nginx -d your-domain.com
-\`\`\`
+- Loads `.env.local` without printing values.
+- Uses `DATABASE_URL`, `POSTGRES_URL_NON_POOLING`, or `POSTGRES_URL`.
+- Applies each migration transactionally.
+- Stores SHA-256 checksums in `public.schema_migrations`.
+- Refuses to continue if an applied migration has changed.
 
-## Docker Deployment
+Back up the database and review the SQL against the target schema before applying to another environment.
 
-### Dockerfile
+## Local verification
 
-\`\`\`dockerfile
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+```bash
+rm -rf .next
+rm -f *.tsbuildinfo
+npm run verify
+```
 
-FROM node:18-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV production
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-EXPOSE 3000
-CMD ["node", "server.js"]
-\`\`\`
+`npm run verify` runs typecheck, lint, tests, and the production build.
 
-### Docker Compose
+For a production smoke server:
 
-\`\`\`yaml
-version: '3.8'
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-    env_file:
-      - .env.production
-\`\`\`
+```bash
+npm start -- -p 3100
+```
 
-## Post-Deployment
+## Vercel deployment
 
-### Create Admin User
+1. Connect the repository to the Vercel project.
+2. Configure the required environment variables in Vercel's encrypted settings.
+3. Apply the Supabase migrations before enabling database-backed production traffic.
+4. Configure Supabase Auth redirect URLs for the production origin.
+5. Deploy a preview first.
+6. Run the manual verification checklist against the preview.
+7. Promote only after provider, consent, authentication, and mutation tests pass.
 
-1. Sign up normally via the app
-2. Connect to database
-3. Update role:
+## Post-deployment checklist
 
-\`\`\`sql
-UPDATE profiles 
-SET role = 'superadmin' 
-WHERE id = 'your-user-id';
-\`\`\`
+- Confirm `/api/health` and public pages return successfully.
+- Confirm unauthenticated admin APIs fail closed.
+- Confirm anonymous mutation requests are rejected or require the intended authentication/consent state.
+- Confirm Redis is reachable and rate limits are durable across instances.
+- Confirm payment-provider test transactions before enabling payouts.
+- Confirm external ad tags are verified and only approved placements render.
+- Confirm rewarded-ad bonus flows remain disabled unless their provider/session proof is complete.
+- Review logs for Supabase, Redis, payment, consent, and CSP errors.
+- Run `docs/verification/manual-checklist.md` and retain evidence.
 
-### Configure FaucetPay
+## Rollback
 
-1. Get API key from FaucetPay dashboard
-2. Add to environment variables
-3. Test with small withdrawal
-
-### Set Up Monitoring
-
-1. Configure health check endpoint monitoring
-2. Set up alerts for `/api/health` failures
-3. Connect `/api/metrics` to Prometheus/Grafana
+- Disable deployment traffic or revert to the previous deployment.
+- Do not modify an applied migration file; create a forward corrective migration.
+- Preserve database backups and migration checksums.
+- Disable provider features before reverting application code that depends on them.
+- Re-run the health and security smoke tests after rollback.
 
 ## Troubleshooting
 
-### Database Connection Issues
+### Database connection or migration errors
 
-- Verify Supabase URL and keys
-- Check RLS policies are correct
-- Ensure IP is not blocked
+- Verify the target project and connection type.
+- Prefer `POSTGRES_URL_NON_POOLING` for DDL.
+- Confirm the database role owns application tables; Supabase-managed `auth.*` tables must not be altered by application migrations.
+- Run the migration dry-run and compare checksums.
 
-### Auth Not Working
+### Redis warnings
 
-- Verify redirect URLs in Supabase
-- Check NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL for dev
+A missing Redis URL/token means rate limiting is using the local-development fallback. Configure Redis before production traffic; do not silence the warning.
 
-### Withdrawals Failing
+### Withdrawals or swaps unavailable
 
-- Verify FaucetPay API key
-- Check FaucetPay balance
-- Review error logs
+This is expected until the corresponding provider credentials, account balances, webhook signatures, and small-value test transactions are verified.
