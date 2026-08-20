@@ -2,15 +2,15 @@ import { Suspense } from "react"
 import { getUser, getProfile } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Heart, Play, Gift, TrendingUp, Info, Coins, Clock, CheckCircle2 } from "lucide-react"
+import { Heart, Info, Megaphone, ShieldCheck, WalletCards } from "lucide-react"
 import { SupportUsContent } from "@/components/support-us/support-us-content"
 
 export const metadata = {
-  title: "Support Us | CryptoFaucet",
-  description: "Watch ads to support the website and earn rewards",
+  title: "Support Us | Faucero",
+  description: "Support Faucero by viewing available non-Google partner advertising inventory.",
 }
 
 function SupportUsSkeleton() {
@@ -30,139 +30,77 @@ export default async function SupportUsPage() {
   if (!profile) redirect("/auth/login?redirect=/dashboard/support-us")
 
   return (
-    <div className="space-y-6 sm:space-y-8 p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Heart className="h-6 w-6 sm:h-7 sm:w-7 text-red-500" />
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Support Us</h1>
-          <Badge variant="secondary" className="text-xs bg-red-500/10 text-red-500">Earn Rewards</Badge>
+    <div className="space-y-6 p-4 sm:space-y-8 sm:p-6">
+      <header className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Heart className="h-6 w-6 text-red-500 sm:h-7 sm:w-7" aria-hidden="true" />
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Support Us</h1>
+          <Badge variant="secondary" className="bg-red-500/10 text-xs text-red-500">
+            Partner ads
+          </Badge>
         </div>
-        <p className="text-sm sm:text-base text-muted-foreground">
-          Watch ads to support our platform and earn rewards at the same time
+        <p className="text-sm text-muted-foreground sm:text-base">
+          Help keep Faucero running by viewing verified partner advertising inventory.
         </p>
-      </div>
+      </header>
 
-      {/* Info Alert */}
-      <Alert className="border-red-500/30 bg-red-500/5">
-        <Info className="h-4 w-4 text-red-500" />
+      <Alert className="border-primary/30 bg-primary/5">
+        <Info className="h-4 w-4 text-primary" />
         <AlertDescription className="text-xs sm:text-sm">
-          <strong>How it works:</strong> Watch 3 ads simultaneously to earn <strong>$0.0001</strong> per
-          ad — <strong>$0.0003</strong> total per session. After claiming, scroll down to watch our 11
-          partner ad networks and <strong>triple your reward</strong> to <strong>$0.0009</strong> USDT
-          (sent straight to FaucetPay).
+          This page shows non-Google partner inventory only. Marketing consent and a verified provider
+          configuration are required before third-party ads appear. Rewarded watch payouts are currently
+          unavailable, so no payout is promised for viewing ads.
         </AlertDescription>
       </Alert>
 
-      {/* Stats Cards */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-green-500/10 shrink-0">
-                <Coins className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Reward Per Ad</p>
-                <p className="text-sm sm:text-lg font-bold text-green-500">$0.0001</p>
+      <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Megaphone className="h-5 w-5 text-primary" aria-hidden="true" />
+              <div>
+                <p className="text-xs text-muted-foreground">Partner surfaces</p>
+                <p className="text-lg font-bold">11 partner ad networks</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-blue-500/10 shrink-0">
-                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Ad Duration</p>
-                <p className="text-sm sm:text-lg font-bold text-blue-500">60 seconds</p>
+        <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-emerald-500" aria-hidden="true" />
+              <div>
+                <p className="text-xs text-muted-foreground">Google inventory</p>
+                <p className="text-lg font-bold">Excluded here</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
         <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-amber-500/10 shrink-0">
-                <Play className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Ads Per Session</p>
-                <p className="text-sm sm:text-lg font-bold text-amber-500">3 Ads</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-red-500/20 bg-gradient-to-br from-red-500/5 to-transparent">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-red-500/10 shrink-0">
-                <Heart className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Daily Limit</p>
-                <p className="text-sm sm:text-lg font-bold text-red-500">Unlimited</p>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <WalletCards className="h-5 w-5 text-amber-500" aria-hidden="true" />
+              <div>
+                <p className="text-xs text-muted-foreground">Rewarded payouts</p>
+                <p className="text-lg font-bold">Unavailable</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content */}
       <Suspense fallback={<SupportUsSkeleton />}>
         <SupportUsContent userId={user.id} />
       </Suspense>
 
-      {/* Benefits Section */}
       <Card className="border-muted">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-            <Gift className="h-5 w-5 text-primary" />
-            Why Support Us?
-          </CardTitle>
+          <CardTitle className="text-base sm:text-lg">Why support Faucero?</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">Keep the Faucet Running</p>
-              <p className="text-xs text-muted-foreground">
-                Your ad views directly fund the faucet rewards for all users.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">Earn While Supporting</p>
-              <p className="text-xs text-muted-foreground">
-                Get rewarded for every ad you watch - it&apos;s a win-win!
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">Help Us Grow</p>
-              <p className="text-xs text-muted-foreground">
-                More support means bigger prizes and better features for everyone.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium">Counts Toward Tournaments</p>
-              <p className="text-xs text-muted-foreground">
-                Your support earnings count toward the Top Earner tournament!
-              </p>
-            </div>
-          </div>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>Partner advertising helps fund hosting, development, security monitoring, and future faucet improvements.</p>
+          <p>Only provider tags and campaigns verified by the operator should be enabled. Empty or unverified slots are hidden rather than presented as live ads.</p>
+          <p>For cookie choices, use the site&apos;s Cookie Preferences page.</p>
         </CardContent>
       </Card>
     </div>
