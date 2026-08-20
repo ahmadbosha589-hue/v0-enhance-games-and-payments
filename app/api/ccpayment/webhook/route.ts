@@ -59,6 +59,10 @@ export async function POST(request: Request) {
       return reject("Invalid or expired timestamp", 401)
     }
 
+    if (!process.env.CCPAYMENT_APP_ID || !process.env.CCPAYMENT_APP_SECRET) {
+      return reject("CCPayment webhook is not configured", 503)
+    }
+
     const ccpayment = getCCPaymentClient()
     if (!ccpayment.verifyWebhook(signature, timestamp, body)) {
       log.warn("CCPayment webhook signature verification failed")
