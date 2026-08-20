@@ -7,7 +7,7 @@ import { isNetworkRenderable, providerNetworkId } from "@/lib/ads/registry"
 const DEFAULT_CONFIGS: Record<string, any> = {
   google: {
     enabled: true,
-    publisherId: process.env.GOOGLE_ADSENSE_PUBLISHER_ID || "",
+    publisherId: process.env.NEXT_PUBLIC_ADSENSE_PUBLISHER_ID || process.env.GOOGLE_ADSENSE_PUBLISHER_ID || "",
     defaultSlot: process.env.GOOGLE_ADSENSE_SLOT_ID || "",
     adSlots: {
       header: process.env.GOOGLE_ADSENSE_HEADER_SLOT || "",

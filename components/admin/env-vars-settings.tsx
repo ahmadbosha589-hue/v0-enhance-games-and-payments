@@ -43,6 +43,16 @@ const ENV_VAR_CONFIGS: EnvVarConfig[] = [
   { key: "CCPAYMENT_APP_ID", label: "CCPayment App ID", description: "App ID for CCPayment", category: "payments", isSet: false },
   { key: "CCPAYMENT_APP_SECRET", label: "CCPayment App Secret", description: "App Secret for CCPayment v2 HMAC signing", category: "payments", isSet: false },
   { key: "CCPAYMENT_USD_FIAT_ID", label: "CCPayment USD Fiat ID", description: "Fiat ID for USD invoice pricing; defaults to 1033", category: "payments", isSet: false },
+  { key: "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID", label: "WalletConnect Project ID", description: "Public Reown project ID for QR wallet sessions", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_CHAIN_ID", label: "Wallet Payment Chain ID", description: "EVM chain ID for ERC-20 booster payments", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_CHAIN_NAME", label: "Wallet Payment Chain Name", description: "Display name for the configured EVM chain", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_RPC_URL", label: "Wallet Payment RPC URL", description: "HTTPS RPC endpoint used to verify receipts", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_TOKEN_ADDRESS", label: "Wallet Payment Token", description: "ERC-20 token contract address", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_DESTINATION_ADDRESS", label: "Wallet Payment Destination", description: "Treasury address receiving ERC-20 payments", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_TOKEN_SYMBOL", label: "Wallet Payment Token Symbol", description: "Configured ERC-20 symbol, for example USDT", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_TOKEN_DECIMALS", label: "Wallet Payment Token Decimals", description: "ERC-20 decimals, commonly 6 for USDT", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_USD_RATE", label: "Wallet Payment USD Rate", description: "Configured USD value per token", category: "payments", isSet: false },
+  { key: "WALLET_PAYMENT_CONFIRMATIONS", label: "Wallet Payment Confirmations", description: "Required blockchain confirmations", category: "payments", isSet: false },
   { key: "CWALLET_API_KEY", label: "CWallet API Key", description: "API key for CWallet integration", category: "payments", isSet: false },
 
   // Security

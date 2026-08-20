@@ -16,7 +16,7 @@
 
 ### Supabase
 
-The configured Supabase database contains the applied migration set through `082`:
+The configured Supabase database contains the applied migration set through `083`:
 
 - Two-factor hardening.
 - Advertiser contracts and schema fixes.

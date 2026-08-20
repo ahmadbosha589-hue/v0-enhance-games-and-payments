@@ -29,6 +29,16 @@ const ENV_VAR_CONFIG: EnvVarConfig[] = [
   { key: "CCPAYMENT_APP_ID", category: "payment", isSecret: false, description: "CCPayment App ID for deposits" },
   { key: "CCPAYMENT_APP_SECRET", category: "payment", isSecret: true, description: "CCPayment App Secret for v2 signing" },
   { key: "CCPAYMENT_USD_FIAT_ID", category: "payment", isSecret: false, description: "CCPayment fiat ID for USD invoice pricing (default 1033)" },
+  { key: "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID", category: "payment", isSecret: false, description: "Reown/WalletConnect public project ID" },
+  { key: "WALLET_PAYMENT_CHAIN_ID", category: "payment", isSecret: false, description: "EVM chain ID for wallet booster payments" },
+  { key: "WALLET_PAYMENT_CHAIN_NAME", category: "payment", isSecret: false, description: "Display name for wallet payment chain" },
+  { key: "WALLET_PAYMENT_RPC_URL", category: "payment", isSecret: false, description: "HTTPS JSON-RPC endpoint for receipt verification" },
+  { key: "WALLET_PAYMENT_TOKEN_ADDRESS", category: "payment", isSecret: false, description: "ERC-20 token contract address" },
+  { key: "WALLET_PAYMENT_DESTINATION_ADDRESS", category: "payment", isSecret: false, description: "Treasury wallet receiving ERC-20 payments" },
+  { key: "WALLET_PAYMENT_TOKEN_SYMBOL", category: "payment", isSecret: false, description: "ERC-20 token symbol" },
+  { key: "WALLET_PAYMENT_TOKEN_DECIMALS", category: "payment", isSecret: false, description: "ERC-20 token decimals" },
+  { key: "WALLET_PAYMENT_USD_RATE", category: "payment", isSecret: false, description: "Configured USD value per token" },
+  { key: "WALLET_PAYMENT_CONFIRMATIONS", category: "payment", isSecret: false, description: "Required on-chain confirmations" },
 
   // ===== APP CONFIG =====
   { key: "NEXT_PUBLIC_APP_URL", category: "other", isSecret: false, description: "Public app URL (e.g., https://faucero.com)" },

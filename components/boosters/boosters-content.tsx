@@ -19,6 +19,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { sendErc20Payment } from "@/lib/wallet/client"
+import type { WalletPaymentDetails } from "@/lib/wallet/evm-payment"
 
 interface BoostersContentProps {
   userId: string
@@ -276,6 +278,8 @@ function PurchaseDialog({
     amountBtc?: string
     expiresAt: string
     instructions?: string[]
+    walletPayment?: WalletPaymentDetails
+    transactionHash?: string
   } | null
   onCancelPendingPayment?: () => void
 }) {
@@ -321,8 +325,16 @@ function PurchaseDialog({
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
               <p className="text-sm text-muted-foreground mb-1">Amount to send</p>
               <p className="text-2xl font-bold text-amber-500">${pendingPayment.amountUsd}</p>
-              {pendingPayment.amountBtc && (
+              {pendingPayment.amountBtc && !pendingPayment.walletPayment && (
                 <p className="text-sm text-muted-foreground">({pendingPayment.amountBtc} BTC)</p>
+              )}
+              {pendingPayment.walletPayment && (
+                <p className="text-sm text-muted-foreground">
+                  {pendingPayment.walletPayment.amountToken} {pendingPayment.walletPayment.tokenSymbol} on {pendingPayment.walletPayment.chainName}
+                </p>
+              )}
+              {pendingPayment.transactionHash && (
+                <p className="text-xs text-muted-foreground break-all mt-1">Transaction: {pendingPayment.transactionHash}</p>
               )}
             </div>
 
@@ -527,9 +539,11 @@ function PurchaseDialog({
                 <Label htmlFor="wallet_connect" className={cn("flex-1", paymentMethods.wallet_connect ? "cursor-pointer" : "cursor-not-allowed")}>
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
-                    <span>Direct Wallet Transfer</span>
+                    <span>WalletConnect / EVM Wallet</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Unavailable until a verified chain watcher is configured</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {paymentMethods.wallet_connect ? "ERC-20 payment with MetaMask or WalletConnect and server-side confirmation" : "Unavailable until the EVM chain, token, destination, RPC, and confirmations are configured"}
+                  </p>
                 </Label>
               </div>
             </RadioGroup>
@@ -587,6 +601,8 @@ export function BoostersContent({ userId }: BoostersContentProps) {
     amountBtc?: string
     expiresAt: string
     instructions?: string[]
+    walletPayment?: WalletPaymentDetails
+    transactionHash?: string
   } | null>(null)
 
   const { data, isLoading, error, mutate } = useSWR(
@@ -614,6 +630,45 @@ export function BoostersContent({ userId }: BoostersContentProps) {
     setSelectedTier(null)
     mutate()
   }, [pendingOrder?.orderStatus, selectedTier?.name, mutate])
+
+  useEffect(() => {
+    const walletPayment = pendingPayment?.walletPayment
+    const transactionHash = pendingPayment?.transactionHash
+    if (!walletPayment || !transactionHash) return
+
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const verify = async () => {
+      try {
+        const response = await fetch("/api/boosters/wallet/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: pendingPayment.orderId, transactionHash }),
+        })
+        const result = await response.json()
+        if (stopped) return
+
+        if (response.status === 202) {
+          timer = setTimeout(verify, 10000)
+          return
+        }
+        if (!response.ok) {
+          toast.error("Wallet payment could not be verified", { description: result.error })
+          return
+        }
+        mutate()
+      } catch {
+        if (!stopped) timer = setTimeout(verify, 10000)
+      }
+    }
+
+    void verify()
+    return () => {
+      stopped = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [pendingPayment?.orderId, pendingPayment?.transactionHash, pendingPayment?.walletPayment, mutate])
 
   // Fetch user balance for satoshi payments
   const { data: profileData, mutate: mutateProfile } = useSWR(
@@ -655,6 +710,26 @@ export function BoostersContent({ userId }: BoostersContentProps) {
           mutateProfile() // Refresh balance
           setDialogOpen(false)
           setSelectedTier(null)
+        } else if (paymentMethod === "wallet_connect" && result.walletPayment) {
+          try {
+            const transactionHash = await sendErc20Payment(result.walletPayment as WalletPaymentDetails)
+            setPendingPayment({
+              orderId: result.orderId,
+              paymentMethod: result.paymentMethod,
+              amountUsd: result.amountUsd,
+              expiresAt: result.expiresAt,
+              instructions: result.instructions,
+              walletPayment: result.walletPayment,
+              transactionHash,
+            })
+            toast.info("Wallet transaction submitted", {
+              description: "Waiting for blockchain confirmations before activating the booster.",
+            })
+          } catch (walletError) {
+            toast.error("Wallet payment was not sent", {
+              description: walletError instanceof Error ? walletError.message : "The wallet rejected the transaction.",
+            })
+          }
         } else {
           // Crypto payment - show payment instructions / hosted checkout / address
           setPendingPayment({

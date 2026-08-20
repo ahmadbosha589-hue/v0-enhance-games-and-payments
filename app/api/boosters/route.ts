@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { decimalToBaseUnits, getWalletPaymentConfig } from "@/lib/wallet/evm-payment"
 
 export const dynamic = "force-dynamic"
 
@@ -95,6 +96,7 @@ export async function GET(request: Request) {
     }
 
     const ccpaymentEnabled = Boolean(process.env.CCPAYMENT_APP_ID && process.env.CCPAYMENT_APP_SECRET)
+    const walletPaymentEnabled = Boolean(getWalletPaymentConfig())
 
     return NextResponse.json({
       tiers: tiers || getDefaultTiers(),
@@ -104,7 +106,7 @@ export async function GET(request: Request) {
         faucetpay: true,
         ccpayment: ccpaymentEnabled,
         cwallet: ccpaymentEnabled,
-        wallet_connect: false,
+        wallet_connect: walletPaymentEnabled,
       },
     })
   } catch (error) {
@@ -354,23 +356,21 @@ export async function POST(request: Request) {
       }
 
       case "wallet_connect": {
-        // Direct wallet checkout is disabled until a verified chain watcher
-        // can match confirmations to the pending purchase.
-        const btcAddress = ""
-
-        if (!btcAddress) {
+        const walletConfig = getWalletPaymentConfig()
+        if (!walletConfig) {
           return NextResponse.json({
             success: false,
             error: "Direct wallet transfer not configured",
-            message:
-              "The platform's BTC deposit address has not been configured yet. Please use Pay with Satoshis, CCPayment, or contact support.",
+            message: "The buyer must configure the EVM chain, ERC-20 token, destination wallet, RPC endpoint, token rate, and confirmation count.",
           }, { status: 503 })
         }
 
         const expiresAt = new Date()
         expiresAt.setHours(expiresAt.getHours() + 1)
+        const amountToken = (tierData.price_usd / Number(walletConfig.tokenUsdRate)).toFixed(walletConfig.tokenDecimals)
+        const amountBaseUnits = decimalToBaseUnits(amountToken, walletConfig.tokenDecimals)
 
-        await adminSupabase.from("booster_purchases").insert({
+        const { error: purchaseInsertError } = await adminSupabase.from("booster_purchases").insert({
           user_id: user.id,
           booster_tier_id: tierData.id,
           payment_method: paymentMethod,
@@ -379,36 +379,33 @@ export async function POST(request: Request) {
           amount_usd: tierData.price_usd,
           amount_satoshis: tierData.price_satoshis,
         })
-
-        // Use a live BTC price for accuracy; never issue a stale simulated quote.
-        let btcPrice: number
-        try {
-          const { getBTCPrice } = await import("@/lib/ccpayment/client")
-          btcPrice = await getBTCPrice()
-        } catch (error) {
-          console.error("Unable to fetch BTC price for booster checkout:", error)
-          return NextResponse.json({
-            error: "Live BTC pricing is temporarily unavailable. Please try again later.",
-          }, { status: 503 })
-        }
-        const amountBtc = (tierData.price_usd / btcPrice).toFixed(8)
+        if (purchaseInsertError) throw purchaseInsertError
 
         return NextResponse.json({
           success: true,
           paymentCompleted: false,
           orderId,
           paymentMethod,
-          paymentAddress: btcAddress,
           amountUsd: tierData.price_usd,
-          amountBtc,
           expiresAt: expiresAt.toISOString(),
-          message: `Send exactly ${amountBtc} BTC ($${tierData.price_usd}) to the address. Include the order ID in your reference if possible.`,
+          walletPayment: {
+            chainId: walletConfig.chainId,
+            chainName: walletConfig.chainName,
+            tokenAddress: walletConfig.tokenAddress,
+            destinationAddress: walletConfig.destinationAddress,
+            tokenSymbol: walletConfig.tokenSymbol,
+            tokenDecimals: walletConfig.tokenDecimals,
+            amountToken,
+            amountBaseUnits,
+            confirmations: walletConfig.confirmations,
+            rpcUrl: walletConfig.rpcUrl,
+          },
+          message: `Connect your wallet and send ${amountToken} ${walletConfig.tokenSymbol}. The booster activates after ${walletConfig.confirmations} confirmations.`,
           instructions: [
-            `Send exactly ${amountBtc} BTC to the address below`,
-            "Use any BTC wallet (Trust, MetaMask BTC, Phantom, hardware wallets, exchanges)",
-            `Reference / memo: ${orderId}`,
-            "After 1-3 confirmations, your booster will be auto-activated",
-            "Payment expires in 1 hour - keep this page open or note your order ID",
+            `Connect a wallet on ${walletConfig.chainName}`,
+            `Approve the ERC-20 ${walletConfig.tokenSymbol} transfer to the configured destination`,
+            `Send exactly ${amountToken} ${walletConfig.tokenSymbol}`,
+            `Wait for ${walletConfig.confirmations} blockchain confirmations`,
           ],
         })
       }

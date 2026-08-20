@@ -80,6 +80,7 @@ The migration set is tracked in `scripts/migrations/README.md` and currently con
 080_booster_claim_bonus.sql
 081_booster_transaction_type.sql
 082_booster_claim_constraint.sql
+083_wallet_payment_tx_unique.sql
 ```
 
 Run from the repository root:

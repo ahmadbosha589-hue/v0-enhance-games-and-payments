@@ -1,3 +1,4 @@
-# Generated from lib/ads/registry.ts.
-# No verified publisher network is enabled in this deployment; do not add
-# seller lines until the corresponding tag and account have been verified.
+# Operator-supplied Google AdSense seller declaration.
+# AdSense rendering remains gated by publisher approval, eligible placement,
+# consent, and a verified production tag; this line alone does not claim approval.
+google.com, pub-7529947159464197, DIRECT, f08c47fec0942fa0

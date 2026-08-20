@@ -9,7 +9,7 @@ or staging database behavior. Run this checklist against staging before producti
 - [x] `npm run lint` exits 0; existing warnings are reviewed and not new correctness errors.
 - [x] `npm run test` passes all test files.
 - [x] `npm run build` passes after deleting `.next` and `*.tsbuildinfo`.
-- [x] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set through `082`.
+- [x] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set through `083`.
 - [x] Configured Supabase migration runner reports every applied checksum unchanged.
 
 ## Authentication and security
@@ -35,7 +35,7 @@ or staging database behavior. Run this checklist against staging before producti
 
 ## First-party advertiser delivery
 
-- [x] Apply migrations 072–082 to the configured Supabase database with checksum tracking.
+- [x] Apply migrations 072–083 to the configured Supabase database with checksum tracking.
 - [ ] Approve a safe HTTPS creative through the admin review route with an authenticated browser session.
 - [x] Serve one rollback-test impression and verify the rollup, campaign spend, and daily cap.
 - [x] Repeat the same viewer/slot/minute request: no duplicate billable impression.

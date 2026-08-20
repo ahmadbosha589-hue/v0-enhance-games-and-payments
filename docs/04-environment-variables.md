@@ -58,6 +58,32 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxx
 
 ---
 
+## Direct Wallet / WalletConnect ERC-20 Payments
+
+The booster wallet option is configuration-gated and verifies the transaction on
+chain before activation. Configure all of these values in the buyer's deployment:
+
+```env
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your-reown-project-id
+WALLET_PAYMENT_CHAIN_ID=1
+WALLET_PAYMENT_CHAIN_NAME=Ethereum Mainnet
+WALLET_PAYMENT_RPC_URL=https://your-rpc-provider.example
+WALLET_PAYMENT_TOKEN_ADDRESS=0xYourUsdtContract
+WALLET_PAYMENT_DESTINATION_ADDRESS=0xYourTreasuryWallet
+WALLET_PAYMENT_TOKEN_SYMBOL=USDT
+WALLET_PAYMENT_TOKEN_DECIMALS=6
+WALLET_PAYMENT_USD_RATE=1
+WALLET_PAYMENT_CONFIRMATIONS=3
+```
+
+The server verifies the configured chain, ERC-20 contract, destination address,
+transfer amount, successful receipt, and confirmation count before calling the
+idempotent booster activation RPC. `WALLET_PAYMENT_RPC_URL`, token contract,
+and destination must be for the same network; never use a wallet private key in
+the application or environment.
+
+---
+
 ## CCPayment v2 Integration
 
 ```env
