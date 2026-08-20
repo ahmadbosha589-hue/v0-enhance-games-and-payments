@@ -57,7 +57,7 @@ Without Redis, the application reports a non-durable local-development fallback.
 ### Provider-gated features
 
 - FaucetPay credentials are required before enabling real withdrawals.
-- CCPayment credentials are required before enabling live deposits, swaps, or withdrawals.
+- CCPayment v2 credentials are required before enabling live deposits, swaps, or withdrawals. Configure the production webhook and reconcile order status through the provider API.
 - External ad-network tags require verified publisher accounts and exact provider configuration.
 - AdSense requires publisher approval, compliant placement, `ads.txt`, and an appropriate CMP/TCF posture.
 - Rewarded-ad bonus payouts remain disabled until a verified provider and server-side watch-session proof are implemented.
@@ -76,6 +76,10 @@ The migration set is tracked in `scripts/migrations/README.md` and currently con
 076_postback_replay_guard.sql
 077_ad_delivery_rpc_fix.sql
 078_ad_delivery_daily_fix.sql
+079_booster_purchase_atomic.sql
+080_booster_claim_bonus.sql
+081_booster_transaction_type.sql
+082_booster_claim_constraint.sql
 ```
 
 Run from the repository root:

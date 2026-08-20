@@ -83,7 +83,8 @@ export async function POST(request: Request) {
           coinFrom: fromCoinId,
           coinTo: toCoinId,
           amount,
-          merchantOrderId
+          merchantOrderId,
+          amountOutMinimum: quote.amountOutMinimum || quote.toAmount,
         })
 
         const { error: insertError } = await supabase.from("ccpayment_swaps").insert({

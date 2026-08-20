@@ -41,7 +41,8 @@ const ENV_VAR_CONFIGS: EnvVarConfig[] = [
   // Payment Processors
   { key: "FAUCETPAY_API_KEY", label: "FaucetPay API Key", description: "API key for FaucetPay withdrawals", category: "payments", isSet: false },
   { key: "CCPAYMENT_APP_ID", label: "CCPayment App ID", description: "App ID for CCPayment", category: "payments", isSet: false },
-  { key: "CCPAYMENT_APP_SECRET", label: "CCPayment App Secret", description: "App Secret for CCPayment", category: "payments", isSet: false },
+  { key: "CCPAYMENT_APP_SECRET", label: "CCPayment App Secret", description: "App Secret for CCPayment v2 HMAC signing", category: "payments", isSet: false },
+  { key: "CCPAYMENT_USD_FIAT_ID", label: "CCPayment USD Fiat ID", description: "Fiat ID for USD invoice pricing; defaults to 1033", category: "payments", isSet: false },
   { key: "CWALLET_API_KEY", label: "CWallet API Key", description: "API key for CWallet integration", category: "payments", isSet: false },
 
   // Security

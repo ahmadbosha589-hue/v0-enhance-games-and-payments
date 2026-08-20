@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       id: uuidv4(),
       user_id: user.id,
       merchant_order_id: merchantOrderId,
-      ccpayment_order_id: order.orderId,
+      ccpayment_order_id: merchantOrderId,
       amount_usd: amount,
       currency,
       coin_id: coinId,
@@ -95,6 +95,7 @@ export async function POST(request: Request) {
       order: {
         orderId: order.orderId,
         payAddress: order.payAddress,
+        paymentUrl: order.paymentUrl || order.invoiceUrl || order.checkoutUrl,
         paymentAmount: order.paymentAmount,
         currency: order.currency,
         expiresAt: order.expiresAt,

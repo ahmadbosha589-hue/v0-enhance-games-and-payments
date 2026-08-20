@@ -142,7 +142,7 @@ export default async function BoostersPage() {
           <div>
             <h4 className="text-sm font-medium mb-1">What payment methods are accepted?</h4>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              We accept FaucetPay, CCPayment (multiple cryptocurrencies), CWallet, and direct wallet connections.
+              Pay with your in-app satoshi balance. CCPayment becomes available after the buyer configures the merchant credentials and webhook. CWallet and direct wallet transfer are not enabled until their verified callbacks and confirmation logic are implemented.
             </p>
           </div>
           <div>

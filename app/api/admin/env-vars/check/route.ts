@@ -27,7 +27,8 @@ const ENV_VAR_CONFIG: EnvVarConfig[] = [
   // ===== PAYMENT =====
   { key: "FAUCETPAY_API_KEY", category: "payment", isSecret: true, description: "FaucetPay API key for crypto withdrawals" },
   { key: "CCPAYMENT_APP_ID", category: "payment", isSecret: false, description: "CCPayment App ID for deposits" },
-  { key: "CCPAYMENT_APP_SECRET", category: "payment", isSecret: true, description: "CCPayment App Secret for deposits" },
+  { key: "CCPAYMENT_APP_SECRET", category: "payment", isSecret: true, description: "CCPayment App Secret for v2 signing" },
+  { key: "CCPAYMENT_USD_FIAT_ID", category: "payment", isSecret: false, description: "CCPayment fiat ID for USD invoice pricing (default 1033)" },
 
   // ===== APP CONFIG =====
   { key: "NEXT_PUBLIC_APP_URL", category: "other", isSecret: false, description: "Public app URL (e.g., https://faucero.com)" },

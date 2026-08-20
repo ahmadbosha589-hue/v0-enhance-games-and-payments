@@ -327,7 +327,7 @@ export async function POST(request: Request) {
             paymentCompleted: false,
             orderId,
             paymentMethod,
-            paymentUrl: (order as any).payUrl || (order as any).pay_url || (order as any).paymentUrl,
+            paymentUrl: order.paymentUrl || order.invoiceUrl || order.checkoutUrl,
             paymentAddress: order.payAddress,
             amountUsd: tierData.price_usd,
             expiresAt: expiresAt.toISOString(),

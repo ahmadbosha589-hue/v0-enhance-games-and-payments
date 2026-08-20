@@ -58,6 +58,34 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxx
 
 ---
 
+## CCPayment v2 Integration
+
+```env
+# CCPayment Dashboard → Developer
+CCPAYMENT_APP_ID=your-ccpayment-app-id
+CCPAYMENT_APP_SECRET=your-ccpayment-app-secret
+
+# Optional when using a non-USD pricing currency. USD defaults to the
+# documented CCPayment fiat ID 1033 unless overridden.
+CCPAYMENT_USD_FIAT_ID=1033
+```
+
+Configure the CCPayment webhook URL as:
+
+```text
+https://your-domain.com/api/ccpayment/webhook
+```
+
+If using a per-order `notifyUrl`, add the production domain to CCPayment's
+**notifyUrl Domain Whitelist**. The webhook handler verifies the HMAC-SHA-256
+signature, accepts the exact `ApiDeposit`/`ApiWithdrawal` v2 payload shape,
+returns the exact plain-text `Success` acknowledgement, and reconciles the
+order through CCPayment before any booster, deposit, or withdrawal state is
+changed. Risk-flagged, processing, underpaid, and expired payments are not
+automatically fulfilled.
+
+---
+
 ## FaucetPay Integration
 
 \`\`\`env
@@ -154,6 +182,9 @@ RESEND_API_KEY=re_xxxxx
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Auth, Database |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Client-side |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-side |
+| `CCPAYMENT_APP_ID` | When CCPayment is enabled | CCPayment v2 API |
+| `CCPAYMENT_APP_SECRET` | When CCPayment is enabled | Server-side CCPayment signing |
+| `CCPAYMENT_USD_FIAT_ID` | Optional for USD; required for other fiat | CCPayment invoice pricing |
 | `FAUCETPAY_API_KEY` | Yes | Withdrawals |
 | `CSRF_SECRET` | Yes | Security |
 | Offerwall keys | Per provider | Postbacks |

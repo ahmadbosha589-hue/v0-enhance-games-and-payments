@@ -111,7 +111,13 @@ const ENV_VAR_CONFIG: Omit<EnvVar, "value" | "isSet">[] = [
     key: "CCPAYMENT_APP_SECRET",
     category: "payment",
     isSecret: true,
-    description: "CCPayment App Secret for deposits",
+    description: "CCPayment App Secret for v2 HMAC signing",
+  },
+  {
+    key: "CCPAYMENT_USD_FIAT_ID",
+    category: "payment",
+    isSecret: false,
+    description: "CCPayment fiat ID for USD invoice pricing (default 1033)",
   },
 
   // ===== APP CONFIG =====

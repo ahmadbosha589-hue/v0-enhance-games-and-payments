@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
-import { getCCPaymentClient } from "@/lib/ccpayment/client"
+import { getCCPaymentClient, getBTCPrice } from "@/lib/ccpayment/client"
 import { log } from "@/lib/logger"
 import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
@@ -14,8 +14,7 @@ const withdrawSchema = z.object({
   memo: z.string().optional()
 })
 
-// Conversion rate (in a real app, fetch from exchange API)
-const SATOSHI_TO_USD = 0.0000004 // Approximate, should be fetched dynamically
+// The selected coin amount is calculated from live BTC and CCPayment token prices.
 
 export async function POST(request: Request) {
   try {
@@ -65,9 +64,24 @@ export async function POST(request: Request) {
       }, { status: 403 })
     }
 
-    // Convert satoshis to USD for withdrawal
-    const amountUsd = amountSatoshis * SATOSHI_TO_USD
+    // Convert satoshis to the selected coin using live pricing from BTC and CCPayment.
+    const ccpayment = getCCPaymentClient()
+    const [btcPrice, coinPrices] = await Promise.all([
+      getBTCPrice(),
+      ccpayment.getCoinUSDTPrices([coinId]),
+    ])
+    const coinPriceUsd = Number(coinPrices[String(coinId)])
+    if (!Number.isFinite(coinPriceUsd) || coinPriceUsd <= 0) {
+      return NextResponse.json({ error: "Live pricing for the selected cryptocurrency is unavailable." }, { status: 503 })
+    }
+    const amountUsd = (amountSatoshis / 100000000) * btcPrice
+    const amountCrypto = amountUsd / coinPriceUsd
+    if (!Number.isFinite(amountCrypto) || amountCrypto <= 0) {
+      return NextResponse.json({ error: "Unable to calculate the live withdrawal amount." }, { status: 503 })
+    }
+    const amountCryptoText = amountCrypto.toFixed(18).replace(/0+$/, "").replace(/\.$/, "")
     const merchantOrderId = `CCWITHDRAW_${user.id}_${uuidv4()}`
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ""
 
     try {
       const ccpayment = getCCPaymentClient()
@@ -76,9 +90,10 @@ export async function POST(request: Request) {
         coinId,
         address,
         chain,
-        amount: amountUsd.toFixed(6),
+        amount: amountCryptoText,
         merchantOrderId,
-        memo
+        memo,
+        notifyUrl: baseUrl ? `${baseUrl}/api/ccpayment/webhook` : undefined,
       })
 
       // Deduct from balance
@@ -98,7 +113,7 @@ export async function POST(request: Request) {
         merchant_order_id: merchantOrderId,
         ccpayment_order_id: withdrawal.orderId,
         amount_satoshis: amountSatoshis,
-        amount_crypto: amountUsd.toFixed(6),
+        amount_crypto: amountCryptoText,
         coin_id: coinId,
         chain,
         address,
@@ -205,15 +220,10 @@ export async function GET(request: Request) {
         const coins = await ccpayment.getSupportedCoins()
         return NextResponse.json({ coins })
       } catch {
-        // Return default coins if API fails
         return NextResponse.json({
-          coins: [
-            { coinId: "BTC", symbol: "BTC", name: "Bitcoin", chains: [{ chainId: "BTC", chainName: "Bitcoin", minWithdrawAmount: "0.0001", withdrawFee: "0.00005" }] },
-            { coinId: "ETH", symbol: "ETH", name: "Ethereum", chains: [{ chainId: "ETH", chainName: "Ethereum", minWithdrawAmount: "0.01", withdrawFee: "0.005" }] },
-            { coinId: "USDT", symbol: "USDT", name: "Tether", chains: [{ chainId: "TRC20", chainName: "Tron", minWithdrawAmount: "10", withdrawFee: "1" }] },
-            { coinId: "LTC", symbol: "LTC", name: "Litecoin", chains: [{ chainId: "LTC", chainName: "Litecoin", minWithdrawAmount: "0.001", withdrawFee: "0.0001" }] }
-          ]
-        })
+          error: "Live CCPayment token data is temporarily unavailable.",
+          coins: [],
+        }, { status: 503 })
       }
     }
 
