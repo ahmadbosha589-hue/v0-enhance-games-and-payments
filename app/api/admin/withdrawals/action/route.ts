@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       .single()
 
     const oldData = { status: withdrawal.status }
-    const newData = { status: action === "approve" ? "processing" : "rejected" }
+    const newData = { status: action === "approve" ? "pending" : "rejected" }
 
     await supabase.from("audit_logs").insert({
       actor_id: user.id,
@@ -96,21 +96,19 @@ export async function POST(request: Request) {
     })
 
     if (action === "approve") {
-      // Update to processing
+      // Keep the row pending so the real FaucetPay cron worker can claim it.
+      // Reviewer metadata records approval without fabricating payout completion.
       await supabase
         .from("withdrawals")
         .update({
-          status: "processing",
-          processed_at: new Date().toISOString(),
-          processed_by: user.id,
+          status: "pending",
           reviewed_at: new Date().toISOString(),
           reviewed_by: user.id,
+          review_notes: rejectionReason || "Approved for provider processing",
         })
         .eq("id", withdrawalId)
 
-      // The cron worker performs the real FaucetPay payout. Do not mark a
-      // withdrawal completed or fabricate a payout ID before the provider returns success.
-      return NextResponse.json({ success: true, action, withdrawalId, status: "processing" })
+      return NextResponse.json({ success: true, action, withdrawalId, status: "pending", reviewed: true })
     } else {
       // Reject and refund - get user profile with correct column names
       const { data: userProfile } = await supabase

@@ -232,85 +232,82 @@ export async function POST(req: NextRequest) {
       } catch { /* ignore cooldown errors */ }
     }
 
-    // Update daily limit - ONLY COUNT WINS toward the 20 game limit
-    // Losses don't count against the daily limit so players can keep trying
     let gamesPlayedToday = 0
     let totalEarnedToday = 0
-    try {
-      const { data: existingLimit } = await adminSupabase
-        .from("game_daily_limits")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("date", today)
-        .single()
+    const { data: existingLimit, error: limitReadError } = await adminSupabase
+      .from("game_daily_limits")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("date", today)
+      .single()
 
-      if (existingLimit) {
-        gamesPlayedToday = existingLimit.games_played
-        totalEarnedToday = existingLimit.total_earned
+    if (limitReadError && limitReadError.code !== "PGRST116") {
+      console.error("Failed to read daily game totals:", limitReadError)
+      return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
+    }
 
-        // Only increment games_played and total_earned on WIN
-        if (isWinner) {
-          gamesPlayedToday = existingLimit.games_played + 1
-          totalEarnedToday = existingLimit.total_earned + rewardAmount
-          await adminSupabase
-            .from("game_daily_limits")
-            .update({
-              games_played: gamesPlayedToday,
-              total_earned: totalEarnedToday
-            })
-            .eq("user_id", user.id)
-            .eq("date", today)
-        }
-      } else if (isWinner) {
-        // Only create record on first WIN
-        gamesPlayedToday = 1
-        totalEarnedToday = rewardAmount
-        await adminSupabase
+    if (existingLimit) {
+      gamesPlayedToday = existingLimit.games_played
+      totalEarnedToday = existingLimit.total_earned
+
+      if (isWinner) {
+        gamesPlayedToday = existingLimit.games_played + 1
+        totalEarnedToday = existingLimit.total_earned + rewardAmount
+        const { error: limitUpdateError } = await adminSupabase
           .from("game_daily_limits")
-          .insert({
-            user_id: user.id,
-            date: today,
-            games_played: 1,
-            total_earned: rewardAmount
-          })
+          .update({ games_played: gamesPlayedToday, total_earned: totalEarnedToday })
+          .eq("user_id", user.id)
+          .eq("date", today)
+        if (limitUpdateError) {
+          console.error("Failed to update daily game totals:", limitUpdateError)
+          return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
+        }
       }
-    } catch { /* ignore daily limit errors */ }
+    } else if (isWinner) {
+      gamesPlayedToday = 1
+      totalEarnedToday = rewardAmount
+      const { error: limitInsertError } = await adminSupabase
+        .from("game_daily_limits")
+        .insert({ user_id: user.id, date: today, games_played: 1, total_earned: rewardAmount })
+      if (limitInsertError) {
+        console.error("Failed to create daily game totals:", limitInsertError)
+        return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
+      }
+    }
 
-    // Award satoshis to user ONLY if they won
     let newBalance = 0
     if (isWinner) {
-      try {
-        // Get current balance
-        const { data: profile } = await adminSupabase
-          .from("profiles")
-          .select("balance_satoshis")
-          .eq("id", user.id)
-          .single()
+      const { error: rewardError } = await adminSupabase.rpc("add_game_reward", {
+        p_user_id: user.id,
+        p_amount: rewardAmount,
+      })
+      if (rewardError) {
+        console.error("Failed to award satoshis:", rewardError)
+        return NextResponse.json({ error: "Unable to finalize game reward" }, { status: 503 })
+      }
 
-        const currentBalance = profile?.balance_satoshis || 0
-        newBalance = currentBalance + rewardAmount
+      const { data: profile, error: profileError } = await adminSupabase
+        .from("profiles")
+        .select("balance_satoshis")
+        .eq("id", user.id)
+        .single()
+      if (profileError || !profile) {
+        return NextResponse.json({ error: "Unable to read updated balance" }, { status: 503 })
+      }
+      newBalance = Number(profile.balance_satoshis)
 
-        // Update balance directly
-        await adminSupabase
-          .from("profiles")
-          .update({
-            balance_satoshis: newBalance
-          })
-          .eq("id", user.id)
-
-        // Create transaction record
-        await adminSupabase
-          .from("transactions")
-          .insert({
-            user_id: user.id,
-            type: "game_reward",
-            amount: rewardAmount,
-            status: "completed",
-            description: `Won ${gameType} game with score ${score}`
-          })
-      } catch (err) {
-        console.error("Failed to award satoshis:", err)
-        // Continue anyway
+      const { error: transactionError } = await adminSupabase
+        .from("transactions")
+        .insert({
+          user_id: user.id,
+          type: "game_reward",
+          amount: rewardAmount,
+          status: "completed",
+          description: `Won ${gameType} game with score ${score}`
+        })
+      if (transactionError) {
+        console.error("Failed to record game reward transaction:", transactionError)
+        return NextResponse.json({ error: "Unable to record game reward" }, { status: 503 })
       }
     }
 
@@ -349,6 +346,6 @@ export async function POST(req: NextRequest) {
       gamesRemaining: MAX_GAMES_PER_DAY - 1,
       totalEarnedToday: 0,
       message: "An error occurred. Please try again."
-    })
+    }, { status: 500 })
   }
 }
