@@ -138,22 +138,8 @@ export async function POST(request: NextRequest) {
     })
 
     if (balanceError) {
-      // Fallback: direct update
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("balance_satoshis")
-        .eq("id", user.id)
-        .single()
-
-      if (profile) {
-        await supabase
-          .from("profiles")
-          .update({
-            balance_satoshis: profile.balance_satoshis + doubleAmount,
-            total_earned_satoshis: profile.balance_satoshis + doubleAmount
-          })
-          .eq("id", user.id)
-      }
+      log.error("Atomic double-reward balance RPC failed", { userId: user.id, error: balanceError })
+      return NextResponse.json({ error: "Double reward service is temporarily unavailable" }, { status: 503 })
     }
 
     // Record the transaction

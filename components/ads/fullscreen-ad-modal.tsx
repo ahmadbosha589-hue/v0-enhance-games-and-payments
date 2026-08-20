@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils"
 import { AdSlotMultiNetwork } from "./ad-slot-multi-network"
 import { CxUaBanner } from "./cx-ua-ads"
 
+const REWARDED_BONUS_ENABLED = false
+
 export type DoubleRewardType =
   | "faucet"
   | "faucet_claim"
@@ -42,7 +44,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
 }> = {
   faucet: {
     title: "Double Your Faucet Reward",
-    description: "Watch all 3 Google rewarded ads to receive 2x your faucet claim",
+    description: "Watch all 3 Verified rewarded ads to receive 2x your faucet claim",
     icon: Coins,
     gradient: "from-green-500 to-emerald-500",
     borderColor: "border-green-500/50",
@@ -50,7 +52,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   faucet_claim: {
     title: "Double Your Faucet Reward",
-    description: "Watch all 3 Google rewarded ads to receive 2x your faucet claim",
+    description: "Watch all 3 Verified rewarded ads to receive 2x your faucet claim",
     icon: Coins,
     gradient: "from-green-500 to-emerald-500",
     borderColor: "border-green-500/50",
@@ -58,7 +60,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   manual_faucet: {
     title: "Double Your Manual Faucet Reward",
-    description: "Watch all 3 Google rewarded ads to receive 2x your claim",
+    description: "Watch all 3 Verified rewarded ads to receive 2x your claim",
     icon: Coins,
     gradient: "from-amber-500 to-yellow-500",
     borderColor: "border-amber-500/50",
@@ -66,7 +68,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   daily_bonus: {
     title: "Double Your Daily Bonus",
-    description: "Watch all 3 Google rewarded ads to receive 2x your daily bonus",
+    description: "Watch all 3 Verified rewarded ads to receive 2x your daily bonus",
     icon: Gift,
     gradient: "from-purple-500 to-pink-500",
     borderColor: "border-purple-500/50",
@@ -74,7 +76,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   shortlink: {
     title: "Double Your Shortlink Reward",
-    description: "Watch all 3 Google rewarded ads to receive 2x your shortlink earnings",
+    description: "Watch all 3 Verified rewarded ads to receive 2x your shortlink earnings",
     icon: Sparkles,
     gradient: "from-blue-500 to-cyan-500",
     borderColor: "border-blue-500/50",
@@ -82,7 +84,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   coupon: {
     title: "Double Your Coupon Reward",
-    description: "Watch all 3 Google rewarded ads to receive 2x your coupon earnings",
+    description: "Watch all 3 Verified rewarded ads to receive 2x your coupon earnings",
     icon: Gift,
     gradient: "from-pink-500 to-rose-500",
     borderColor: "border-pink-500/50",
@@ -98,7 +100,7 @@ const TYPE_CONFIG: Record<DoubleRewardType, {
   },
   game: {
     title: "Double Your Game Winnings",
-    description: "Watch all 3 Google rewarded ads to receive 2x your game reward",
+    description: "Watch all 3 Verified rewarded ads to receive 2x your game reward",
     icon: Sparkles,
     gradient: "from-indigo-500 to-violet-500",
     borderColor: "border-indigo-500/50",
@@ -296,6 +298,14 @@ export function FullscreenAdModal({
   }
 
   if (!isOpen) return null
+  if (!REWARDED_BONUS_ENABLED) {
+    return (
+      <div className="rounded-lg border border-muted bg-muted/20 p-4 text-sm text-muted-foreground">
+        Verified rewarded-ad inventory is not enabled for this deployment. Bonus claims are unavailable until a real
+        provider and server-side watch session are configured.
+      </div>
+    )
+  }
 
   const completedCount = adStatus.filter(s => s === "completed").length
   const overallProgress = (completedCount / AD_COUNT) * 100

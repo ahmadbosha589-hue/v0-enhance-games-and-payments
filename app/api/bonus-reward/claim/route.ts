@@ -57,7 +57,15 @@ const TYPE_TRANSACTION_MAP: Record<BonusType, string> = {
   game: "game_bonus"
 }
 
+const REWARDED_BONUS_ENABLED = false
+
 export async function POST(request: NextRequest) {
+  if (!REWARDED_BONUS_ENABLED) {
+    return NextResponse.json({
+      error: "Verified rewarded-ad inventory is not enabled for this deployment",
+    }, { status: 503 })
+  }
+
   try {
     // Get user
     const user = await getUser()

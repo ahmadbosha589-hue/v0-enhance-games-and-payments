@@ -11,6 +11,8 @@ import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 
+const REWARDED_BONUS_ENABLED = false
+
 export type BonusRewardType =
   | "shortlink_double"     // After completing shortlink - 2x reward
   | "coupon_double"        // After redeeming coupon - 2x reward
@@ -189,6 +191,13 @@ export function WatchAdBonusReward({
   }
 
   if (!isVisible || baseAmount <= 0) return null
+  if (!REWARDED_BONUS_ENABLED) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Verified rewarded-ad inventory is not enabled; bonus claims are currently unavailable.
+      </p>
+    )
+  }
 
   return (
     <>

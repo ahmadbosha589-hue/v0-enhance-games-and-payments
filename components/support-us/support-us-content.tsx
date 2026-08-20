@@ -19,6 +19,8 @@ import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { AdSlotMultiNetwork } from "@/components/ads/ad-slot-multi-network"
 import { CxUaBanner } from "@/components/ads/cx-ua-ads"
 
+const SUPPORT_REWARDED_ADS_ENABLED = false
+
 interface SupportUsContentProps {
   userId: string
 }
@@ -355,6 +357,19 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  if (!SUPPORT_REWARDED_ADS_ENABLED) {
+    return (
+      <Card className="border-muted bg-muted/20">
+        <CardHeader>
+          <CardTitle>Support rewards unavailable</CardTitle>
+          <CardDescription>
+            Verified rewarded-ad sessions are not enabled for this deployment. No watch-based payout will be issued.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    )
   }
 
   // Fullscreen ad watching UI

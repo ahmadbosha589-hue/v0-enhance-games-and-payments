@@ -111,7 +111,13 @@ async function sendFaucetPayPayment(
   }
 }
 
+const SUPPORT_REWARDED_ADS_ENABLED = false
+
 export async function POST(request: NextRequest) {
+  if (!SUPPORT_REWARDED_ADS_ENABLED) {
+    return NextResponse.json({ error: "Verified support-ad sessions are not enabled" }, { status: 503 })
+  }
+
   try {
     // Parse body once at the start
     const body = await request.json()
