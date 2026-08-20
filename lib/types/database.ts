@@ -54,6 +54,7 @@ export interface Claim {
   amount_satoshis: number
   base_amount_satoshis: number
   streak_bonus_satoshis: number
+  booster_bonus_satoshis: number
   referral_bonus_satoshis: number
   streak_day: number
   ip_address: string

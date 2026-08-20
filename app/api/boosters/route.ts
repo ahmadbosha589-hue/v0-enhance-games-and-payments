@@ -8,6 +8,8 @@ export async function GET(request: Request) {
   try {
     const supabase = await createClient()
     const adminSupabase = requireAdminClient()
+    const { searchParams } = new URL(request.url)
+    const orderId = searchParams.get("orderId")
 
     if (!supabase || !adminSupabase) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 })
@@ -81,9 +83,27 @@ export async function GET(request: Request) {
       }
     }
 
+    let orderStatus: string | null = null
+    if (user && orderId) {
+      const { data: purchase } = await adminSupabase
+        .from("booster_purchases")
+        .select("payment_status")
+        .eq("user_id", user.id)
+        .eq("payment_reference", orderId)
+        .maybeSingle()
+      orderStatus = purchase?.payment_status ?? null
+    }
+
     return NextResponse.json({
       tiers: tiers || getDefaultTiers(),
       activeBooster,
+      orderStatus,
+      paymentMethods: {
+        faucetpay: true,
+        ccpayment: Boolean(process.env.CCPAYMENT_APP_ID && process.env.CCPAYMENT_APP_SECRET),
+        cwallet: false,
+        wallet_connect: false,
+      },
     })
   } catch (error) {
     console.error("Boosters API error:", error)
@@ -192,20 +212,14 @@ export async function POST(request: Request) {
       .single()
 
     if (tierError || !tier) {
-      // Try to find from default tiers
-      const defaultTiers = getDefaultTiers()
-      const defaultTier = defaultTiers.find(t => t.id === tierId)
-      if (!defaultTier) {
-        return NextResponse.json({ error: "Invalid booster tier" }, { status: 400 })
-      }
-      // Use default tier data
-      Object.assign(tier || {}, defaultTier)
+      console.error("Booster tier lookup failed:", tierError)
+      return NextResponse.json({
+        error: "Booster catalog is temporarily unavailable",
+        message: "Please try again when the live booster catalog is available.",
+      }, { status: 503 })
     }
 
-    const tierData = tier || getDefaultTiers().find(t => t.id === tierId)
-    if (!tierData) {
-      return NextResponse.json({ error: "Invalid booster tier" }, { status: 400 })
-    }
+    const tierData = tier
 
     const orderId = `booster_${Date.now()}_${Math.random().toString(36).substring(7)}`
 
@@ -230,84 +244,39 @@ export async function POST(request: Request) {
           }, { status: 400 })
         }
 
-        // Deduct satoshis from user balance
-        const newBalance = currentBalance - requiredSatoshis
-        await adminSupabase
-          .from("profiles")
-          .update({ balance_satoshis: newBalance })
-          .eq("id", user.id)
+        // Reserve the balance, create the completed purchase, and activate the
+        // booster in one locked database transaction. The old read/update/insert
+        // sequence could double-spend under concurrent requests.
+        const { data: purchaseResult, error: purchaseError } = await adminSupabase.rpc(
+          "purchase_booster_with_balance",
+          {
+            p_user_id: user.id,
+            p_booster_tier_id: tierData.id,
+            p_payment_method: paymentMethod,
+            p_payment_reference: orderId,
+          },
+        )
 
-        // Create transaction record
-        await adminSupabase.from("transactions").insert({
-          user_id: user.id,
-          type: "booster_purchase",
-          amount: -requiredSatoshis,
-          status: "completed",
-          description: `Purchased ${tierData.name} Booster with satoshis`
-        })
-
-        // Create purchase record as completed (satoshi payment is instant)
-        const { data: purchase } = await adminSupabase
-          .from("booster_purchases")
-          .insert({
-            user_id: user.id,
-            booster_tier_id: tierData.id,
-            payment_method: paymentMethod,
-            payment_status: "completed",
-            payment_reference: orderId,
-            amount_usd: tierData.price_usd,
-            amount_satoshis: tierData.price_satoshis,
-            completed_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
-
-        // Activate the booster immediately for satoshi payments
-        const { data: existingBooster } = await adminSupabase
-          .from("user_boosters")
-          .select("id, expires_at")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .gt("expires_at", new Date().toISOString())
-          .single()
-
-        let expiresAt: Date
-        if (existingBooster) {
-          expiresAt = new Date(existingBooster.expires_at)
-          expiresAt.setDate(expiresAt.getDate() + tierData.duration_days)
-          await adminSupabase
-            .from("user_boosters")
-            .update({ is_active: false, updated_at: new Date().toISOString() })
-            .eq("id", existingBooster.id)
-        } else {
-          expiresAt = new Date()
-          expiresAt.setDate(expiresAt.getDate() + tierData.duration_days)
+        if (purchaseError || !purchaseResult?.success) {
+          const message = purchaseError?.message || "Unable to complete booster purchase"
+          const insufficient = /insufficient balance/i.test(message)
+          return NextResponse.json({
+            error: insufficient ? "Insufficient balance" : "Booster purchase unavailable",
+            message,
+          }, { status: insufficient ? 400 : 503 })
         }
-
-        await adminSupabase
-          .from("user_boosters")
-          .insert({
-            user_id: user.id,
-            booster_tier_id: tierData.id,
-            expires_at: expiresAt.toISOString(),
-            is_active: true,
-            payment_method: paymentMethod,
-            payment_reference: orderId,
-            amount_paid_usd: tierData.price_usd,
-            amount_paid_satoshis: tierData.price_satoshis,
-          })
 
         return NextResponse.json({
           success: true,
           paymentCompleted: true,
           booster: {
-            tier: tierData.name,
-            expiresAt: expiresAt.toISOString(),
-            faucetBonus: tierData.faucet_bonus_percentage,
-            offerwallBonus: tierData.offerwall_bonus_percentage,
+            tier: purchaseResult.tier_name || tierData.name,
+            expiresAt: purchaseResult.expires_at,
+            faucetBonus: purchaseResult.faucet_bonus_percentage ?? tierData.faucet_bonus_percentage,
+            offerwallBonus: purchaseResult.offerwall_bonus_percentage ?? tierData.offerwall_bonus_percentage,
           },
-          newBalance,
-          message: `${tierData.name} Booster activated! ${requiredSatoshis.toLocaleString()} satoshis deducted.`
+          newBalance: purchaseResult.new_balance,
+          message: `${tierData.name} Booster activated! ${requiredSatoshis.toLocaleString()} satoshis deducted.`,
         })
       }
 
@@ -336,7 +305,7 @@ export async function POST(request: Request) {
             currency: "USD",
             merchantOrderId: orderId,
             denominated: "USDT",
-            notifyUrl: appUrl ? `${appUrl}/api/webhooks/ccpayment` : undefined,
+            notifyUrl: appUrl ? `${appUrl}/api/ccpayment/webhook` : undefined,
             returnUrl: appUrl ? `${appUrl}/dashboard/boosters?order=${orderId}` : undefined,
             productName: `${tierData.name} Booster (${tierData.duration_days} days)`,
             orderValidPeriod: 3600,
@@ -381,8 +350,9 @@ export async function POST(request: Request) {
       }
 
       case "cwallet": {
-        // CWallet integration - requires CWALLET_API_KEY for real processing.
-        const cwalletKey = process.env.CWALLET_API_KEY
+        // CWallet checkout is intentionally disabled until its callback
+        // signature and activation webhook are implemented.
+        const cwalletKey: string | null = null
         if (!cwalletKey) {
           return NextResponse.json({
             success: false,
@@ -427,11 +397,9 @@ export async function POST(request: Request) {
       }
 
       case "wallet_connect": {
-        // Direct wallet transfer to platform's BTC address (requires admin-configured address).
-        const btcAddress =
-          process.env.BTC_DEPOSIT_ADDRESS ||
-          process.env.NEXT_PUBLIC_BTC_DEPOSIT_ADDRESS ||
-          ""
+        // Direct wallet checkout is disabled until a verified chain watcher
+        // can match confirmations to the pending purchase.
+        const btcAddress = ""
 
         if (!btcAddress) {
           return NextResponse.json({

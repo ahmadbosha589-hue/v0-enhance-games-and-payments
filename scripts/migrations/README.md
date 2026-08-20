@@ -12,6 +12,10 @@ are applied in lexical order:
 6. `076_postback_replay_guard.sql`
 7. `077_ad_delivery_rpc_fix.sql`
 8. `078_ad_delivery_daily_fix.sql`
+9. `079_booster_purchase_atomic.sql`
+10. `080_booster_claim_bonus.sql`
+11. `081_booster_transaction_type.sql`
+12. `082_booster_claim_constraint.sql`
 
 `075_ad_balance_atomic.sql` locks the advertiser profile, inserts the campaign,
 deducts the budget, and records the transaction in one database transaction.

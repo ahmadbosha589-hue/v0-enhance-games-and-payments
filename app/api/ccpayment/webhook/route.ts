@@ -29,6 +29,42 @@ export async function POST(request: Request) {
     // Handle different webhook types
     switch (data.type) {
       case "Payment.Success": {
+        // Booster payments use the same provider event as deposits but are
+        // finalized through their own idempotent activation RPC.
+        const { data: boosterPurchase } = await adminSupabase
+          .from("booster_purchases")
+          .select("id, user_id, payment_status, payment_reference, booster_tier_id")
+          .eq("payment_reference", data.order_id)
+          .maybeSingle()
+
+        if (boosterPurchase) {
+          const { data: activation, error: activationError } = await adminSupabase.rpc(
+            "activate_booster_purchase",
+            {
+              p_payment_reference: data.order_id,
+              p_transaction_hash: data.tx_hash || null,
+            },
+          )
+          if (activationError || !activation?.success) {
+            log.error("Booster payment activation failed", {
+              orderId: data.order_id,
+              error: activationError?.message || "activation returned no success",
+            })
+            return NextResponse.json({ error: "Booster activation failed" }, { status: 500 })
+          }
+
+          if (!activation.already_active) {
+            await adminSupabase.from("notifications").insert({
+              user_id: boosterPurchase.user_id,
+              type: "booster_activated",
+              title: "Booster Activated",
+              message: `Your booster payment was confirmed and your booster is now active.`,
+              data: { purchase_id: boosterPurchase.id, tx_hash: data.tx_hash || null },
+            })
+          }
+          break
+        }
+
         // Deposit completed
         const { data: deposit } = await adminSupabase
           .from("ccpayment_deposits")
@@ -112,6 +148,28 @@ export async function POST(request: Request) {
       }
 
       case "Payment.Failed": {
+        const { data: boosterPurchase } = await adminSupabase
+          .from("booster_purchases")
+          .select("id, user_id")
+          .eq("payment_reference", data.order_id)
+          .maybeSingle()
+
+        if (boosterPurchase) {
+          await adminSupabase
+            .from("booster_purchases")
+            .update({ payment_status: "failed" })
+            .eq("id", boosterPurchase.id)
+            .eq("payment_status", "pending")
+          await adminSupabase.from("notifications").insert({
+            user_id: boosterPurchase.user_id,
+            type: "booster_payment_failed",
+            title: "Booster Payment Failed",
+            message: "Your booster payment could not be confirmed. No booster was activated.",
+            data: { purchase_id: boosterPurchase.id, error: data.error_message || null },
+          })
+          break
+        }
+
         // Deposit failed
         await adminSupabase
           .from("ccpayment_deposits")

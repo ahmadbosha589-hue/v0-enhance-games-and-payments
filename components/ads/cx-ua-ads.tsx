@@ -313,7 +313,7 @@ export function CxUaBanner({
       data-ad-zone={zone}
       data-ad-type="banner"
     >
-      {showLabel && variant !== "slim" && variant !== "compact" && (
+      {showLabel && natural !== null && variant !== "slim" && variant !== "compact" && (
         <div className="mb-1.5 flex w-full items-center justify-between px-1">
           <div className="flex items-center gap-1.5">
             <Megaphone className="h-3 w-3 text-muted-foreground" aria-hidden="true" />

@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner"
 import { useTranslations } from "@/hooks/use-translations"
 import { AuthSecurityGuard, type SecurityCheckResult } from "@/components/auth/auth-security-guard"
+import { waitForServerSession } from "@/lib/auth/session-confirmation"
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -97,23 +98,19 @@ export default function SignUpPage() {
 
     const checkSession = async () => {
       try {
-        // Fast localStorage read only. Server proxy already handles the
-        // redirect for verified sessions; this is the client fallback.
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+        const response = await fetch("/api/auth/me", {
+          credentials: "include",
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        })
+        const data = response.ok ? await response.json() : null
 
-        if (cancelled) return
-
-        if (session?.user && !redirectingRef.current) {
+        if (!cancelled && data?.user && !redirectingRef.current) {
           redirectingRef.current = true
           window.location.replace("/dashboard")
-          return
         }
       } catch (err) {
         console.warn("[SignUp] Session check failed:", err)
-      } finally {
-        // Session confirmation is advisory; the form stays interactive.
       }
     }
 
@@ -124,12 +121,15 @@ export default function SignUpPage() {
     // which would spam toasts and fight with server-side redirects.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (cancelled) return
       if (event !== "SIGNED_IN") return
       if (!session?.user) return
       if (isManualSignUpRef.current) return
       if (redirectingRef.current) return
+
+      const serverSeesSession = await waitForServerSession()
+      if (!serverSeesSession || cancelled || redirectingRef.current) return
 
       redirectingRef.current = true
       window.location.replace("/dashboard")
@@ -383,6 +383,15 @@ export default function SignUpPage() {
             },
             { onConflict: "user_id,fingerprint_hash" },
           )
+        }
+
+        const serverSeesSession = await waitForServerSession()
+        if (!serverSeesSession) {
+          setError("Your account was created, but the session is still being prepared. Please try signing in again in a moment.")
+          await fetch("/api/auth/logout", { method: "POST", credentials: "include", cache: "no-store" }).catch(() => undefined)
+          await supabase.auth.signOut({ scope: "global" }).catch(() => undefined)
+          isManualSignUpRef.current = false
+          return
         }
 
         isManualSignUpRef.current = true

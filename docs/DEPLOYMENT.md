@@ -154,6 +154,16 @@ npm start -- -p 3100
 
 A missing Redis URL/token means rate limiting is using the local-development fallback. Configure Redis before production traffic; do not silence the warning.
 
+### c.cx.ua banner appears empty
+
+The c.cx.ua banner endpoint is domain-aware. The configured zone returned an empty
+200 response for the Vercel preview origin but returned a real creative for the
+registered production origins. Set the c.cx.ua publisher site's domain to the
+actual production hostname, deploy there, and verify the zone is active. The
+Vercel preview URL is not evidence that the production banner is broken.
+
+The banner is also gated by Marketing consent and Do-Not-Track. The UI now hides
+the `Sponsored` label until a real creative has been measured.
 ### Withdrawals or swaps unavailable
 
 This is expected until the corresponding provider credentials, account balances, webhook signatures, and small-value test transactions are verified.

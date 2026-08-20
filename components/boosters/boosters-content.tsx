@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import useSWR from "swr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -258,13 +258,15 @@ function PurchaseDialog({
   onConfirm,
   userBalance,
   pendingPayment,
-  onCancelPendingPayment
+  onCancelPendingPayment,
+  paymentMethods,
 }: {
   tier: BoosterTier | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (paymentMethod: string) => void
   userBalance: number
+  paymentMethods: Record<string, boolean>
   pendingPayment?: {
     orderId: string
     paymentMethod?: string
@@ -284,6 +286,9 @@ function PurchaseDialog({
 
   const Icon = TIER_ICONS[tier.badge_icon] || Zap
   const hasEnoughSatoshis = userBalance >= tier.price_satoshis
+  const paymentMethodAvailable = paymentMethod === "faucetpay"
+    ? hasEnoughSatoshis
+    : paymentMethods[paymentMethod] === true
 
   const handleConfirm = async () => {
     setIsProcessing(true)
@@ -488,39 +493,41 @@ function PurchaseDialog({
                 "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "ccpayment" && "border-primary bg-primary/5"
               )}>
-                <RadioGroupItem value="ccpayment" id="ccpayment" />
-                <Label htmlFor="ccpayment" className="flex-1 cursor-pointer">
+                <RadioGroupItem value="ccpayment" id="ccpayment" disabled={!paymentMethods.ccpayment} />
+                <Label htmlFor="ccpayment" className={cn("flex-1", paymentMethods.ccpayment ? "cursor-pointer" : "cursor-not-allowed")}>
                   <div className="flex items-center gap-2">
                     <CreditCard className="h-4 w-4" />
                     <span>Pay with Crypto (CCPayment)</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">BTC, ETH, USDT, and 50+ coins</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {paymentMethods.ccpayment ? "BTC, ETH, USDT, and 50+ coins" : "Unavailable until CCPayment is configured"}
+                  </p>
                 </Label>
               </div>
               <div className={cn(
                 "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "cwallet" && "border-primary bg-primary/5"
               )}>
-                <RadioGroupItem value="cwallet" id="cwallet" />
-                <Label htmlFor="cwallet" className="flex-1 cursor-pointer">
+                <RadioGroupItem value="cwallet" id="cwallet" disabled={!paymentMethods.cwallet} />
+                <Label htmlFor="cwallet" className={cn("flex-1", paymentMethods.cwallet ? "cursor-pointer" : "cursor-not-allowed")}>
                   <div className="flex items-center gap-2">
                     <Coins className="h-4 w-4" />
                     <span>CWallet</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Instant crypto payments</p>
+                  <p className="text-xs text-muted-foreground mt-1">Unavailable until a verified checkout and webhook are configured</p>
                 </Label>
               </div>
               <div className={cn(
                 "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "wallet_connect" && "border-primary bg-primary/5"
               )}>
-                <RadioGroupItem value="wallet_connect" id="wallet_connect" />
-                <Label htmlFor="wallet_connect" className="flex-1 cursor-pointer">
+                <RadioGroupItem value="wallet_connect" id="wallet_connect" disabled={!paymentMethods.wallet_connect} />
+                <Label htmlFor="wallet_connect" className={cn("flex-1", paymentMethods.wallet_connect ? "cursor-pointer" : "cursor-not-allowed")}>
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4" />
                     <span>Direct Wallet Transfer</span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Send to our BTC address</p>
+                  <p className="text-xs text-muted-foreground mt-1">Unavailable until a verified chain watcher is configured</p>
                 </Label>
               </div>
             </RadioGroup>
@@ -543,7 +550,7 @@ function PurchaseDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={isProcessing || (paymentMethod === "faucetpay" && !hasEnoughSatoshis)}
+            disabled={isProcessing || !paymentMethodAvailable}
             style={{ backgroundColor: tier.badge_color }}
           >
             {isProcessing ? (
@@ -589,9 +596,26 @@ export function BoostersContent({ userId }: BoostersContentProps) {
     }
   )
 
+  const { data: pendingOrder } = useSWR(
+    pendingPayment ? `/api/boosters?orderId=${encodeURIComponent(pendingPayment.orderId)}` : null,
+    fetcher,
+    { refreshInterval: 10000, revalidateOnFocus: true },
+  )
+
+  useEffect(() => {
+    if (pendingOrder?.orderStatus !== "completed") return
+    toast.success(`${selectedTier?.name || "Booster"} payment confirmed`, {
+      description: "Your booster is now active.",
+    })
+    setPendingPayment(null)
+    setDialogOpen(false)
+    setSelectedTier(null)
+    mutate()
+  }, [pendingOrder?.orderStatus, selectedTier?.name, mutate])
+
   // Fetch user balance for satoshi payments
   const { data: profileData, mutate: mutateProfile } = useSWR(
-    `/api/user/profile`,
+    `/api/profile`,
     fetcher,
     { revalidateOnFocus: true }
   )
@@ -654,8 +678,9 @@ export function BoostersContent({ userId }: BoostersContentProps) {
       toast.error("Purchase failed", { description: "Please try again later" })
     }
 
-    setDialogOpen(false)
-    setSelectedTier(null)
+    // Keep the dialog open for pending external payments so the user can
+    // access the checkout URL/address and order reference. The webhook will
+    // activate the booster after confirmed payment.
   }
 
   if (isLoading) {
@@ -685,6 +710,12 @@ export function BoostersContent({ userId }: BoostersContentProps) {
 
   const tiers: BoosterTier[] = data?.tiers || []
   const activeBooster: ActiveBooster | null = data?.activeBooster
+  const paymentMethods: Record<string, boolean> = data?.paymentMethods || {
+    faucetpay: true,
+    ccpayment: false,
+    cwallet: false,
+    wallet_connect: false,
+  }
 
   return (
     <div className="space-y-6">
@@ -725,6 +756,7 @@ export function BoostersContent({ userId }: BoostersContentProps) {
         onOpenChange={setDialogOpen}
         onConfirm={handleConfirmPurchase}
         userBalance={userBalance}
+        paymentMethods={paymentMethods}
         pendingPayment={pendingPayment}
         onCancelPendingPayment={() => setPendingPayment(null)}
       />

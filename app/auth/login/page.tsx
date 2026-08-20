@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator"
 import { useTranslations } from "@/hooks/use-translations"
 import { TwoFactorVerify } from "@/components/auth/two-factor-verify"
 import { AuthSecurityGuard, type SecurityCheckResult } from "@/components/auth/auth-security-guard"
+import { waitForServerSession } from "@/lib/auth/session-confirmation"
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -155,30 +156,13 @@ export default function LoginPage() {
       if (isManualLoginRef.current) return
       if (redirectingRef.current) return
 
-      // OAuth callback — verify the server can see the session before
-      // redirecting, otherwise we risk the /dashboard → /auth/login →
-      // /dashboard loop when cookies haven't propagated yet.
-      try {
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          cache: "no-store",
-          signal: AbortSignal.timeout(3000),
-        })
-        if (!res.ok) return
-        const data = await res.json()
-        if (!data?.user) return
-      } catch {
-        return
-      }
-
-      if (cancelled || redirectingRef.current) return
+      const serverSeesSession = await waitForServerSession()
+      if (!serverSeesSession || cancelled || redirectingRef.current) return
 
       // Single-fire guarded by redirectingRef — the listener will never run
       // this branch twice, so the toast can't loop even on TOKEN_REFRESHED.
       redirectingRef.current = true
       toast.success("Welcome back!")
-      // The early returns above already confirmed data.user via /api/auth/me,
-      // so this branch is always the server-confirmed case — no warm marker.
       window.location.replace(safeRedirect)
     })
 
@@ -379,49 +363,19 @@ export default function LoginPage() {
         }
       }
 
-      // Wait for the server to see the new session (same anti-loop guard as
-      // in handleLogin — see comment there).
-      //
-      // Per-attempt timeout is 3000ms — matches getUser()'s own worst-case
-      // budget (~3000ms; the getUser/getSession races run in parallel
-      // server-side, and the VPN-fortress overall budget is now capped at
-      // 3.5s too, see lib/security/vpn-fortress.ts) plus a fast getProfile()
-      // lookup. This used to be 6000ms x 3 attempts (~18.5s worst case) —
-      // most of that was unused slack that just made a failed sign-in look
-      // "stuck" for far longer than the server could actually take.
-      // T5: single bounded confirmation instead of a 3x(3000+300)ms ladder.
-      //
-      // The Supabase browser client has already written the session cookie by
-      // the time signInWithPassword() resolves, and the proxy routes on cookie
-      // PRESENCE (lib/supabase/proxy.ts) rather than a live getUser() call — so
-      // the /dashboard -> /auth/login -> /dashboard bounce this loop guarded
-      // against can no longer happen. One short probe is enough.
-      let serverSeesSession = false
-      try {
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          cache: "no-store",
-          signal: AbortSignal.timeout(1200),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          serverSeesSession = !!data?.user
-        }
-      } catch {
-        // Timed out or offline — fall through and redirect anyway (below).
+      const serverSeesSession = await waitForServerSession()
+      if (!serverSeesSession) {
+        setError("Your credentials were accepted, but the session is still being prepared. Please try again in a moment.")
+        setIsManualLogin(false)
+        isManualLoginRef.current = false
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include", cache: "no-store" }).catch(() => undefined)
+        await supabase.auth.signOut({ scope: "global" }).catch(() => undefined)
+        return
       }
-
-      // Redirect REGARDLESS of the probe result. The dashboard layout runs its
-      // own resilient getUser() and the proxy has a loop-breaker (?expired=1)
-      // for a genuinely dead session, so stranding the user on the login page
-      // after a successful credential check was strictly worse than letting the
-      // dashboard resolve it. ?warm=1 marks the unconfirmed case for debugging.
 
       redirectingRef.current = true
       toast.success("Welcome back!")
-      window.location.replace(
-        serverSeesSession ? safeRedirect : `${safeRedirect}${safeRedirect.includes("?") ? "&" : "?"}warm=1`
-      )
+      window.location.replace(safeRedirect)
     } catch (err) {
       console.error("Login completion error:", err)
       setError("Failed to complete login. Please try again.")
@@ -538,55 +492,19 @@ export default function LoginPage() {
         )
       }
 
-      // CRITICAL: Confirm the server can see the new session BEFORE redirecting
-      // to /dashboard. Without this check, the browser navigates to /dashboard
-      // before the auth cookie has propagated to the server, the dashboard
-      // layout's server-side getUser() returns null, the user gets bounced
-      // back to /auth/login, which then sees the session in localStorage and
-      // bounces them to /dashboard again → infinite refresh loop.
-      //
-      // We poll /api/auth/me (which reads the cookie server-side).
-      //
-      // Per-attempt timeout is 3000ms — matches getUser()'s own worst-case
-      // budget (~3000ms; the getUser/getSession races run in parallel
-      // server-side, and the VPN-fortress overall budget is now capped at
-      // 3.5s too, see lib/security/vpn-fortress.ts) plus a fast getProfile()
-      // lookup. This used to be 6000ms x 3 attempts (~18.5s worst case) —
-      // most of that was unused slack that just made a failed sign-in look
-      // "stuck" for far longer than the server could actually take.
-      // T5: single bounded confirmation instead of a 3x(3000+300)ms ladder.
-      //
-      // The Supabase browser client has already written the session cookie by
-      // the time signInWithPassword() resolves, and the proxy routes on cookie
-      // PRESENCE (lib/supabase/proxy.ts) rather than a live getUser() call — so
-      // the /dashboard -> /auth/login -> /dashboard bounce this loop guarded
-      // against can no longer happen. One short probe is enough.
-      let serverSeesSession = false
-      try {
-        const res = await fetch("/api/auth/me", {
-          credentials: "include",
-          cache: "no-store",
-          signal: AbortSignal.timeout(1200),
-        })
-        if (res.ok) {
-          const data = await res.json()
-          serverSeesSession = !!data?.user
-        }
-      } catch {
-        // Timed out or offline — fall through and redirect anyway (below).
+      const serverSeesSession = await waitForServerSession()
+      if (!serverSeesSession) {
+        setError("Your credentials were accepted, but the session is still being prepared. Please try again in a moment.")
+        setIsManualLogin(false)
+        isManualLoginRef.current = false
+        await fetch("/api/auth/logout", { method: "POST", credentials: "include", cache: "no-store" }).catch(() => undefined)
+        await supabase.auth.signOut({ scope: "global" }).catch(() => undefined)
+        return
       }
-
-      // Redirect REGARDLESS of the probe result. The dashboard layout runs its
-      // own resilient getUser() and the proxy has a loop-breaker (?expired=1)
-      // for a genuinely dead session, so stranding the user on the login page
-      // after a successful credential check was strictly worse than letting the
-      // dashboard resolve it. ?warm=1 marks the unconfirmed case for debugging.
 
       redirectingRef.current = true
       toast.success("Welcome back!")
-      window.location.replace(
-        serverSeesSession ? safeRedirect : `${safeRedirect}${safeRedirect.includes("?") ? "&" : "?"}warm=1`
-      )
+      window.location.replace(safeRedirect)
     } catch (err) {
       console.error("Login error:", err)
       setIsManualLogin(false)

@@ -39,7 +39,7 @@ node scripts/migrate.mjs --apply
 ```
 
 The current hardening/delivery migrations are listed in
-`scripts/migrations/README.md` and include `071` through `078`. Do not manually
+`scripts/migrations/README.md` and include `071` through `082`. Do not manually
 run historical SQL files against a database that already has the application
 schema without reviewing dependencies and checksums first.
 

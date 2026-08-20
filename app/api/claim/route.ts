@@ -445,13 +445,14 @@ export async function POST(request: Request) {
 
       // Process referral commission async
       if (profile.referred_by) {
-        const commission = Math.floor(total * (CLAIM_CONFIG.referralBonusPercentage / 100))
+        const claimedTotal = Number(atomicResult.amount)
+        const commission = Math.floor(claimedTotal * (CLAIM_CONFIG.referralBonusPercentage / 100))
         if (commission > 0) {
           supabase
             .rpc("process_referral_commission", {
               p_claim_id: atomicResult.claim_id,
               p_referrer_id: profile.referred_by,
-              p_claim_amount: total,
+              p_claim_amount: claimedTotal,
               p_commission_rate: CLAIM_CONFIG.referralBonusPercentage / 100,
             })
             .then(() => { })
@@ -471,14 +472,30 @@ export async function POST(request: Request) {
       })
     }
 
-    // Fallback to non-atomic claim (if function doesn't exist)
+    // Fallback to non-atomic claim (if function doesn't exist). Keep booster
+    // behavior consistent with atomic_claim instead of silently dropping it.
+    let boosterBonus = 0
+    const { data: activeBooster } = await adminSupabase
+      .from("user_boosters")
+      .select("booster_tiers(faucet_bonus_percentage)")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const boosterPercentage = Number((activeBooster?.booster_tiers as { faucet_bonus_percentage?: number } | null)?.faucet_bonus_percentage || 0)
+    boosterBonus = Math.floor((base + streakBonus) * Math.max(0, boosterPercentage) / 100)
+    const claimTotal = total + boosterBonus
+
     const { data: claim, error: claimError } = await supabase
       .from("claims")
       .insert({
         user_id: user.id,
-        amount_satoshis: total,
+        amount_satoshis: claimTotal,
         base_amount_satoshis: base,
         streak_bonus_satoshis: streakBonus,
+        booster_bonus_satoshis: boosterBonus,
         referral_bonus_satoshis: 0,
         streak_day: newStreak,
         ip_address: ipAddress,
@@ -496,8 +513,8 @@ export async function POST(request: Request) {
     }
 
     // Update user profile
-    const newBalance = Number(profile.balance_satoshis) + total
-    const newTotalEarned = Number(profile.total_earned_satoshis) + total
+    const newBalance = Number(profile.balance_satoshis) + claimTotal
+    const newTotalEarned = Number(profile.total_earned_satoshis) + claimTotal
     const newTotalClaims = profile.total_claims + 1
     const newMaxStreak = Math.max(profile.max_claim_streak, newStreak)
 
@@ -525,7 +542,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       type: "claim",
       status: "completed",
-      amount_satoshis: total,
+      amount_satoshis: claimTotal,
       balance_before: profile.balance_satoshis,
       balance_after: newBalance,
       claim_id: claim.id,
@@ -536,7 +553,7 @@ export async function POST(request: Request) {
 
     // Process referral commission
     if (profile.referred_by) {
-      const commission = Math.floor(total * (CLAIM_CONFIG.referralBonusPercentage / 100))
+      const commission = Math.floor(claimTotal * (CLAIM_CONFIG.referralBonusPercentage / 100))
       if (commission > 0) {
         const { data: referrer } = await supabase
           .from("profiles")
@@ -578,22 +595,22 @@ export async function POST(request: Request) {
       action: "claim",
       resource_type: "claim",
       resource_id: claim.id,
-      metadata: { amount: total, streak: newStreak, fraud_score: claimFraudScore },
+      metadata: { amount: claimTotal, booster_bonus_satoshis: boosterBonus, streak: newStreak, fraud_score: claimFraudScore },
     })
 
     log.info("Claim processed", {
       userId: user.id,
-      amount: total,
+      amount: claimTotal,
       streak: newStreak,
       duration: Date.now() - startTime,
     })
 
     // Update tournament scores (non-blocking)
-    updateClaimTournamentScores(adminSupabase, user.id, total)
+    updateClaimTournamentScores(adminSupabase, user.id, claimTotal)
 
     return NextResponse.json({
       success: true,
-      amount: total,
+      amount: claimTotal,
       streak: newStreak,
       balance: newBalance,
       nextClaimAt: new Date(Date.now() + CLAIM_CONFIG.cooldownSeconds * 1000).toISOString(),

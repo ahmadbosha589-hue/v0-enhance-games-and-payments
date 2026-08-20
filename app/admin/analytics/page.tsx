@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AnalyticsCharts } from "@/components/admin/analytics-charts"
 import { formatNumber } from "@/lib/utils"
@@ -43,40 +43,43 @@ export default async function AnalyticsPage() {
   }
 
   try {
-    const supabase = await createClient()
+    const supabase = requireAdminClient()
 
-    if (supabase) {
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-      // Fetch all stats in parallel with individual error handling
-      const [
-        totalUsersResult,
-        totalClaimsResult,
-        newUsersResult,
-        claimsWeekResult,
-        withdrawalsResult,
-      ] = await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }).then(undefined, () => ({ count: 0 })),
-        supabase.from("claims").select("*", { count: "exact", head: true }).then(undefined, () => ({ count: 0 })),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).then(undefined, () => ({ count: 0 })),
-        supabase.from("claims").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).then(undefined, () => ({ count: 0 })),
-        supabase.from("withdrawals").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).then(undefined, () => ({ count: 0 })),
-      ])
+    // Fetch all stats in parallel with individual error handling
+    const [
+      totalUsersResult,
+      totalClaimsResult,
+      newUsersResult,
+      claimsWeekResult,
+      withdrawalsResult,
+    ] = await Promise.all([
+      supabase.from("profiles").select("*", { count: "exact", head: true }),
+      supabase.from("claims").select("*", { count: "exact", head: true }),
+      supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()),
+      supabase.from("claims").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()),
+      supabase.from("withdrawals").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()),
+    ])
 
-      totalUsers = totalUsersResult.count || 0
-      totalClaims = totalClaimsResult.count || 0
-      newUsersWeek = newUsersResult.count || 0
-      claimsWeek = claimsWeekResult.count || 0
-      withdrawalsWeek = withdrawalsResult.count || 0
+    totalUsers = totalUsersResult.count || 0
+    totalClaims = totalClaimsResult.count || 0
+    newUsersWeek = newUsersResult.count || 0
+    claimsWeek = claimsWeekResult.count || 0
+    withdrawalsWeek = withdrawalsResult.count || 0
 
       // Get adblock stats
       try {
         const { data: rawData, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
         const data = rawData as Partial<typeof adblockStats> | null
         if (!error && data) {
+          const totalVisits = Number(data.total_visits)
+          const detections = Number(data.adblock_detections)
+          const detectionRate = Number(data.detection_rate)
           adblockStats = {
-            ...adblockStats,
-            ...data,
+            total_visits: Number.isFinite(totalVisits) ? totalVisits : 0,
+            adblock_detections: Number.isFinite(detections) ? detections : 0,
+            detection_rate: Number.isFinite(detectionRate) ? detectionRate : 0,
           }
         } else {
           // Fallback query
@@ -98,7 +101,6 @@ export default async function AnalyticsPage() {
       } catch {
         // Table might not exist yet
       }
-    }
   } catch (error) {
     console.error("[AnalyticsPage] Error fetching data:", error)
     // Continue with default values

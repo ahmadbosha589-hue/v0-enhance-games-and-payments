@@ -37,7 +37,7 @@ export async function GET() {
           // Get claims count and total satoshi for the day
           const { data: claimsData, count: claimsCount, error: claimsError } = await supabase
             .from("claims")
-            .select("amount, user_id", { count: "exact" })
+            .select("amount_satoshis, user_id", { count: "exact" })
             .gte("created_at", startOfDay)
             .lte("created_at", endOfDay)
 
@@ -52,7 +52,7 @@ export async function GET() {
           }
 
           // Calculate total satoshi
-          const totalSatoshi = claimsData?.reduce((sum, claim) => sum + (claim.amount || 0), 0) || 0
+          const totalSatoshi = claimsData?.reduce((sum, claim) => sum + Number(claim.amount_satoshis || 0), 0) || 0
 
           // Count unique users
           const uniqueUsers = new Set(claimsData?.map((c) => c.user_id) || []).size
@@ -76,12 +76,7 @@ export async function GET() {
     )
 
     // Fetch fraud/risk distribution from profiles
-    let fraudData = [
-      { type: "Clean", value: 85 },
-      { type: "Low Risk", value: 10 },
-      { type: "Medium Risk", value: 4 },
-      { type: "High Risk", value: 1 },
-    ]
+    let fraudData: { type: string; value: number }[] = []
 
     try {
       const { count: totalUsers, error: profileError } = await supabase
@@ -146,12 +141,7 @@ export async function GET() {
     // Return empty data with structure instead of error
     return NextResponse.json({
       dailyData: generateEmptyDailyData(),
-      fraudData: [
-        { type: "Clean", value: 85 },
-        { type: "Low Risk", value: 10 },
-        { type: "Medium Risk", value: 4 },
-        { type: "High Risk", value: 1 },
-      ],
+      fraudData: [],
     })
   }
 }

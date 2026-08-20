@@ -41,7 +41,7 @@ function checksum(path) {
 const files = [
   join(migrationsDir, "000_migration_state.sql"),
   ...readdirSync(scriptsDir)
-    .filter((name) => /^07[1-9]_.*\.sql$/i.test(name))
+    .filter((name) => /^0(?:7[1-9]|8[0-9])_.*\.sql$/i.test(name))
     .sort()
     .map((name) => join(scriptsDir, name)),
 ]
