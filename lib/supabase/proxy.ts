@@ -21,6 +21,17 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse
   }
 
+  // Next.js can issue several RSC/prefetch requests in parallel with the
+  // document request. They must not all rotate the same single-use Supabase
+  // refresh token; only the canonical document request refreshes the session.
+  const isRscOrPrefetch =
+    request.headers.get("rsc") === "1" ||
+    request.headers.has("next-router-prefetch") ||
+    request.headers.get("purpose") === "prefetch" ||
+    request.headers.get("sec-purpose") === "prefetch" ||
+    request.headers.get("x-nextjs-data") === "1"
+  if (isRscOrPrefetch) return supabaseResponse
+
   // ────────────────────────────────────────────────────────────────────────
   // FAST-PATH: detect Supabase session cookie presence WITHOUT a network call.
   // This is the single source of truth for redirect decisions in the proxy.
