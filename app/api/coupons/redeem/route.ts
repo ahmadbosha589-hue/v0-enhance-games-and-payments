@@ -41,9 +41,35 @@ export async function POST(req: NextRequest) {
 
     if (!adminSupabase) {
       console.error("[coupons/redeem] Admin client not available")
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+      return NextResponse.json({ error: "Coupon rewards are temporarily unavailable" }, { status: 503 })
     }
 
+    const { data: result, error: redemptionError } = await adminSupabase!.rpc("redeem_coupon_atomic", {
+      p_user_id: user!.id,
+      p_code: code,
+      p_ip_address: ip,
+      p_user_agent: userAgent,
+    })
+
+    if (redemptionError) {
+      console.error("Coupon atomic redemption failed:", redemptionError)
+      return NextResponse.json({ error: "Coupon service is temporarily unavailable" }, { status: 503 })
+    }
+    if (!result?.success) {
+      const status = result?.error === "DAILY_LIMIT" ? 429 : result?.error === "ALREADY_REDEEMED" ? 400 : 400
+      return NextResponse.json({ error: result?.message || "Coupon redemption failed" }, { status })
+    }
+
+    return NextResponse.json({
+      success: true,
+      reward: result.reward,
+      couponName: result.coupon_name,
+      newBalance: result.new_balance,
+      message: `Successfully redeemed ${result.reward} satoshis!`,
+    })
+
+    /* istanbul ignore next -- legacy non-atomic implementation retained for rollback reference */
+    if (false) {
     const normalizedCode = code.trim().toUpperCase()
 
     // Validate code length and format
@@ -58,13 +84,13 @@ export async function POST(req: NextRequest) {
 
     // Rate limiting: Check attempts from this IP in the last hour
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-    const { count: recentAttempts } = await adminSupabase
+    const { count: recentAttempts } = await adminSupabase!
       .from("coupon_redemptions")
       .select("*", { count: "exact", head: true })
       .eq("ip_address", ip)
       .gte("redeemed_at", oneHourAgo)
 
-    if (recentAttempts && recentAttempts >= 50) {
+    if ((recentAttempts ?? 0) >= 50) {
       return NextResponse.json({
         error: "Too many attempts. Please try again later.",
       }, { status: 429 })
@@ -74,13 +100,13 @@ export async function POST(req: NextRequest) {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const { count: todayCount } = await adminSupabase
+    const { count: todayCount } = await adminSupabase!
       .from("coupon_redemptions")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .gte("redeemed_at", today.toISOString())
 
-    if (todayCount && todayCount >= MAX_REDEMPTIONS_PER_DAY) {
+    if ((todayCount ?? 0) >= MAX_REDEMPTIONS_PER_DAY) {
       return NextResponse.json({
         error: "Daily redemption limit reached",
         maxRedemptions: MAX_REDEMPTIONS_PER_DAY
@@ -88,7 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Find the coupon
-    const { data: coupon, error: couponError } = await adminSupabase
+    const { data: coupon, error: couponError } = await adminSupabase!
       .from("coupons")
       .select("*")
       .eq("code", normalizedCode)
@@ -110,10 +136,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already redeemed this coupon
-    const { data: existingRedemption } = await adminSupabase
+    const { data: existingRedemption } = await adminSupabase!
       .from("coupon_redemptions")
       .select("id")
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .eq("coupon_id", coupon.id)
       .single()
 
@@ -122,10 +148,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Redeem the coupon
-    const { error: redemptionError } = await adminSupabase
+    const { error: redemptionError } = await adminSupabase!
       .from("coupon_redemptions")
       .insert({
-        user_id: user.id,
+        user_id: user!.id,
         coupon_id: coupon.id,
         reward_satoshis: coupon.reward_satoshis,
         ip_address: ip,
@@ -138,14 +164,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Update coupon usage count
-    await adminSupabase
+    await adminSupabase!
       .from("coupons")
       .update({ current_uses: (coupon.current_uses || 0) + 1 })
       .eq("id", coupon.id)
 
     // Award satoshis to user
-    await adminSupabase.rpc("add_game_reward", {
-      p_user_id: user.id,
+    await adminSupabase!.rpc("add_game_reward", {
+      p_user_id: user!.id,
       p_amount: coupon.reward_satoshis
     })
 
@@ -155,7 +181,7 @@ export async function POST(req: NextRequest) {
       couponName: coupon.code,
       message: `Successfully redeemed ${coupon.reward_satoshis} satoshis!`
     })
-
+    }
   } catch (error) {
     console.error("Coupon redeem error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

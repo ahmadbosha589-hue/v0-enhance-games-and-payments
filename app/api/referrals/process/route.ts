@@ -1,108 +1,68 @@
-import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
-import { REFERRAL_CONFIG } from "@/lib/constants/config"
+import { getUser, createAdminClient } from "@/lib/supabase/server"
+import { CLAIM_CONFIG } from "@/lib/constants/config"
 
-// This route processes referral bonuses when a claim is made
 export async function POST(request: Request) {
   try {
-    const { claimId, userId, claimAmount } = await request.json()
+    const user = await getUser()
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-    if (!claimId || !userId || !claimAmount) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    const body = await request.json().catch(() => ({}))
+    const claimId = typeof body.claimId === "string" ? body.claimId : ""
+    const requestedUserId = typeof body.userId === "string" ? body.userId : user.id
+    if (!claimId || requestedUserId !== user.id) {
+      return NextResponse.json({ error: "Invalid referral request" }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "Referral service is temporarily unavailable" }, { status: 503 })
+    }
 
-    // Get the user's profile to find their referrer
-    const { data: profile } = await supabase.from("profiles").select("id, referred_by").eq("id", userId).single()
+    const { data: claim, error: claimError } = await adminSupabase
+      .from("claims")
+      .select("id, user_id, amount_satoshis")
+      .eq("id", claimId)
+      .eq("user_id", user.id)
+      .single()
 
-    if (!profile || !profile.referred_by) {
+    if (claimError || !claim) {
+      return NextResponse.json({ error: "Claim not found" }, { status: 404 })
+    }
+
+    const { data: profile, error: profileError } = await adminSupabase
+      .from("profiles")
+      .select("id, referred_by")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError) {
+      return NextResponse.json({ error: "Referral service is temporarily unavailable" }, { status: 503 })
+    }
+    if (!profile?.referred_by) {
       return NextResponse.json({ message: "No referrer found", processed: false })
     }
 
-    const referralBonuses: { userId: string; tier: number; amount: number }[] = []
+    const { data: result, error: commissionError } = await adminSupabase.rpc("process_referral_commission", {
+      p_claim_id: claim.id,
+      p_referrer_id: profile.referred_by,
+      p_claim_amount: claim.amount_satoshis,
+      p_commission_rate: CLAIM_CONFIG.referralBonusPercentage / 100,
+    })
 
-    // Process multi-tier referrals
-    let currentReferrerId = profile.referred_by
-    for (const tier of REFERRAL_CONFIG.tiers) {
-      if (!currentReferrerId) break
-
-      // Get the referrer's profile
-      const { data: referrer } = await supabase
-        .from("profiles")
-        .select("id, referred_by, status")
-        .eq("id", currentReferrerId)
-        .single()
-
-      if (!referrer || referrer.status === "banned" || referrer.status === "suspended") {
-        break
-      }
-
-      // Calculate bonus amount
-      const bonusAmount = Math.floor((claimAmount * tier.percentage) / 100)
-
-      if (bonusAmount > 0) {
-        referralBonuses.push({
-          userId: referrer.id,
-          tier: tier.tier,
-          amount: bonusAmount,
-        })
-
-        // Credit the referrer
-        await supabase
-          .rpc("credit_referral_bonus", {
-            p_referrer_id: referrer.id,
-            p_amount: bonusAmount,
-            p_claim_id: claimId,
-            p_referred_user_id: userId,
-            p_tier: tier.tier,
-          })
-          .then(undefined, async () => {
-            // Fallback if RPC doesn't exist - manual update
-            const { data: currentProfile } = await supabase
-              .from("profiles")
-              .select("balance_satoshis, referral_earnings_satoshis, total_earned_satoshis")
-              .eq("id", referrer.id)
-              .single()
-
-            if (currentProfile) {
-              await supabase
-                .from("profiles")
-                .update({
-                  balance_satoshis: (currentProfile.balance_satoshis || 0) + bonusAmount,
-                  referral_earnings_satoshis: (currentProfile.referral_earnings_satoshis || 0) + bonusAmount,
-                  total_earned_satoshis: (currentProfile.total_earned_satoshis || 0) + bonusAmount,
-                })
-                .eq("id", referrer.id)
-
-              // Create transaction record
-              await supabase.from("transactions").insert({
-                user_id: referrer.id,
-                type: "referral_bonus",
-                amount_satoshis: bonusAmount,
-                status: "completed",
-                description: `Tier ${tier.tier} referral bonus`,
-                referral_id: userId,
-                claim_id: claimId,
-                balance_before: currentProfile.balance_satoshis || 0,
-                balance_after: (currentProfile.balance_satoshis || 0) + bonusAmount,
-                completed_at: new Date().toISOString(),
-              })
-            }
-          })
-      }
-
-      // Move to the next tier (referrer's referrer)
-      currentReferrerId = referrer.referred_by
+    if (commissionError) {
+      console.error("Referral commission RPC failed:", commissionError)
+      return NextResponse.json({ error: "Referral service is temporarily unavailable" }, { status: 503 })
     }
 
     return NextResponse.json({
-      message: "Referral bonuses processed",
-      processed: true,
-      bonuses: referralBonuses,
+      processed: Boolean(result?.success),
+      commission: result?.commission || 0,
+      transactionId: result?.transaction_id || null,
+      duplicate: Boolean(result?.duplicate),
     })
   } catch (error) {
     console.error("Referral processing error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Referral service is temporarily unavailable" }, { status: 503 })
   }
 }

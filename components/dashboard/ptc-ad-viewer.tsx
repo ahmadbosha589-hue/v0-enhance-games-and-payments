@@ -26,6 +26,7 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
   const [timeLeft, setTimeLeft] = useState(ad.duration_seconds)
   const [isPaused, setIsPaused] = useState(false)
   const [showReturnWarning, setShowReturnWarning] = useState(false)
+  const [watchToken, setWatchToken] = useState<string | null>(null)
   const adWindowRef = useRef<Window | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const isAdWindowFocusedRef = useRef(false)
@@ -154,16 +155,26 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
     }
   }, [status, isPaused, timeLeft, ad.duration_seconds])
 
-  const handleStartWatching = useCallback(() => {
-    // Open ad in new tab/window
-    adWindowRef.current = window.open(ad.url, "_blank", "noopener,noreferrer")
-    setStatus("watching")
-    setTimeLeft(ad.duration_seconds)
-    setProgress(0)
-    setIsPaused(false)
-    setShowReturnWarning(false)
-    toast.info("Stay on the ad page! Timer only runs while viewing the ad.", { duration: 4000 })
-  }, [ad.url, ad.duration_seconds])
+  const handleStartWatching = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/ptc/${ad.id}`, { credentials: "include", cache: "no-store" })
+      const data = await response.json()
+      if (!response.ok || !data.watchToken) {
+        throw new Error(data.error || "PTC watch session unavailable")
+      }
+      setWatchToken(data.watchToken)
+      adWindowRef.current = window.open(ad.url, "_blank", "noopener,noreferrer")
+      if (!adWindowRef.current) throw new Error("Please allow pop-ups to watch this ad")
+      setStatus("watching")
+      setTimeLeft(ad.duration_seconds)
+      setProgress(0)
+      setIsPaused(false)
+      setShowReturnWarning(false)
+      toast.info("Stay on the ad page! Timer only runs while viewing the ad.", { duration: 4000 })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to start PTC ad")
+    }
+  }, [ad.id, ad.url, ad.duration_seconds])
 
   const handleResumeWatching = useCallback(() => {
     // Check if ad window still exists and just needs focus
@@ -181,6 +192,12 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
   }, [ad.url])
 
   const handleClaimReward = useCallback(async () => {
+    if (!watchToken) {
+      toast.error("PTC watch session unavailable. Please restart the ad.")
+      setStatus("ready")
+      return
+    }
+
     setStatus("claiming")
 
     // Set a timeout to prevent infinite hanging
@@ -199,6 +216,10 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
         credentials: "include",
         body: JSON.stringify({
           adId: ad.id,
+          watchToken,
+          fingerprint: btoa(
+            [navigator.userAgent, navigator.language, screen.width, screen.height].join("|")
+          ).slice(0, 32),
         }),
       })
 
@@ -247,7 +268,7 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
       toast.error(error instanceof Error ? error.message : "Failed to claim reward. Please try again.")
       setStatus("ready")
     }
-  }, [ad.id])
+  }, [ad.id, watchToken])
 
   if (status === "completed") {
     return (

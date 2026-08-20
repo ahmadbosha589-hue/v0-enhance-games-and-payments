@@ -81,6 +81,11 @@ The migration set is tracked in `scripts/migrations/README.md` and currently con
 081_booster_transaction_type.sql
 082_booster_claim_constraint.sql
 083_wallet_payment_tx_unique.sql
+084_reward_atomic_fulfillment.sql
+085_reward_rpc_acl.sql
+086_atomic_bonus_coupon_achievement_referral.sql
+087_manual_faucet_reservation.sql
+088_reward_view_duplicate_cleanup.sql
 ```
 
 Run from the repository root:

@@ -1,55 +1,32 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-import { cookies } from "next/headers"
-import { createServerClient } from "@supabase/ssr"
-
-function getSupabaseAdmin() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+import { NextRequest, NextResponse } from "next/server"
+import { getUser, createAdminClient } from "@/lib/supabase/server"
+import { headers } from "next/headers"
+import { verifyWatchToken } from "@/lib/rewards/watch-session"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabaseAdmin = getSupabaseAdmin()
-
-    // Get user session
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
-            })
-          },
-        },
-      },
-    )
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getUser()
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { adId, viewId } = body
-
-    if (!adId) {
-      return NextResponse.json({ error: "Missing ad ID" }, { status: 400 })
+    const body = await request.json().catch(() => ({}))
+    const { adId, watchToken, fingerprint } = body
+    if (!adId || typeof adId !== "string" || !watchToken || typeof watchToken !== "string") {
+      return NextResponse.json({ error: "Missing required watch session" }, { status: 400 })
+    }
+    if (!fingerprint || typeof fingerprint !== "string" || fingerprint.length < 10 || fingerprint.length > 200) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
-    // Get ad details
-    const { data: ad, error: adError } = await supabaseAdmin
+    const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "PTC rewards are temporarily unavailable" }, { status: 503 })
+    }
+
+    const { data: ad, error: adError } = await adminSupabase
       .from("ptc_ads")
-      .select("*")
+      .select("id, duration_seconds, is_active, is_approved, remaining_budget_satoshis")
       .eq("id", adId)
       .eq("is_active", true)
       .eq("is_approved", true)
@@ -60,98 +37,50 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Ad not found or expired" }, { status: 404 })
     }
 
-    // Check if user already watched this ad TODAY (daily reset at midnight UTC)
-    const today = new Date()
-    today.setUTCHours(0, 0, 0, 0)
-    const todayISO = today.toISOString()
-
-    const { data: existingViewToday } = await supabaseAdmin
-      .from("ptc_views")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("ad_id", adId)
-      .gte("created_at", todayISO)
-      .maybeSingle()
-
-    if (existingViewToday) {
-      return NextResponse.json({ error: "You already watched this ad today. Come back tomorrow!" }, { status: 400 })
+    let session
+    try {
+      session = verifyWatchToken(watchToken, {
+        kind: "ptc",
+        userId: user.id,
+        resourceId: adId,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid watch session"
+      return NextResponse.json({ error: message }, { status: 400 })
     }
 
-    // Get user profile
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("balance_satoshis, total_earned_satoshis")
-      .eq("id", user.id)
-      .single()
+    const headersList = await headers()
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      headersList.get("x-real-ip") ||
+      "unknown"
+    const userAgent = headersList.get("user-agent") || "unknown"
 
-    if (!profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
-    }
-
-    const rewardSatoshis = ad.reward_satoshis
-
-    // Update or create view record
-    if (viewId) {
-      await supabaseAdmin
-        .from("ptc_views")
-        .update({
-          completed: true,
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", viewId)
-        .eq("user_id", user.id)
-    } else {
-      await supabaseAdmin.from("ptc_views").insert({
-        user_id: user.id,
-        ad_id: adId,
-        reward_satoshis: rewardSatoshis,
-        view_duration_seconds: ad.duration_seconds,
-        completed: true,
-        completed_at: new Date().toISOString(),
-      })
-    }
-
-    // Credit user balance
-    const newBalance = profile.balance_satoshis + rewardSatoshis
-    const newTotalEarned = (profile.total_earned_satoshis || 0) + rewardSatoshis
-    await supabaseAdmin
-      .from("profiles")
-      .update({
-        balance_satoshis: newBalance,
-        total_earned_satoshis: newTotalEarned,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id)
-
-    // Deduct from ad budget
-    await supabaseAdmin
-      .from("ptc_ads")
-      .update({
-        remaining_budget_satoshis: ad.remaining_budget_satoshis - rewardSatoshis,
-        total_views: ad.total_views + 1,
-        total_unique_views: ad.total_unique_views + 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", adId)
-
-    // Create transaction record
-    await supabaseAdmin.from("transactions").insert({
-      user_id: user.id,
-      type: "ptc",
-      amount_satoshis: rewardSatoshis,
-      balance_before: profile.balance_satoshis,
-      balance_after: newBalance,
-      status: "completed",
-      description: `PTC Ad: ${ad.title}`,
+    const { data: result, error: completionError } = await adminSupabase.rpc("complete_ptc_view", {
+      p_user_id: user.id,
+      p_ad_id: adId,
+      p_started_at: new Date(session.startedAt).toISOString(),
+      p_ip_address: ip,
+      p_user_agent: userAgent,
     })
+
+    if (completionError) {
+      console.error("PTC atomic completion failed:", completionError)
+      return NextResponse.json({ error: "PTC reward service is temporarily unavailable" }, { status: 503 })
+    }
+
+    if (!result?.success) {
+      const status = result?.error === "ALREADY_COMPLETED" || result?.error === "WATCH_TOO_SHORT" ? 400 : 503
+      return NextResponse.json({ error: result?.message || "Unable to complete PTC ad" }, { status })
+    }
 
     return NextResponse.json({
       success: true,
-      reward: rewardSatoshis,
-      newBalance,
+      reward: result.reward,
+      newBalance: result.new_balance,
+      viewId: result.view_id,
     })
   } catch (error) {
     console.error("PTC complete error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "PTC reward service is temporarily unavailable" }, { status: 503 })
   }
 }

@@ -37,13 +37,13 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
   const { t } = useLanguage()
 
   const [shortlink, setShortlink] = useState<Shortlink | null>(null)
+  const [watchToken, setWatchToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [status, setStatus] = useState<"loading" | "countdown" | "ready" | "claiming" | "completed">("loading")
   const [countdown, setCountdown] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const viewStartTimeRef = useRef<number | null>(null)
 
   // Fetch shortlink details
   useEffect(() => {
@@ -56,11 +56,9 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
         }
         const data = await res.json()
         setShortlink(data.shortlink)
+        setWatchToken(data.watchToken || null)
         setCountdown(data.shortlink.view_time_seconds)
         setStatus("countdown")
-        viewStartTimeRef.current = Date.now()
-
-        // Start countdown immediately
         startCountdown(data.shortlink.view_time_seconds)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load shortlink")
@@ -98,16 +96,14 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
   }
 
   const handleComplete = useCallback(async () => {
-    if (!shortlink) return
+    if (!shortlink || !watchToken) {
+      toast.error("Watch session unavailable. Please return and try again.")
+      return
+    }
 
     setStatus("claiming")
 
     try {
-      // Calculate view duration
-      const viewDuration = viewStartTimeRef.current
-        ? Math.floor((Date.now() - viewStartTimeRef.current) / 1000)
-        : shortlink.view_time_seconds
-
       // Generate fingerprint
       const fingerprint = btoa(
         [navigator.userAgent, navigator.language, screen.width, screen.height].join("|")
@@ -119,7 +115,7 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
         credentials: "include",
         body: JSON.stringify({
           shortlinkId: shortlink.id,
-          viewDuration,
+          watchToken,
           fingerprint,
         }),
       })
@@ -147,7 +143,7 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
       toast.error(error instanceof Error ? error.message : "Failed to complete")
       setStatus("ready")
     }
-  }, [shortlink])
+  }, [shortlink, watchToken])
 
   if (isLoading) {
     return (

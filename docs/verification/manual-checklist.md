@@ -9,7 +9,7 @@ or staging database behavior. Run this checklist against staging before producti
 - [x] `npm run lint` exits 0; existing warnings are reviewed and not new correctness errors.
 - [x] `npm run test` passes all test files.
 - [x] `npm run build` passes after deleting `.next` and `*.tsbuildinfo`.
-- [x] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set through `083`.
+- [x] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set through `088`.
 - [x] Configured Supabase migration runner reports every applied checksum unchanged.
 
 ## Authentication and security

@@ -28,6 +28,10 @@ SUPABASE_SERVICE_ROLE_KEY=[REDACTED_SERVICE_ROLE_KEY]
 # Migration-compatible Postgres URL (server-side only)
 DATABASE_URL=[REDACTED_DATABASE_URL]
 
+# Dedicated signing secret for Shortlink/PTC server watch sessions.
+# Keep it stable across deployments; if omitted, the server-role key is used.
+REWARD_SESSION_SECRET=[REDACTED_REWARD_SESSION_SECRET]
+
 # Supabase JWT secret, if required by the deployed auth verification path
 SUPABASE_JWT_SECRET=[REDACTED_JWT_SECRET]
 \`\`\`

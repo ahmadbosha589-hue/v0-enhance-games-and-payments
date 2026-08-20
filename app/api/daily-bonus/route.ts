@@ -48,29 +48,16 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    let adminSupabase
-    try {
-      adminSupabase = requireAdminClient()
-    } catch (e) {
-      // Fallback to regular client if admin client fails
-      adminSupabase = supabase
-    }
-
+    const adminSupabase = requireAdminClient()
     const { data: profile, error: profileError } = await adminSupabase
       .from("profiles")
       .select("id, last_daily_bonus_at, total_daily_bonuses")
-      .eq("id", user.id)
+      .eq("id", user!.id)
       .single()
 
     if (profileError) {
       console.error("Profile query error:", profileError)
-      return NextResponse.json({
-        canClaim: true,
-        secondsRemaining: 0,
-        totalBonuses: 0,
-        minAmount: DAILY_BONUS_CONFIG.minAmount,
-        maxAmount: DAILY_BONUS_CONFIG.maxAmount,
-      })
+      return NextResponse.json({ error: "Daily bonus status is temporarily unavailable" }, { status: 503 })
     }
 
     if (!profile) {
@@ -91,13 +78,7 @@ export async function GET() {
     })
   } catch (error) {
     console.error("Daily bonus check error:", error)
-    return NextResponse.json({
-      canClaim: true,
-      secondsRemaining: 0,
-      totalBonuses: 0,
-      minAmount: DAILY_BONUS_CONFIG.minAmount,
-      maxAmount: DAILY_BONUS_CONFIG.maxAmount,
-    })
+    return NextResponse.json({ error: "Daily bonus status is temporarily unavailable" }, { status: 503 })
   }
 }
 
@@ -113,20 +94,46 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    let adminSupabase
-    try {
-      adminSupabase = requireAdminClient()
-    } catch (e) {
-      adminSupabase = supabase
+    const adminSupabase = requireAdminClient()
+
+    const bonusAmount = calculateDailyBonusAmount()
+    const headersList = await headers()
+    const ipAddress = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      headersList.get("x-real-ip") || "unknown"
+
+    const { data: result, error: rewardError } = await adminSupabase.rpc("complete_daily_bonus", {
+      p_user_id: user!.id,
+      p_amount: bonusAmount,
+      p_ip_address: ipAddress,
+    })
+
+    if (rewardError) {
+      console.error("Daily bonus atomic RPC failed:", rewardError)
+      return NextResponse.json({ error: "Daily bonus service is temporarily unavailable" }, { status: 503 })
+    }
+    if (!result?.success) {
+      return NextResponse.json({
+        error: result?.message || "Daily bonus unavailable",
+        secondsRemaining: result?.seconds_remaining,
+      }, { status: result?.error === "COOLDOWN_ACTIVE" ? 429 : 403 })
     }
 
-    // Get profile
+    return NextResponse.json({
+      success: true,
+      amount: result.amount,
+      newBalance: result.new_balance,
+      totalBonuses: result.total_bonuses,
+    })
+
+    /* istanbul ignore next -- legacy non-atomic implementation retained below for migration rollback only */
+    if (false) {
+    let adminSupabase
     const { data: profile, error: profileError } = await adminSupabase
       .from("profiles")
       .select(
         "id, balance_satoshis, total_earned_satoshis, last_daily_bonus_at, total_daily_bonuses, status, is_flagged, fraud_score",
       )
-      .eq("id", user.id)
+      .eq("id", user!.id)
       .single()
 
     if (profileError || !profile) {
@@ -180,7 +187,7 @@ export async function POST() {
         last_active_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", user.id)
+      .eq("id", user!.id)
 
     if (updateError) {
       console.error("Failed to update profile:", updateError)
@@ -188,7 +195,7 @@ export async function POST() {
     }
 
     const { error: txError } = await adminSupabase.from("transactions").insert({
-      user_id: user.id,
+      user_id: user!.id,
       type: "daily_bonus",
       status: "completed",
       amount_satoshis: bonusAmount,
@@ -209,7 +216,7 @@ export async function POST() {
 
     // Create notification
     const { error: notifError } = await adminSupabase.from("notifications").insert({
-      user_id: user.id,
+      user_id: user!.id,
       type: "claim_success",
       title: "Daily Bonus Claimed!",
       message: `You received ${bonusAmount} satoshis as your daily bonus.`,
@@ -227,6 +234,7 @@ export async function POST() {
       newBalance,
       totalBonuses: currentTotalBonuses + 1,
     })
+    }
   } catch (error) {
     console.error("Daily bonus claim error:", error)
     return NextResponse.json({ error: "Internal server error. Please try again." }, { status: 500 })

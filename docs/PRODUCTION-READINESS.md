@@ -9,21 +9,24 @@
 - Public/auth/dashboard/admin routes compile successfully.
 - TypeScript has zero diagnostics.
 - ESLint exits successfully with zero errors; existing warnings remain.
-- 107 automated tests pass across 24 test files.
+- 147 automated tests pass across 43 test files.
 - The clean Next.js build generates 196 routes.
 - Public HTTP smoke tests return `200`.
 - Disabled rewarded-payout endpoints return controlled `503` responses rather than issuing unverified rewards.
 
 ### Supabase
 
-The configured Supabase database contains the applied migration set through `083`:
+The configured Supabase database contains the applied migration set through `088`:
 
 - Two-factor hardening.
 - Advertiser contracts and schema fixes.
 - Isolated first-party delivery tables.
 - Atomic serving, click deduplication, campaign creation, and refunds.
 - Postback replay receipt ledger.
-- Corrective migrations for legacy schema compatibility and PostgreSQL PL/pgSQL ambiguity.
+- Atomic signed-watch fulfillment for Shortlinks, PTC, and games.
+- Atomic daily bonus, coupon, achievement, and referral reward fulfillment.
+- Durable direct FaucetPay payout reservation/finalization.
+- Reward RPC ACL hardening.
 
 Rollback-based live tests verified:
 

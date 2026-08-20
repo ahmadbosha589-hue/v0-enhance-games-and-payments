@@ -17,6 +17,11 @@ are applied in lexical order:
 11. `081_booster_transaction_type.sql`
 12. `082_booster_claim_constraint.sql`
 13. `083_wallet_payment_tx_unique.sql`
+14. `084_reward_atomic_fulfillment.sql`
+15. `085_reward_rpc_acl.sql`
+16. `086_atomic_bonus_coupon_achievement_referral.sql`
+17. `087_manual_faucet_reservation.sql`
+18. `088_reward_view_duplicate_cleanup.sql`
 
 `075_ad_balance_atomic.sql` locks the advertiser profile, inserts the campaign,
 deducts the budget, and records the transaction in one database transaction.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUser } from "@/lib/supabase/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { createWatchToken } from "@/lib/rewards/watch-session"
 
 export async function GET(
   request: NextRequest,
@@ -44,7 +45,26 @@ export async function GET(
       return NextResponse.json({ error: "You already visited this shortlink today" }, { status: 400 })
     }
 
-    return NextResponse.json({ shortlink })
+    const now = Date.now()
+    let watchToken: string
+    try {
+      watchToken = createWatchToken({
+        kind: "shortlink",
+        userId: user.id,
+        resourceId: id,
+        startedAt: now,
+        expiresAt: now + Math.max(15 * 60 * 1000, Number(shortlink.view_time_seconds) * 1000 + 60_000),
+      })
+    } catch (tokenError) {
+      console.error("Failed to create shortlink watch session:", tokenError)
+      return NextResponse.json({ error: "Shortlink rewards are temporarily unavailable" }, { status: 503 })
+    }
+
+    return NextResponse.json({
+      shortlink,
+      watchToken,
+      watchStartedAt: now,
+    })
   } catch (error) {
     console.error("Error fetching shortlink:", error)
     return NextResponse.json({ error: "Failed to fetch shortlink" }, { status: 500 })

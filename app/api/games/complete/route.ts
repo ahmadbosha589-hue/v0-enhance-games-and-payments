@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       .from("game_sessions")
       .select("*")
       .eq("id", sessionId)
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .eq("session_token", sessionToken)
       .eq("status", "in_progress")
       .single()
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
       const { count } = await adminSupabase
         .from("game_sessions")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
+        .eq("user_id", user!.id)
         .in("status", ["completed", "lost"])
         .gte("created_at", todayStart.toISOString())
       gamesTodayForDifficulty = count ?? 0
@@ -189,11 +189,56 @@ export async function POST(req: NextRequest) {
     // Calculate game duration for logging
     const gameDuration = verificationData ? Date.now() - verificationData.startTime : 0
 
-    // Update game session with result - wrapped in try-catch
-    try {
-      await adminSupabase
-        .from("game_sessions")
-        .update({
+    // Finalize through the atomic single-writer RPC. The legacy sequential
+    // block below is intentionally unreachable until removed in cleanup; a
+    // missing RPC returns 503 rather than issuing an unsafe fallback reward.
+    const { data: atomicResult, error: atomicError } = await adminSupabase.rpc("complete_game_reward", {
+      p_user_id: user!.id,
+      p_session_id: sessionId,
+      p_score: score,
+      p_game_type: gameType,
+      p_is_winner: isWinner,
+      p_reward_satoshis: rewardAmount,
+      p_game_duration_ms: gameDuration,
+      p_cooldown_until: isWinner ? cooldownUntil : null,
+    })
+
+    if (atomicError || !atomicResult) {
+      console.error("Atomic game finalization unavailable:", atomicError)
+      return NextResponse.json({ error: "Game reward service is temporarily unavailable" }, { status: 503 })
+    }
+
+    if (!atomicResult.success) {
+      const status = atomicResult.error === "DAILY_LIMIT" ? 429 : 400
+      return NextResponse.json({ error: atomicResult.message || "Unable to finalize game" }, { status })
+    }
+
+    return NextResponse.json({
+      success: true,
+      isWinner: atomicResult.is_winner,
+      reward: atomicResult.reward,
+      score,
+      winThreshold: gameType === "memory" ? 0 : winThreshold,
+      newBalance: atomicResult.new_balance,
+      cooldownMinutes: isWinner ? GAME_COOLDOWN_MINUTES : 0,
+      cooldownUntil: atomicResult.cooldown_until,
+      gamesPlayedToday: atomicResult.games_played_today,
+      gamesRemaining: MAX_GAMES_PER_DAY - atomicResult.games_played_today,
+      totalEarnedToday: atomicResult.total_earned_today,
+      message: isWinner
+        ? `Congratulations! You earned ${rewardAmount} satoshis!`
+        : gameType === "memory" ? "Match all pairs to win. Try again!" : `You need at least ${winThreshold} points to win. Try again!`,
+    })
+
+    /* istanbul ignore next -- retained only as a migration rollback reference */
+    // Legacy sequential reward code was removed from the active path; all
+    // production requests return through complete_game_reward above.
+
+    if (user) {
+      try {
+        await adminSupabase
+          .from("game_sessions")
+          .update({
           score,
           status: isWinner ? "completed" : "lost",
           reward_satoshis: rewardAmount,
@@ -210,7 +255,7 @@ export async function POST(req: NextRequest) {
         const { data: existingCooldown } = await adminSupabase
           .from("game_cooldowns")
           .select("id")
-          .eq("user_id", user.id)
+          .eq("user_id", user!.id)
           .eq("game_type", gameType)
           .single()
 
@@ -218,13 +263,13 @@ export async function POST(req: NextRequest) {
           await adminSupabase
             .from("game_cooldowns")
             .update({ cooldown_until: cooldownUntil })
-            .eq("user_id", user.id)
+            .eq("user_id", user!.id)
             .eq("game_type", gameType)
         } else {
           await adminSupabase
             .from("game_cooldowns")
             .insert({
-              user_id: user.id,
+              user_id: user!.id,
               game_type: gameType,
               cooldown_until: cooldownUntil
             })
@@ -237,7 +282,7 @@ export async function POST(req: NextRequest) {
     const { data: existingLimit, error: limitReadError } = await adminSupabase
       .from("game_daily_limits")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .eq("date", today)
       .single()
 
@@ -256,7 +301,7 @@ export async function POST(req: NextRequest) {
         const { error: limitUpdateError } = await adminSupabase
           .from("game_daily_limits")
           .update({ games_played: gamesPlayedToday, total_earned: totalEarnedToday })
-          .eq("user_id", user.id)
+          .eq("user_id", user!.id)
           .eq("date", today)
         if (limitUpdateError) {
           console.error("Failed to update daily game totals:", limitUpdateError)
@@ -268,7 +313,7 @@ export async function POST(req: NextRequest) {
       totalEarnedToday = rewardAmount
       const { error: limitInsertError } = await adminSupabase
         .from("game_daily_limits")
-        .insert({ user_id: user.id, date: today, games_played: 1, total_earned: rewardAmount })
+        .insert({ user_id: user!.id, date: today, games_played: 1, total_earned: rewardAmount })
       if (limitInsertError) {
         console.error("Failed to create daily game totals:", limitInsertError)
         return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
@@ -278,7 +323,7 @@ export async function POST(req: NextRequest) {
     let newBalance = 0
     if (isWinner) {
       const { error: rewardError } = await adminSupabase.rpc("add_game_reward", {
-        p_user_id: user.id,
+        p_user_id: user!.id,
         p_amount: rewardAmount,
       })
       if (rewardError) {
@@ -289,7 +334,7 @@ export async function POST(req: NextRequest) {
       const { data: profile, error: profileError } = await adminSupabase
         .from("profiles")
         .select("balance_satoshis")
-        .eq("id", user.id)
+        .eq("id", user!.id)
         .single()
       if (profileError || !profile) {
         return NextResponse.json({ error: "Unable to read updated balance" }, { status: 503 })
@@ -299,7 +344,7 @@ export async function POST(req: NextRequest) {
       const { error: transactionError } = await adminSupabase
         .from("transactions")
         .insert({
-          user_id: user.id,
+          user_id: user!.id,
           type: "game_reward",
           amount: rewardAmount,
           status: "completed",
@@ -328,6 +373,7 @@ export async function POST(req: NextRequest) {
         ? `Congratulations! You earned ${rewardAmount} satoshis!`
         : gameType === "memory" ? "Match all pairs to win. Try again!" : `You need at least ${winThreshold} points to win. Try again!`
     })
+    }
 
   } catch (error) {
     console.error("Game complete error:", error)

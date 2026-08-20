@@ -5,7 +5,8 @@ import { log } from "@/lib/logger"
 import { validateClaimRequest, type ClaimContext } from "@/lib/security/anti-drain-protection"
 import { checkAntiDrain, recordClaim } from "@/lib/redis/anti-drain"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/redis/rate-limiter"
-import { checkAndSetCooldown, COOLDOWNS } from "@/lib/redis/cooldowns"
+import { randomUUID } from "node:crypto"
+import { checkCooldown, setCooldown, COOLDOWNS } from "@/lib/redis/cooldowns"
 
 const CLAIM_VALUE_USD = 0.0009 // $0.0009 per claim
 const FAUCETPAY_API_URL = "https://faucetpay.io/api/v1"
@@ -317,6 +318,33 @@ export async function POST(request: NextRequest) {
     if (profile.status !== "active") {
       return NextResponse.json({ error: "Account is not active" }, { status: 403 })
     }
+    if (profile.faucetpay_verified !== true) {
+      return NextResponse.json({
+        error: "Verify your FaucetPay account in Settings before requesting a payout",
+        code: "FAUCETPAY_NOT_VERIFIED",
+      }, { status: 403 })
+    }
+
+    const ptcTodayStart = new Date()
+    ptcTodayStart.setUTCHours(0, 0, 0, 0)
+    const { count: completedPtcToday, error: ptcStatusError } = await adminSupabase
+      .from("ptc_views")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("completed", true)
+      .gte("created_at", ptcTodayStart.toISOString())
+
+    if (ptcStatusError) {
+      log.error("PTC unlock check failed", { userId: user.id, error: ptcStatusError })
+      return NextResponse.json({ error: "PTC unlock status is temporarily unavailable" }, { status: 503 })
+    }
+    if ((completedPtcToday ?? 0) < 3) {
+      return NextResponse.json({
+        error: "Complete 3 PTC ads today to unlock the direct faucet",
+        completedToday: completedPtcToday ?? 0,
+        required: 3,
+      }, { status: 403 })
+    }
 
     // Check for VPN/fraud
     if (profile.is_flagged && profile.fraud_score >= 70) {
@@ -353,8 +381,8 @@ export async function POST(request: NextRequest) {
     // =========================================================================
     // REDIS-BACKED COOLDOWN (per crypto, 60 seconds)
     // =========================================================================
-    const cooldownResult = await checkAndSetCooldown(`${user.id}:${cryptoSymbol}`, COOLDOWNS.MANUAL_FAUCET)
-    if (!cooldownResult.allowed) {
+    const cooldownResult = await checkCooldown(`${user.id}:${cryptoSymbol}`, COOLDOWNS.MANUAL_FAUCET)
+    if (cooldownResult.onCooldown) {
       return NextResponse.json(
         {
           error: "Cooldown active",
@@ -638,6 +666,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const requestId = headersList.get("idempotency-key")?.trim() || randomUUID()
+    const { data: reservation, error: reservationError } = await adminSupabase.rpc("reserve_manual_faucet_claim", {
+      p_user_id: user.id,
+      p_crypto_symbol: cryptoSymbol,
+      p_amount: parseFloat(amount),
+      p_usd_value: CLAIM_VALUE_USD,
+      p_request_id: requestId,
+      p_ip_address: ip,
+      p_fingerprint: fingerprint?.visitorId || null,
+    })
+
+    if (reservationError || !reservation) {
+      log.error("Manual faucet reservation failed", { userId: user.id, error: reservationError })
+      return NextResponse.json({ error: "Payout reservation service is temporarily unavailable" }, { status: 503 })
+    }
+    if (!reservation.success) {
+      return NextResponse.json({
+        error: reservation.message || "A previous payout is still being processed",
+        code: reservation.error,
+      }, { status: reservation.error === "COOLDOWN_ACTIVE" ? 429 : 409 })
+    }
+
+    const manualClaimId = reservation.claim_id
+
     // Send payment via FaucetPay
     const paymentResult = await sendFaucetPayPayment(
       apiKey,
@@ -653,6 +705,14 @@ export async function POST(request: NextRequest) {
         email: faucetPayEmail,
         currency: cryptoSymbol
       })
+      try {
+        await adminSupabase.rpc("finalize_manual_faucet_claim", {
+          p_claim_id: manualClaimId,
+          p_user_id: user.id,
+          p_status: "failed",
+          p_provider_tx_id: null,
+        })
+      } catch { /* preserve the pending reservation for reconciliation */ }
       return NextResponse.json(
         { error: paymentResult.error || "FaucetPay payment failed" },
         { status: 400 }
@@ -665,23 +725,27 @@ export async function POST(request: NextRequest) {
       currency: cryptoSymbol
     })
 
-    // Record the claim only after successful FaucetPay payment
-    // Note: Use faucetpay_tx_id column as that's what the table has
-    const { error: insertError } = await adminSupabase.from("manual_faucet_claims").insert({
-      user_id: user.id,
-      crypto_symbol: cryptoSymbol,
-      amount: parseFloat(amount),
-      usd_value: CLAIM_VALUE_USD,
-      ip_address: ip,
-      fingerprint: fingerprint?.visitorId || null,
-      faucetpay_tx_id: paymentResult.payoutId, // Use correct column name
-      status: "completed",
+    const { data: finalized, error: finalizeError } = await adminSupabase.rpc("finalize_manual_faucet_claim", {
+      p_claim_id: manualClaimId,
+      p_user_id: user.id,
+      p_status: "completed",
+      p_provider_tx_id: paymentResult.payoutId || null,
     })
 
-    if (insertError) {
-      log.error("Failed to record claim (but payment was sent)", { error: insertError })
-      // Don't fail the request since payment was already sent
+    if (finalizeError || !finalized?.success) {
+      log.error("Failed to finalize manual faucet claim after provider success", {
+        userId: user.id,
+        claimId: manualClaimId,
+        payoutId: paymentResult.payoutId,
+        error: finalizeError,
+      })
+      return NextResponse.json({
+        error: "Payout was sent but reconciliation is pending. Contact support before retrying.",
+        code: "PAYOUT_RECONCILIATION_REQUIRED",
+      }, { status: 503 })
     }
+
+    await setCooldown(`${user.id}:${cryptoSymbol}`, COOLDOWNS.MANUAL_FAUCET)
 
     // Record claim in Redis for anti-drain tracking
     await recordClaim({

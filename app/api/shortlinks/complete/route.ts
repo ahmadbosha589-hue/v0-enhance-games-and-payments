@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
+import { NextRequest, NextResponse } from "next/server"
+import { verifyWatchToken } from "@/lib/rewards/watch-session"
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,38 +11,33 @@ export async function POST(req: NextRequest) {
     }
 
     const headersList = await headers()
-    const ip = headersList.get("x-forwarded-for")?.split(",")[0] ||
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       headersList.get("x-real-ip") ||
       "unknown"
     const userAgent = headersList.get("user-agent") || "unknown"
 
-    // Bot detection
-    if (userAgent.toLowerCase().includes("bot") ||
-      userAgent.toLowerCase().includes("crawler")) {
+    if (/bot|crawler|spider/i.test(userAgent)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
-    const body = await req.json()
-    const { shortlinkId, viewStartTime, fingerprint } = body
+    const body = await req.json().catch(() => ({}))
+    const { shortlinkId, watchToken, fingerprint } = body
 
-    if (!shortlinkId || !viewStartTime || !fingerprint) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    if (!shortlinkId || typeof shortlinkId !== "string" || !watchToken || typeof watchToken !== "string") {
+      return NextResponse.json({ error: "Missing required watch session" }, { status: 400 })
+    }
+    if (!fingerprint || typeof fingerprint !== "string" || fingerprint.length < 10 || fingerprint.length > 200) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
     const adminSupabase = createAdminClient()
-
     if (!adminSupabase) {
-      console.error("[shortlinks/complete] Admin client not available")
-      return NextResponse.json({ error: "Database not configured" }, { status: 500 })
+      return NextResponse.json({ error: "Shortlink rewards are temporarily unavailable" }, { status: 503 })
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    // Find the shortlink
     const { data: shortlink, error: shortlinkError } = await adminSupabase
       .from("shortlinks")
-      .select("*")
+      .select("id, view_time_seconds, is_active")
       .eq("id", shortlinkId)
       .eq("is_active", true)
       .single()
@@ -50,74 +46,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid shortlink" }, { status: 404 })
     }
 
-    // Check if user already viewed this shortlink today
-    const { data: existingView } = await adminSupabase
-      .from("shortlink_views")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("shortlink_id", shortlinkId)
-      .gte("viewed_at", today.toISOString())
-      .single()
-
-    if (existingView) {
-      return NextResponse.json({ error: "You have already viewed this shortlink today" }, { status: 400 })
+    let session
+    try {
+      session = verifyWatchToken(watchToken, {
+        kind: "shortlink",
+        userId: user.id,
+        resourceId: shortlinkId,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid watch session"
+      return NextResponse.json({ error: message }, { status: 400 })
     }
 
-    // Validate view duration
-    const viewDuration = Date.now() - viewStartTime
-    const requiredDuration = shortlink.view_time_seconds * 1000
-
-    // Allow 2 second grace period
-    if (viewDuration < requiredDuration - 2000) {
+    const elapsedMs = Date.now() - session.startedAt
+    const requiredMs = Math.max(0, Number(shortlink.view_time_seconds) * 1000 - 2000)
+    if (elapsedMs < requiredMs) {
       return NextResponse.json({
         error: "Please view the link for the required time",
         required: shortlink.view_time_seconds,
-        actual: Math.floor(viewDuration / 1000)
+        actual: Math.floor(elapsedMs / 1000),
       }, { status: 400 })
     }
 
-    // Record the view — only columns that exist in shortlink_views schema
-    const { error: viewError } = await adminSupabase
-      .from("shortlink_views")
-      .insert({
-        user_id: user.id,
-        shortlink_id: shortlinkId,
-        reward_satoshis: shortlink.reward_satoshis,
-        ip_address: ip
-      })
-
-    if (viewError) {
-      console.error("Error recording shortlink view:", viewError)
-      return NextResponse.json({ error: "Failed to record view" }, { status: 500 })
-    }
-
-    // Update shortlink total_views count (matches schema column name)
-    await adminSupabase
-      .from("shortlinks")
-      .update({ total_views: (shortlink.total_views || 0) + 1 })
-      .eq("id", shortlinkId)
-
-    // Award satoshis to user
-    await adminSupabase.rpc("add_game_reward", {
+    const { data: result, error: completionError } = await adminSupabase.rpc("complete_shortlink_view", {
       p_user_id: user.id,
-      p_amount: shortlink.reward_satoshis
+      p_shortlink_id: shortlinkId,
+      p_ip_address: ip,
+      p_user_agent: userAgent,
+      p_view_duration_ms: elapsedMs,
     })
 
-    // Get updated stats
-    const { count: newTodayCount } = await adminSupabase
-      .from("shortlink_views")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .gte("viewed_at", today.toISOString())
+    if (completionError) {
+      console.error("[shortlinks/complete] atomic completion failed", completionError)
+      return NextResponse.json({ error: "Shortlink reward service is temporarily unavailable" }, { status: 503 })
+    }
+
+    if (!result?.success) {
+      const status = result?.error === "ALREADY_COMPLETED" || result?.error === "DAILY_LIMIT" ? 400 : 503
+      return NextResponse.json({ error: result?.message || "Unable to complete shortlink" }, { status })
+    }
 
     return NextResponse.json({
       success: true,
-      reward: shortlink.reward_satoshis,
-      viewsToday: newTodayCount || 1
+      reward: result.reward,
+      viewsToday: result.views_today,
+      newBalance: result.new_balance,
     })
-
   } catch (error) {
     console.error("Shortlink complete error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Shortlink reward service is temporarily unavailable" }, { status: 503 })
   }
 }

@@ -43,6 +43,7 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
   const { t } = useLanguage()
 
   const [ad, setAd] = useState<PTCAd | null>(null)
+  const [watchToken, setWatchToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [status, setStatus] = useState<"loading" | "ready" | "watching" | "claiming" | "completed">("loading")
   const [progress, setProgress] = useState(0)
@@ -62,6 +63,7 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
         }
         const data = await res.json()
         setAd(data.ad)
+        setWatchToken(data.watchToken || null)
         setTimeLeft(data.ad.duration_seconds)
         setStatus("ready")
       } catch (err) {
@@ -105,14 +107,24 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
   }, [ad])
 
   const handleClaimReward = useCallback(async () => {
-    if (!ad) return
+    if (!ad || !watchToken) {
+      toast.error("Watch session unavailable. Please return and try again.")
+      setStatus("ready")
+      return
+    }
 
     try {
       const response = await fetch("/api/ptc/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ adId: ad.id }),
+        body: JSON.stringify({
+          adId: ad.id,
+          watchToken,
+          fingerprint: btoa(
+            [navigator.userAgent, navigator.language, screen.width, screen.height].join("|")
+          ).slice(0, 32),
+        }),
       })
 
       const data = await response.json()
@@ -151,7 +163,7 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
       toast.error(error instanceof Error ? error.message : "Failed to claim")
       setStatus("ready")
     }
-  }, [ad])
+  }, [ad, watchToken])
 
   if (isLoading) {
     return (
@@ -391,8 +403,6 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
                       referrerPolicy="no-referrer"
                       title={ad.title}
                     />
-                    {/* Overlay to prevent interaction with iframe */}
-                    <div className="absolute inset-0 bg-transparent" />
                   </div>
                   <p className="text-xs text-muted-foreground mt-2 text-center">
                     View the content above while the timer counts down. Your reward will be claimed automatically.

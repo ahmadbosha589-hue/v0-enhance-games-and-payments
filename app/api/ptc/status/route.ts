@@ -43,8 +43,8 @@ export async function GET() {
 
     return NextResponse.json({
       completedToday: count || 0,
-      requiredForFaucet: 2,
-      isUnlocked: (count || 0) >= 2,
+      requiredForFaucet: 3,
+      isUnlocked: (count || 0) >= 3,
       resetTime: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     })
   } catch (error) {

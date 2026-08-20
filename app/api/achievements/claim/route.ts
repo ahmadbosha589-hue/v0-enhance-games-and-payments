@@ -29,6 +29,28 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = requireAdminClient()
 
+    const { data: result, error: rewardError } = await adminSupabase.rpc("claim_achievement_atomic", {
+      p_user_id: user!.id,
+      p_achievement_id: achievementId,
+    })
+
+    if (rewardError) {
+      console.error("Achievement atomic claim failed:", rewardError)
+      return NextResponse.json({ success: false, error: "Achievement rewards are temporarily unavailable" }, { status: 503 })
+    }
+    if (!result?.success) {
+      return NextResponse.json({ success: false, error: result?.message || "Achievement reward unavailable" }, { status: result?.error === "ALREADY_CLAIMED" ? 400 : 403 })
+    }
+
+    return NextResponse.json({
+      success: true,
+      reward: result.reward,
+      newBalance: result.new_balance,
+      message: `You received ${result.reward} satoshis!`,
+    })
+
+    /* istanbul ignore next -- legacy non-atomic implementation retained for rollback reference */
+    if (false) {
     const { data: achievement, error: achError } = await adminSupabase
       .from("achievements")
       .select("*")
@@ -43,11 +65,11 @@ export async function POST(request: NextRequest) {
     const { data: userAchievement, error: uaError } = await adminSupabase
       .from("user_achievements")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .eq("achievement_id", achievementId)
       .single()
 
-    const isCompleted = await checkDynamicCompletion(adminSupabase, user.id, achievement)
+    const isCompleted = await checkDynamicCompletion(adminSupabase, user!.id, achievement)
 
     if (!userAchievement) {
       // No user achievement record exists
@@ -59,7 +81,7 @@ export async function POST(request: NextRequest) {
       const { data: newUserAchievement, error: insertError } = await adminSupabase
         .from("user_achievements")
         .insert({
-          user_id: user.id,
+          user_id: user!.id,
           achievement_id: achievementId,
           progress: achievement.requirement_value,
           completed: true,
@@ -74,7 +96,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Continue with claiming using the new record
-      return await processClaimReward(adminSupabase, user.id, newUserAchievement, achievement)
+      return await processClaimReward(adminSupabase, user!.id, newUserAchievement, achievement)
     }
 
     // Check if already claimed
@@ -101,7 +123,8 @@ export async function POST(request: NextRequest) {
       userAchievement.completed = true
     }
 
-    return await processClaimReward(adminSupabase, user.id, userAchievement, achievement)
+    return await processClaimReward(adminSupabase, user!.id, userAchievement, achievement)
+    }
   } catch (error) {
     console.error("[Achievement] Claim error:", error)
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 })

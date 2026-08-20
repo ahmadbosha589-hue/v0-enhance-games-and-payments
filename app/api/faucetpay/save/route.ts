@@ -68,32 +68,25 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Try to verify with FaucetPay if API is configured and not skipping verification
-    let isVerified = true // Default to true - actual verification happens during claim
+    // Verification is required before any payout. Saving an email is not proof
+    // that the FaucetPay account can receive funds.
+    let isVerified = false
     let verificationError: string | undefined
 
     if (isFaucetPayConfigured() && !skipVerification) {
       try {
         const verification = await verifyFaucetPayEmail(normalizedEmail)
         isVerified = verification.valid
-        if (!verification.valid) {
-          // Even if verification fails, still save the email
-          // The user can still try to claim and get a better error from FaucetPay
-          verificationError = verification.error
-          isVerified = true // Allow saving anyway - claim will do final verification
-          log.info("FaucetPay verification returned not valid, but allowing save", {
-            email: normalizedEmail.substring(0, 5) + "***",
-            error: verification.error
-          })
-        }
+        if (!verification.valid) verificationError = verification.error
       } catch (verifyErr) {
         log.warn("FaucetPay verification failed", { error: verifyErr })
-        // Don't fail the save - mark as verified anyway since claim does verification
-        isVerified = true
-        verificationError = "Verification service temporarily unavailable - you can still try claiming"
+        verificationError = "Verification service temporarily unavailable"
       }
+    } else if (skipVerification) {
+      verificationError = "Verification is required before payouts"
+    } else {
+      verificationError = "FaucetPay verification is not configured"
     }
-    // If FaucetPay API is not configured, isVerified is already set to true by default
 
     // Update the profile with the new FaucetPay email
     const { data, error } = await adminSupabase
@@ -137,7 +130,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: isVerified
         ? "FaucetPay email saved and verified successfully!"
-        : "FaucetPay email saved. You can now claim and withdraw.",
+        : "FaucetPay email saved but not verified. Payouts remain disabled until verification succeeds.",
       email: data.faucetpay_email,
       verified: isVerified,
       verificationError: verificationError,

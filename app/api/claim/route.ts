@@ -422,7 +422,7 @@ export async function POST(request: Request) {
     const userAgent = headersList.get("user-agent") || null
     const idempotencyKey = `claim:${user.id}:${Date.now()}`
 
-    const { data: atomicResult, error: atomicError } = await supabase.rpc("atomic_claim", {
+    const { data: atomicResult, error: atomicError } = await adminSupabase.rpc("atomic_claim", {
       p_user_id: user.id,
       p_ip_address: ipAddress,
       p_device_fingerprint: fingerprint?.visitorId || null,
@@ -434,8 +434,25 @@ export async function POST(request: Request) {
       p_idempotency_key: idempotencyKey,
     })
 
-    // If atomic function exists and works
-    if (!atomicError && atomicResult?.success) {
+    if (atomicError) {
+      log.error("Atomic claim RPC unavailable", { error: atomicError, userId: user.id })
+      return NextResponse.json({ error: "Claim service is temporarily unavailable" }, { status: 503 })
+    }
+
+    if (!atomicResult?.success) {
+      const status = atomicResult?.error === "COOLDOWN_ACTIVE"
+        ? 429
+        : atomicResult?.error === "DUPLICATE_CLAIM" || atomicResult?.error === "CLAIM_IN_PROGRESS"
+          ? 409
+          : 503
+      return NextResponse.json({
+        error: atomicResult?.message || "Claim service is temporarily unavailable",
+        code: atomicResult?.error,
+        cooldownRemaining: atomicResult?.seconds_remaining,
+      }, { status })
+    }
+
+    if (atomicResult?.success) {
       log.info("Claim processed atomically", {
         userId: user.id,
         amount: atomicResult.amount,
@@ -448,7 +465,7 @@ export async function POST(request: Request) {
         const claimedTotal = Number(atomicResult.amount)
         const commission = Math.floor(claimedTotal * (CLAIM_CONFIG.referralBonusPercentage / 100))
         if (commission > 0) {
-          supabase
+          adminSupabase
             .rpc("process_referral_commission", {
               p_claim_id: atomicResult.claim_id,
               p_referrer_id: profile.referred_by,
@@ -472,8 +489,12 @@ export async function POST(request: Request) {
       })
     }
 
-    // Fallback to non-atomic claim (if function doesn't exist). Keep booster
-    // behavior consistent with atomic_claim instead of silently dropping it.
+    return NextResponse.json({ error: "Claim service is temporarily unavailable" }, { status: 503 })
+
+    // Legacy fallback retained below only for historical reference; it is
+    // unreachable because production claims require the atomic RPC.
+    /* istanbul ignore next */
+    if (user) {
     let boosterBonus = 0
     const { data: activeBooster } = await adminSupabase
       .from("user_boosters")
@@ -562,12 +583,13 @@ export async function POST(request: Request) {
           .single()
 
         if (referrer) {
-          const referrerNewBalance = Number(referrer.balance_satoshis) + commission
+          const referrerBalance = Number(referrer!.balance_satoshis)
+          const referrerNewBalance = referrerBalance + commission
           await supabase
             .from("profiles")
             .update({
               balance_satoshis: referrerNewBalance,
-              referral_earnings_satoshis: Number(referrer.referral_earnings_satoshis) + commission,
+              referral_earnings_satoshis: Number(referrer!.referral_earnings_satoshis) + commission,
             })
             .eq("id", profile.referred_by)
 
@@ -576,7 +598,7 @@ export async function POST(request: Request) {
             type: "referral_bonus",
             status: "completed",
             amount_satoshis: commission,
-            balance_before: referrer.balance_satoshis,
+            balance_before: referrer!.balance_satoshis,
             balance_after: referrerNewBalance,
             referral_id: user.id,
             description: `Referral bonus`,
@@ -615,6 +637,7 @@ export async function POST(request: Request) {
       balance: newBalance,
       nextClaimAt: new Date(Date.now() + CLAIM_CONFIG.cooldownSeconds * 1000).toISOString(),
     })
+    }
   } catch (error) {
     log.error("Claim error", { error })
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
