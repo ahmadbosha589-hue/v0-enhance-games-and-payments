@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import type { Profile } from "@/lib/types/database"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { UserMenu } from "@/components/auth/user-menu"
+import { UserMenu } from "@/components/user-menu"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageSelector } from "@/components/language-selector"
 import { useLanguage } from "@/lib/i18n/language-context"
@@ -26,6 +26,10 @@ import { cn } from "@/lib/utils"
 
 interface DashboardHeaderProps {
   profile: Profile
+  user: {
+    id: string
+    email?: string | null
+  }
 }
 
 interface Notification {
@@ -38,7 +42,7 @@ interface Notification {
   action_url: string | null
 }
 
-export function DashboardHeader({ profile: initialProfile }: DashboardHeaderProps) {
+export function DashboardHeader({ profile: initialProfile, user }: DashboardHeaderProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -299,7 +303,15 @@ export function DashboardHeader({ profile: initialProfile }: DashboardHeaderProp
 
           <LanguageSelector />
           <ThemeToggle />
-          <UserMenu />
+          <UserMenu
+            user={{
+              id: user.id,
+              email: user.email ?? undefined,
+              display_name: profile.display_name,
+              avatar_url: profile.avatar_url,
+              role: profile.role,
+            }}
+          />
         </div>
       </div>
     </header>

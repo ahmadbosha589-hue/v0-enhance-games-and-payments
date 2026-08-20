@@ -86,7 +86,7 @@ export default async function DashboardLayout({
           <AdblockProvider userId={user.id} warningDurationSeconds={60}>
             <DashboardSidebar profile={safeProfile} />
             <SidebarInset>
-              <DashboardHeader profile={safeProfile} />
+              <DashboardHeader profile={safeProfile} user={user} />
               <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 pb-24 sm:pb-20 scroll-smooth-container">
                 <PageAdsWrapper
                   showHeaderAds={true}

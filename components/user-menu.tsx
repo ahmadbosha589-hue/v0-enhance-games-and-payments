@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
+import { signOutEverywhere } from "@/lib/auth/sign-out"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -43,55 +43,7 @@ export function UserMenu({ user }: UserMenuProps) {
     if (isLoading) return
 
     setIsLoading(true)
-
-    // Clear all local storage auth data first
-    if (typeof window !== "undefined") {
-      try {
-        const localKeys = Object.keys(localStorage).filter(
-          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
-        )
-        localKeys.forEach(key => localStorage.removeItem(key))
-
-        const sessionKeys = Object.keys(sessionStorage).filter(
-          key => key.includes("supabase") || key.includes("sb-") || key.includes("auth")
-        )
-        sessionKeys.forEach(key => sessionStorage.removeItem(key))
-      } catch (e) {
-        console.warn("[UserMenu] Error clearing storage:", e)
-      }
-    }
-
-    try {
-      const supabase = createClient()
-      if (supabase) {
-        // Use global scope to clear server-side session as well
-        const signOutPromise = supabase.auth.signOut({ scope: 'global' })
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Timeout")), 3000)
-        )
-
-        try {
-          await Promise.race([signOutPromise, timeoutPromise])
-        } catch {
-          // Timeout or error - continue anyway
-        }
-      }
-
-      toast.success("Signed out successfully")
-    } catch (error) {
-      console.error("[UserMenu] Sign out failed:", error)
-      toast.success("Signed out")
-    } finally {
-      // Clear cookies and redirect with cache-busting query to force fresh state
-      document.cookie.split(";").forEach((c) => {
-        const name = c.split("=")[0].trim()
-        if (name.includes("supabase") || name.includes("sb-")) {
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
-        }
-      })
-      // Add timestamp to force fresh load and bypass any caching
-      window.location.href = `/?signedOut=${Date.now()}`
-    }
+    await signOutEverywhere()
   }
 
   const copyUserId = async (e: React.MouseEvent) => {
