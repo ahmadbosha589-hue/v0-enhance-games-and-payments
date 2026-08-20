@@ -1,414 +1,102 @@
-# Crypto Faucet Platform - Dual License Agreement
+# Exclusive Source-Code Asset Transfer Agreement (Draft)
 
-**Version 2.1**
-**Effective Date: December 2024**
+**Version:** 1.0
+**Effective date:** `[DATE]`
+**Seller:** `[SELLER LEGAL NAME]`
+**Buyer:** `[BUYER LEGAL NAME]`
+**Purchase amount:** `[AMOUNT AND CURRENCY]`
 
----
+> This is a commercial drafting template, not legal advice. Have a qualified lawyer review it before signing or accepting payment.
 
-## Pricing & License Types
+## 1. Transaction
 
-This software is available under two commercial license types:
+After the Seller receives the full cleared purchase amount and both parties sign a bill of sale or equivalent written agreement, the Seller assigns to the Buyer the Seller-owned intellectual-property rights in the specific software asset identified in that bill of sale.
 
-| License | Price | Best For |
-|---------|-------|----------|
-| **Standard License** | $499 USD | Personal sites, single deployment |
-| **Extended License** | $999 USD | SaaS, agencies, unlimited projects |
+The transferred asset may include, only to the extent the Seller owns or is authorized to transfer it:
 
----
+- The custom source code in the private repository.
+- Custom documentation, migration files, tests, scripts, and configuration created for the project.
+- Custom artwork, copy, names, logos, and branding expressly listed in the bill of sale.
+- The domain name only if the bill of sale expressly lists the domain and the Seller has authority to transfer it.
 
-| Feature | Standard License ($499) | Extended License ($999) |
-|---------|-------------------------|-------------------------|
-| Personal Use | ✅ Yes | ✅ Yes |
-| Commercial Use | ✅ Yes (1 project) | ✅ Yes (Unlimited) |
-| Source Code Access | ✅ Yes | ✅ Yes |
-| Modify Source Code | ✅ Yes | ✅ Yes |
-| Remove Branding | ❌ No | ✅ Yes |
-| White-Label Rights | ❌ No | ✅ Yes |
-| Client Projects | ❌ No | ✅ Yes (Unlimited) |
-| SaaS/Multi-Tenant | ❌ No | ✅ Yes |
-| Priority Support | ❌ No | ✅ 6 Months |
-| Future Updates | 6 Months | Lifetime |
+The transferred snapshot must be identified by repository, branch, and commit in the bill of sale.
 
----
+## 2. Exclusive rights
 
-# PART A: STANDARD LICENSE ($499)
+Subject to the exclusions below, the assignment is worldwide, perpetual, irrevocable after payment, and exclusive. The Buyer may:
 
-## 1. Grant of Standard License
+- Use, reproduce, modify, and create derivative works.
+- Deploy and commercialize the software.
+- Operate it as a website, SaaS, or internal system.
+- Sublicense, assign, transfer, or resell the acquired Seller-owned asset.
+- Remove or replace project branding.
+- Hire contractors to modify or operate the software under confidentiality obligations.
 
-This Standard License grants you, the purchaser, a non-exclusive, non-transferable right to:
+After the effective transfer, the Seller will not knowingly authorize a new sale, license, distribution, or commercial use of the assigned Seller-owned asset.
 
-- Use the source code for ONE (1) personal or commercial project
-- Modify the source code for your own use within the single project
-- Deploy the application on your own servers or hosting platforms
-- Use the platform to operate ONE (1) crypto faucet business
-- Receive software updates for SIX (6) months from purchase date
+The Seller may retain one archival copy solely for legal, tax, backup, and dispute-resolution purposes and may not use, publish, distribute, or commercialize that copy.
 
-## 2. Standard License Restrictions
+## 3. Important public-repository disclosure
 
-Under the Standard License, you may NOT:
+The source repository was previously public before being changed to private. The Seller cannot guarantee that no person downloaded, forked, cached, indexed, or retained a copy while it was public. The Seller will not knowingly authorize new copies after the effective transfer, but this agreement cannot retroactively control unknown third-party copies.
 
-- Use the software for more than ONE (1) end product/project
-- Remove, alter, or hide the "Powered by Crypto Faucet Platform" branding
-- Use the software to create client projects or products for others
-- Offer the software as a SaaS (Software as a Service) product
-- Create a multi-tenant application serving multiple businesses
-- Resell, redistribute, sublicense, or share the source code
-- Claim the source code as your own original work
-- Use the code to create competing products for sale
-- Transfer the license to another person or entity
+The Buyer accepts this limitation unless the parties separately agree in writing to a documented public-copy cleanup process.
 
-## 3. Standard License - Branding Requirements
+## 4. Excluded third-party material
 
-The Standard License requires you to maintain visible attribution:
+This assignment does not transfer ownership of material owned by third parties. Those materials remain subject to their original licenses and terms, including as applicable:
 
-- Footer must display "Powered by Crypto Faucet Platform" or similar attribution
-- Attribution link must be functional and visible to end users
-- Attribution may be styled to match your site but cannot be hidden
-- Minimum font size of 12px for attribution text
+- Next.js, React, TypeScript, npm packages, and other open-source dependencies.
+- Supabase, PostgreSQL, Vercel, v0, GitHub, Redis/Upstash, FaucetPay, CCPayment, offerwall, advertising, analytics, and CMP accounts.
+- Third-party fonts, icons, images, trademarks, logos, APIs, SDKs, and provider content.
+- User accounts, personal data, payment records, production database data, secrets, API keys, passwords, and connection strings.
+- Provider approvals, publisher accounts, ad-network contracts, domain registrations, and hosting accounts unless expressly listed in the bill of sale.
 
----
+The Buyer must obtain its own provider accounts and credentials.
 
-# PART B: EXTENDED LICENSE ($999)
+## 5. Delivery and handover
 
-## 1. Grant of Extended License
+After cleared payment, the Seller will provide the agreed source snapshot and reasonable technical handover materials listed in the bill of sale. Credentials must be newly generated for the Buyer; existing secrets must not be transferred.
 
-This Extended License grants you, the purchaser, a non-exclusive, transferable right to:
+The Seller should rotate or revoke any project secrets before or immediately after handover. The Buyer should create its own Supabase, hosting, payment, Redis, advertising, and consent-provider accounts.
 
-- Use the source code for UNLIMITED personal or commercial projects
-- Modify the source code without restrictions
-- Deploy the application on unlimited servers or hosting platforms
-- Operate UNLIMITED crypto faucet businesses
-- Complete white-label rights with full branding removal
-- Create and sell projects/products for clients using this software
-- Offer the software as a SaaS (Software as a Service) product
-- Create multi-tenant applications serving multiple businesses
-- Receive LIFETIME software updates
-- Priority email support for SIX (6) months from purchase date
+Any support period, migration assistance, domain transfer, repository ownership transfer, or deployment assistance must be stated separately in the bill of sale.
 
-## 2. Extended License Restrictions
+## 6. Buyer responsibilities
 
-Under the Extended License, you may NOT:
+The Buyer is solely responsible for:
 
-- Resell, redistribute, sublicense, or share the raw source code
-- Sell the software itself as a product (you sell the END PRODUCT, not the code)
-- Claim the original source code as your own creation
-- Provide the source code to end users (only compiled/deployed versions)
-- Use the code to create a directly competing marketplace product
-- Transfer the Extended License itself to another developer/agency
+- Legal and regulatory compliance in every operating jurisdiction.
+- Cryptocurrency, money-transmission, payments, tax, sanctions, KYC, AML, privacy, consumer-protection, and advertising obligations.
+- Provider terms, payout availability, fraud losses, user support, and data security.
+- Reviewing and securing all third-party dependencies and services.
+- Configuring production secrets and removing development fallbacks.
+- Obtaining rights to all buyer-supplied content, brands, domains, and integrations.
 
-## 3. Extended License - White-Label Rights
+The software is a pre-revenue software asset. No revenue, user growth, payout availability, ad approval, or business result is promised.
 
-The Extended License includes full white-label rights:
+## 7. No warranty
 
-- Remove all "Crypto Faucet Platform" branding
-- Replace with your own branding, logos, and company name
-- No attribution required in the final product
-- Full customization of all user-facing text and imagery
-- Create derivative brands for client projects
+The asset is transferred **AS IS** and **AS AVAILABLE**, without warranties except any specific written warranty in the bill of sale. The Seller disclaims implied warranties of merchantability, fitness for a particular purpose, title beyond the Seller's actual rights, non-infringement, uninterrupted operation, security, accuracy, and revenue performance.
 
-## 4. Extended License - Client Projects
+## 8. Limitation of liability
 
-For agency/freelancer use:
+To the maximum extent permitted by law, the Seller is not liable for indirect, incidental, special, consequential, exemplary, punitive, revenue, profit, data, regulatory, provider, or business-interruption losses. The Seller's aggregate liability is limited to the amount actually paid under the bill of sale, except where applicable law does not permit that limitation.
 
-- You may create unlimited end products for clients
-- Each client project is considered a separate end product
-- Clients receive the deployed product, NOT the source code
-- You remain the license holder for all client projects
-- Clients may not modify, resell, or redistribute the underlying code
+## 9. Entire agreement and governing law
 
-## 5. Extended License - SaaS Rights
+The signed bill of sale and this agreement constitute the agreement for the asset transfer and supersede conflicting marketing descriptions or old license files. Amendments must be written and signed by both parties.
 
-For SaaS/Multi-Tenant deployments:
+**Governing law and venue:** `[INSERT JURISDICTION AFTER LEGAL REVIEW]`
 
-- Offer the platform as a hosted service to multiple customers
-- Charge subscription fees to your customers
-- Create tenant-specific customizations
-- White-label the platform for each tenant if desired
-- No per-tenant licensing fees to the original author
+## 10. Signatures
 
----
+**Seller**
+Name: `[SELLER LEGAL NAME]`
+Signature: ____________________
+Date: ____________________
 
-# PART C: GENERAL TERMS (Both Licenses)
-
-## 1. Ownership & Intellectual Property
-
-- The original author retains all intellectual property rights to the source code
-- This license does not transfer ownership of the code
-- You own any modifications, customizations, or additions you create
-- The original codebase remains the property of the author
-
-## 2. Prohibited Uses (Both Licenses)
-
-Regardless of license type, you may NEVER:
-
-- Use the software for illegal activities including money laundering
-- Use the software to facilitate fraud, scams, or deceptive practices
-- Deploy the software in violation of cryptocurrency regulations in your jurisdiction
-- Use the software to distribute malware or conduct cyberattacks
-- Use the software for gambling operations where prohibited by law
-- Infringe on third-party intellectual property rights
-
-## 3. Compliance & Legal Requirements
-
-You are solely responsible for:
-
-- Compliance with all applicable laws and regulations
-- Obtaining necessary licenses for cryptocurrency operations
-- KYC/AML compliance where required by law
-- Tax reporting and obligations
-- Data protection and privacy compliance (GDPR, CCPA, etc.)
-- Terms of service and privacy policy for your end users
-
-## 4. Third-Party Services
-
-This software integrates with third-party services. You must:
-
-- Create your own accounts with third-party providers
-- Agree to and comply with their terms of service
-- Pay any fees charged by third-party services
-- The author is not responsible for third-party service availability or changes
-
-Third-party services include but are not limited to:
-- Supabase (Database & Authentication)
-- FaucetPay, ExpressCrypto (Payment Processing)
-- Offerwall providers (CPAGrip, OGAds, Lootably, etc.)
-- Ad networks (A-ADS, Coinzilla, etc.)
-- Vercel (Hosting)
-
-## 5. Warranty Disclaimer
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
-
-THE AUTHOR DOES NOT WARRANT THAT:
-- The software will meet your specific requirements
-- The software will be uninterrupted, timely, secure, or error-free
-- The results obtained from the software will be accurate or reliable
-- Any errors in the software will be corrected
-
-## 6. Limitation of Liability
-
-IN NO EVENT SHALL THE AUTHOR OR COPYRIGHT HOLDERS BE LIABLE FOR ANY:
-
-- Direct, indirect, incidental, special, exemplary, or consequential damages
-- Loss of profits, revenue, data, or business opportunities
-- Business interruption or loss of goodwill
-- Any other commercial damages or losses
-
-THIS LIMITATION APPLIES REGARDLESS OF:
-- The cause of action (contract, tort, negligence, strict liability, or otherwise)
-- Whether THE AUTHOR WAS ADVISED OF THE POSSIBILITY OF SUCH DAMAGES
-- Whether THE DAMAGES WERE FORESEEABLE
-
-MAXIMUM LIABILITY: In no event shall the author's total liability exceed the amount paid for the license.
-
-## 7. Indemnification
-
-You agree to indemnify, defend, and hold harmless the author from any:
-
-- Claims, damages, losses, or expenses
-- Including reasonable attorney fees
-- Arising from your use of the software
-- Arising from your violation of this license
-- Arising from your violation of any law or third-party rights
-
-## 8. License Termination
-
-### Automatic Termination
-This license terminates automatically if you:
-- Fail to comply with any term of this agreement
-- Attempt to redistribute or resell the source code
-- Use the software for prohibited purposes
-- File for bankruptcy or become insolvent
-
-### Upon Termination
-You must immediately:
-- Cease all use of the software
-- Destroy all copies of the source code
-- Remove all deployed instances of the software
-- Certify in writing that you have complied with these requirements
-
-### Survival
-The following sections survive termination:
-- Ownership & Intellectual Property
-- Warranty Disclaimer
-- Limitation of Liability
-- Indemnification
-
-## 9. License Upgrades
-
-- Standard License holders may upgrade to Extended License by paying $500 (the difference)
-- Upgrade pricing is determined at the time of upgrade request
-- Upgrades are processed within 48 hours of payment confirmation
-- Upgraded licenses take effect immediately upon confirmation
-
-## 10. Refund Policy
-
-- Refunds are available within 14 days of purchase if:
-  - You have not deployed the software to a production environment
-  - You have not made substantial modifications to the source code
-  - You can demonstrate a technical issue preventing use
-- Refunds are NOT available if:
-  - You simply changed your mind
-  - You lack technical skills to implement the software
-  - Third-party services (Supabase, FaucetPay, etc.) are unavailable
-  - You violated any license terms
-
-## 11. Updates & Support
-
-### Standard License ($499)
-- Software updates: 6 months from purchase
-- Community support only (documentation, FAQ)
-- No guaranteed response time
-
-### Extended License ($999)
-- Software updates: Lifetime
-- Priority email support: 6 months from purchase
-- Target response time: 48 business hours
-- Support covers: Installation, configuration, bug reports
-- Support does NOT cover: Custom development, hosting issues, third-party services
-
-## 12. Governing Law & Disputes
-
-- This license is governed by international commercial law
-- Any disputes shall first be attempted to be resolved through good-faith negotiation
-- If negotiation fails, disputes shall be resolved through binding arbitration
-- The prevailing party shall be entitled to recover reasonable attorney fees
-
-## 13. Severability
-
-If any provision of this license is found to be unenforceable:
-- That provision shall be modified to the minimum extent necessary
-- All other provisions remain in full force and effect
-- The license shall be interpreted to give maximum effect to the original intent
-
-## 14. Entire Agreement
-
-- This license constitutes the entire agreement between you and the author
-- It supersedes all prior agreements, representations, and understandings
-- No modification of this license is valid unless in writing and signed by the author
-
-## 15. Contact Information
-
-For licensing questions, support, or upgrade requests:
-- Email: [Your Support Email]
-- Website: [Your Website]
-
----
-
-# PART D: LICENSE VERIFICATION
-
-## Standard License Verification
-
-Your Standard License is valid if you:
-- Purchased from an authorized seller (Payhip, Gumroad, CodeCanyon, or author's website)
-- Have a valid purchase receipt/order number
-- Are using the software for ONE project only
-- Maintain required attribution/branding
-
-## Extended License Verification
-
-Your Extended License is valid if you:
-- Purchased the Extended License tier from an authorized seller
-- Have a valid Extended License purchase receipt/order number
-- Received Extended License confirmation email from the author
-
-## License Certificate
-
-Upon request, license holders may receive a signed License Certificate containing:
-- License type (Standard/Extended)
-- Purchase date
-- License holder name/company
-- Unique license ID
-- Authorized use summary
-
----
-
-# PART E: QUICK REFERENCE
-
-## Can I...? (Standard License - $499)
-
-| Action | Allowed? |
-|--------|----------|
-| Use for my own faucet website | ✅ Yes (1 site) |
-| Modify the code | ✅ Yes |
-| Use commercially | ✅ Yes (1 project) |
-| Remove the attribution | ❌ No |
-| Build sites for clients | ❌ No |
-| Offer as SaaS | ❌ No |
-| Share the source code | ❌ No |
-| Get lifetime updates | ❌ No (6 months) |
-
-## Can I...? (Extended License - $999)
-
-| Action | Allowed? |
-|--------|----------|
-| Use for multiple faucet websites | ✅ Yes (Unlimited) |
-| Modify the code | ✅ Yes |
-| Use commercially | ✅ Yes (Unlimited) |
-| Remove all branding | ✅ Yes |
-| Build sites for clients | ✅ Yes |
-| Offer as SaaS | ✅ Yes |
-| White-label for clients | ✅ Yes |
-| Share the source code | ❌ No |
-| Resell the code itself | ❌ No |
-| Get lifetime updates | ✅ Yes |
-
----
-
-# PART F: VALUE JUSTIFICATION
-
-## What's Included (Both Licenses)
-
-### Core Platform
-- Production-ready Next.js 15 application
-- Full TypeScript codebase
-- Responsive design (mobile, tablet, desktop)
-- Dark/Light theme support
-- Multi-language support (i18n ready)
-
-### Anti-Adblock System ($2,000+ value)
-- 2900+ lines of detection code
-- 30+ detection methods
-- Zero false positives architecture
-- Cross-session tracking
-- Server verification
-- Bayesian probability scoring
-
-### Offerwall Integrations (10 providers)
-- CPAGrip, OGAds, Lootably, Torox
-- Notik, AdGateMedia, OfferToro
-- Wannads, BitLabs, Timewall
-- Ready-to-use postback handlers
-
-### Admin Dashboard
-- Real-time analytics
-- User management
-- Fraud detection
-- Withdrawal processing
-- System settings
-- Ad management
-
-### Payment Integration
-- FaucetPay support
-- ExpressCrypto support
-- Multi-currency (BTC, ETH, LTC, DOGE, USDT, etc.)
-
-### Security Features
-- Supabase authentication
-- Row Level Security (RLS)
-- CSRF protection
-- Rate limiting
-- Fraud scoring
-
-### Documentation
-- 12+ detailed guides
-- Installation walkthrough
-- API documentation
-- Troubleshooting FAQ
-
----
-
-**Copyright (c) 2024 Crypto Faucet Platform. All Rights Reserved.**
-
-*Last Updated: December 2024*
-*License Version: 2.1*
+**Buyer**
+Name: `[BUYER LEGAL NAME]`
+Signature: ____________________
+Date: ____________________

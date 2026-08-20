@@ -1,59 +1,41 @@
-# Standard License - Quick Summary
+# Exclusive Asset Transfer — Buyer Summary
 
-## Price: $499 USD
+This file is a plain-language summary. The signed asset-transfer agreement in [`LICENSE`](LICENSE) controls.
 
----
+## What the buyer receives
 
-## What You Get
+After full cleared payment and a signed bill of sale, the buyer receives exclusive rights to the Seller-owned custom source-code asset identified in that bill of sale.
 
-✅ **Source Code Access** - Full access to all source files
-✅ **One Commercial Project** - Deploy one live faucet website  
-✅ **Modification Rights** - Customize the code for your needs
-✅ **6 Months Updates** - Receive bug fixes and improvements
-✅ **Documentation** - Complete setup and usage guides
+The buyer may:
 
-## What You Cannot Do
+- Modify and deploy the source code.
+- Commercialize it as a website, SaaS, or internal product.
+- Remove the original branding.
+- Hire contractors to work on it.
+- Assign or resell the acquired Seller-owned asset.
 
-❌ **Multiple Projects** - Limited to ONE website/project
-❌ **Remove Branding** - Must keep "Powered by" attribution
-❌ **Client Work** - Cannot build sites for others
-❌ **SaaS Deployment** - Cannot offer as hosted service
-❌ **Redistribute** - Cannot share or resell the code
+## What is not included automatically
 
-## Attribution Requirement
+The sale does not automatically include:
 
-Your website must display visible attribution:
+- Supabase, Vercel, v0, GitHub, Redis, FaucetPay, CCPayment, ad-network, offerwall, or CMP accounts.
+- API keys, passwords, service-role keys, database URLs, or other secrets.
+- Existing user data or production database records.
+- Third-party libraries, fonts, icons, trademarks, APIs, or provider content.
+- The domain name unless it is expressly listed in the signed bill of sale.
 
-\`\`\`html
-<footer>
-  <p>Powered by <a href="#">Crypto Faucet Platform</a></p>
-</footer>
-\`\`\`
+Third-party materials remain under their original licenses.
 
-## What's Included
+## Important disclosure
 
-- Complete Next.js 15 source code
-- 2900+ line anti-adblock detection system
-- 10 offerwall integrations
-- Admin dashboard
-- FaucetPay & ExpressCrypto support
-- 12+ documentation guides
-- 6 months of updates
+The repository was public before being changed to private. The seller cannot guarantee that unknown third parties did not retain copies made while it was public. The seller will not knowingly authorize new copies after the sale.
 
-## Upgrade to Extended ($999)
+## Honest project status
 
-Need more? Upgrade to Extended License for:
-- Unlimited projects
-- White-label rights  
-- Client project rights
-- SaaS deployment rights
-- Lifetime updates
-- Priority support
+This is a pre-revenue software asset. It is not being sold as a profitable business and there is no guarantee of revenue, users, payouts, advertising approval, or provider availability.
 
-**Upgrade cost: $500** (pay only the difference)
+## Buyer setup
 
-Contact us to upgrade!
+The buyer must create and configure its own accounts, credentials, payment providers, Redis, advertising providers, CMP/TCF configuration, hosting, and production monitoring.
 
----
-
-**Full terms: See LICENSE file**
+This summary is not legal advice. Obtain legal review before signing.
