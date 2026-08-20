@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { log } from "@/lib/logger"
 import { z } from "zod"
 import { v4 as uuidv4 } from "uuid"
+import { getBTCPrice } from "@/lib/ccpayment/client"
 
 export const dynamic = "force-dynamic"
 
@@ -167,10 +168,14 @@ export async function GET(request: Request) {
         .order("created_at", { ascending: false })
         .limit(10)
 
+      const totalSatoshisUsd = await getBTCPrice()
+        .then((btcPrice) => (totalSatoshis / 100000000) * btcPrice)
+        .catch(() => null)
+
       return NextResponse.json({
         overview: {
           totalSatoshis,
-          totalSatoshisUsd: (totalSatoshis / 100000000) * 65000, // Approximate BTC price
+          totalSatoshisUsd,
           totalAdBalance,
           pendingWithdrawals,
           totalBoosterRevenue,

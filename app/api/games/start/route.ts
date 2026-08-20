@@ -60,35 +60,21 @@ export async function POST(req: NextRequest) {
       adminSupabase = requireAdminClient()
     } catch (err) {
       console.error("Failed to create admin client:", err)
-      // Return a fallback response that allows the game to start without database tracking
-      const sessionToken = crypto.randomBytes(32).toString("hex")
-      const { challenge } = generateChallenge()
-      return NextResponse.json({
-        success: true,
-        sessionId: crypto.randomUUID(),
-        sessionToken,
-        challenge,
-        gameType,
-        gamesPlayedToday: 0,
-        gamesRemaining: MAX_GAMES_PER_DAY,
-        cooldownMinutes: GAME_COOLDOWN_MINUTES
-      })
+      return NextResponse.json({ error: "Game service is temporarily unavailable" }, { status: 503 })
     }
 
     const today = new Date().toISOString().split("T")[0]
 
-    // Check daily limit - handle table not existing gracefully
-    let dailyLimit = null
-    try {
-      const { data } = await adminSupabase
-        .from("game_daily_limits")
-        .select("games_played")
-        .eq("user_id", user.id)
-        .eq("date", today)
-        .single()
-      dailyLimit = data
-    } catch {
-      // Table might not exist, continue without daily limit check
+    const { data: dailyLimit, error: dailyLimitError } = await adminSupabase
+      .from("game_daily_limits")
+      .select("games_played")
+      .eq("user_id", user.id)
+      .eq("date", today)
+      .single()
+
+    if (dailyLimitError && dailyLimitError.code !== "PGRST116") {
+      console.error("Failed to read daily game limit:", dailyLimitError)
+      return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
     }
 
     if (dailyLimit && dailyLimit.games_played >= MAX_GAMES_PER_DAY) {
@@ -99,18 +85,16 @@ export async function POST(req: NextRequest) {
       }, { status: 429 })
     }
 
-    // Check per-game cooldown from game_cooldowns table - handle gracefully
-    let cooldown = null
-    try {
-      const { data } = await adminSupabase
-        .from("game_cooldowns")
-        .select("cooldown_until")
-        .eq("user_id", user.id)
-        .eq("game_type", gameType)
-        .single()
-      cooldown = data
-    } catch {
-      // Table might not exist, continue without cooldown check
+    const { data: cooldown, error: cooldownError } = await adminSupabase
+      .from("game_cooldowns")
+      .select("cooldown_until")
+      .eq("user_id", user.id)
+      .eq("game_type", gameType)
+      .single()
+
+    if (cooldownError && cooldownError.code !== "PGRST116") {
+      console.error("Failed to read game cooldown:", cooldownError)
+      return NextResponse.json({ error: "Game cooldowns are temporarily unavailable" }, { status: 503 })
     }
 
     if (cooldown) {
@@ -128,25 +112,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Also check if there's an in-progress session for this game type
-    try {
-      const { data: existingSession } = await adminSupabase
-        .from("game_sessions")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("game_type", gameType)
-        .eq("status", "in_progress")
-        .single()
+    const { data: existingSession, error: existingSessionError } = await adminSupabase
+      .from("game_sessions")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("game_type", gameType)
+      .eq("status", "in_progress")
+      .maybeSingle()
 
-      // If there's an existing in-progress session, expire it first
-      if (existingSession) {
-        await adminSupabase
-          .from("game_sessions")
-          .update({ status: "expired", completed_at: new Date().toISOString() })
-          .eq("id", existingSession.id)
-      }
-    } catch {
-      // Continue if query fails
+    if (existingSessionError) {
+      console.error("Failed to inspect game sessions:", existingSessionError)
+      return NextResponse.json({ error: "Game sessions are temporarily unavailable" }, { status: 503 })
+    }
+
+    if (existingSession) {
+      await adminSupabase
+        .from("game_sessions")
+        .update({ status: "expired", completed_at: new Date().toISOString() })
+        .eq("id", existingSession.id)
     }
 
     // Generate challenge for anti-bot verification
@@ -167,36 +150,28 @@ export async function POST(req: NextRequest) {
       timezone
     }
 
-    let sessionId = crypto.randomUUID() // fallback
-    try {
-      const { data: session, error: sessionError } = await adminSupabase
-        .from("game_sessions")
-        .insert({
-          user_id: user.id,
-          game_type: gameType,
-          session_token: sessionToken,
-          verification_data: verificationData,
-          ip_address: ip,
-          user_agent: userAgent,
-          status: "in_progress"
-        })
-        .select("id")
-        .single()
+    const { data: session, error: sessionError } = await adminSupabase
+      .from("game_sessions")
+      .insert({
+        user_id: user.id,
+        game_type: gameType,
+        session_token: sessionToken,
+        verification_data: verificationData,
+        ip_address: ip,
+        user_agent: userAgent,
+        status: "in_progress"
+      })
+      .select("id")
+      .single()
 
-      if (sessionError) {
-        console.error("Error creating game session:", sessionError)
-        // Continue with fallback sessionId
-      } else if (session) {
-        sessionId = session.id
-      }
-    } catch (err) {
-      console.error("Failed to create session:", err)
-      // Continue with fallback sessionId
+    if (sessionError || !session) {
+      console.error("Error creating game session:", sessionError)
+      return NextResponse.json({ error: "Unable to create a tracked game session" }, { status: 503 })
     }
 
     return NextResponse.json({
       success: true,
-      sessionId,
+      sessionId: session.id,
       sessionToken,
       challenge,
       gameType,
@@ -207,18 +182,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error("Game start error:", error)
-    // Even on error, return a valid response so the game can start
-    const sessionToken = crypto.randomBytes(32).toString("hex")
-    const { challenge } = generateChallenge()
-    return NextResponse.json({
-      success: true,
-      sessionId: crypto.randomUUID(),
-      sessionToken,
-      challenge,
-      gameType: "unknown",
-      gamesPlayedToday: 0,
-      gamesRemaining: MAX_GAMES_PER_DAY,
-      cooldownMinutes: GAME_COOLDOWN_MINUTES
-    })
+    return NextResponse.json({ error: "Game service is temporarily unavailable" }, { status: 503 })
   }
 }

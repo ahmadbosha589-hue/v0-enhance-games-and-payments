@@ -315,13 +315,14 @@ export async function getBTCPrice(): Promise<number> {
     }
 
     const data = await response.json()
-    const price = data.bitcoin?.usd || 67000 // Fallback price
+    const price = Number(data.bitcoin?.usd)
+    if (!Number.isFinite(price) || price <= 0) throw new Error("BTC price response was invalid")
 
     btcPriceCache = { price, timestamp: now }
     return price
-  } catch {
-    // Return cached or fallback price on error
-    return btcPriceCache?.price || 67000
+  } catch (error) {
+    if (btcPriceCache) return btcPriceCache.price
+    throw error instanceof Error ? error : new Error("BTC price unavailable")
   }
 }
 

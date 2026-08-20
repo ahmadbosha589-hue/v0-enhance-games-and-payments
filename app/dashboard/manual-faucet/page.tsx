@@ -616,31 +616,6 @@ function DirectFaucetContent() {
     return (completed / loadingSteps.length) * 100
   }, [loadingSteps])
 
-  // Fallback prices - ALWAYS up-to-date realistic market prices
-  const FALLBACK_PRICES: Record<string, number> = useMemo(() => ({
-    LTC: 115,
-    ETH: 3500,
-    DOGE: 0.38,
-    TRX: 0.26,
-    FEY: 0.00008, // Feyorra - very low value token
-    ZEC: 45,
-    BCH: 480,
-    DASH: 32,
-    DGB: 0.015,
-    SOL: 190,
-    BNB: 700,
-    MATIC: 0.55,
-    USDT: 1,
-    BTC: 97000,
-    XRP: 2.3,
-    ADA: 1.05,
-    DOT: 8.5,
-    AVAX: 42,
-    LINK: 23,
-    ATOM: 9.5,
-    TON: 5.5,
-  }), [])
-
   // Get the USD price for a crypto symbol
   const getCryptoPrice = useCallback(
     (symbol: string): number => {
@@ -648,10 +623,10 @@ function DirectFaucetContent() {
       const apiPrice = pricesData?.prices?.[symbol]?.price
       if (apiPrice && apiPrice > 0) return apiPrice
 
-      // Fall back to hardcoded prices
-      return FALLBACK_PRICES[symbol] || 0
+      // Return zero when the live provider has no price; callers show unavailable state.
+      return 0
     },
-    [pricesData, FALLBACK_PRICES]
+    [pricesData]
   )
 
   // Helper to format small numbers without scientific notation

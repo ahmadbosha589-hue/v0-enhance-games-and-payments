@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { log } from "@/lib/logger"
-import { v4 as uuidv4 } from "uuid"
 import { z } from "zod"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { isSafeTargetUrl } from "@/lib/ads/safe-target-url"
+import { validateCreativeUrl } from "@/lib/ads/campaign-contract"
 
 // Ad Networks supported
 const AD_NETWORKS = {
@@ -41,7 +41,7 @@ const createCampaignSchema = z.object({
   targetUrl: z.string().url().refine(isSafeTargetUrl, "Target URL must use HTTPS and a public hostname"),
   title: z.string().min(5).max(100),
   description: z.string().min(10).max(500).optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z.string().url().refine(validateCreativeUrl, "Creative URL must use HTTPS and a public hostname"),
   targeting: targetingSchema,
   // Legacy clients may still send only targetCountries; keep accepting it
   // while persisting the canonical nested targeting object.
@@ -75,28 +75,8 @@ export async function POST(request: Request) {
       title, description, imageUrl, targeting, targetCountries, startDate, endDate
     } = validatedData.data
     const canonicalCountries = targeting.countries.length > 0 ? targeting.countries : (targetCountries || [])
+    const canonicalTargeting = { ...targeting, countries: canonicalCountries }
 
-    // Get user profile to check advertising balance
-    const { data: profile, error: profileError } = await adminSupabase
-      .from("profiles")
-      .select("ad_balance_usd")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
-    }
-
-    // Check if user has enough advertising balance
-    if (Number(profile.ad_balance_usd || 0) < budget) {
-      return NextResponse.json({
-        error: "Insufficient advertising balance",
-        required: budget,
-        available: profile.ad_balance_usd || 0
-      }, { status: 400 })
-    }
-
-    // Check network minimum budget
     const networkConfig = AD_NETWORKS[network as keyof typeof AD_NETWORKS]
     if (budget < networkConfig.minBudget) {
       return NextResponse.json({
@@ -104,62 +84,45 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
-    const campaignId = uuidv4()
-
-    // Create the campaign
-    const { data: campaign, error: campaignError } = await adminSupabase
-      .from("ad_campaigns")
-      .insert({
-        id: campaignId,
-        user_id: user.id,
-        name,
-        network,
-        network_name: networkConfig.name,
-        budget,
-        daily_budget: dailyBudget,
-        spent: 0,
-        target_url: targetUrl,
-        title,
-        description,
-        image_url: imageUrl,
-        target_countries: canonicalCountries,
-        targeting,
-        start_date: startDate || new Date().toISOString(),
-        end_date: endDate,
-        status: "pending",
-        impressions: 0,
-        clicks: 0,
-        cpm: networkConfig.cpm
-      })
-      .select()
-      .single()
+    const { data: created, error: campaignError } = await adminSupabase.rpc("create_ad_campaign", {
+      p_user_id: user.id,
+      p_name: name,
+      p_network: network,
+      p_network_name: networkConfig.name,
+      p_budget: budget,
+      p_daily_budget: dailyBudget,
+      p_target_url: targetUrl,
+      p_title: title,
+      p_description: description || null,
+      p_image_url: imageUrl,
+      p_target_countries: canonicalCountries,
+      p_targeting: canonicalTargeting,
+      p_start_date: startDate || new Date().toISOString(),
+      p_end_date: endDate || null,
+      p_cpm: networkConfig.cpm,
+    })
 
     if (campaignError) {
-      log.error("Campaign creation error", { error: campaignError })
+      const message = campaignError.message.toLowerCase()
+      if (message.includes("insufficient advertising balance")) {
+        return NextResponse.json({ error: "Insufficient advertising balance", required: budget }, { status: 400 })
+      }
+      if (message.includes("advertiser profile not found")) {
+        return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+      }
+      log.error("Campaign creation RPC error", { error: campaignError })
       return NextResponse.json({ error: "Failed to create campaign" }, { status: 500 })
     }
 
-    // Deduct from advertising balance
-    const newBalance = Number(profile.ad_balance_usd) - budget
-    await adminSupabase
-      .from("profiles")
-      .update({ ad_balance_usd: newBalance })
-      .eq("id", user.id)
-
-    // Create transaction record
-    await adminSupabase.from("ad_transactions").insert({
-      user_id: user.id,
-      campaign_id: campaignId,
-      type: "campaign_created",
-      amount: -budget,
-      balance_before: profile.ad_balance_usd,
-      balance_after: newBalance,
-      description: `Campaign created: ${name}`
-    })
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.campaign_id) {
+      log.error("Campaign creation RPC returned no campaign", { error: new Error("Missing campaign_id") })
+      return NextResponse.json({ error: "Failed to create campaign" }, { status: 500 })
+    }
 
     log.info("Ad campaign created", {
       userId: user.id,
-      campaignId,
+      campaignId: createdRow.campaign_id,
       network,
       budget
     })
@@ -167,13 +130,13 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       campaign: {
-        id: campaign.id,
-        name: campaign.name,
-        network: campaign.network,
-        status: campaign.status,
-        budget: campaign.budget
+        id: createdRow.campaign_id,
+        name,
+        network,
+        status: "pending",
+        budget
       },
-      newBalance
+      newBalance: createdRow.new_balance
     })
   } catch (error) {
     log.error("Campaign creation error", { error })
@@ -332,6 +295,7 @@ export async function PATCH(request: Request) {
     }
 
     let newStatus = campaign.status
+    let refundHandledByRpc = false
 
     switch (action) {
       case "pause":
@@ -346,40 +310,17 @@ export async function PATCH(request: Request) {
         break
       case "stop":
         if (["active", "paused", "pending"].includes(campaign.status)) {
+          const { error: refundError } = await adminSupabase.rpc("refund_campaign", {
+            p_campaign_id: campaignId,
+          })
+          if (refundError) throw refundError
           newStatus = "stopped"
-
-          // Refund remaining budget
-          const remaining = campaign.budget - campaign.spent
-          if (remaining > 0) {
-            const { data: profile } = await adminSupabase
-              .from("profiles")
-              .select("ad_balance_usd")
-              .eq("id", user.id)
-              .single()
-
-            if (profile) {
-              const newBalance = Number(profile.ad_balance_usd) + remaining
-              await adminSupabase
-                .from("profiles")
-                .update({ ad_balance_usd: newBalance })
-                .eq("id", user.id)
-
-              await adminSupabase.from("ad_transactions").insert({
-                user_id: user.id,
-                campaign_id: campaignId,
-                type: "campaign_refund",
-                amount: remaining,
-                balance_before: profile.ad_balance_usd,
-                balance_after: newBalance,
-                description: `Campaign stopped: ${campaign.name} - Refund`
-              })
-            }
-          }
+          refundHandledByRpc = true
         }
         break
     }
 
-    if (newStatus !== campaign.status) {
+    if (newStatus !== campaign.status && !refundHandledByRpc) {
       await supabase
         .from("ad_campaigns")
         .update({ status: newStatus, updated_at: new Date().toISOString() })

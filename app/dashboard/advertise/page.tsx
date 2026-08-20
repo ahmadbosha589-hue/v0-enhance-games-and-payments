@@ -266,6 +266,7 @@ export default function AdvertisePage() {
     budget: "",
     dailyBudget: "",
     targetUrl: "",
+    imageUrl: "",
     title: "",
     description: "",
     targeting: {
@@ -293,8 +294,8 @@ export default function AdvertisePage() {
     { refreshInterval: 30000 }
   )
 
-  const { data: analyticsData } = useSWR(
-    "/api/advertise?analytics=true",
+  const { data: statsData } = useSWR(
+    "/api/advertise/stats?days=30",
     fetcher,
     { refreshInterval: 60000 }
   )
@@ -302,11 +303,15 @@ export default function AdvertisePage() {
   const campaigns: Campaign[] = campaignsData?.campaigns || []
   const balance = balanceData?.balance || 0
   const deposits: DepositRecord[] = depositsData?.deposits || []
-  const analytics = analyticsData?.analytics || {
-    spentChange: 0,
-    impressionsChange: 0,
-    clicksChange: 0,
-    conversionsChange: 0
+  const dailyStats = statsData?.totals || {
+    impressions: 0,
+    viewable: 0,
+    clicks: 0,
+    conversions: 0,
+    spend: 0,
+    ctr: 0,
+    viewability: 0,
+    ecpm: 0,
   }
 
   // Filtered campaigns
@@ -360,9 +365,9 @@ export default function AdvertisePage() {
   }
 
   const handleCreateCampaign = async () => {
-    const { name, network, budget, dailyBudget, targetUrl, title, description, targeting } = campaignForm
+    const { name, network, budget, dailyBudget, targetUrl, imageUrl, title, description, targeting } = campaignForm
 
-    if (!name || !network || !budget || !dailyBudget || !targetUrl || !title) {
+    if (!name || !network || !budget || !dailyBudget || !targetUrl || !imageUrl || !title) {
       toast.error("Please fill in all required fields")
       return
     }
@@ -392,6 +397,7 @@ export default function AdvertisePage() {
           budget: budgetNum,
           dailyBudget: dailyBudgetNum,
           targetUrl,
+          imageUrl,
           title,
           description,
           targeting
@@ -406,7 +412,7 @@ export default function AdvertisePage() {
         setIsCreateOpen(false)
         setCampaignForm({
           name: "", network: "", budget: "", dailyBudget: "",
-          targetUrl: "", title: "", description: "",
+          targetUrl: "", imageUrl: "", title: "", description: "",
           targeting: { countries: [], devices: ["desktop", "mobile", "tablet"], os: ["windows", "macos", "ios", "android"] }
         })
         refreshCampaigns()
@@ -476,7 +482,7 @@ export default function AdvertisePage() {
             Advertising Center
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Reach millions across 8+ premium ad networks with crypto
+            Faucero first-party ad inventory with transparent review and billing
           </p>
         </div>
         <div className="flex gap-2">
@@ -667,7 +673,7 @@ export default function AdvertisePage() {
                   Create Advertising Campaign
                 </DialogTitle>
                 <DialogDescription>
-                  Set up your campaign across premium ad networks
+                  Set up a reviewed campaign for Faucero first-party placements
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-6 pt-4">
@@ -737,7 +743,7 @@ export default function AdvertisePage() {
                           </span>
                           <span className="flex flex-col sm:flex-row sm:gap-1">
                             <span className="font-medium text-foreground/70">CTR:</span>
-                            <span>{net.avgCtr}</span>
+                            <span>Measured after delivery</span>
                           </span>
                         </div>
                       </button>
@@ -763,6 +769,16 @@ export default function AdvertisePage() {
                       value={campaignForm.targetUrl}
                       onChange={(e) => setCampaignForm(f => ({ ...f, targetUrl: e.target.value }))}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Creative Image URL *</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://cdn.your-site.com/ad-image.png"
+                      value={campaignForm.imageUrl}
+                      onChange={(e) => setCampaignForm(f => ({ ...f, imageUrl: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">Public HTTPS image URL; it will be reviewed before delivery.</p>
                   </div>
                 </div>
 
@@ -1239,7 +1255,7 @@ export default function AdvertisePage() {
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Avg CTR</p>
-                      <p className="font-semibold text-green-500">{net.avgCtr}</p>
+                      <p className="font-semibold text-muted-foreground">Measured after delivery</p>
                     </div>
                   </div>
                   <Button className="w-full mt-4" variant="outline">
@@ -1265,63 +1281,35 @@ export default function AdvertisePage() {
             <CardContent>
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Total Spent</p>
-                  <p className="text-3xl font-bold">${totalSpent.toFixed(2)}</p>
-                  <div className={cn(
-                    "flex items-center gap-1 text-sm",
-                    analytics.spentChange >= 0 ? "text-green-500" : "text-red-500"
-                  )}>
-                    {analytics.spentChange >= 0 ? (
-                      <TrendingUp className="h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4" />
-                    )}
-                    <span>{analytics.spentChange >= 0 ? "+" : ""}{analytics.spentChange}% vs last week</span>
+                  <p className="text-sm text-muted-foreground">Spend (last 30 days)</p>
+                  <p className="text-3xl font-bold">${dailyStats.spend.toFixed(4)}</p>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <DollarSign className="h-4 w-4" />
+                    <span>eCPM ${dailyStats.ecpm.toFixed(4)}</span>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Total Impressions</p>
-                  <p className="text-3xl font-bold">{totalImpressions.toLocaleString()}</p>
-                  <div className={cn(
-                    "flex items-center gap-1 text-sm",
-                    analytics.impressionsChange >= 0 ? "text-green-500" : "text-red-500"
-                  )}>
-                    {analytics.impressionsChange >= 0 ? (
-                      <TrendingUp className="h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4" />
-                    )}
-                    <span>{analytics.impressionsChange >= 0 ? "+" : ""}{analytics.impressionsChange}% vs last week</span>
+                  <p className="text-sm text-muted-foreground">Impressions (last 30 days)</p>
+                  <p className="text-3xl font-bold">{dailyStats.impressions.toLocaleString()}</p>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <Eye className="h-4 w-4" />
+                    <span>{dailyStats.viewability.toFixed(2)}% viewability</span>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Total Clicks</p>
-                  <p className="text-3xl font-bold">{totalClicks.toLocaleString()}</p>
-                  <div className={cn(
-                    "flex items-center gap-1 text-sm",
-                    analytics.clicksChange >= 0 ? "text-green-500" : "text-red-500"
-                  )}>
-                    {analytics.clicksChange >= 0 ? (
-                      <TrendingUp className="h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4" />
-                    )}
-                    <span>{analytics.clicksChange >= 0 ? "+" : ""}{analytics.clicksChange}% vs last week</span>
+                  <p className="text-sm text-muted-foreground">Clicks (last 30 days)</p>
+                  <p className="text-3xl font-bold">{dailyStats.clicks.toLocaleString()}</p>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <MousePointer className="h-4 w-4" />
+                    <span>{dailyStats.ctr.toFixed(2)}% CTR</span>
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">Total Conversions</p>
-                  <p className="text-3xl font-bold">{totalConversions.toLocaleString()}</p>
-                  <div className={cn(
-                    "flex items-center gap-1 text-sm",
-                    analytics.conversionsChange >= 0 ? "text-green-500" : "text-red-500"
-                  )}>
-                    {analytics.conversionsChange >= 0 ? (
-                      <TrendingUp className="h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4" />
-                    )}
-                    <span>{analytics.conversionsChange >= 0 ? "+" : ""}{analytics.conversionsChange}% vs last week</span>
+                  <p className="text-sm text-muted-foreground">Conversions (last 30 days)</p>
+                  <p className="text-3xl font-bold">{dailyStats.conversions.toLocaleString()}</p>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <PieChart className="h-4 w-4" />
+                    <span>Daily rollup</span>
                   </div>
                 </div>
               </div>
@@ -1398,7 +1386,7 @@ export default function AdvertisePage() {
               <p className="text-sm font-medium">Advertising with Crypto</p>
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li>1. Deposit funds using any supported cryptocurrency via CCPayment</li>
-                <li>2. Create campaigns across 8+ premium ad networks</li>
+                <li>2. Create a reviewed campaign for Faucero first-party inventory</li>
                 <li>3. Target by device, location, and operating system</li>
                 <li>4. Real-time analytics and performance tracking</li>
                 <li>5. Pause or stop campaigns anytime - unused budget is refundable</li>

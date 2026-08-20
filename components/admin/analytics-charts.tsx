@@ -57,23 +57,12 @@ export function AnalyticsCharts() {
 
         if (response.ok) {
           const data = await response.json()
-          setDailyData(data.dailyData || generateFallbackDailyData())
-          setFraudData(data.fraudData || [
-            { type: "Clean", value: 85 },
-            { type: "Low Risk", value: 10 },
-            { type: "Medium Risk", value: 4 },
-            { type: "High Risk", value: 1 },
-          ])
+          setDailyData(data.dailyData || [])
+          setFraudData(data.fraudData || [])
         } else {
           console.error("[v0] Analytics API returned error:", response.status)
-          // Set fallback data
-          setDailyData(generateFallbackDailyData())
-          setFraudData([
-            { type: "Clean", value: 85 },
-            { type: "Low Risk", value: 10 },
-            { type: "Medium Risk", value: 4 },
-            { type: "High Risk", value: 1 },
-          ])
+          setDailyData([])
+          setFraudData([])
         }
       } catch (error) {
         clearTimeout(timeoutId)
@@ -84,14 +73,8 @@ export function AnalyticsCharts() {
         } else {
           console.error("[v0] Failed to fetch analytics data:", error)
         }
-        // Set fallback data so charts still render
-        setDailyData(generateFallbackDailyData())
-        setFraudData([
-          { type: "Clean", value: 85 },
-          { type: "Low Risk", value: 10 },
-          { type: "Medium Risk", value: 4 },
-          { type: "High Risk", value: 1 },
-        ])
+        setDailyData([])
+        setFraudData([])
       } finally {
         if (isMounted) {
           setIsLoading(false)
@@ -105,22 +88,6 @@ export function AnalyticsCharts() {
       isMounted = false
     }
   }, [])
-
-  // Generate fallback daily data with dates
-  function generateFallbackDailyData(): DailyData[] {
-    const data: DailyData[] = []
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date()
-      date.setDate(date.getDate() - i)
-      data.push({
-        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        users: 0,
-        claims: 0,
-        satoshi: 0,
-      })
-    }
-    return data
-  }
 
   if (isLoading) {
     return (

@@ -8,11 +8,11 @@ are applied in lexical order:
 2. `072_advertise_fixes.sql`
 3. `073_ad_delivery.sql`
 4. `074_ad_serve_rpc.sql`
-5. `076_postback_replay_guard.sql`
+5. `075_ad_balance_atomic.sql`
+6. `076_postback_replay_guard.sql`
 
-`075` is intentionally absent because no reviewed balance migration was available in
-this working copy. Do not invent or skip a required money-integrity migration in a
-production rollout.
+`075_ad_balance_atomic.sql` locks the advertiser profile, inserts the campaign,
+deducts the budget, and records the transaction in one database transaction.
 
 Use the runner from the repository root:
 

@@ -455,13 +455,17 @@ export async function POST(request: Request) {
           amount_satoshis: tierData.price_satoshis,
         })
 
-        // Use a real-time BTC price for accuracy
-        let btcPrice = 65000
+        // Use a live BTC price for accuracy; never issue a stale simulated quote.
+        let btcPrice: number
         try {
           const { getBTCPrice } = await import("@/lib/ccpayment/client")
           btcPrice = await getBTCPrice()
-        } catch {}
-
+        } catch (error) {
+          console.error("Unable to fetch BTC price for booster checkout:", error)
+          return NextResponse.json({
+            error: "Live BTC pricing is temporarily unavailable. Please try again later.",
+          }, { status: 503 })
+        }
         const amountBtc = (tierData.price_usd / btcPrice).toFixed(8)
 
         return NextResponse.json({

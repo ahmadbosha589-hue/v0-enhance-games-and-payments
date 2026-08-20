@@ -169,28 +169,6 @@ async function getUserFaucetPayEmail(
 const COOLDOWN_SECONDS = 60 // 60 seconds (1 minute) between claims per crypto
 const SHORTLINK_REQUIRED_AFTER = 100 // After 100 claims, require a shortlink
 
-// Fallback prices - ALWAYS current realistic market prices
-// These serve as backup when CoinGecko is unavailable
-const FALLBACK_PRICES: Record<string, number> = {
-  LTC: 115,
-  ETH: 3500,
-  DOGE: 0.38,
-  TRX: 0.26,
-  FEY: 0.00008, // Feyorra - very low value token
-  ZEC: 45,
-  BCH: 480,
-  DASH: 32,
-  DGB: 0.015,
-  SOL: 190,
-  BNB: 700,
-  MATIC: 0.55,
-  USDT: 1,
-  BTC: 97000,
-  XRP: 2.3,
-  ADA: 1.05,
-  TON: 5.5,
-}
-
 // CoinGecko IDs mapping
 const COINGECKO_IDS: Record<string, string> = {
   LTC: "litecoin",
@@ -216,12 +194,10 @@ const COINGECKO_IDS: Record<string, string> = {
 let priceCache: Record<string, { price: number; timestamp: number }> = {}
 const CACHE_TTL_MS = 60000 // 1 minute cache
 
-// Get crypto price with caching and robust fallback
+// Get crypto price with a short-lived cache; no synthetic market prices
 async function getCryptoPrice(symbol: string): Promise<number> {
   const geckoId = COINGECKO_IDS[symbol]
-  if (!geckoId) {
-    return FALLBACK_PRICES[symbol] || 0
-  }
+  if (!geckoId) return 0
 
   // Check cache first
   const cached = priceCache[symbol]
@@ -257,12 +233,12 @@ async function getCryptoPrice(symbol: string): Promise<number> {
       return price
     }
 
-    // Price not found or invalid - use fallback
-    return FALLBACK_PRICES[symbol] || 0
+    // Price not found or invalid; the claim path will reject zero pricing.
+    return 0
   } catch (error) {
-    // Use fallback on any error (timeout, network, parse, etc.)
-    log.warn("CoinGecko fetch failed, using fallback", { symbol, error: String(error) })
-    return FALLBACK_PRICES[symbol] || 0
+    if (cached) return cached.price
+    log.warn("CoinGecko fetch failed; live price unavailable", { symbol, error: String(error) })
+    return 0
   }
 }
 

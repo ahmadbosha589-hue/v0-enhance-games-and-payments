@@ -43,8 +43,7 @@ import {
   ChevronDown,
   Star,
   Sparkles,
-  BarChart3,
-  Info
+  BarChart3
 } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from "swr"
@@ -68,7 +67,6 @@ interface SwapQuote {
   rate: string
   fee: string
   validUntil: number
-  simulated?: boolean
   priceImpact?: number
 }
 
@@ -232,33 +230,10 @@ export function CryptoSwap() {
       }
     } catch (error) {
       console.error("Quote fetch error:", error)
-
-      // Generate simulated quote if API fails - use realistic rates
-      const fromPrice = fromCoinData?.price || 1
-      const toPrice = toCoinData?.price || 1
-
-      if (fromPrice > 0 && toPrice > 0) {
-        const rate = fromPrice / toPrice
-        const toAmount = (parseFloat(fromAmount) * rate * 0.995).toFixed(8) // 0.5% fee
-
-        setQuote({
-          fromCoinId: fromCoin,
-          toCoinId: toCoin,
-          fromAmount,
-          toAmount,
-          rate: rate.toFixed(8),
-          fee: (parseFloat(fromAmount) * 0.005).toFixed(8),
-          validUntil: Date.now() + 60000,
-          simulated: true,
-          priceImpact: 0.02
-        })
-        setQuoteExpiry(60)
-      } else {
-        toast.error("Unable to fetch quote", {
-          description: "Please try again or select different coins"
-        })
-        setQuote(null)
-      }
+      toast.error("Live quote unavailable", {
+        description: "The swap provider did not return a quote. Please try again later.",
+      })
+      setQuote(null)
     } finally {
       setIsLoadingQuote(false)
     }
@@ -332,11 +307,7 @@ export function CryptoSwap() {
         const toAmount = swapData.toAmount || quote.toAmount
 
         // Show success toast with swap details
-        toast.success(
-          swapData.simulated
-            ? "Swap completed (demo mode)"
-            : "Swap processed successfully!",
-          {
+        toast.success("Swap processed successfully!", {
             description: `Swapped ${fromAmount} ${fromCoin} to ${parseFloat(toAmount).toFixed(6)} ${toCoin}`,
             duration: 5000
           }
@@ -666,12 +637,6 @@ export function CryptoSwap() {
                       </Button>
                     </div>
                   )}
-                  {quote.simulated && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
-                      <Info className="h-3 w-3" />
-                      <span>Estimated rate (live rates temporarily unavailable)</span>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -710,12 +675,12 @@ export function CryptoSwap() {
               <div className="flex items-start gap-3">
                 <Shield className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">Secure Swaps via CCPayment</p>
+                  <p className="text-sm font-medium">Live swaps via CCPayment</p>
                   <ul className="text-xs text-muted-foreground space-y-1">
-                    <li>Best rates across multiple liquidity providers</li>
-                    <li>Swaps processed instantly on supported networks</li>
-                    <li>No hidden fees - only 0.5% swap fee</li>
-                    <li>16+ supported cryptocurrencies</li>
+                    <li>Rates and fees are returned by the live provider quote.</li>
+                    <li>Execution depends on provider and network availability.</li>
+                    <li>Review the expiry time and destination asset before confirming.</li>
+                    <li>Only assets supported by the provider can be swapped.</li>
                   </ul>
                 </div>
               </div>

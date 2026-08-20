@@ -86,7 +86,7 @@ async function fetchFromCoinGecko(): Promise<Record<string, CryptoPrice>> {
     if (!response.ok) {
       // Handle rate limiting gracefully
       if (response.status === 429) {
-        console.warn("CoinGecko rate limited, using cached/fallback prices")
+        console.warn("CoinGecko rate limited; no fresh market data is available")
         throw new Error("Rate limited")
       }
       throw new Error(`CoinGecko API error: ${response.status}`)
@@ -115,23 +115,7 @@ async function fetchFromCoinGecko(): Promise<Record<string, CryptoPrice>> {
           lastUpdated: now,
         }
       } else {
-        // Use fallback for missing coins
-        const fallback = getFallbackPrices()[symbol]
-        if (fallback) {
-          prices[symbol] = { ...fallback, lastUpdated: now }
-        }
-      }
-    }
-
-    // Ensure all FaucetPay coins have prices
-    const faucetPayCoins = ["LTC", "ETH", "DOGE", "TRX", "FEY", "ZEC", "BCH", "DASH", "DGB", "SOL", "BNB", "MATIC", "USDT"]
-    const fallbackPrices = getFallbackPrices()
-
-    for (const coin of faucetPayCoins) {
-      if (!prices[coin] || prices[coin].price <= 0) {
-        if (fallbackPrices[coin]) {
-          prices[coin] = { ...fallbackPrices[coin], lastUpdated: now }
-        }
+        // Omit coins absent from the live response; never synthesize a market price.
       }
     }
 
@@ -183,36 +167,6 @@ function formatLargeNumber(num: number): string {
   return num.toFixed(2)
 }
 
-// Fallback prices if API fails - includes ALL FaucetPay supported cryptos
-function getFallbackPrices(): Record<string, CryptoPrice> {
-  const fallback: Record<string, CryptoPrice> = {
-    BTC: { symbol: "BTC", name: "Bitcoin", price: 97000, change24h: 2.5, volume24h: "28B", marketCap: "1.9T", lastUpdated: Date.now() },
-    ETH: { symbol: "ETH", name: "Ethereum", price: 3500, change24h: 3.2, volume24h: "15B", marketCap: "420B", lastUpdated: Date.now() },
-    USDT: { symbol: "USDT", name: "Tether", price: 1, change24h: 0.01, volume24h: "45B", marketCap: "95B", lastUpdated: Date.now() },
-    USDC: { symbol: "USDC", name: "USD Coin", price: 1, change24h: 0.0, volume24h: "5B", marketCap: "32B", lastUpdated: Date.now() },
-    BNB: { symbol: "BNB", name: "BNB", price: 700, change24h: -0.5, volume24h: "2B", marketCap: "107B", lastUpdated: Date.now() },
-    SOL: { symbol: "SOL", name: "Solana", price: 190, change24h: 6.8, volume24h: "3B", marketCap: "92B", lastUpdated: Date.now() },
-    XRP: { symbol: "XRP", name: "Ripple", price: 2.3, change24h: 4.1, volume24h: "8B", marketCap: "130B", lastUpdated: Date.now() },
-    DOGE: { symbol: "DOGE", name: "Dogecoin", price: 0.38, change24h: 5.2, volume24h: "5B", marketCap: "56B", lastUpdated: Date.now() },
-    ADA: { symbol: "ADA", name: "Cardano", price: 1.05, change24h: 3.3, volume24h: "2B", marketCap: "37B", lastUpdated: Date.now() },
-    AVAX: { symbol: "AVAX", name: "Avalanche", price: 42, change24h: 4.5, volume24h: "600M", marketCap: "17B", lastUpdated: Date.now() },
-    LTC: { symbol: "LTC", name: "Litecoin", price: 115, change24h: 1.8, volume24h: "800M", marketCap: "8.6B", lastUpdated: Date.now() },
-    LINK: { symbol: "LINK", name: "Chainlink", price: 23, change24h: 2.1, volume24h: "600M", marketCap: "14B", lastUpdated: Date.now() },
-    DOT: { symbol: "DOT", name: "Polkadot", price: 8.5, change24h: 1.5, volume24h: "400M", marketCap: "13B", lastUpdated: Date.now() },
-    MATIC: { symbol: "MATIC", name: "Polygon", price: 0.55, change24h: 2.1, volume24h: "400M", marketCap: "5.5B", lastUpdated: Date.now() },
-    TRX: { symbol: "TRX", name: "Tron", price: 0.26, change24h: 1.2, volume24h: "600M", marketCap: "22B", lastUpdated: Date.now() },
-    ATOM: { symbol: "ATOM", name: "Cosmos", price: 9.5, change24h: 3.0, volume24h: "200M", marketCap: "3.7B", lastUpdated: Date.now() },
-    // FaucetPay supported coins that were missing
-    FEY: { symbol: "FEY", name: "Feyorra", price: 0.00008, change24h: 0.5, volume24h: "50K", marketCap: "800K", lastUpdated: Date.now() },
-    ZEC: { symbol: "ZEC", name: "Zcash", price: 45, change24h: 2.3, volume24h: "150M", marketCap: "750M", lastUpdated: Date.now() },
-    BCH: { symbol: "BCH", name: "Bitcoin Cash", price: 480, change24h: 1.8, volume24h: "500M", marketCap: "9.5B", lastUpdated: Date.now() },
-    DASH: { symbol: "DASH", name: "Dash", price: 32, change24h: 1.5, volume24h: "100M", marketCap: "370M", lastUpdated: Date.now() },
-    DGB: { symbol: "DGB", name: "DigiByte", price: 0.015, change24h: 2.0, volume24h: "20M", marketCap: "260M", lastUpdated: Date.now() },
-    TON: { symbol: "TON", name: "Toncoin", price: 5.5, change24h: 3.5, volume24h: "200M", marketCap: "14B", lastUpdated: Date.now() },
-  }
-  return fallback
-}
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -240,11 +194,25 @@ export async function GET(request: Request) {
       lastFetchTime = now
     } catch (error) {
       console.error("Failed to fetch from CoinGecko:", error)
-      // Use fallback if API fails and no cache
-      if (Object.keys(cachedPrices).length === 0) {
-        cachedPrices = getFallbackPrices()
-        lastFetchTime = now
+      if (Object.keys(cachedPrices).length > 0) {
+        const filtered = symbols.reduce((acc, sym) => {
+          if (cachedPrices[sym]) acc[sym] = cachedPrices[sym]
+          return acc
+        }, {} as Record<string, CryptoPrice>)
+        return NextResponse.json({
+          prices: filtered,
+          cached: true,
+          stale: true,
+          lastUpdated: lastFetchTime,
+          error: "Live price provider unavailable; showing cached data",
+        })
       }
+      return NextResponse.json({
+        prices: {},
+        cached: false,
+        lastUpdated: null,
+        error: "Live price provider unavailable",
+      }, { status: 503 })
     }
 
     const filtered = symbols.reduce((acc, sym) => {
@@ -260,10 +228,10 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Crypto prices API error:", error)
     return NextResponse.json({
-      prices: getFallbackPrices(),
+      prices: {},
       cached: false,
-      lastUpdated: Date.now(),
-      error: "Using fallback prices"
-    })
+      lastUpdated: null,
+      error: "Live price provider unavailable",
+    }, { status: 503 })
   }
 }

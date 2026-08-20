@@ -69,54 +69,29 @@ export async function POST(req: NextRequest) {
       adminSupabase = requireAdminClient()
     } catch (err) {
       console.error("Failed to create admin client:", err)
-      // Return success response without database tracking
-      const gameType = bodyGameType || "unknown"
-      // Difficulty unknown without DB — default to level 1
-      const winThreshold = getAdjustedWinThreshold(gameType, 1)
-      // Memory game: completing all pairs counts as a win (score > 0)
-      const isWinner = gameType === "memory" ? score > 0 : score >= winThreshold
-      return NextResponse.json({
-        success: true,
-        isWinner,
-        reward: isWinner ? GAME_REWARD_SATOSHIS : 0,
-        score,
-        winThreshold: gameType === "memory" ? 0 : winThreshold,
-        newBalance: 0,
-        cooldownMinutes: GAME_COOLDOWN_MINUTES,
-        cooldownUntil: new Date(Date.now() + GAME_COOLDOWN_MINUTES * 60 * 1000).toISOString(),
-        gamesPlayedToday: 1,
-        gamesRemaining: MAX_GAMES_PER_DAY - 1,
-        totalEarnedToday: isWinner ? GAME_REWARD_SATOSHIS : 0,
-        message: isWinner
-          ? `Congratulations! You earned ${GAME_REWARD_SATOSHIS} satoshis!`
-          : gameType === "memory" ? "Match all pairs to win. Try again!" : `You need at least ${winThreshold} points to win. Try again!`
-      })
+      return NextResponse.json({ error: "Game service is temporarily unavailable" }, { status: 503 })
     }
 
     // Fetch the game session
-    let session = null
     let gameType = bodyGameType || "unknown"
     let verificationData: { solution: string; startTime: number } | null = null
 
-    try {
-      const { data, error: sessionError } = await adminSupabase
-        .from("game_sessions")
-        .select("*")
-        .eq("id", sessionId)
-        .eq("user_id", user.id)
-        .eq("session_token", sessionToken)
-        .eq("status", "in_progress")
-        .single()
+    const { data: session, error: sessionError } = await adminSupabase
+      .from("game_sessions")
+      .select("*")
+      .eq("id", sessionId)
+      .eq("user_id", user.id)
+      .eq("session_token", sessionToken)
+      .eq("status", "in_progress")
+      .single()
 
-      if (!sessionError && data) {
-        session = data
-        gameType = session.game_type as string
-        verificationData = session.verification_data as { solution: string; startTime: number }
-      }
-    } catch (err) {
-      console.error("Failed to fetch session:", err)
-      // Continue without session validation
+    if (sessionError || !session) {
+      console.error("Failed to fetch game session:", sessionError)
+      return NextResponse.json({ error: sessionError?.code === "PGRST116" ? "Invalid or expired game session" : "Game service is temporarily unavailable" }, { status: sessionError?.code === "PGRST116" ? 400 : 503 })
     }
+
+    gameType = session.game_type as string
+    verificationData = session.verification_data as { solution: string; startTime: number }
 
     // If we have verification data, verify the challenge
     if (verificationData) {

@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       .single()
 
     const oldData = { status: withdrawal.status }
-    const newData = { status: action === "approve" ? "completed" : "rejected" }
+    const newData = { status: action === "approve" ? "processing" : "rejected" }
 
     await supabase.from("audit_logs").insert({
       actor_id: user.id,
@@ -108,34 +108,9 @@ export async function POST(request: Request) {
         })
         .eq("id", withdrawalId)
 
-      // In production, call FaucetPay API here
-      // For now, simulate completion
-      await supabase
-        .from("withdrawals")
-        .update({
-          status: "completed",
-          faucetpay_payout_id: `sim_${Date.now()}`,
-          faucetpay_response: { simulated: true, timestamp: new Date().toISOString() },
-        })
-        .eq("id", withdrawalId)
-
-      // Update transaction status
-      await supabase
-        .from("transactions")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("withdrawal_id", withdrawalId)
-
-      // Create notification
-      await supabase.from("notifications").insert({
-        user_id: withdrawal.user_id,
-        type: "withdrawal_completed",
-        title: "Withdrawal Completed",
-        message: `Your withdrawal of ${withdrawal.amount_satoshis} satoshis has been processed.`,
-        data: { withdrawal_id: withdrawalId, amount: withdrawal.amount_satoshis },
-      })
+      // The cron worker performs the real FaucetPay payout. Do not mark a
+      // withdrawal completed or fabricate a payout ID before the provider returns success.
+      return NextResponse.json({ success: true, action, withdrawalId, status: "processing" })
     } else {
       // Reject and refund - get user profile with correct column names
       const { data: userProfile } = await supabase

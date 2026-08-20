@@ -108,106 +108,8 @@ const COIN_ICONS: Record<string, { color: string; bgColor: string }> = {
   ADA: { color: "text-cyan-500", bgColor: "bg-cyan-500/10" },
 }
 
-// Extended list of supported coins
-const DEFAULT_COINS: CoinInfo[] = [
-  {
-    coinId: "BTC", symbol: "BTC", name: "Bitcoin",
-    chains: [
-      { chainId: "BTC", chainName: "Bitcoin Network", minWithdrawAmount: "0.0001", withdrawFee: "0.00005", estimatedTime: "30-60 min" },
-      { chainId: "LIGHTNING", chainName: "Lightning Network", minWithdrawAmount: "0.00001", withdrawFee: "0.000001", estimatedTime: "Instant" }
-    ],
-    price: "67000", change24h: 2.5
-  },
-  {
-    coinId: "ETH", symbol: "ETH", name: "Ethereum",
-    chains: [
-      { chainId: "ETH", chainName: "Ethereum", minWithdrawAmount: "0.01", withdrawFee: "0.005", estimatedTime: "5-15 min" },
-      { chainId: "ARBITRUM", chainName: "Arbitrum One", minWithdrawAmount: "0.001", withdrawFee: "0.0005", estimatedTime: "1-5 min" },
-      { chainId: "OPTIMISM", chainName: "Optimism", minWithdrawAmount: "0.001", withdrawFee: "0.0005", estimatedTime: "1-5 min" }
-    ],
-    price: "4000", change24h: 3.2
-  },
-  {
-    coinId: "USDT", symbol: "USDT", name: "Tether",
-    chains: [
-      { chainId: "TRC20", chainName: "Tron (TRC20)", minWithdrawAmount: "10", withdrawFee: "1", estimatedTime: "1-3 min" },
-      { chainId: "ERC20", chainName: "Ethereum (ERC20)", minWithdrawAmount: "50", withdrawFee: "15", estimatedTime: "5-15 min" },
-      { chainId: "BEP20", chainName: "BSC (BEP20)", minWithdrawAmount: "10", withdrawFee: "0.5", estimatedTime: "1-3 min" },
-      { chainId: "POLYGON", chainName: "Polygon", minWithdrawAmount: "5", withdrawFee: "0.1", estimatedTime: "1-3 min" },
-      { chainId: "SOL", chainName: "Solana", minWithdrawAmount: "1", withdrawFee: "0.1", estimatedTime: "Instant" }
-    ],
-    price: "1", change24h: 0.01
-  },
-  {
-    coinId: "USDC", symbol: "USDC", name: "USD Coin",
-    chains: [
-      { chainId: "ERC20", chainName: "Ethereum (ERC20)", minWithdrawAmount: "50", withdrawFee: "15", estimatedTime: "5-15 min" },
-      { chainId: "SOL", chainName: "Solana", minWithdrawAmount: "1", withdrawFee: "0.1", estimatedTime: "Instant" },
-      { chainId: "BEP20", chainName: "BSC (BEP20)", minWithdrawAmount: "10", withdrawFee: "0.5", estimatedTime: "1-3 min" }
-    ],
-    price: "1", change24h: 0.0
-  },
-  {
-    coinId: "LTC", symbol: "LTC", name: "Litecoin",
-    chains: [
-      { chainId: "LTC", chainName: "Litecoin", minWithdrawAmount: "0.001", withdrawFee: "0.0001", estimatedTime: "5-15 min" }
-    ],
-    price: "85", change24h: 1.8
-  },
-  {
-    coinId: "BNB", symbol: "BNB", name: "BNB",
-    chains: [
-      { chainId: "BEP20", chainName: "BNB Smart Chain", minWithdrawAmount: "0.01", withdrawFee: "0.001", estimatedTime: "1-3 min" },
-      { chainId: "BEP2", chainName: "BNB Beacon Chain", minWithdrawAmount: "0.01", withdrawFee: "0.001", estimatedTime: "1-3 min" }
-    ],
-    price: "620", change24h: -0.5
-  },
-  {
-    coinId: "XRP", symbol: "XRP", name: "Ripple",
-    chains: [
-      { chainId: "XRP", chainName: "XRP Ledger", minWithdrawAmount: "10", withdrawFee: "0.1", estimatedTime: "Instant" }
-    ],
-    price: "0.62", change24h: 4.1
-  },
-  {
-    coinId: "DOGE", symbol: "DOGE", name: "Dogecoin",
-    chains: [
-      { chainId: "DOGE", chainName: "Dogecoin", minWithdrawAmount: "10", withdrawFee: "1", estimatedTime: "5-15 min" }
-    ],
-    price: "0.12", change24h: 5.2
-  },
-  {
-    coinId: "SOL", symbol: "SOL", name: "Solana",
-    chains: [
-      { chainId: "SOL", chainName: "Solana", minWithdrawAmount: "0.1", withdrawFee: "0.01", estimatedTime: "Instant" }
-    ],
-    price: "150", change24h: 6.8
-  },
-  {
-    coinId: "TRX", symbol: "TRX", name: "Tron",
-    chains: [
-      { chainId: "TRX", chainName: "Tron", minWithdrawAmount: "10", withdrawFee: "1", estimatedTime: "1-3 min" }
-    ],
-    price: "0.12", change24h: 1.2
-  },
-  {
-    coinId: "MATIC", symbol: "MATIC", name: "Polygon",
-    chains: [
-      { chainId: "POLYGON", chainName: "Polygon", minWithdrawAmount: "10", withdrawFee: "0.1", estimatedTime: "1-3 min" }
-    ],
-    price: "0.75", change24h: 2.1
-  },
-  {
-    coinId: "ADA", symbol: "ADA", name: "Cardano",
-    chains: [
-      { chainId: "ADA", chainName: "Cardano", minWithdrawAmount: "5", withdrawFee: "0.5", estimatedTime: "5-15 min" }
-    ],
-    price: "0.45", change24h: 3.3
-  }
-]
-
-// Calculate satoshi to crypto conversion
-const SATOSHI_TO_USD = 0.00067 // ~$67,000 BTC price = 1 sat = $0.00067
+// Coin and network metadata is supplied by the live CCPayment endpoint.
+// Live prices are required for USD presentation; no synthetic conversion rate is used.
 
 export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithdrawalFormProps) {
   const [selectedCoin, setSelectedCoin] = useState("")
@@ -232,7 +134,7 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
 
   // Merge real prices into coins
   const coins: CoinInfo[] = useMemo(() => {
-    const baseCoins = coinsData?.coins || DEFAULT_COINS
+    const baseCoins = coinsData?.coins || []
     return baseCoins.map((coin: CoinInfo) => {
       const priceData = pricesData?.prices?.[coin.symbol]
       if (priceData) {
@@ -262,8 +164,8 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
   const amountNum = parseInt(amount) || 0
   const minWithdraw = 10000 // Minimum 10,000 satoshis
 
-  // Calculate crypto equivalent
-  const usdValue = amountNum * SATOSHI_TO_USD
+  const btcUsdPrice = Number(pricesData?.prices?.BTC?.price || 0)
+  const usdValue = btcUsdPrice > 0 ? (amountNum / 100000000) * btcUsdPrice : 0
   const cryptoValue = useMemo(() => {
     if (!selectedCoinInfo?.price || usdValue <= 0) return "0"
     return (usdValue / parseFloat(selectedCoinInfo.price)).toFixed(8)
@@ -415,7 +317,7 @@ export function CCPaymentWithdrawalForm({ profile, canWithdraw }: CCPaymentWithd
                   <p className="text-sm text-muted-foreground">Available Balance</p>
                   <p className="text-2xl font-bold">{formatSatoshisDisplay(profile.balance_satoshis)}</p>
                   <p className="text-xs text-muted-foreground">
-                    ≈ ${(Number(profile.balance_satoshis) * SATOSHI_TO_USD).toFixed(2)} USD
+                    {btcUsdPrice > 0 ? `≈ $${((Number(profile.balance_satoshis) / 100000000) * btcUsdPrice).toFixed(2)} USD` : "USD value unavailable without live BTC pricing"}
                   </p>
                 </div>
                 <div className="text-right">
