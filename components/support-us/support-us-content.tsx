@@ -1,12 +1,14 @@
 "use client"
 
+import { useRef } from "react"
 import useSWR from "swr"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { isNetworkRenderable } from "@/lib/ads/registry"
-import { AlertCircle, CheckCircle2, Cookie, Megaphone } from "lucide-react"
+import { AlertCircle, ArrowDown, CheckCircle2, Cookie, Megaphone } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface SupportUsContentProps {
@@ -37,6 +39,11 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
   })
 
   const configuredCount = AD_NETWORKS.filter((network) => isNetworkRenderable(network.id)).length
+  const inventoryRef = useRef<HTMLDivElement>(null)
+
+  const scrollToInventory = () => {
+    inventoryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
   return (
     <section className="space-y-5" data-support-user={userId}>
@@ -53,6 +60,10 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         <Badge variant="outline" className="w-fit">
           {configuredCount} of {AD_NETWORKS.length} verified
         </Badge>
+        <Button type="button" variant="outline" size="sm" className="w-fit gap-2" onClick={scrollToInventory}>
+          <ArrowDown className="h-4 w-4" aria-hidden="true" />
+          View partner ads
+        </Button>
       </div>
 
       <Alert className="border-muted bg-muted/20">
@@ -86,15 +97,17 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         })}
       </div>
 
-      <MultiNetworkAds
-        position="content"
-        layout="grid"
-        density="compact"
-        lazyLoad={false}
-        priority="medium"
-        showLabels
-        className="rounded-xl"
-      />
+      <div ref={inventoryRef} id="support-partner-inventory" className="scroll-mt-6">
+        <MultiNetworkAds
+          position="content"
+          layout="grid"
+          density="compact"
+          lazyLoad={false}
+          priority="medium"
+          showLabels
+          className="rounded-xl"
+        />
+      </div>
 
       <p className="text-xs text-muted-foreground">
         {statsData?.adsWatchedToday ? `${statsData.adsWatchedToday} support views recorded today.` : "Support activity is recorded only when a verified provider reports a valid event."}

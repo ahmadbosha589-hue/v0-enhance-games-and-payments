@@ -35,8 +35,7 @@ import confetti from "canvas-confetti"
 import { AntiBotVerification } from "@/components/captcha/anti-bot-verification"
 import { useDeviceFingerprintContext } from "@/components/security/device-fingerprint-provider"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
-
-import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
+import { RewardedAdsUnavailable } from "@/components/ads/rewarded-ads-unavailable"
 
 // FaucetPay supported cryptocurrencies (excluding BTC which is on main claim page)
 const FAUCETPAY_CRYPTOS = [
@@ -469,52 +468,11 @@ function ErrorState({
   )
 }
 
-// Watch Ad to Double Reward Component - Uses FullscreenAdModal
-function WatchAdDoubleReward({
-  cryptoSymbol,
-  baseAmount,
-  isAvailable
-}: {
-  cryptoSymbol: string
-  baseAmount: number
-  isAvailable: boolean
-}) {
-  const [showModal, setShowModal] = useState(false)
-
+// Rewarded bonus replacement: passive partner ads remain available below,
+// while this payout CTA stays honest until server-side watch proof exists.
+function WatchAdDoubleReward({ isAvailable }: { isAvailable: boolean }) {
   if (!isAvailable) return null
-
-  // Convert baseAmount to a numeric value for the modal (baseAmount is already the raw crypto amount)
-  const baseAmountNumeric = typeof baseAmount === 'string' ? parseFloat(baseAmount) : baseAmount
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full mt-2 gap-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:border-amber-500/50"
-        onClick={() => setShowModal(true)}
-      >
-        <Play className="h-3 w-3" />
-        Watch Ads to Double Reward
-      </Button>
-
-      {/* Fullscreen Ad Modal with 3 Partner Ads + 11 Ad Networks */}
-      <FullscreenAdModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        type="manual_faucet"
-        baseAmount={baseAmountNumeric}
-        multiplier={2}
-        cryptoSymbol={cryptoSymbol}
-        apiEndpoint="/api/manual-faucet/double-reward"
-        onComplete={(bonusAmount) => {
-          toast.success(`Double reward claimed! +${bonusAmount} ${cryptoSymbol}`, {
-            description: "Sent to your FaucetPay account"
-          })
-        }}
-      />
-    </>
-  )
+  return <RewardedAdsUnavailable compact className="mt-2" />
 }
 
 // Main faucet content - ULTRA ROBUST with state caching
@@ -1941,10 +1899,8 @@ function DirectFaucetContent() {
                         )}
                       </Button>
 
-                      {/* Watch Ad to Double Reward Button */}
+                      {/* Rewarded bonus status */}
                       <WatchAdDoubleReward
-                        cryptoSymbol={crypto.symbol}
-                        baseAmount={Number(rawAmount)}
                         isAvailable={!isOnCooldown && hasPriceData && claimCount > 0}
                       />
                     </CardContent>

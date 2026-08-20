@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 
+const REWARDED_BONUS_ENABLED = false
+
 // Rate limit: Only allow double reward once per claim
 const DOUBLE_REWARD_COOLDOWN_MS = 5 * 60 * 1000 // 5 minutes
 
 export async function POST(req: NextRequest) {
+  if (!REWARDED_BONUS_ENABLED) {
+    return NextResponse.json({
+      error: "Verified rewarded-ad inventory is not enabled for this deployment",
+    }, { status: 503 })
+  }
   try {
     const user = await getUser()
     if (!user) {

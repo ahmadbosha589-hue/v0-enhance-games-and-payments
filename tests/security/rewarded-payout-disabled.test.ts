@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import { POST as bonusPost } from "@/app/api/bonus-reward/claim/route"
 import { POST as supportPost } from "@/app/api/support-us/claim/route"
 import { POST as supportDoublePost } from "@/app/api/support-us/double/route"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 
 describe("unverified rewarded-ad payout surfaces", () => {
   it("does not issue a bonus reward without verified inventory", async () => {
@@ -21,5 +23,20 @@ describe("unverified rewarded-ad payout surfaces", () => {
     })
     expect((await supportPost(request as never)).status).toBe(503)
     expect((await supportDoublePost(request as never)).status).toBe(503)
+  })
+
+  it("keeps every legacy double-reward payout route fail-closed", () => {
+    const routes = [
+      "app/api/claim/double/route.ts",
+      "app/api/claim/double-reward/route.ts",
+      "app/api/daily-bonus/double/route.ts",
+      "app/api/manual-faucet/double-reward/route.ts",
+    ]
+
+    for (const route of routes) {
+      const source = readFileSync(resolve(process.cwd(), route), "utf8")
+      expect(source, route).toContain("REWARDED_BONUS_ENABLED = false")
+      expect(source, route).toContain("status: 503")
+    }
   })
 })

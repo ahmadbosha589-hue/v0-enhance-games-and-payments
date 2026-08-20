@@ -4,7 +4,14 @@ import { getFaucetPayClient } from "@/lib/faucetpay/client"
 import { logger } from "@/lib/logger"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 
+const REWARDED_BONUS_ENABLED = false
+
 export async function POST(request: Request) {
+  if (!REWARDED_BONUS_ENABLED) {
+    return NextResponse.json({
+      error: "Verified rewarded-ad inventory is not enabled for this deployment",
+    }, { status: 503 })
+  }
   try {
     const user = await getUser()
     if (!user) {

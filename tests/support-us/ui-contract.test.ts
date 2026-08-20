@@ -16,6 +16,17 @@ describe("Support Us UI contract", () => {
     expect(content).toContain("AD_NETWORKS")
     expect(content).not.toContain("Google Rewarded")
     expect(content).not.toContain("SUPPORT_REWARDED_ADS_ENABLED = false")
+
+    for (const route of [
+      "app/dashboard/earn/page.tsx",
+      "app/dashboard/manual-faucet/page.tsx",
+      "components/dashboard/claim-interface.tsx",
+      "components/dashboard/daily-bonus-button.tsx",
+    ]) {
+      const source = read(route)
+      expect(source, route).not.toContain("Watch Ads to Double")
+      expect(source, route).not.toContain("Google Rewarded")
+    }
   })
 
   it("keeps reward payout endpoints fail-closed until watch proof is implemented", () => {

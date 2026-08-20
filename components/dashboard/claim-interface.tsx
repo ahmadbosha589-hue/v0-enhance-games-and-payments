@@ -6,17 +6,15 @@ import type { Profile } from "@/lib/types/database"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Coins, Loader2, CheckCircle, AlertTriangle, Flame, Gift, Shield, RefreshCw, Play, Clock } from "lucide-react"
+import { Coins, Loader2, CheckCircle, AlertTriangle, Flame, Gift, Shield, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { formatCountdown, formatSatoshisDisplay } from "@/lib/utils/format"
 import { CLAIM_CONFIG } from "@/lib/constants/config"
 import { motion, AnimatePresence } from "framer-motion"
 import confetti from "canvas-confetti"
 import { AntiBotVerification, type VerificationMetadata } from "@/components/captcha/anti-bot-verification"
-import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
-import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
-import { FullscreenAdModal } from "@/components/ads/fullscreen-ad-modal"
+import { RewardedAdsUnavailable } from "@/components/ads/rewarded-ads-unavailable"
 import { useDeviceFingerprintContext } from "@/components/security/device-fingerprint-provider"
 import { usePersistentVPNCheck } from "@/hooks/use-persistent-vpn-check"
 
@@ -41,12 +39,6 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
   const [newBalance, setNewBalance] = useState(Number(profile.balance_satoshis))
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [isVerified, setIsVerified] = useState(false)
-  const [showDoubleRewardModal, setShowDoubleRewardModal] = useState(false)
-  const [adProgress, setAdProgress] = useState<number[]>([0, 0, 0])
-  const [adStatus, setAdStatus] = useState<("pending" | "playing" | "completed")[]>(["pending", "pending", "pending"])
-  const [adTimeRemaining, setAdTimeRemaining] = useState([60, 60, 60])
-  const [allAdsCompleted, setAllAdsCompleted] = useState(false)
-  const [isClaimingDouble, setIsClaimingDouble] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const isClaimInFlight = useRef(false)
   const router = useRouter()
@@ -127,64 +119,6 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
         setState("verification")
       }
     }, 2000)
-  }
-
-  // Watch Ad Double Reward - 3 simultaneous 60-second ads
-  useEffect(() => {
-    if (!showDoubleRewardModal || allAdsCompleted) return
-
-    const interval = setInterval(() => {
-      setAdTimeRemaining(prev => {
-        const newTimes = prev.map(t => Math.max(0, t - 1))
-        setAdProgress(newTimes.map(t => ((60 - t) / 60) * 100))
-        setAdStatus(newTimes.map(t => t === 0 ? "completed" : "playing"))
-        if (newTimes.every(t => t === 0)) {
-          setAllAdsCompleted(true)
-        }
-        return newTimes
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [showDoubleRewardModal, allAdsCompleted])
-
-  const startDoubleRewardAds = useCallback(() => {
-    setShowDoubleRewardModal(true)
-    setAdStatus(["playing", "playing", "playing"])
-    setAdProgress([0, 0, 0])
-    setAdTimeRemaining([60, 60, 60])
-    setAllAdsCompleted(false)
-  }, [])
-
-  const handleClaimDoubleReward = async () => {
-    if (!allAdsCompleted || isClaimingDouble) return
-    setIsClaimingDouble(true)
-
-    try {
-      const response = await fetch("/api/claim/double-reward", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseAmount: lastClaimAmount })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        toast.success(`Double reward claimed! +${formatSatoshisDisplay(data.amount)} satoshis`, {
-          description: "Added to your balance"
-        })
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
-        setNewBalance(prev => prev + data.amount)
-        setShowDoubleRewardModal(false)
-        router.refresh()
-      } else {
-        const error = await response.json()
-        toast.error(error.error || "Failed to claim double reward")
-      }
-    } catch {
-      toast.error("Failed to claim double reward")
-    } finally {
-      setIsClaimingDouble(false)
-    }
   }
 
   const triggerConfetti = () => {
@@ -558,26 +492,7 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
                     </Badge>
                   </div>
 
-                  {/* Watch Ad to Double Reward Button */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="pt-4"
-                  >
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:border-amber-500/50"
-                      onClick={startDoubleRewardAds}
-                    >
-                      <Play className="h-3 w-3" />
-                      Watch Ads to Double Your Reward
-                    </Button>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      Watch 3 ads (60s each) to earn +{formatSatoshisDisplay(lastClaimAmount)} bonus
-                    </p>
-                  </motion.div>
+                  <RewardedAdsUnavailable className="mt-4 text-left" />
                 </div>
               </motion.div>
             )}
@@ -620,28 +535,6 @@ export function ClaimInterface({ profile, turnstileSiteKey = "" }: ClaimInterfac
           </div>
         </div>
       </CardContent>
-
-      {/* Fullscreen Double Reward Modal */}
-      <FullscreenAdModal
-        isOpen={showDoubleRewardModal}
-        onClose={() => setShowDoubleRewardModal(false)}
-        type="faucet"
-        baseAmount={lastClaimAmount}
-        multiplier={2}
-        onComplete={(bonusAmount) => {
-          setNewBalance((prev) => prev + bonusAmount)
-          toast.success(`Double reward claimed!`, {
-            description: `+${formatSatoshisDisplay(bonusAmount)} bonus satoshis added!`,
-          })
-          confetti({
-            particleCount: 100,
-            spread: 70,
-            origin: { y: 0.6 },
-            colors: ["#FFD700", "#FFA500", "#FF6347"],
-          })
-        }}
-        apiEndpoint="/api/claim/double"
-      />
     </Card>
   )
 }

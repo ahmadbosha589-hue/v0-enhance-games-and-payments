@@ -3,7 +3,14 @@ import { createClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 
+const REWARDED_BONUS_ENABLED = false
+
 export async function POST(req: NextRequest) {
+  if (!REWARDED_BONUS_ENABLED) {
+    return NextResponse.json({
+      error: "Verified rewarded-ad inventory is not enabled for this deployment",
+    }, { status: 503 })
+  }
   try {
     const supabase = await createClient()
     const {
