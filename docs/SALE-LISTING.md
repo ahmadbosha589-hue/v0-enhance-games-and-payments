@@ -136,9 +136,9 @@ There is no verified recurring revenue stream to multiply. The valuation is base
 | Sale condition | Indicative value |
 |---|---:|
 | As-is pre-revenue operating website | $1,000–$5,000 |
-| Exclusive source-code/IP package with documentation | $5,000–$12,000 |
-| Exclusive package plus domain, deployment handover, and buyer support | $6,000–$15,000 |
-| Recommended list price for the current package | $7,500 OBO |
+| Exclusive source code/IP + migrations + documentation, excluding domain/support | $5,000–$12,000 |
+| Exclusive package plus `faucero.com`, deployment handover, and buyer support | $6,000–$15,000 |
+| Recommended list price for the current full package | $7,500 OBO |
 | Private negotiation guideline for a full package | $5,000–$7,500 |
 | Code-only or quick-close guideline | $3,000–$5,000 |
 

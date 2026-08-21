@@ -42,7 +42,7 @@ This is closer to a pre-revenue digital asset/codebase sale than a sale of a cas
 
 ### Code/IP replacement value
 
-A reasonable asking range for the codebase, database migrations, documentation, and brand/domain package could be **$5,000–$12,000**, depending on:
+A reasonable **replacement-value range for the exclusive source code, database migrations, and documentation alone** could be **$5,000–$12,000**. This is not a revenue valuation and not a promise that a buyer will pay the top of the range. The range depends on the buyer's use case, review, handover needs, and demand.
 
 - Domain ownership and quality.
 - Whether the buyer receives clean deployment access and a handover.
