@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createAuditLog, type AuditLoggerContext } from "@/lib/audit/logger"
@@ -28,6 +29,7 @@ const ADMIN_ROLES = ["admin", "superadmin"]
 
 export async function POST(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
 
     // Verify admin
@@ -104,7 +106,7 @@ export async function POST(request: Request) {
           auditAction = "offerwall_conversion_approved"
 
           // Credit user balance
-          await supabase
+          await adminDb
             .from("profiles")
             .update({
               balance_satoshis: Number(conversion.profiles.balance_satoshis) + Number(conversion.payout_satoshis),
@@ -112,7 +114,7 @@ export async function POST(request: Request) {
             .eq("id", conversion.user_id)
 
           // Create transaction record
-          await supabase.from("transactions").insert({
+          await adminDb.from("transactions").insert({
             user_id: conversion.user_id,
             type: "offerwall",
             status: "completed",
@@ -163,10 +165,10 @@ export async function POST(request: Request) {
             0,
             Number(conversion.profiles.balance_satoshis) - Number(conversion.payout_satoshis),
           )
-          await supabase.from("profiles").update({ balance_satoshis: newBalance }).eq("id", conversion.user_id)
+          await adminDb.from("profiles").update({ balance_satoshis: newBalance }).eq("id", conversion.user_id)
 
           // Create reversal transaction
-          await supabase.from("transactions").insert({
+          await adminDb.from("transactions").insert({
             user_id: conversion.user_id,
             type: "adjustment",
             status: "completed",
@@ -198,7 +200,7 @@ export async function POST(request: Request) {
       }
 
       // Update conversion status
-      const { error: updateError } = await supabase
+      const { error: updateError } = await adminDb
         .from("offerwall_conversions")
         .update({
           status: newStatus,

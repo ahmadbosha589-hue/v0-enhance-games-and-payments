@@ -9,8 +9,10 @@ or staging database behavior. Run this checklist against staging before producti
 - [x] `npm run lint` exits 0; existing warnings are reviewed and not new correctness errors.
 - [x] `npm run test` passes all test files.
 - [x] `npm run build` passes after deleting `.next` and `*.tsbuildinfo`.
-- [x] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set through `088`.
+- [x] `node scripts/migrate.mjs --dry-run` matches the reviewed migration set through `093`.
 - [x] Configured Supabase migration runner reports every applied checksum unchanged.
+- [x] `node scripts/verify-reward-acl.mjs` reports zero reward-table client write grants and zero exposed reward/balance routines.
+- [x] PTC ad GET does not start a reward clock; PTC POST creates the signed watch session.
 
 ## Authentication and security
 

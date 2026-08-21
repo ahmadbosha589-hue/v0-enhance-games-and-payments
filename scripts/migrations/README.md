@@ -22,9 +22,21 @@ are applied in lexical order:
 16. `086_atomic_bonus_coupon_achievement_referral.sql`
 17. `087_manual_faucet_reservation.sql`
 18. `088_reward_view_duplicate_cleanup.sql`
+19. `089_game_cooldown_atomicity.sql`
+20. `090_reward_surface_fail_closed.sql`
+21. `091_ptc_server_start_and_budget_floor.sql`
+22. `092_legacy_reward_routine_acl.sql`
+23. `093_read_rpc_acl.sql`
 
-`075_ad_balance_atomic.sql` locks the advertiser profile, inserts the campaign,
-deducts the budget, and records the transaction in one database transaction.
+The 090 migration removes client write privileges from reward tables and routes
+privileged writes through service-role clients. Migration 091 starts PTC timing
+only on the explicit POST transition and rejects partial budgets. Migrations 092
+and 093 revoke legacy reward routines and browser statistics RPCs. Verify the
+live ACL and required columns with:
+
+```bash
+node scripts/verify-reward-acl.mjs
+```
 
 Use the runner from the repository root:
 

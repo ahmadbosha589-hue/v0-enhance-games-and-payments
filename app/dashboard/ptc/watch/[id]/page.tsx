@@ -63,8 +63,8 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
         }
         const data = await res.json()
         setAd(data.ad)
-        setWatchToken(data.watchToken || null)
-        setTimeLeft(data.ad.duration_seconds)
+        setWatchToken(null)
+        setTimeLeft(0)
         setStatus("ready")
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load ad")
@@ -97,14 +97,32 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
     return () => clearInterval(interval)
   }, [status, timeLeft, ad])
 
-  const handleStartWatching = useCallback(() => {
+  const handleStartWatching = useCallback(async () => {
     if (!ad) return
-    setShowAdModal(true)
-    setStatus("watching")
-    setTimeLeft(ad.duration_seconds)
-    setProgress(0)
-    toast.info("View the sponsored content while the timer counts down.")
-  }, [ad])
+
+    try {
+      const response = await fetch(`/api/ptc/${id}`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      })
+      const data = await response.json()
+      if (!response.ok || !data.watchToken) {
+        throw new Error(data.error || "Unable to start PTC watch session")
+      }
+
+      setAd(data.ad)
+      setWatchToken(data.watchToken)
+      setShowAdModal(true)
+      setStatus("watching")
+      setTimeLeft(data.ad.duration_seconds)
+      setProgress(0)
+      toast.info("View the sponsored content while the timer counts down.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to start PTC ad")
+      setStatus("ready")
+    }
+  }, [ad, id])
 
   const handleClaimReward = useCallback(async () => {
     if (!ad || !watchToken) {

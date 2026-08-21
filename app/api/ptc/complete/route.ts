@@ -24,13 +24,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "PTC rewards are temporarily unavailable" }, { status: 503 })
     }
 
+    const now = new Date().toISOString()
     const { data: ad, error: adError } = await adminSupabase
       .from("ptc_ads")
-      .select("id, duration_seconds, is_active, is_approved, remaining_budget_satoshis")
+      .select("id, duration_seconds, is_active, is_approved, remaining_budget_satoshis, start_date, end_date")
       .eq("id", adId)
       .eq("is_active", true)
       .eq("is_approved", true)
       .gt("remaining_budget_satoshis", 0)
+      .lte("start_date", now)
+      .or(`end_date.is.null,end_date.gt.${now}`)
       .single()
 
     if (adError || !ad) {

@@ -86,6 +86,11 @@ The migration set is tracked in `scripts/migrations/README.md` and currently con
 086_atomic_bonus_coupon_achievement_referral.sql
 087_manual_faucet_reservation.sql
 088_reward_view_duplicate_cleanup.sql
+089_game_cooldown_atomicity.sql
+090_reward_surface_fail_closed.sql
+091_ptc_server_start_and_budget_floor.sql
+092_legacy_reward_routine_acl.sql
+093_read_rpc_acl.sql
 ```
 
 Run from the repository root:
@@ -93,6 +98,7 @@ Run from the repository root:
 ```bash
 node scripts/migrate.mjs --dry-run
 node scripts/migrate.mjs --apply
+node scripts/verify-reward-acl.mjs
 ```
 
 The runner:

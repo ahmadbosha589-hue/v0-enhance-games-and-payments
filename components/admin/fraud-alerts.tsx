@@ -76,14 +76,13 @@ export function FraudAlerts() {
   async function handleDismiss(flagId: string) {
     setActionLoading(flagId)
     try {
-      const supabase = createClient()
-      if (!supabase) {
-        toast.error("Database not configured")
-        return
-      }
-      const { error } = await supabase.from("fraud_flags").update({ status: "false_positive" }).eq("id", flagId)
-
-      if (error) throw error
+      const response = await fetch("/api/admin/fraud/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ flagId, action: "dismiss" }),
+      })
+      if (!response.ok) throw new Error("Failed to dismiss flag")
 
       toast.success("Fraud flag dismissed")
       fetchAlerts()
@@ -97,14 +96,13 @@ export function FraudAlerts() {
   async function handleBan(flagId: string, userId: string) {
     setActionLoading(flagId)
     try {
-      const supabase = createClient()
-      if (!supabase) {
-        toast.error("Database not configured")
-        return
-      }
-
-      await supabase.from("profiles").update({ status: "banned" }).eq("id", userId)
-      await supabase.from("fraud_flags").update({ status: "confirmed_fraud" }).eq("id", flagId)
+      const response = await fetch("/api/admin/fraud/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ flagId, userId, action: "ban" }),
+      })
+      if (!response.ok) throw new Error("Failed to ban user")
 
       toast.success("User banned successfully")
       fetchAlerts()

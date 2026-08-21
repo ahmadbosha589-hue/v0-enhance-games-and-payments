@@ -53,5 +53,6 @@ describe("earning and claim production contracts", () => {
     expect(read("scripts/087_manual_faucet_reservation.sql")).toContain("reserve_manual_faucet_claim")
     expect(read("scripts/087_manual_faucet_reservation.sql")).toContain("finalize_manual_faucet_claim")
     expect(read("scripts/088_reward_view_duplicate_cleanup.sql")).toContain("ROW_NUMBER()")
+    expect(read("scripts/089_game_cooldown_atomicity.sql")).toContain("idx_game_sessions_one_in_progress_per_type")
   })
 })

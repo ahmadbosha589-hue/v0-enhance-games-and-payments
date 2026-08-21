@@ -111,6 +111,7 @@ async function AvailableAds({ userId }: { userId: string }) {
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
   const todayISO = today.toISOString()
+  const nowISO = new Date().toISOString()
 
   const [ads, watchedToday] = await Promise.all([
     safeQuery(
@@ -121,6 +122,8 @@ async function AvailableAds({ userId }: { userId: string }) {
           .eq("is_active", true)
           .eq("is_approved", true)
           .gt("remaining_budget_satoshis", 0)
+          .lte("start_date", nowISO)
+          .or(`end_date.is.null,end_date.gt.${nowISO}`)
           .order("reward_satoshis", { ascending: false }),
       [],
     ) as Promise<PTCAd[]>,

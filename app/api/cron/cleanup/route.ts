@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
@@ -8,12 +8,12 @@ import { log } from "@/lib/logger"
 
 export async function runCleanup() {
   const startTime = Date.now()
-  const supabase = await createClient()
+  const adminDb = requireAdminClient()
   const results: Record<string, number> = {}
 
   // 1. Delete old read notifications (older than 30 days)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-  const { count: deletedNotifications } = await supabase
+  const { count: deletedNotifications } = await adminDb
     .from("notifications")
     .delete({ count: "exact" })
     .eq("is_read", true)
@@ -23,7 +23,7 @@ export async function runCleanup() {
 
   // 2. Delete old audit logs (older than 90 days, keep important ones)
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-  const { count: deletedAuditLogs } = await supabase
+  const { count: deletedAuditLogs } = await adminDb
     .from("audit_logs")
     .delete({ count: "exact" })
     .lt("created_at", ninetyDaysAgo)
@@ -33,7 +33,7 @@ export async function runCleanup() {
 
   // 3. Reset claim streaks for inactive users (no claim in 48 hours)
   const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-  const { count: resetStreaks } = await supabase
+  const { count: resetStreaks } = await adminDb
     .from("profiles")
     .update({ claim_streak: 0 })
     .lt("last_claim_at", twoDaysAgo)
@@ -46,18 +46,18 @@ export async function runCleanup() {
 
   // 5. Update last_active_at based on recent claims
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { data: recentClaimers } = await supabase.from("claims").select("user_id").gte("created_at", oneDayAgo)
+  const { data: recentClaimers } = await adminDb.from("claims").select("user_id").gte("created_at", oneDayAgo)
 
   if (recentClaimers && recentClaimers.length > 0) {
     const uniqueUserIds = [...new Set(recentClaimers.map((c) => c.user_id))]
-    await supabase.from("profiles").update({ last_active_at: new Date().toISOString() }).in("id", uniqueUserIds)
+    await adminDb.from("profiles").update({ last_active_at: new Date().toISOString() }).in("id", uniqueUserIds)
 
     results.updatedActiveUsers = uniqueUserIds.length
   }
 
   // 6. Auto-dismiss old low-severity fraud flags (older than 14 days)
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
-  const { count: dismissedFlags } = await supabase
+  const { count: dismissedFlags } = await adminDb
     .from("fraud_flags")
     .update({
       status: "dismissed",

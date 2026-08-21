@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   const startTime = Date.now()
 
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const adminSupabase = requireAdminClient()
     const headersList = await headers()
@@ -238,7 +239,7 @@ export async function POST(request: Request) {
     const actualNetAmount = withdrawResult.net_amount || amount
 
     // Audit log
-    await supabase.from("audit_logs").insert({
+    await adminDb.from("audit_logs").insert({
       actor_id: user.id,
       actor_role: profile.role,
       actor_ip: ipAddress,
@@ -289,6 +290,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
 
     const {

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -12,6 +13,7 @@ const actionSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const headersList = await headers()
 
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
     const oldData = { status: withdrawal.status }
     const newData = { status: action === "approve" ? "pending" : "rejected" }
 
-    await supabase.from("audit_logs").insert({
+    await adminDb.from("audit_logs").insert({
       actor_id: user.id,
       actor_role: adminProfile.role,
       actor_ip: ipAddress,
@@ -98,7 +100,7 @@ export async function POST(request: Request) {
     if (action === "approve") {
       // Keep the row pending so the real FaucetPay cron worker can claim it.
       // Reviewer metadata records approval without fabricating payout completion.
-      await supabase
+      await adminDb
         .from("withdrawals")
         .update({
           status: "pending",
@@ -119,7 +121,7 @@ export async function POST(request: Request) {
 
       if (userProfile) {
         // Refund the amount to user's balance
-        await supabase
+        await adminDb
           .from("profiles")
           .update({
             balance_satoshis: Number(userProfile.balance_satoshis) + Number(withdrawal.amount_satoshis),
@@ -132,7 +134,7 @@ export async function POST(request: Request) {
       }
 
       // Update withdrawal status with notes
-      await supabase
+      await adminDb
         .from("withdrawals")
         .update({
           status: "rejected",
@@ -145,7 +147,7 @@ export async function POST(request: Request) {
         .eq("id", withdrawalId)
 
       // Update transaction to failed
-      await supabase
+      await adminDb
         .from("transactions")
         .update({
           status: "failed",
@@ -155,7 +157,7 @@ export async function POST(request: Request) {
         .eq("withdrawal_id", withdrawalId)
 
       // Create refund transaction
-      await supabase.from("transactions").insert({
+      await adminDb.from("transactions").insert({
         user_id: withdrawal.user_id,
         type: "adjustment",
         status: "completed",

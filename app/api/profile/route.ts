@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { profileUpdateSchema } from "@/lib/api/validators"
 
 export async function GET() {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
 
     // Handle case where Supabase client couldn't be created
@@ -58,6 +60,7 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
 
     // Handle case where Supabase client couldn't be created
@@ -96,7 +99,7 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const { data: profile, error } = await supabase.from("profiles").update(updates).eq("id", user.id).select().single()
+    const { data: profile, error } = await adminDb.from("profiles").update(updates).eq("id", user.id).select().single()
 
     if (error) {
       console.error("Profile update error:", error)

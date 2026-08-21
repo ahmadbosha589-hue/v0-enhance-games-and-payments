@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -12,6 +13,7 @@ const actionSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const headersList = await headers()
 
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
       resolution_notes: notes || (action === "dismiss" ? "Dismissed by admin" : "User banned due to fraud"),
     }
 
-    await supabase.from("audit_logs").insert({
+    await adminDb.from("audit_logs").insert({
       actor_id: user.id,
       actor_role: adminProfile.role,
       actor_ip: ipAddress,
@@ -92,7 +94,7 @@ export async function POST(request: Request) {
     })
 
     // Update flag status
-    const { error: flagError } = await supabase
+    const { error: flagError } = await adminDb
       .from("fraud_flags")
       .update({
         status: action === "dismiss" ? "false_positive" : "confirmed_fraud",
@@ -110,7 +112,7 @@ export async function POST(request: Request) {
 
     if (action === "ban" && userId) {
       // Ban the user
-      const { error: banError } = await supabase
+      const { error: banError } = await adminDb
         .from("profiles")
         .update({
           status: "banned",
@@ -132,7 +134,7 @@ export async function POST(request: Request) {
 
       if (pendingWithdrawals && pendingWithdrawals.length > 0) {
         for (const withdrawal of pendingWithdrawals) {
-          await supabase
+          await adminDb
             .from("withdrawals")
             .update({
               status: "rejected",
@@ -150,7 +152,7 @@ export async function POST(request: Request) {
             .single()
 
           if (userProfile) {
-            await supabase
+            await adminDb
               .from("profiles")
               .update({
                 balance_satoshis: Number(userProfile.balance_satoshis) + Number(withdrawal.amount_satoshis),

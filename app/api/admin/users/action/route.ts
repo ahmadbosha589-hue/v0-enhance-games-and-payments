@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -12,6 +13,7 @@ const adminUserActionSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const headersList = await headers()
 
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
 
         if (pendingWithdrawals && pendingWithdrawals.length > 0) {
           for (const withdrawal of pendingWithdrawals) {
-            await supabase
+            await adminDb
               .from("withdrawals")
               .update({
                 status: "rejected",
@@ -92,7 +94,7 @@ export async function POST(request: Request) {
               .eq("id", withdrawal.id)
 
             // Refund the amount
-            await supabase
+            await adminDb
               .from("profiles")
               .update({
                 balance_satoshis: Number(targetProfile.balance_satoshis) + Number(withdrawal.amount_satoshis),
@@ -146,7 +148,7 @@ export async function POST(request: Request) {
         updateData = { fraud_score: 0, is_flagged: false }
         newData = updateData
 
-        await supabase
+        await adminDb
           .from("fraud_flags")
           .update({
             status: "dismissed",
@@ -168,7 +170,7 @@ export async function POST(request: Request) {
         updateData = { balance_satoshis: newBalance }
         newData = { balance_satoshis: newBalance, adjustment: amount }
 
-        await supabase.from("transactions").insert({
+        await adminDb.from("transactions").insert({
           user_id: userId,
           type: "adjustment",
           status: "completed",
@@ -210,13 +212,13 @@ export async function POST(request: Request) {
     }
 
     // Insert audit log first
-    await supabase.from("audit_logs").insert(auditLogEntry)
+    await adminDb.from("audit_logs").insert(auditLogEntry)
 
-    const { error } = await supabase.from("profiles").update(updateData).eq("id", userId)
+    const { error } = await adminDb.from("profiles").update(updateData).eq("id", userId)
 
     if (error) {
       console.error("Update error:", error)
-      await supabase.from("audit_logs").insert({
+      await adminDb.from("audit_logs").insert({
         ...auditLogEntry,
         action: `admin_${action}_failed`,
         metadata: { ...auditLogEntry.metadata, error: error.message },

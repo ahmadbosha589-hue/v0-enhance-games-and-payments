@@ -28,6 +28,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createClient()
+    const adminDb = requireAdminClient()
 
     if (!supabase) {
       console.error("[Auth Callback] Supabase client not available")
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
 
       if (existingGoogleUser) {
         // This Google account is already linked to another user
-        await supabase.from("fraud_flags").insert({
+        await adminDb.from("fraud_flags").insert({
           user_id: userId,
           fraud_type: "duplicate_google_account",
           severity: 10,
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
       }
 
       // Store Google ID in profile metadata
-      await supabase
+      await adminDb
         .from("profiles")
         .update({
           metadata: {
@@ -408,7 +409,7 @@ export async function GET(request: Request) {
       profileUpdate.signup_ip = clientIP
     }
 
-    supabase
+    adminDb
       .from("profiles")
       .update(profileUpdate)
       .eq("id", userId)

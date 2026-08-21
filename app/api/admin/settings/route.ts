@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
@@ -7,6 +8,7 @@ const ADMIN_ROLES = ["admin", "superadmin"]
 
 export async function POST(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const headersList = await headers()
 
@@ -51,7 +53,7 @@ export async function POST(request: Request) {
 
     const results = []
     for (const [key, value] of Object.entries(updates)) {
-      const { data: upsertData, error } = await supabase
+      const { data: upsertData, error } = await adminDb
         .from("system_settings")
         .upsert(
           {
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
     const forwarded = headersList.get("x-forwarded-for")
     const ipAddress = forwarded ? forwarded.split(",")[0].trim() : null
 
-    await supabase.from("audit_logs").insert({
+    await adminDb.from("audit_logs").insert({
       actor_id: user.id,
       actor_role: profile.role,
       actor_ip: ipAddress,
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
 
     const {

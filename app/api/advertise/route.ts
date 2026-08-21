@@ -52,6 +52,7 @@ const createCampaignSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const adminSupabase = requireAdminClient()
 
@@ -146,6 +147,7 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const {
       data: { user },
@@ -264,6 +266,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     const adminSupabase = requireAdminClient()
 
@@ -321,7 +324,7 @@ export async function PATCH(request: Request) {
     }
 
     if (newStatus !== campaign.status && !refundHandledByRpc) {
-      await supabase
+      await adminDb
         .from("ad_campaigns")
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", campaignId)

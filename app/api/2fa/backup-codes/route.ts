@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { verifyTOTP, generateBackupCodes, hashBackupCode } from "@/lib/2fa/totp"
 
 // Regenerate backup codes
 export async function POST(request: Request) {
   try {
+    const adminDb = requireAdminClient()
     const supabase = await createClient()
     if (!supabase) {
       return NextResponse.json({ error: "Service unavailable" }, { status: 503 })
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
     const hashedBackupCodes = newBackupCodes.map(hashBackupCode)
 
     // Update backup codes
-    const { error: updateError } = await supabase
+    const { error: updateError } = await adminDb
       .from("profiles")
       .update({ two_factor_backup_codes: hashedBackupCodes })
       .eq("id", user.id)

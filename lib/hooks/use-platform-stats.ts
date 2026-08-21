@@ -1,7 +1,6 @@
 "use client"
 
 import useSWR from "swr"
-import { createClient } from "@/lib/supabase/client"
 
 export interface PlatformStats {
   total_distributed_satoshis: number
@@ -12,26 +11,32 @@ export interface PlatformStats {
 }
 
 const fetcher = async (): Promise<PlatformStats> => {
-  const supabase = createClient()
-  const { data, error } = await supabase.rpc("get_platform_stats")
+  const response = await fetch("/api/stats", { cache: "no-store", credentials: "include" })
+  if (!response.ok) throw new Error("Platform stats unavailable")
 
-  if (error) {
-    // Return zeros if the function doesn't exist yet
-    return {
-      total_distributed_satoshis: 0,
-      total_distributed_btc: 0,
-      total_users: 0,
-      total_claims: 0,
-      today_claims: 0,
-    }
+  const data = await response.json() as {
+    isLive?: boolean
+    totalDistributed?: number
+    totalUsers?: number
+    totalClaims?: number
+    todayClaims?: number
   }
 
-  return data as PlatformStats
+  if (!data.isLive) throw new Error("Platform stats unavailable")
+
+  const totalDistributed = Number(data.totalDistributed) || 0
+  return {
+    total_distributed_satoshis: totalDistributed,
+    total_distributed_btc: totalDistributed / 100_000_000,
+    total_users: Number(data.totalUsers) || 0,
+    total_claims: Number(data.totalClaims) || 0,
+    today_claims: Number(data.todayClaims) || 0,
+  }
 }
 
 export function usePlatformStats() {
   const { data, error, isLoading, mutate } = useSWR<PlatformStats>("platform-stats", fetcher, {
-    refreshInterval: 30000, // Refresh every 30 seconds
+    refreshInterval: 30000,
     revalidateOnFocus: true,
     dedupingInterval: 10000,
   })

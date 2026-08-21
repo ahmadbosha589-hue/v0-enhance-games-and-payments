@@ -157,7 +157,11 @@ export function PTCAdViewer({ ad, userId }: PTCAdViewerProps) {
 
   const handleStartWatching = useCallback(async () => {
     try {
-      const response = await fetch(`/api/ptc/${ad.id}`, { credentials: "include", cache: "no-store" })
+      const response = await fetch(`/api/ptc/${ad.id}`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      })
       const data = await response.json()
       if (!response.ok || !data.watchToken) {
         throw new Error(data.error || "PTC watch session unavailable")
