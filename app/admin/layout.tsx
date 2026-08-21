@@ -9,7 +9,7 @@ import { ConnectivityBanner } from "@/components/admin/connectivity-banner"
 import { unstable_noStore as noStore } from "next/cache"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 10
+export const maxDuration = 30
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   noStore()

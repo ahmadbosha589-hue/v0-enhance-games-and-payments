@@ -23,7 +23,7 @@ import { AdminFaucetHealthCard } from "@/components/admin/faucet-health-card"
 
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 10
+export const maxDuration = 30
 
 async function safeQuery<T>(
   // Supabase builders implement PromiseLike, not native Promise.
@@ -421,10 +421,16 @@ async function AdblockDetectionStats() {
       unique_users_with_adblock: 0,
     }
     let dataSource = "none"
+    let skipFallback = false
 
     // Method 1: Try database function
     try {
-      const { data: rawData, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
+      const { data: rawData, error } = await Promise.race([
+        supabase.rpc("get_adblock_stats", { p_days: 7 }).single(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Adblock stats timeout")), 2500),
+        ),
+      ])
       const data = rawData as Partial<typeof stats> | null
       if (!error && data) {
         stats = {
@@ -435,12 +441,13 @@ async function AdblockDetectionStats() {
         }
         dataSource = "function"
       }
-    } catch {
-      // Function doesn't exist, continue to fallback
+    } catch (error) {
+      skipFallback = error instanceof Error && error.message === "Adblock stats timeout"
+      // Function doesn't exist or exceeded the bounded budget.
     }
 
     // Method 2: Fallback to direct table query
-    if (dataSource === "none") {
+    if (dataSource === "none" && !skipFallback) {
       try {
         const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
         const { data: analyticsData, error: tableError } = await supabase
@@ -466,7 +473,7 @@ async function AdblockDetectionStats() {
     }
 
     // Method 3: Fallback to fraud_flags table for adblock stats
-    if (dataSource === "none") {
+    if (dataSource === "none" && !skipFallback) {
       try {
         const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
         const { data: fraudData, error: fraudError } = await supabase
