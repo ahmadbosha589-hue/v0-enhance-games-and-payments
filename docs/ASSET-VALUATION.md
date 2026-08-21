@@ -51,7 +51,15 @@ A reasonable asking range for the codebase, database migrations, documentation, 
 - Security review results.
 - Whether the buyer accepts the remaining provider/compliance work.
 
-For the current package, a practical listing strategy is **$7,500 OBO**, a likely negotiated close around **$4,000–$6,000**, and a quick-sale range around **$2,500–$3,500**. These are negotiation estimates, not guaranteed sale prices.
+For the current package, **$7,500 OBO is a reasonable asking price**, provided the offer is for an exclusive source-code transfer with documentation, deployment walkthrough, and a defined handover period. It is a negotiation anchor, not a claim that the operating business is worth $7,500 today.
+
+A practical private negotiation framework is:
+
+- **$7,500 OBO:** full exclusive source/IP package, documentation, deployment handover, and agreed support; domain/brand only if specifically included.
+- **Approximately $5,000–$6,500:** source and documentation with a shorter handover or no domain.
+- **Approximately $3,000–$5,000:** code-only or quick-close terms with limited support.
+
+Do not publish the private floor in the Facebook listing. Lead with the full package and ask serious buyers what they need included. These are negotiation guidelines, not guaranteed sale prices.
 
 ## Market reference points
 

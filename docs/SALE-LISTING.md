@@ -1,15 +1,20 @@
 # Faucero Crypto Faucet Platform — Exclusive Source-Code Asset Sale
 
-**Listing date:** 2026-08-20  
-**Asking price:** **$7,500 USD OBO**  
-**Realistic negotiation range:** **$4,000–$6,000 USD**  
-**Quick-sale range:** **$2,500–$3,500 USD**, depending on included domain, handover, and payment terms.
+- **Listing date:** 2026-08-21
+- **Live demo:** https://www.faucero.com/
+- **Canonical brand/domain:** `faucero.com`
+- **Asking price:** **$7,500 USD OBO**
+- **Recommended package:** exclusive source-code/IP transfer, `faucero.com` domain transfer, documentation, deployment walkthrough, and an agreed handover period. If the domain is excluded, the package and price should be renegotiated in writing.
+
+**Facebook-ready version:** [`FACEBOOK-LISTING.md`](FACEBOOK-LISTING.md)
 
 ## Short listing
 
 Faucero is a substantial pre-revenue cryptocurrency faucet and earning-platform codebase built with Next.js, React, TypeScript, Supabase/PostgreSQL, and a production-oriented security architecture.
 
-The buyer receives an exclusive one-time transfer of the seller-owned source-code asset and technical documentation, subject to a signed bill of sale and the project license documents. The system includes faucet claims, referrals, games, offerwalls, PTC, tournaments, advertiser campaigns, admin tools, authentication, 2FA, fraud controls, database migrations, and real payment integrations that become active after the buyer configures their own provider accounts.
+The buyer receives a one-time exclusive transfer of the seller-owned custom source-code asset and technical documentation, subject to a signed bill of sale. The system covers faucet claims, referrals, games, offerwalls, PTC, Shortlinks, tournaments, advertiser campaigns, admin tools, authentication, 2FA, fraud controls, database migrations, and payment integration paths that become active after the buyer configures and verifies their own provider accounts.
+
+The strongest fit is a buyer who already has a crypto audience, marketing channel, affiliate traffic, agency clients, or the technical ability to operate the platform. The code removes a large amount of initial product and infrastructure work, but it does not remove the need for traffic, compliance, provider approvals, payout funding, or day-to-day operation.
 
 This is being sold honestly as a **pre-revenue software asset**, not as a profitable operating business or guaranteed-income website.
 
@@ -18,7 +23,9 @@ This is being sold honestly as a **pre-revenue software asset**, not as a profit
 - Complete Next.js application source code.
 - React and TypeScript frontend.
 - Supabase/PostgreSQL schema and migration runner.
-- Checksum-tracked database migrations through `083_wallet_payment_tx_unique.sql`.
+- Checksum-tracked database migrations through `093_read_rpc_acl.sql`.
+- Reward-table ACL lockdown, service-role-only reward routines, and server-side PTC/Shortlink watch sessions.
+- Production deployment and verification evidence from the public Vercel runtime.
 - Public pages, dashboard, admin panel, authentication, and user settings.
 - Faucet claims, streaks, referrals, bonuses, achievements, games, tournaments, PTC, shortlinks, and offerwall infrastructure.
 - Advertiser campaign creation, HTTPS creative validation, moderation, first-party delivery, click tracking, daily statistics, atomic balance reservation, and refunds.
@@ -54,9 +61,10 @@ The current repository state has been exercised locally with:
 - **0 TypeScript errors**.
 - **0 ESLint errors**.
 - **196 production routes generated successfully**.
-- Live Supabase migration application and idempotency verification through migration `083`.
-- Live rollback tests for booster purchase, booster activation, booster bonus accounting, advertiser flows, and transaction protections.
-- Regression tests for authentication refresh races, sign-out, analytics, CCPayment v2, wallet payment primitives, and booster purchase behavior.
+- Live Supabase migration application and idempotency verification through migration `093_read_rpc_acl.sql`.
+- Live reward ACL verification reports zero anonymous/authenticated reward-table write grants and zero exposed reward/balance routines.
+- Public Vercel health check reports healthy database and authentication services.
+- Regression tests for authentication refresh races, sign-out, analytics, PTC/Shortlink watch sessions, reward ACLs, CCPayment v2, wallet payment primitives, and booster purchase behavior.
 
 ## Technical stack
 
@@ -80,6 +88,9 @@ Known operating facts:
 
 - No demonstrated recurring operating revenue in the reviewed data snapshot.
 - No basis for promising guaranteed revenue, advertiser income, user growth, or payouts.
+- The public Vercel runtime currently reports healthy database and authentication services.
+- The public FaucetPay health check reports a connected configuration but a zero payout balance; the buyer must fund and test their own payout account.
+- Current database ad-network configuration reports the networks disabled; the buyer must enable only verified publisher accounts and consent-compliant placements.
 - The public Vercel demo does not contain the buyer's private provider credentials.
 - CCPayment and CWallet-via-CCPayment require the buyer's own CCPayment account, credentials, webhook-domain configuration, and small-value test transaction.
 - EVM wallet payments require the buyer's own WalletConnect/Reown project ID, RPC endpoint, token contract, treasury wallet, token rate, chain, and confirmation policy.
@@ -128,7 +139,8 @@ There is no verified recurring revenue stream to multiply. The valuation is base
 | Exclusive source-code/IP package with documentation | $5,000–$12,000 |
 | Exclusive package plus domain, deployment handover, and buyer support | $6,000–$15,000 |
 | Recommended list price for the current package | $7,500 OBO |
-| Practical expected close | $4,000–$6,000 |
+| Private negotiation guideline for a full package | $5,000–$7,500 |
+| Code-only or quick-close guideline | $3,000–$5,000 |
 
 The final price depends on whether the domain, brand assets, deployment handover, and support period are included.
 
@@ -167,7 +179,7 @@ The code paths are implemented and tested, but provider enablement requires the 
 
 ### Does CWallet work?
 
-CWallet booster payments use the verified CCPayment hosted checkout path. A Cwallet user can pay from their Cwallet wallet through that checkout. It is enabled automatically when CCPayment credentials are configured.
+CWallet booster payments use the CCPayment hosted-checkout path. The code supports a Cwallet user paying through that checkout, but the buyer must configure their own CCPayment account, webhook, supported currency, and controlled test transaction before enabling it.
 
 ### Does WalletConnect work?
 

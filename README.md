@@ -4,9 +4,17 @@ Pre-revenue cryptocurrency faucet and earning-platform software built with Next.
 
 ## Demo
 
-Public demo: https://v0-enhance-games-and-payments.vercel.app/
+Public demo: https://www.faucero.com/
+
+The purchased `faucero.com` domain is the canonical public demo and buyer-facing brand URL. The Vercel deployment URL is only an infrastructure fallback and should not be used as the main listing link.
 
 The demo is for software evaluation. It is not a guarantee of revenue, user growth, payouts, or provider availability.
+
+## Sale information
+
+- Master sale listing: [`docs/SALE-LISTING.md`](docs/SALE-LISTING.md)
+- Facebook-ready listing: [`docs/FACEBOOK-LISTING.md`](docs/FACEBOOK-LISTING.md)
+- Valuation notes: [`docs/ASSET-VALUATION.md`](docs/ASSET-VALUATION.md)
 
 ## Included functionality
 
