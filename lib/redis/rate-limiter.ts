@@ -1,4 +1,4 @@
-import { getRedisClient } from "./client"
+import { getRedisClient, isRedisCircuitOpen, noteRedisFailure, noteRedisSuccess, withRedis } from "./client"
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // REDIS-BACKED RATE LIMITER
@@ -61,7 +61,9 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const redis = getRedisClient()
 
-  if (!redis) {
+  // An open breaker means Redis is persistently failing. Treat it exactly like
+  // "no Redis": allow the request instead of paying a timeout per call.
+  if (!redis || isRedisCircuitOpen()) {
     if (!warnedNoRedis) {
       warnedNoRedis = true
       console.warn("[RateLimit] Redis unavailable; using non-durable local-development fallback")
@@ -90,6 +92,7 @@ export async function checkRateLimit(
     pipeline.expire(key, config.windowSeconds)
 
     const results = await pipeline.exec()
+    noteRedisSuccess()
     const currentCount = (results[1] as number) || 0
 
     if (currentCount >= config.limit) {
@@ -112,6 +115,7 @@ export async function checkRateLimit(
       resetAt: now + config.windowSeconds * 1000,
     }
   } catch (error) {
+    noteRedisFailure()
     console.error("[RateLimit] Error:", error)
     // On error, allow request but log
     return { success: true, remaining: config.limit, resetAt: Date.now() + config.windowSeconds * 1000 }

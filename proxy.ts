@@ -44,14 +44,38 @@ function getRateLimitType(pathname: string, method: string): keyof typeof RATE_L
   return "page"
 }
 
+// The proxy runs before EVERY page and API response. A slow or unreachable
+// Redis must never be able to add latency here: exceeding this budget means we
+// fail open (allow the request) rather than making the whole site slow. The
+// per-route limiters inside the API handlers remain the authoritative control.
+const RATE_LIMIT_BUDGET_MS = 1200
+
 async function checkRateLimit(ip: string, path: string, method: string) {
   const limitType = getRateLimitType(path, method)
   const config = RATE_LIMITS[limitType]
-  const result = await checkRedisRateLimit(ip, config)
-  return {
-    allowed: result.success,
-    remaining: result.remaining,
-    retryAfter: result.retryAfter,
+
+  const FAIL_OPEN = { allowed: true, remaining: config.limit, retryAfter: undefined }
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const result = await Promise.race([
+      checkRedisRateLimit(ip, config),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), RATE_LIMIT_BUDGET_MS)
+      }),
+    ])
+
+    if (!result) return FAIL_OPEN
+
+    return {
+      allowed: result.success,
+      remaining: result.remaining,
+      retryAfter: result.retryAfter,
+    }
+  } catch {
+    return FAIL_OPEN
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 
