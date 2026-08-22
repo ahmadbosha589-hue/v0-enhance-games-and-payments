@@ -78,14 +78,17 @@ export default async function AuditLogsPage() {
   }
 
   const getActionBadge = (action: string) => {
+    // Reversal actions must be checked BEFORE the destructive ones —
+    // "admin_unban".includes("ban") is true, which used to render unbans red.
+    if (action.includes("unban") || action.includes("unflag"))
+      return <Badge className="bg-emerald-500/20 text-emerald-400">{action}</Badge>
     if (action.includes("ban")) return <Badge variant="destructive">{action}</Badge>
+    if (action.includes("withdrawal_refund")) return <Badge className="bg-emerald-500/20 text-emerald-400">{action}</Badge>
     if (action.includes("withdraw")) return <Badge className="bg-blue-500/20 text-blue-400">{action}</Badge>
     if (action.includes("claim")) return <Badge className="bg-emerald-500/20 text-emerald-400">{action}</Badge>
     if (action.includes("fraud")) return <Badge className="bg-amber-500/20 text-amber-400">{action}</Badge>
     if (action.includes("admin") || action.includes("settings"))
       return <Badge className="bg-purple-500/20 text-purple-400">{action}</Badge>
-    if (action.includes("unban") || action.includes("unflag"))
-      return <Badge className="bg-emerald-500/20 text-emerald-400">{action}</Badge>
     return <Badge variant="secondary">{action}</Badge>
   }
 

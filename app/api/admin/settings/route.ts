@@ -1,3 +1,4 @@
+import { validateSystemSettingUpdates } from "@/lib/admin/system-settings-validation"
 import { createClient } from "@/lib/supabase/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
@@ -38,6 +39,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
+    // Server-side range validation: the form's HTML min/max are advisory only.
+    // Reject unknown keys and out-of-range economy values outright.
+    const { valid, errors } = validateSystemSettingUpdates(updates as Record<string, unknown>)
+    if (errors.length > 0) {
+      return NextResponse.json(
+        { error: "Validation failed", details: errors },
+        { status: 400 },
+      )
+    }
+
     // Validate category
     const validCategories = ["claim", "withdrawal", "security", "referral"]
     if (!validCategories.includes(category)) {
@@ -52,7 +63,7 @@ export async function POST(request: Request) {
     const oldData = oldSettings?.reduce((acc, s) => ({ ...acc, [s.key]: s.value }), {}) || {}
 
     const results = []
-    for (const [key, value] of Object.entries(updates)) {
+    for (const [key, value] of Object.entries(valid)) {
       const { data: upsertData, error } = await adminDb
         .from("system_settings")
         .upsert(

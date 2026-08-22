@@ -12,6 +12,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { MoreHorizontal, Eye, Ban, Flag, FlagOff, Shield, Copy } from "lucide-react"
 import { formatSatoshi, formatRelativeTime } from "@/lib/utils"
 import type { Profile } from "@/lib/types/database"
@@ -25,26 +37,48 @@ interface UsersTableProps {
 
 export function UsersTable({ users }: UsersTableProps) {
   const [loading, setLoading] = useState<string | null>(null)
+  const [banTarget, setBanTarget] = useState<Profile | null>(null)
+  const [banReason, setBanReason] = useState("")
   const router = useRouter()
 
-  const handleAction = async (userId: string, action: string) => {
+  const executeAction = async (userId: string, action: string, reason?: string) => {
     setLoading(userId)
     try {
       const res = await fetch("/api/admin/users/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, action }),
+        body: JSON.stringify({ userId, action, reason }),
       })
+      const data = await res.json().catch(() => ({}))
 
-      if (!res.ok) throw new Error("Action failed")
+      if (!res.ok) throw new Error(data.error || "Action failed")
 
-      toast.success(`User ${action} successful`)
+      toast.success(`User ${action.replace("_", " ")} successful`)
       router.refresh()
-    } catch {
-      toast.error("Failed to perform action")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to perform action")
     } finally {
       setLoading(null)
     }
+  }
+
+  const handleAction = async (userId: string, action: string) => {
+    if (action === "ban") {
+      // Irreversible + cascades withdrawal auto-reject/refunds — require an
+      // explicit confirmation dialog with the target identity and a reason.
+      const target = users.find((u) => u.id === userId)
+      setBanReason("")
+      setBanTarget(target ?? null)
+      return
+    }
+    await executeAction(userId, action)
+  }
+
+  const confirmBan = async () => {
+    if (!banTarget) return
+    const reason = banReason.trim() || undefined
+    setBanTarget(null)
+    await executeAction(banTarget.id, "ban", reason)
   }
 
   const copyUserId = (id: string) => {
@@ -189,6 +223,51 @@ export function UsersTable({ users }: UsersTableProps) {
           )}
         </TableBody>
       </Table>
+
+      {/* Ban confirmation — shows the target identity and requires a reason.
+          Banning cascades: pending withdrawals are auto-rejected and refunded. */}
+      <AlertDialog open={!!banTarget} onOpenChange={(open) => !open && setBanTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ban this user?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  You are about to ban{" "}
+                  <strong>
+                    {banTarget?.display_name || banTarget?.username || banTarget?.id.slice(0, 8)}
+                  </strong>{" "}
+                  ({banTarget?.id.slice(0, 12)}…).
+                </p>
+                <p className="text-destructive">
+                  This is reversible only manually. All pending withdrawals will be
+                  automatically rejected and refunded to their balance.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="ban-reason">Reason (included in audit log and user notification)</Label>
+            <Textarea
+              id="ban-reason"
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+              placeholder="e.g. Multiple accounts / chargeback fraud"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBan}
+              disabled={loading !== null}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {loading ? "Banning…" : "Ban User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

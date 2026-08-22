@@ -108,8 +108,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid coupon code" }, { status: 400 })
     }
 
-    if (!reward_satoshis || reward_satoshis < 1 || reward_satoshis > 10000) {
+    if (!reward_satoshis || !Number.isInteger(reward_satoshis) || reward_satoshis < 1 || reward_satoshis > 10000) {
       return NextResponse.json({ error: "Invalid reward amount" }, { status: 400 })
+    }
+
+    // Server-side bounds: a negative/zero expires_days would create an
+    // already-expired (or never-expiring) coupon; max_uses must be positive.
+    if (expires_days !== undefined && expires_days !== null) {
+      if (!Number.isInteger(expires_days) || expires_days < 1 || expires_days > 365) {
+        return NextResponse.json({ error: "expires_days must be an integer between 1 and 365" }, { status: 400 })
+      }
+    }
+    if (max_uses !== undefined && max_uses !== null) {
+      if (!Number.isInteger(max_uses) || max_uses < 1 || max_uses > 1_000_000) {
+        return NextResponse.json({ error: "max_uses must be a positive integer" }, { status: 400 })
+      }
     }
 
     // Check if code already exists

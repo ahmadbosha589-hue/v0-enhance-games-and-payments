@@ -9,6 +9,18 @@ import Link from "next/link"
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { formatRelativeTime } from "@/lib/utils"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 interface FraudFlag {
   id: string
@@ -23,6 +35,8 @@ export function FraudAlerts() {
   const [alerts, setAlerts] = useState<FraudFlag[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [banTarget, setBanTarget] = useState<{ flagId: string; userId: string; label: string } | null>(null)
+  const [banNotes, setBanNotes] = useState("")
 
   const fetchAlerts = useCallback(async () => {
     // Quick check - if Supabase isn't configured, skip the fetch entirely
@@ -93,14 +107,14 @@ export function FraudAlerts() {
     }
   }
 
-  async function handleBan(flagId: string, userId: string) {
+  async function handleBan(flagId: string, userId: string, notes?: string) {
     setActionLoading(flagId)
     try {
       const response = await fetch("/api/admin/fraud/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ flagId, userId, action: "ban" }),
+        body: JSON.stringify({ flagId, userId, action: "ban", notes }),
       })
       if (!response.ok) throw new Error("Failed to ban user")
 
@@ -226,7 +240,14 @@ export function FraudAlerts() {
                     size="icon"
                     className="h-8 w-8"
                     disabled={actionLoading === alert.id}
-                    onClick={() => handleBan(alert.id, alert.user_id)}
+                    onClick={() =>
+                      setBanTarget({
+                        flagId: alert.id,
+                        userId: alert.user_id,
+                        label: `${alert.fraud_type.replace(/_/g, " ")} (severity ${alert.severity})`,
+                      })
+                    }
+                    aria-label="Ban user for this flag"
                   >
                     <Ban className="h-4 w-4 text-red-500" />
                   </Button>
@@ -236,6 +257,52 @@ export function FraudAlerts() {
           )}
         </div>
       </CardContent>
+
+      {/* Ban confirmation — banning is irreversible and cascades withdrawal
+          auto-reject/refunds, so it requires an explicit confirmation. */}
+      <AlertDialog open={!!banTarget} onOpenChange={(open) => !open && setBanTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ban flagged user?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Flag: <strong className="capitalize">{banTarget?.label}</strong>
+                </p>
+                <p className="text-destructive">
+                  The user will be banned immediately and all pending withdrawals will be
+                  automatically rejected and refunded.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="fraud-ban-notes">Notes (audit log)</Label>
+            <Textarea
+              id="fraud-ban-notes"
+              value={banNotes}
+              onChange={(e) => setBanNotes(e.target.value)}
+              placeholder="Reason for ban"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const t = banTarget
+                setBanTarget(null)
+                if (t) handleBan(t.flagId, t.userId, banNotes.trim() || undefined)
+                setBanNotes("")
+              }}
+              disabled={actionLoading !== null}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {actionLoading ? "Banning…" : "Ban User"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }

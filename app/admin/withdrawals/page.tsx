@@ -97,11 +97,7 @@ export default async function WithdrawalsPage({ searchParams }: WithdrawalsPageP
     buildQuery("pending"),
     buildQuery("processing"),
     buildQuery(["completed", "failed", "rejected"]).limit(100),
-    supabase
-      .from("withdrawals")
-      .select("*", { count: "exact" })
-      .eq("is_flagged", true)
-      .in("status", ["pending", "processing"]),
+    buildQuery(["pending", "processing"]).eq("is_flagged", true),
   ])
 
   // Calculate stats

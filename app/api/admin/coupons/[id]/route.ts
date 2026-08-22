@@ -45,10 +45,18 @@ export async function PATCH(
     }
 
     if (typeof body.reward_satoshis === "number") {
+      // PATCH must respect the same bounds as creation — the old code accepted
+      // any number, bypassing the 1..10000 cap entirely.
+      if (!Number.isInteger(body.reward_satoshis) || body.reward_satoshis < 1 || body.reward_satoshis > 10000) {
+        return NextResponse.json({ error: "reward_satoshis must be an integer between 1 and 10000" }, { status: 400 })
+      }
       updates.reward_satoshis = body.reward_satoshis
     }
 
     if (typeof body.max_uses === "number") {
+      if (!Number.isInteger(body.max_uses) || body.max_uses < 1 || body.max_uses > 1_000_000) {
+        return NextResponse.json({ error: "max_uses must be a positive integer" }, { status: 400 })
+      }
       updates.max_uses = body.max_uses
     }
 

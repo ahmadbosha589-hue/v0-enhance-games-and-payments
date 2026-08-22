@@ -105,26 +105,19 @@ export async function POST(request: Request) {
           newStatus = "approved"
           auditAction = "offerwall_conversion_approved"
 
-          // Credit user balance
-          await adminDb
-            .from("profiles")
-            .update({
-              balance_satoshis: Number(conversion.profiles.balance_satoshis) + Number(conversion.payout_satoshis),
-            })
-            .eq("id", conversion.user_id)
-
-          // Create transaction record
-          await adminDb.from("transactions").insert({
-            user_id: conversion.user_id,
-            type: "offerwall",
-            status: "completed",
-            amount_satoshis: conversion.payout_satoshis,
-            balance_before: Number(conversion.profiles.balance_satoshis),
-            balance_after: Number(conversion.profiles.balance_satoshis) + Number(conversion.payout_satoshis),
-            description: `Offerwall: ${conversion.offer_name || conversion.offer_id}`,
-            metadata: { conversion_id: conversionId, approved_by: user.id },
-            completed_at: new Date().toISOString(),
+          // Credit balance atomically (row lock + ledger row in one RPC) —
+          // the old read-then-write lost updates against concurrent claims.
+          const { data: creditResult, error: creditError } = await adminDb.rpc("admin_adjust_balance", {
+            p_user_id: conversion.user_id,
+            p_delta: conversion.payout_satoshis,
+            p_type: "offerwall",
+            p_description: `Offerwall: ${conversion.offer_name || conversion.offer_id}`,
+            p_metadata: { conversion_id: conversionId, approved_by: user.id },
           })
+          if (creditError || !creditResult?.success) {
+            console.error("[OfferwallAction] atomic credit failed:", creditError ?? creditResult)
+            return NextResponse.json({ error: "Failed to credit user balance" }, { status: 500 })
+          }
 
           // Create notification
           await supabase.from("notifications").insert({
@@ -160,25 +153,26 @@ export async function POST(request: Request) {
           newStatus = "reversed"
           auditAction = "offerwall_conversion_reversed"
 
-          // Deduct from user balance (ensure non-negative)
-          const newBalance = Math.max(
-            0,
-            Number(conversion.profiles.balance_satoshis) - Number(conversion.payout_satoshis),
-          )
-          await adminDb.from("profiles").update({ balance_satoshis: newBalance }).eq("id", conversion.user_id)
-
-          // Create reversal transaction
-          await adminDb.from("transactions").insert({
-            user_id: conversion.user_id,
-            type: "adjustment",
-            status: "completed",
-            amount_satoshis: -conversion.payout_satoshis,
-            balance_before: Number(conversion.profiles.balance_satoshis),
-            balance_after: newBalance,
-            description: `Offerwall reversal: ${conversion.offer_name || conversion.offer_id}`,
-            metadata: { conversion_id: conversionId, reversed_by: user.id, reason: notes },
-            completed_at: new Date().toISOString(),
+          // Debit atomically; overdrafts are REFUSED (the old code silently
+          // clamped to 0 and wrote a ledger row claiming the full debit).
+          const { data: debitResult, error: debitError } = await adminDb.rpc("admin_adjust_balance", {
+            p_user_id: conversion.user_id,
+            p_delta: -Number(conversion.payout_satoshis),
+            p_type: "adjustment",
+            p_description: `Offerwall reversal: ${conversion.offer_name || conversion.offer_id}`,
+            p_metadata: { conversion_id: conversionId, reversed_by: user.id, reason: notes },
           })
+          if (debitError || !debitResult?.success) {
+            console.error("[OfferwallAction] atomic debit failed:", debitError ?? debitResult)
+            return NextResponse.json(
+              {
+                error: debitResult?.error === "INSUFFICIENT_BALANCE"
+                  ? `User balance (${debitResult.balance ?? 0} sats) is lower than the payout being reversed`
+                  : "Failed to reverse user credit",
+              },
+              { status: 400 },
+            )
+          }
 
           // Create notification
           await supabase.from("notifications").insert({

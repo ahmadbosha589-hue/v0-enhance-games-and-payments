@@ -9,6 +9,16 @@ import { CheckCircle, XCircle, AlertTriangle, Loader2, Eye, Shield, Users, Copy 
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -60,6 +70,7 @@ export function WithdrawalsTable({ withdrawals, showActions, showFraudDetails }:
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState("")
+  const [approveTarget, setApproveTarget] = useState<Withdrawal | null>(null)
   const router = useRouter()
 
   const handleAction = async (withdrawalId: string, action: "approve" | "reject", notes?: string) => {
@@ -253,8 +264,9 @@ export function WithdrawalsTable({ withdrawals, showActions, showFraudDetails }:
                           size="sm"
                           variant="outline"
                           className="h-6 w-6 sm:h-8 sm:w-8 p-0 text-emerald-500 hover:text-emerald-600 bg-transparent"
-                          onClick={() => handleAction(withdrawal.id, "approve")}
+                          onClick={() => setApproveTarget(withdrawal)}
                           disabled={loading === withdrawal.id}
+                          aria-label="Approve withdrawal"
                         >
                           {loading === withdrawal.id ? (
                             <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
@@ -326,6 +338,41 @@ export function WithdrawalsTable({ withdrawals, showActions, showFraudDetails }:
           </TableBody>
         </Table>
       </div>
+
+      {/* Approve confirmation — approving queues the payout for the FaucetPay
+          worker; moving real money should not be a single accidental click. */}
+      <AlertDialog open={!!approveTarget} onOpenChange={(open) => !open && setApproveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve withdrawal?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  Approve{" "}
+                  <strong className="text-emerald-600">
+                    {approveTarget?.amount_satoshis?.toLocaleString()} sats
+                  </strong>{" "}
+                  to {approveTarget?.profiles?.faucetpay_email || approveTarget?.payment_address || "the user's FaucetPay wallet"}?
+                </p>
+                <p>The payout worker will send this payment. Once paid, it can no longer be rejected.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const target = approveTarget
+                setApproveTarget(null)
+                if (target) handleAction(target.id, "approve")
+              }}
+              disabled={loading !== null}
+            >
+              {loading ? "Approving…" : "Approve Payout"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

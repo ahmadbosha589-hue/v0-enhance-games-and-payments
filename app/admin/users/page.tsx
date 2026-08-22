@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { UsersPagination } from "@/components/admin/users-pagination"
 import { UsersTable } from "@/components/admin/users-table"
 import { UsersFilters } from "@/components/admin/users-filters"
 import { Button } from "@/components/ui/button"
@@ -192,6 +193,7 @@ export default async function UsersPage({ searchParams }: UsersPageProps) {
         <CardContent>
           <UsersFilters />
           <UsersTable users={users} />
+          <UsersPagination page={page} totalPages={Math.ceil((count || 0) / limit) || 1} searchParams={params} />
         </CardContent>
       </Card>
     </div>

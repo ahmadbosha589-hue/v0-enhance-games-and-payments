@@ -33,6 +33,11 @@ export function WithdrawalsFilters() {
       }
     })
 
+    // Preserve the active tab — rebuilding params from scratch used to drop
+    // `tab` and bounce the operator back to Pending on every Apply.
+    const activeTab = searchParams.get("tab")
+    if (activeTab) params.set("tab", activeTab)
+
     startTransition(() => {
       router.push(`/admin/withdrawals?${params.toString()}`)
     })

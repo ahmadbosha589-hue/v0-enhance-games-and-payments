@@ -32,26 +32,16 @@ async function BoosterStats() {
     // Get booster statistics
     const { data: boosters } = await adminSupabase
       .from("user_boosters")
-      .select("tier, is_active")
+      .select("tier, is_active, amount_paid_usd")
       .eq("is_active", true)
       .gt("expires_at", new Date().toISOString())
     
     const activeCount = boosters?.length || 0
     const tierCounts = boosters?.reduce((acc, b) => {
-      acc[b.tier] = (acc[b.tier] || 0) + 1
+      const key = b.tier || "unassigned"
+      acc[key] = (acc[key] || 0) + 1
       return acc
     }, {} as Record<string, number>) || {}
-
-    // Calculate revenue (estimated based on tier prices)
-    const tierPrices: Record<string, number> = {
-      basic: 5,
-      pro: 10,
-      elite: 20,
-      legend: 50
-    }
-    const estimatedRevenue = Object.entries(tierCounts).reduce((sum, [tier, count]) => {
-      return sum + (tierPrices[tier] || 0) * count
-    }, 0)
 
     const stats = [
       {
@@ -111,11 +101,13 @@ async function BoosterStats() {
                 <DollarSign className="h-5 w-5 text-green-500" />
               </div>
               <div>
-                <p className="text-sm font-medium">Estimated Booster Revenue</p>
-                <p className="text-xs text-muted-foreground">From currently active boosters</p>
+                <p className="text-sm font-medium">Active Booster Value</p>
+                <p className="text-xs text-muted-foreground">USD paid for currently active boosters</p>
               </div>
             </div>
-            <p className="text-2xl font-bold text-green-500">${estimatedRevenue}</p>
+            <p className="text-2xl font-bold text-green-500">
+              ${((boosters || []) as { amount_paid_usd?: number | null }[]).reduce((sum, b) => sum + (b.amount_paid_usd || 0), 0).toFixed(2)}
+            </p>
           </CardContent>
         </Card>
       </>
@@ -137,6 +129,9 @@ async function ActiveBoostersList() {
       )
     }
     
+    // NOTE: profiles has no `email` column (emails live in auth.users), so the
+    // old embed errored on every load and the page always showed "No active
+    // boosters". Select only columns that exist.
     const { data: boosters, error } = await adminSupabase
       .from("user_boosters")
       .select(`
@@ -144,15 +139,24 @@ async function ActiveBoostersList() {
         profiles!user_boosters_user_id_fkey (
           username,
           display_name,
-          email
+          faucetpay_email
         )
       `)
       .eq("is_active", true)
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false })
       .limit(50)
-    
-    if (error || !boosters || boosters.length === 0) {
+
+    if (error) {
+      console.error("[AdminBoosters] query failed:", error)
+      return (
+        <div className="text-center py-8 text-destructive">
+          Failed to load boosters. Check server logs.
+        </div>
+      )
+    }
+
+    if (!boosters || boosters.length === 0) {
       return (
         <div className="text-center py-8">
           <Rocket className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
@@ -183,12 +187,18 @@ async function ActiveBoostersList() {
                       {booster.profiles?.display_name || booster.profiles?.username || "Unknown"}
                     </p>
                     <p className="text-xs text-muted-foreground truncate max-w-[150px]">
-                      {booster.profiles?.email}
+                      {booster.profiles?.faucetpay_email || "—"}
                     </p>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <UserTierBadge tier={booster.tier as UserTier} size="sm" />
+                  {booster.tier ? (
+                    <UserTierBadge tier={booster.tier as UserTier} size="sm" />
+                  ) : (
+                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                      unassigned
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className="text-xs">
@@ -204,7 +214,11 @@ async function ActiveBoostersList() {
                   </p>
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  ${booster.amount_paid || 0}
+                  {typeof booster.amount_paid_usd === "number" && booster.amount_paid_usd > 0
+                    ? `$${booster.amount_paid_usd.toFixed(2)}`
+                    : booster.amount_paid_satoshis
+                      ? `${booster.amount_paid_satoshis.toLocaleString()} sats`
+                      : "—"}
                 </TableCell>
               </TableRow>
             ))}

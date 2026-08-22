@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils"
 import { formatDistanceToNow } from "date-fns"
 import { AdminTournamentsActions } from "@/components/admin/tournaments-actions"
+import { EndTournamentButton } from "@/components/admin/end-tournament-button"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -448,6 +449,7 @@ export default async function AdminTournamentsPage() {
                     <TableHead className="text-right">Prize Pool</TableHead>
                     <TableHead className="text-right">Participants</TableHead>
                     <TableHead>Schedule</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -503,6 +505,17 @@ export default async function AdminTournamentsPage() {
                               ? (() => { try { const d = new Date(tournament.ends_at); return isNaN(d.getTime()) ? "—" : `Ends ${formatDistanceToNow(d, { addSuffix: true })}` } catch { return "—" } })()
                               : "—"}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {tournament.status === "active" ? (
+                            <EndTournamentButton
+                              tournamentId={tournament.id}
+                              title={tournament.name}
+                              prizePool={tournament.prize_pool}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     )

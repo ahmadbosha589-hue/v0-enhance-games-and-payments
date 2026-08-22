@@ -42,8 +42,17 @@ export async function PATCH(request: Request) {
     const admin = await verifyAdmin()
     if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     const body = await request.json()
-    const { id, ...changes } = body
+    const { id, ...rawChanges } = body
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 })
+    // Whitelist editable ad-settings columns (mass-assign guard).
+    const allowedKeys = ["is_active", "position", "config", "updated_at"]
+    const changes: Record<string, unknown> = {}
+    for (const key of Object.keys(rawChanges)) {
+      if (allowedKeys.includes(key)) changes[key] = rawChanges[key]
+    }
+    if (Object.keys(changes).length === 0) {
+      return NextResponse.json({ error: "No editable fields provided" }, { status: 400 })
+    }
     const { error } = await admin.supabase
       .from("ad_settings")
       .update({ ...changes, updated_at: new Date().toISOString() })
