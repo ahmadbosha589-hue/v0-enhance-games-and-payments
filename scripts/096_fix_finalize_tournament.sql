@@ -9,6 +9,11 @@
 
 ALTER TYPE public.transaction_type ADD VALUE IF NOT EXISTS 'tournament_prize';
 
+-- The 061 version returns VOID; Postgres cannot CREATE OR REPLACE across a
+-- return-type change, so drop the legacy function first (no callers exist —
+-- that was the audit finding this migration fixes).
+DROP FUNCTION IF EXISTS public.finalize_tournament(UUID);
+
 CREATE OR REPLACE FUNCTION public.finalize_tournament(p_tournament_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql

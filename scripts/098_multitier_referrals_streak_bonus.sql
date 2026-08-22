@@ -130,10 +130,10 @@ $$;
 DO $$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronounspace
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = 'atomic_claim'
   ) AND NOT EXISTS (
-    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronounspace
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = 'atomic_claim_impl'
   ) THEN
     ALTER FUNCTION public.atomic_claim(UUID, INET, TEXT, TEXT, BIGINT, BIGINT, BIGINT, INTEGER, TEXT)
