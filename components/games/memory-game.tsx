@@ -27,7 +27,7 @@ interface DifficultySettings {
 }
 
 interface MemoryGameProps {
-  onGameEnd: (score: number, moves: number) => void
+  onGameEnd: (score: number, moves: number, gameData?: { pairsMatched: number; pairsTotal: number; completed: boolean }) => void
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
@@ -154,10 +154,15 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
       setTimeLeft(prev => {
         if (prev <= 1 && !hasEndedRef.current) {
           hasEndedRef.current = true
-          // Time ran out - game over (loss)
+          // Time ran out - game over (loss). Report completion metadata so the
+          // server can verify this was NOT a completed board (partial scores
+          // from an expired timer must not be treated as a win).
           setGameOver(true)
-          // Use setTimeout to avoid state update during render
-          setTimeout(() => onGameEnd(score, moves), 0)
+          setTimeout(() => onGameEnd(score, moves, {
+            pairsMatched: matchedPairsRef.current,
+            pairsTotal: config.pairs,
+            completed: false,
+          }), 0)
           return 0
         }
         return prev > 0 ? prev - 1 : 0
@@ -270,7 +275,11 @@ export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: ext
           setGameOver(true)
 
           setTimeout(() => {
-            onGameEnd(finalScore, movesRef.current)
+            onGameEnd(finalScore, movesRef.current, {
+              pairsMatched: newMatchedPairs,
+              pairsTotal: config.pairs,
+              completed: true,
+            })
           }, 100)
         }
 

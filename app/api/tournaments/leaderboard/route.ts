@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
@@ -16,7 +16,7 @@ function getPeriodDates(period: TournamentPeriod): { start: Date; end: Date } {
       start.setUTCHours(0, 0, 0, 0)
       end.setUTCHours(23, 59, 59, 999)
       break
-    case "weekly":
+    case "weekly": {
       const dayOfWeek = now.getUTCDay()
       const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
       start.setUTCDate(now.getUTCDate() + diffToMonday)
@@ -24,6 +24,7 @@ function getPeriodDates(period: TournamentPeriod): { start: Date; end: Date } {
       end.setUTCDate(start.getUTCDate() + 6)
       end.setUTCHours(23, 59, 59, 999)
       break
+    }
     case "monthly":
       start.setUTCDate(1)
       start.setUTCHours(0, 0, 0, 0)
@@ -35,27 +36,34 @@ function getPeriodDates(period: TournamentPeriod): { start: Date; end: Date } {
   return { start, end }
 }
 
+// Cross-user aggregation MUST use the service-role client: transactions RLS is
+// `select_own` (auth.uid() = user_id), so a user-scoped client can only ever
+// see its own rows and the "leaderboard" would show at most one player.
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
+    const admin = createAdminClient()
+    if (!admin) {
+      return NextResponse.json({ error: "Leaderboard temporarily unavailable" }, { status: 503 })
+    }
     const { searchParams } = new URL(request.url)
     const tournamentId = searchParams.get("tournamentId")
     const type = searchParams.get("type") as TournamentType | null
     const period = searchParams.get("period") as TournamentPeriod | null
     const limit = parseInt(searchParams.get("limit") || "50")
 
-    // Get current user
+    // Get current user (identity only — all data reads go through admin)
     const { data: { user } } = await supabase.auth.getUser()
 
     if (tournamentId) {
-      // Get leaderboard for specific tournament
-      const { data: participants, error } = await supabase
+      // Get leaderboard for specific tournament (canonical participant columns)
+      const { data: participants, error } = await admin
         .from("tournament_participants")
         .select(`
           user_id,
           score,
-          rank,
-          prize_amount,
+          final_rank,
+          prize_won_satoshis,
           profiles:user_id (
             username,
             avatar_url
@@ -66,6 +74,7 @@ export async function GET(request: Request) {
         .limit(limit)
 
       if (error) {
+        console.error("Error fetching tournament participants:", error)
         return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
       }
 
@@ -74,33 +83,26 @@ export async function GET(request: Request) {
         username: (p.profiles as { username?: string })?.username || "Anonymous",
         avatar_url: (p.profiles as { avatar_url?: string })?.avatar_url,
         score: p.score,
-        rank: index + 1,
-        prize_amount: p.prize_amount,
+        rank: p.final_rank ?? index + 1,
+        prize_amount: p.prize_won_satoshis,
         is_current_user: p.user_id === user?.id,
-      }))
+      })) || []
 
       // Get current user's position if not in top
       let userPosition = null
-      if (user && !leaderboard?.some((p) => p.is_current_user)) {
-        const { data: userParticipant } = await supabase
+      if (user && !leaderboard.some((p) => p.is_current_user)) {
+        const { data: userParticipant } = await admin
           .from("tournament_participants")
-          .select("score, rank")
+          .select("score, final_rank")
           .eq("tournament_id", tournamentId)
           .eq("user_id", user.id)
           .single()
 
         if (userParticipant) {
-          // Count how many users have higher scores
-          const { count } = await supabase
-            .from("tournament_participants")
-            .select("*", { count: "exact", head: true })
-            .eq("tournament_id", tournamentId)
-            .gt("score", userParticipant.score)
-
           userPosition = {
             user_id: user.id,
             score: userParticipant.score,
-            rank: (count || 0) + 1,
+            rank: userParticipant.final_rank ?? leaderboard.filter((p) => p.score > userParticipant.score).length + 1,
           }
         }
       }
@@ -118,8 +120,8 @@ export async function GET(request: Request) {
     let leaderboard: { user_id: string; username: string; avatar_url: string | null; score: number; rank: number; is_current_user: boolean }[] = []
 
     if (type === "faucet_claims") {
-      // Count manual faucet claims
-      const { data, error } = await supabase
+      // Count manual faucet claims (admin client sees all users' rows)
+      const { data, error } = await admin
         .from("manual_faucet_claims")
         .select(`
           user_id,
@@ -162,70 +164,38 @@ export async function GET(request: Request) {
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
         .map((item, index) => ({ ...item, rank: index + 1 }))
-    } else if (type === "offerwall_earnings") {
-      // Sum offerwall earnings from transactions
-      const { data, error } = await supabase
+    } else if (type === "supporter_ads_watched" || type === "supporter_earnings") {
+      // No `support_us` transaction type exists in the ledger enum yet, so
+      // there is no honest data source for supporter boards. Return an empty
+      // leaderboard rather than querying a nonexistent enum value (500) or
+      // fabricating scores.
+      leaderboard = []
+    } else {
+      // offerwall_earnings / highest_earners — aggregate transactions.amount_satoshis
+      // (the schema column; the old code selected a nonexistent `amount`).
+      const typeFilter = type === "offerwall_earnings"
+        ? { op: "eq" as const, value: "offerwall" }
+        : { op: "in" as const, value: ["claim", "manual_faucet", "offerwall", "shortlink", "game", "ptc", "referral_bonus", "tournament_prize"] }
+
+      let query = admin
         .from("transactions")
         .select(`
           user_id,
-          amount,
+          amount_satoshis,
           profiles:user_id (
             username,
             avatar_url
           )
         `)
-        .eq("type", "offerwall")
         .eq("status", "completed")
         .gte("created_at", start.toISOString())
         .lte("created_at", end.toISOString())
 
-      if (error) {
-        console.error("Error fetching offerwall earnings:", error)
-        return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
-      }
+      query = typeFilter.op === "eq"
+        ? query.eq("type", typeFilter.value as string)
+        : query.in("type", typeFilter.value as string[])
 
-      // Aggregate by user
-      const userEarnings: Record<string, { total: number; username: string; avatar_url: string | null }> = {}
-      data?.forEach((tx) => {
-        const userId = tx.user_id
-        if (!userEarnings[userId]) {
-          userEarnings[userId] = {
-            total: 0,
-            username: (tx.profiles as { username?: string })?.username || "Anonymous",
-            avatar_url: (tx.profiles as { avatar_url?: string })?.avatar_url || null,
-          }
-        }
-        userEarnings[userId].total += tx.amount
-      })
-
-      leaderboard = Object.entries(userEarnings)
-        .map(([user_id, data]) => ({
-          user_id,
-          username: data.username,
-          avatar_url: data.avatar_url,
-          score: data.total,
-          rank: 0,
-          is_current_user: user_id === user?.id,
-        }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map((item, index) => ({ ...item, rank: index + 1 }))
-    } else if (type === "highest_earners") {
-      // Sum all earnings from transactions
-      const { data, error } = await supabase
-        .from("transactions")
-        .select(`
-          user_id,
-          amount,
-          profiles:user_id (
-            username,
-            avatar_url
-          )
-        `)
-        .in("type", ["faucet", "manual_faucet", "offerwall", "shortlink", "game", "ptc", "referral", "tournament_prize"])
-        .eq("status", "completed")
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString())
+      const { data, error } = await query
 
       if (error) {
         console.error("Error fetching earnings:", error)
@@ -243,7 +213,7 @@ export async function GET(request: Request) {
             avatar_url: (tx.profiles as { avatar_url?: string })?.avatar_url || null,
           }
         }
-        userEarnings[userId].total += tx.amount
+        userEarnings[userId].total += tx.amount_satoshis
       })
 
       leaderboard = Object.entries(userEarnings)
@@ -258,110 +228,43 @@ export async function GET(request: Request) {
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
         .map((item, index) => ({ ...item, rank: index + 1 }))
-    } else if (type === "supporter_ads_watched" || type === "supporter_earnings") {
-      // Handle supporter tournament types - count support_us ads watched or earnings
-      const { data, error } = await supabase
-        .from("transactions")
-        .select(`
-          user_id,
-          amount,
-          profiles:user_id (
-            username,
-            avatar_url
-          )
-        `)
-        .eq("type", "support_us")
-        .eq("status", "completed")
-        .gte("created_at", start.toISOString())
-        .lte("created_at", end.toISOString())
-
-      if (error) {
-        console.error("Error fetching supporter data:", error)
-        return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
-      }
-
-      // Aggregate by user
-      const userData: Record<string, { count: number; total: number; username: string; avatar_url: string | null }> = {}
-      data?.forEach((tx) => {
-        const userId = tx.user_id
-        if (!userData[userId]) {
-          userData[userId] = {
-            count: 0,
-            total: 0,
-            username: (tx.profiles as { username?: string })?.username || "Anonymous",
-            avatar_url: (tx.profiles as { avatar_url?: string })?.avatar_url || null,
-          }
-        }
-        userData[userId].count++
-        userData[userId].total += tx.amount
-      })
-
-      leaderboard = Object.entries(userData)
-        .map(([user_id, data]) => ({
-          user_id,
-          username: data.username,
-          avatar_url: data.avatar_url,
-          score: type === "supporter_ads_watched" ? data.count : data.total,
-          rank: 0,
-          is_current_user: user_id === user?.id,
-        }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map((item, index) => ({ ...item, rank: index + 1 }))
     }
 
     // Get current user's position if not in top
     let userPosition = null
-    if (user && !leaderboard.some((p) => p.is_current_user)) {
+    if (user && !leaderboard.some((p) => p.is_current_user) && type !== "supporter_ads_watched" && type !== "supporter_earnings") {
       // Find user's score based on type
       let userScore = 0
 
       if (type === "faucet_claims") {
-        const { count } = await supabase
+        const { count } = await admin
           .from("manual_faucet_claims")
           .select("*", { count: "exact", head: true })
           .eq("user_id", user.id)
           .gte("claimed_at", start.toISOString())
           .lte("claimed_at", end.toISOString())
         userScore = count || 0
-      } else if (type === "offerwall_earnings") {
-        const { data } = await supabase
+      } else {
+        let q = admin
           .from("transactions")
-          .select("amount")
+          .select("amount_satoshis")
           .eq("user_id", user.id)
-          .eq("type", "offerwall")
           .eq("status", "completed")
           .gte("created_at", start.toISOString())
           .lte("created_at", end.toISOString())
-        userScore = data?.reduce((sum, tx) => sum + tx.amount, 0) || 0
-      } else if (type === "highest_earners") {
-        const { data } = await supabase
-          .from("transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .in("type", ["faucet", "manual_faucet", "offerwall", "shortlink", "game", "ptc", "referral", "tournament_prize"])
-          .eq("status", "completed")
-          .gte("created_at", start.toISOString())
-          .lte("created_at", end.toISOString())
-        userScore = data?.reduce((sum, tx) => sum + tx.amount, 0) || 0
-      } else if (type === "supporter_ads_watched" || type === "supporter_earnings") {
-        const { data } = await supabase
-          .from("transactions")
-          .select("amount")
-          .eq("user_id", user.id)
-          .eq("type", "support_us")
-          .eq("status", "completed")
-          .gte("created_at", start.toISOString())
-          .lte("created_at", end.toISOString())
-        if (type === "supporter_ads_watched") {
-          userScore = data?.length || 0
+
+        if (type === "offerwall_earnings") {
+          q = q.eq("type", "offerwall")
         } else {
-          userScore = data?.reduce((sum, tx) => sum + tx.amount, 0) || 0
+          q = q.in("type", ["claim", "manual_faucet", "offerwall", "shortlink", "game", "ptc", "referral_bonus", "tournament_prize"])
         }
+
+        const { data } = await q
+        userScore = data?.reduce((sum, tx) => sum + tx.amount_satoshis, 0) || 0
       }
 
       if (userScore > 0) {
-        // Count how many users have higher scores
+        // Count how many users have higher scores (within the fetched board)
         const higherCount = leaderboard.filter((p) => p.score > userScore).length
         userPosition = {
           user_id: user.id,

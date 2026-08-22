@@ -178,9 +178,41 @@ export async function POST(req: NextRequest) {
 
     const { level: difficultyLevel } = calculateDifficulty(gamesTodayForDifficulty)
     const winThreshold = getAdjustedWinThreshold(gameType, difficultyLevel)
-    // Memory game: completing all pairs counts as a win (score > 0 means they finished)
-    // Other games: must reach win threshold
-    const isWinner = gameType === "memory" ? score > 0 : score >= winThreshold
+
+    // Memory game win verification (anti-exploit): a partial score from an
+    // expired timer must NOT pay. The client reports pairsMatched/pairsTotal/
+    // completed; the server cross-checks against the score's implied pair
+    // count. score>0 alone is not sufficient — the board must be complete.
+    let isWinner: boolean
+    if (gameType === "memory") {
+      const memoryData = (gameData ?? {}) as {
+        moves?: number
+        pairsMatched?: number
+        pairsTotal?: number
+        completed?: boolean
+      }
+      const expectedPairsByScore = Math.floor(score / 10) // each pair is worth 10 base points
+      const claimedPairs = memoryData.pairsMatched
+      const claimedTotal = memoryData.pairsTotal
+
+      // Valid win requires ALL of:
+      //  - completed flag set by the game (timer expiry sets it false)
+      //  - pairsMatched === pairsTotal (full board cleared)
+      //  - pairsTotal within the known grid sizes (6/8/12)
+      //  - score consistent with the claimed pair count (+/- perfect bonus)
+      const plausiblePairs =
+        typeof claimedPairs === "number" &&
+        typeof claimedTotal === "number" &&
+        claimedPairs === claimedTotal &&
+        [6, 8, 12].includes(claimedTotal) &&
+        score > 0 &&
+        expectedPairsByScore >= claimedPairs - 3 && // combo/perfect bonuses keep score ahead of raw pairs
+        expectedPairsByScore <= claimedPairs + 2
+
+      isWinner = memoryData.completed === true && Boolean(plausiblePairs)
+    } else {
+      isWinner = score >= winThreshold
+    }
     const rewardAmount = isWinner ? GAME_REWARD_SATOSHIS : 0
 
     const today = new Date().toISOString().split("T")[0]
@@ -230,151 +262,9 @@ export async function POST(req: NextRequest) {
         : gameType === "memory" ? "Match all pairs to win. Try again!" : `You need at least ${winThreshold} points to win. Try again!`,
     })
 
-    /* istanbul ignore next -- retained only as a migration rollback reference */
-    // Legacy sequential reward code was removed from the active path; all
-    // production requests return through complete_game_reward above.
-
-    if (user) {
-      try {
-        await adminSupabase
-          .from("game_sessions")
-          .update({
-          score,
-          status: isWinner ? "completed" : "lost",
-          reward_satoshis: rewardAmount,
-          completed_at: new Date().toISOString(),
-          game_duration_ms: gameDuration
-        })
-        .eq("id", sessionId)
-    } catch { /* ignore session update errors */ }
-
-    // Set cooldown for THIS SPECIFIC GAME TYPE - ONLY ON WIN
-    // Players can immediately retry if they lose, but must wait after winning
-    if (isWinner) {
-      try {
-        const { data: existingCooldown } = await adminSupabase
-          .from("game_cooldowns")
-          .select("id")
-          .eq("user_id", user!.id)
-          .eq("game_type", gameType)
-          .single()
-
-        if (existingCooldown) {
-          await adminSupabase
-            .from("game_cooldowns")
-            .update({ cooldown_until: cooldownUntil })
-            .eq("user_id", user!.id)
-            .eq("game_type", gameType)
-        } else {
-          await adminSupabase
-            .from("game_cooldowns")
-            .insert({
-              user_id: user!.id,
-              game_type: gameType,
-              cooldown_until: cooldownUntil
-            })
-        }
-      } catch { /* ignore cooldown errors */ }
-    }
-
-    let gamesPlayedToday = 0
-    let totalEarnedToday = 0
-    const { data: existingLimit, error: limitReadError } = await adminSupabase
-      .from("game_daily_limits")
-      .select("*")
-      .eq("user_id", user!.id)
-      .eq("date", today)
-      .single()
-
-    if (limitReadError && limitReadError.code !== "PGRST116") {
-      console.error("Failed to read daily game totals:", limitReadError)
-      return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
-    }
-
-    if (existingLimit) {
-      gamesPlayedToday = existingLimit.games_played
-      totalEarnedToday = existingLimit.total_earned
-
-      if (isWinner) {
-        gamesPlayedToday = existingLimit.games_played + 1
-        totalEarnedToday = existingLimit.total_earned + rewardAmount
-        const { error: limitUpdateError } = await adminSupabase
-          .from("game_daily_limits")
-          .update({ games_played: gamesPlayedToday, total_earned: totalEarnedToday })
-          .eq("user_id", user!.id)
-          .eq("date", today)
-        if (limitUpdateError) {
-          console.error("Failed to update daily game totals:", limitUpdateError)
-          return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
-        }
-      }
-    } else if (isWinner) {
-      gamesPlayedToday = 1
-      totalEarnedToday = rewardAmount
-      const { error: limitInsertError } = await adminSupabase
-        .from("game_daily_limits")
-        .insert({ user_id: user!.id, date: today, games_played: 1, total_earned: rewardAmount })
-      if (limitInsertError) {
-        console.error("Failed to create daily game totals:", limitInsertError)
-        return NextResponse.json({ error: "Game limits are temporarily unavailable" }, { status: 503 })
-      }
-    }
-
-    let newBalance = 0
-    if (isWinner) {
-      const { error: rewardError } = await adminSupabase.rpc("add_game_reward", {
-        p_user_id: user!.id,
-        p_amount: rewardAmount,
-      })
-      if (rewardError) {
-        console.error("Failed to award satoshis:", rewardError)
-        return NextResponse.json({ error: "Unable to finalize game reward" }, { status: 503 })
-      }
-
-      const { data: profile, error: profileError } = await adminSupabase
-        .from("profiles")
-        .select("balance_satoshis")
-        .eq("id", user!.id)
-        .single()
-      if (profileError || !profile) {
-        return NextResponse.json({ error: "Unable to read updated balance" }, { status: 503 })
-      }
-      newBalance = Number(profile.balance_satoshis)
-
-      const { error: transactionError } = await adminSupabase
-        .from("transactions")
-        .insert({
-          user_id: user!.id,
-          type: "game_reward",
-          amount: rewardAmount,
-          status: "completed",
-          description: `Won ${gameType} game with score ${score}`
-        })
-      if (transactionError) {
-        console.error("Failed to record game reward transaction:", transactionError)
-        return NextResponse.json({ error: "Unable to record game reward" }, { status: 503 })
-      }
-    }
-
-    return NextResponse.json({
-      success: true,
-      isWinner,
-      reward: rewardAmount,
-      score,
-      winThreshold: gameType === "memory" ? 0 : winThreshold,
-      newBalance,
-      // Only include cooldown if player won - no cooldown on loss
-      cooldownMinutes: isWinner ? GAME_COOLDOWN_MINUTES : 0,
-      cooldownUntil: isWinner ? cooldownUntil : null,
-      gamesPlayedToday,
-      gamesRemaining: MAX_GAMES_PER_DAY - gamesPlayedToday,
-      totalEarnedToday,
-      message: isWinner
-        ? `Congratulations! You earned ${rewardAmount} satoshis!`
-        : gameType === "memory" ? "Match all pairs to win. Try again!" : `You need at least ${winThreshold} points to win. Try again!`
-    })
-    }
-
+    // Legacy sequential reward code removed: all production requests
+    // finalize exclusively through the atomic complete_game_reward RPC above
+    // (see scripts/089_game_cooldown_atomicity.sql).
   } catch (error) {
     console.error("Game complete error:", error)
     // Return a generic error response - we can't reference body variables here

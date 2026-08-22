@@ -92,14 +92,16 @@ export function BlockBlastGame({ onGameEnd, onScoreUpdate, isActive, difficulty,
   const [shakeBoard, setShakeBoard] = useState(false)
   const [gameStartTime, setGameStartTime] = useState<number>(0)
   const [tooQuickWarning, setTooQuickWarning] = useState(false)
-  const MIN_GAME_DURATION = 10 // Minimum seconds to play legitimately
+  // Minimum seconds to play legitimately — MUST match the server's
+  // MIN_GAME_DURATIONS_MS.block_blast (lib/games/game-engine.ts = 12000ms).
+  // A mismatch fails legitimate wins with "Game completed too quickly".
+  const MIN_GAME_DURATION = 12
 
   const boardRef = useRef<HTMLDivElement>(null)
   const scoreRef = useRef(score)
   const isAnimatingRef = useRef(isAnimating)
   const movesRef = useRef(moves)
   const hasEndedRef = useRef(false)
-
   useEffect(() => {
     scoreRef.current = score
     isAnimatingRef.current = isAnimating

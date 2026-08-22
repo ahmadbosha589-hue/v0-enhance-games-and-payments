@@ -21,11 +21,13 @@ export async function GET(req: NextRequest) {
       adminSupabase = requireAdminClient()
     } catch (err) {
       console.error("Failed to create admin client:", err)
-      // Return default response without database
+      // FAIL CLOSED: without a database we cannot verify cooldowns or daily
+      // limits, so every game must report as not playable. Reporting
+      // canPlay:true during an outage re-enables Play buttons that then 503.
       const defaultStatus: Record<string, { canPlay: boolean; waitSeconds: number; cooldownUntil: string | null; winThreshold: number }> = {}
       for (const gameType of ALL_GAME_TYPES) {
         defaultStatus[gameType] = {
-          canPlay: true,
+          canPlay: false,
           waitSeconds: 0,
           cooldownUntil: null,
           winThreshold: BASE_WIN_THRESHOLDS[gameType] || 100
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         gameStatuses: defaultStatus,
         gamesPlayedToday: 0,
-        gamesRemaining: MAX_GAMES_PER_DAY,
+        gamesRemaining: 0,
         maxGamesPerDay: MAX_GAMES_PER_DAY,
         totalEarnedToday: 0,
         rewardPerGame: GAME_REWARD_SATOSHIS,
@@ -50,7 +52,8 @@ export async function GET(req: NextRequest) {
           bonusChance: 0.15,
           scoreMultiplier: 1
         },
-        gamesToday: 0
+        gamesToday: 0,
+        degraded: true
       })
     }
 
@@ -192,11 +195,12 @@ export async function GET(req: NextRequest) {
 
   } catch (error) {
     console.error("Game status error:", error)
-    // Return default response on error
+    // FAIL CLOSED: on error we cannot verify cooldowns/limits, so games must
+    // report as not playable rather than re-enabling buttons that will 503.
     const defaultStatus: Record<string, { canPlay: boolean; waitSeconds: number; cooldownUntil: string | null; winThreshold: number }> = {}
     for (const gameType of ALL_GAME_TYPES) {
       defaultStatus[gameType] = {
-        canPlay: true,
+        canPlay: false,
         waitSeconds: 0,
         cooldownUntil: null,
         winThreshold: BASE_WIN_THRESHOLDS[gameType] || 100
@@ -205,7 +209,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       gameStatuses: defaultStatus,
       gamesPlayedToday: 0,
-      gamesRemaining: MAX_GAMES_PER_DAY,
+      gamesRemaining: 0,
       maxGamesPerDay: MAX_GAMES_PER_DAY,
       totalEarnedToday: 0,
       rewardPerGame: GAME_REWARD_SATOSHIS,
@@ -221,7 +225,8 @@ export async function GET(req: NextRequest) {
         bonusChance: 0.15,
         scoreMultiplier: 1
       },
-      gamesToday: 0
+      gamesToday: 0,
+      degraded: true
     })
   }
 }

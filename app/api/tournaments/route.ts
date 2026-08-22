@@ -280,7 +280,7 @@ export async function GET(request: Request) {
     // Get user session
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Build query for active tournaments
+    // Build query for active tournaments (canonical 061 columns)
     let query = supabase
       .from("tournaments")
       .select(`
@@ -288,8 +288,8 @@ export async function GET(request: Request) {
         tournament_participants (
           user_id,
           score,
-          rank,
-          prize_amount,
+          final_rank,
+          prize_won_satoshis,
           profiles:user_id (
             username,
             avatar_url
@@ -303,7 +303,7 @@ export async function GET(request: Request) {
       query = query.eq("period", period)
     }
     if (type) {
-      query = query.eq("type", type)
+      query = query.eq("category", type)
     }
 
     const { data: tournaments, error } = await query
@@ -318,12 +318,12 @@ export async function GET(request: Request) {
     if (user) {
       const { data: participation } = await supabase
         .from("tournament_participants")
-        .select("tournament_id, score, rank")
+        .select("tournament_id, score, final_rank")
         .eq("user_id", user.id)
 
       if (participation) {
         userParticipation = participation.reduce((acc, p) => {
-          acc[p.tournament_id] = { score: p.score, rank: p.rank }
+          acc[p.tournament_id] = { score: p.score, rank: p.final_rank }
           return acc
         }, {} as Record<string, { score: number; rank: number | null }>)
       }
@@ -335,12 +335,12 @@ export async function GET(request: Request) {
       leaderboard: (t.tournament_participants || [])
         .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
         .slice(0, 10)
-        .map((p: { user_id: string; score: number; rank: number; profiles: { username: string; avatar_url: string } }, index: number) => ({
+        .map((p: { user_id: string; score: number; final_rank: number | null; profiles: { username: string; avatar_url: string } }, index: number) => ({
           user_id: p.user_id,
           username: p.profiles?.username || "Anonymous",
           avatar_url: p.profiles?.avatar_url,
           score: p.score,
-          rank: index + 1,
+          rank: p.final_rank ?? index + 1,
         })),
       user_participation: userParticipation[t.id] || null,
       participant_count: (t.tournament_participants || []).length,
@@ -381,21 +381,24 @@ export async function POST(request: Request) {
     const { action, tournamentId, config } = body
 
     if (action === "create") {
-      // Create a new tournament from config
+      // Create a new tournament from config. Writes the CANONICAL 061 schema
+      // (category/title/prize_pool_satoshis/prize_distribution/start_date/
+      // end_date) — the shape the scoring RPCs and finalize_tournament read.
+      // The sync trigger (migration 104) mirrors legacy columns for old readers.
       const cfg = config as TournamentConfig
       const { start, end } = getPeriodDates(cfg.period)
 
       const { data: tournament, error } = await supabase
         .from("tournaments")
         .insert({
-          type: cfg.type,
+          category: cfg.type,
           period: cfg.period,
-          name: cfg.name,
+          title: cfg.name,
           description: cfg.description,
-          prize_pool: cfg.prize_pool,
-          prizes: cfg.prizes,
-          starts_at: start.toISOString(),
-          ends_at: end.toISOString(),
+          prize_pool_satoshis: cfg.prize_pool,
+          prize_distribution: cfg.prizes.map((p) => p.percentage),
+          start_date: start.toISOString(),
+          end_date: end.toISOString(),
           status: "active",
         })
         .select()
@@ -453,29 +456,29 @@ export async function POST(request: Request) {
       for (const cfg of TOURNAMENT_CONFIGS) {
         const { start, end } = getPeriodDates(cfg.period)
 
-        // Check if tournament already exists for this period
+        // Check if tournament already exists for this period (canonical cols)
         const { data: existing } = await supabase
           .from("tournaments")
           .select("id")
-          .eq("type", cfg.type)
+          .eq("category", cfg.type)
           .eq("period", cfg.period)
           .eq("status", "active")
-          .gte("starts_at", start.toISOString())
-          .lte("ends_at", end.toISOString())
+          .gte("start_date", start.toISOString())
+          .lte("end_date", end.toISOString())
           .single()
 
         if (!existing) {
           const { data: tournament, error } = await supabase
             .from("tournaments")
             .insert({
-              type: cfg.type,
+              category: cfg.type,
               period: cfg.period,
-              name: cfg.name,
+              title: cfg.name,
               description: cfg.description,
-              prize_pool: cfg.prize_pool,
-              prizes: cfg.prizes,
-              starts_at: start.toISOString(),
-              ends_at: end.toISOString(),
+              prize_pool_satoshis: cfg.prize_pool,
+              prize_distribution: cfg.prizes.map((p) => p.percentage),
+              start_date: start.toISOString(),
+              end_date: end.toISOString(),
               status: "active",
             })
             .select()

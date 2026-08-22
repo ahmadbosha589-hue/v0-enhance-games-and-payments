@@ -419,7 +419,11 @@ export default function GamesPage() {
     }
   }
 
-  const handleGameEnd = useCallback(async (score: number, gameMoves: number) => {
+  const handleGameEnd = useCallback(async (
+    score: number,
+    gameMoves: number,
+    gameCompletionData?: { pairsMatched?: number; pairsTotal?: number; completed?: boolean },
+  ) => {
     if (!gameSession) return
 
     setIsLoading(true)
@@ -439,7 +443,7 @@ export default function GamesPage() {
           sessionToken: gameSession.sessionToken,
           score,
           challengeAnswer: solution,
-          gameData: { moves: gameMoves },
+          gameData: { moves: gameMoves, ...gameCompletionData },
           fingerprint
         })
       })
