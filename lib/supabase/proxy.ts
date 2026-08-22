@@ -1,7 +1,73 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-const AUTH_REFRESH_TIMEOUT_MS = 8000
+const AUTH_REFRESH_TIMEOUT_MS = 4000
+
+// Refresh only when the access token is within this window of expiry.
+// Supabase access tokens live one hour by default; two minutes of lead time
+// absorbs clock skew and one slow Auth round-trip comfortably.
+const REFRESH_WINDOW_MS = 120_000
+
+function decodeBase64Url(input: string): string {
+  let s = input.replace(/-/g, "+").replace(/_/g, "/")
+  while (s.length % 4) s += "="
+  return typeof atob === "function" ? atob(s) : Buffer.from(s, "base64").toString("utf8")
+}
+
+/**
+ * Read the access token's `exp` (epoch ms) straight from the request cookies —
+ * NO network call. Handles the chunked (`sb-*-auth-token.0`, `.1`, …) and
+ * `base64-` prefixed forms @supabase/ssr writes. Returns null when absent or
+ * unparseable.
+ */
+function readAccessTokenExpiresAt(request: NextRequest): number | null {
+  const authCookies = request.cookies
+    .getAll()
+    .filter((c) => c.name.startsWith("sb-") && c.name.includes("-auth-token") && !!c.value)
+  if (authCookies.length === 0) return null
+
+  const groups = new Map<string, { idx: number; value: string }[]>()
+  for (const c of authCookies) {
+    const m = c.name.match(/^(.*?)(?:\.(\d+))?$/)
+    const base = m?.[1] ?? c.name
+    const idx = m?.[2] ? Number(m[2]) : 0
+    if (!groups.has(base)) groups.set(base, [])
+    groups.get(base)!.push({ idx, value: c.value })
+  }
+
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.idx - b.idx)
+    let raw = group.map((c) => c.value).join("")
+    try {
+      if (raw.startsWith("base64-")) raw = decodeBase64Url(raw.slice("base64-".length))
+      const parsed = JSON.parse(raw) as {
+        access_token?: string
+        currentSession?: { access_token?: string }
+      }
+      const token = parsed?.access_token ?? parsed?.currentSession?.access_token
+      if (typeof token !== "string" || token.split(".").length !== 3) continue
+      const payload = JSON.parse(decodeBase64Url(token.split(".")[1])) as { exp?: number }
+      if (typeof payload.exp === "number") return payload.exp * 1000
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+/**
+ * Pay for a refresh ONLY when the access token is actually at/near expiry.
+ * Refreshing on every navigation put an Auth round-trip on the critical path
+ * of every page (slow loads) and widened the race window on the single-use
+ * refresh token (random logouts).
+ */
+function shouldRefresh(request: NextRequest): boolean {
+  const expiresAtMs = readAccessTokenExpiresAt(request)
+  // Unparseable cookie: fall back to the old always-attempt behaviour for this
+  // rare case rather than stranding the user with an unreadable session.
+  if (expiresAtMs === null) return true
+  return expiresAtMs - Date.now() <= REFRESH_WINDOW_MS
+}
 
 /**
  * Updates the session for the current request.
@@ -73,26 +139,35 @@ export async function updateSession(request: NextRequest) {
     })
 
     // ────────────────────────────────────────────────────────────────────
-    // CRITICAL ARCHITECTURE: routing decisions use ONLY cookie presence.
-    // We do NOT await getUser() here. Awaiting it caused 5+ second hangs
-    // on every navigation when Supabase Auth was slow (which immediately
-    // followed by the dashboard layout doing ANOTHER unbounded getUser(),
-    // appearing to the user as "logged out after 5 seconds").
+    // REFRESH_OWNER — this is the ONLY place allowed to refresh the session.
     //
-    // @supabase/ssr refreshes the access-token cookie when it's near
-    // expiry. We wait up to AUTH_REFRESH_TIMEOUT_MS for that operation so
-    // the rotated cookie is actually copied to the response before the
-    // browser refresh completes. Returning earlier drops the new cookie and
-    // makes the next refresh appear logged out.
-    // Routing is decided ONLY from hasSessionCookie.
+    // Supabase refresh tokens are SINGLE USE. Middleware is the only layer
+    // that can both rotate the token AND persist the replacement to cookies,
+    // so it owns refresh outright. Server Components must never call the
+    // refresh-capable getUser() (see RSC_NO_REFRESH in lib/supabase/server.ts):
+    // their rotation is discarded, and the next request presents a consumed
+    // token, which Supabase treats as a revoked session — the user appears to
+    // be logged out on every refresh.
+    //
+    // We only pay for a refresh when the access token is actually near expiry.
+    // Refreshing on every navigation both wasted an Auth round-trip on the
+    // critical path (making all pages slow) and widened the window for two
+    // in-flight requests to race the same single-use token.
     // ────────────────────────────────────────────────────────────────────
-    try {
-      await Promise.race([
-        supabase.auth.getUser(),
-        new Promise((resolve) => setTimeout(resolve, AUTH_REFRESH_TIMEOUT_MS)),
-      ])
-    } catch {
-      // Best effort — ignore.
+    if (hasSessionCookie && shouldRefresh(request)) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          supabase.auth.getUser(),
+          new Promise((resolve) => {
+            timer = setTimeout(resolve, AUTH_REFRESH_TIMEOUT_MS)
+          }),
+        ])
+      } catch {
+        // Best effort — routing below never depends on this.
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
     }
 
     // Protected routes require auth — decided ONLY from cookie presence.

@@ -242,92 +242,41 @@ async function readVerifiedCookieUser(): Promise<{ user: CookieUser } | null> {
 /**
  * Resilient server-side auth resolver.
  *
- * ROOT CAUSE THIS FIXES — Dashboard refresh loop / "always expired=1":
- *   The dashboard layout was redirecting to /auth/login whenever
- *   supabase.auth.getUser() returned null. That could happen on a slow
- *   Supabase Auth response, a rate-limited project, an Auth API outage,
- *   or even just a near-expiry access_token whose refresh-token flow was
- *   stalled. The result: the user — even with a perfectly valid session
- *   cookie — could not reach the dashboard.
+ * RSC_NO_REFRESH — why this NEVER calls supabase.auth.getUser()
+ * -------------------------------------------------------------
+ * Supabase refresh tokens are SINGLE USE. A refresh-capable getUser() rotates
+ * the token and hands back a replacement that MUST be persisted to cookies.
+ * A React Server Component cannot set cookies (Next.js only allows that in
+ * middleware, route handlers and server actions), so any rotation performed
+ * here is silently thrown away. The next request then presents an
+ * already-consumed refresh token, Supabase revokes the session, and the user
+ * is logged out — classically "it logs me out every time I refresh".
  *
- * Strategy (in order, all fall through on failure):
- *   1. supabase.auth.getUser() — verified against Supabase Auth API.
- *      Hard 3s budget.
- *   2. Decode the auth-token cookie payload DIRECTLY — zero network,
- *      available when the cookie carries a valid signed access token. This
- *      avoids a second concurrent refresh operation.
+ * Worse, the proxy ALSO refreshes on the same navigation. Two concurrent
+ * rotations of one single-use token means whichever lands second invalidates
+ * the session outright.
  *
- * Memoized with React.cache() so the dashboard layout and the dashboard
- * page share the same result within a single request (no duplicate
- * Supabase round-trips).
+ * Single-writer rule:
+ *   - proxy.ts (middleware)  -> the ONLY refresh owner; can write cookies.
+ *   - here (RSC)             -> local signature verification only, zero network.
+ *
+ * This is also why the dashboard is fast: resolving identity is now a local
+ * JWT verification (JWKS cached per cold start) instead of an Auth round-trip
+ * on every page and layout.
+ *
+ * Privileged callers must use getVerifiedUser(), which forces one live check
+ * before money/admin writes — an offline-valid token stays valid until `exp`
+ * even if the session was revoked.
+ *
+ * Memoized with React.cache() so a layout and its page share one result.
  */
 export const getUser = cache(async function getUser() {
   try {
-    const supabase = await createClient()
-    if (!supabase) {
-      // No Supabase client at all (env vars missing) — last-resort cookie
-      // decode is the only option.
-      const cookieResult = await readVerifiedCookieUser()
-      return cookieResult?.user ?? null
-    }
-
-    // One refresh-capable getUser() call is intentional. Do not start a
-    // concurrent getSession() call here: both can rotate the same refresh
-    // token and make a browser refresh look like an expired session.
-
-    const cookieHere = await hasSessionCookie()
-
-    type UserResult = Awaited<ReturnType<typeof supabase.auth.getUser>>
-    const userPromise: Promise<UserResult> = supabase.auth
-      .getUser()
-      .catch(
-        () =>
-          ({
-            data: { user: null },
-            error: new Error("getUser failed") as never,
-          }) as UserResult,
-      )
-    const userTimeout = new Promise<UserResult>((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            data: { user: null },
-            error: new Error("getUser timeout") as never,
-          } as UserResult),
-        3000,
-      ),
-    )
-
-    try {
-      const userResult = await Promise.race([userPromise, userTimeout])
-      if (!userResult.error && userResult.data?.user) {
-        return userResult.data.user
-      }
-    } catch {
-      // Fall through to last-resort strategy.
-    }
-
-    if (!cookieHere) return null
-
-    // Strategy 3 — last-resort manual cookie decode (no network).
     const cookieResult = await readVerifiedCookieUser()
-    if (cookieResult?.user) {
-      console.warn(
-        "[Supabase Server] Using offline VERIFIED token identity — Supabase Auth API unreachable",
-      )
-      return cookieResult.user
-    }
-
-    return null
+    return cookieResult?.user ?? null
   } catch (err) {
     console.error("[Supabase Server] getUser unexpected error:", err)
-    // Even on a thrown exception, try the cookie fallback.
-    try {
-      const cookieResult = await readVerifiedCookieUser()
-      return cookieResult?.user ?? null
-    } catch {
-      return null
-    }
+    return null
   }
 })
 
