@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUser, createAdminClient } from "@/lib/supabase/server"
+import { isRewardedAdsEnabled } from "@/lib/rewards/rewarded-ads"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 
@@ -57,10 +58,10 @@ const TYPE_TRANSACTION_MAP: Record<BonusType, string> = {
   game: "game_bonus"
 }
 
-const REWARDED_BONUS_ENABLED = false
-
 export async function POST(request: NextRequest) {
-  if (!REWARDED_BONUS_ENABLED) {
+  // Config-gated: enabled only when a real rewarded-ad provider is wired up.
+  // Without one there is no ad inventory and no server-side watch proof.
+  if (!isRewardedAdsEnabled()) {
     return NextResponse.json({
       error: "Verified rewarded-ad inventory is not enabled for this deployment",
     }, { status: 503 })

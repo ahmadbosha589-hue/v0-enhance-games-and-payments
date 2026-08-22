@@ -3,11 +3,11 @@ import { getUser, getProfile } from "@/lib/supabase/server"
 import { getFaucetPayClient } from "@/lib/faucetpay/client"
 import { logger } from "@/lib/logger"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { isRewardedAdsEnabled } from "@/lib/rewards/rewarded-ads"
 
-const REWARDED_BONUS_ENABLED = false
 
 export async function POST(request: Request) {
-  if (!REWARDED_BONUS_ENABLED) {
+  if (!isRewardedAdsEnabled()) {
     return NextResponse.json({
       error: "Verified rewarded-ad inventory is not enabled for this deployment",
     }, { status: 503 })

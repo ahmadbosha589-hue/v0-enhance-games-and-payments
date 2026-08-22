@@ -4,14 +4,14 @@ import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import { checkAndSetCooldown, checkDailyLimit, incrementDailyUsage, COOLDOWNS } from "@/lib/redis/cooldowns"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/redis/rate-limiter"
+import { isRewardedAdsEnabled } from "@/lib/rewards/rewarded-ads"
 
-const REWARDED_BONUS_ENABLED = false
 
 // Max double rewards per day per user
 const MAX_DOUBLE_REWARDS_PER_DAY = 10
 
 export async function POST(request: NextRequest) {
-  if (!REWARDED_BONUS_ENABLED) {
+  if (!isRewardedAdsEnabled()) {
     return NextResponse.json({
       error: "Verified rewarded-ad inventory is not enabled for this deployment",
     }, { status: 503 })

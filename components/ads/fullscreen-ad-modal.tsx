@@ -10,8 +10,8 @@ import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
 import { AdSlotMultiNetwork } from "./ad-slot-multi-network"
 import { CxUaBanner } from "./cx-ua-ads"
+import { isRewardedAdsEnabledClient } from "@/lib/rewards/rewarded-ads"
 
-const REWARDED_BONUS_ENABLED = false
 
 export type DoubleRewardType =
   | "faucet"
@@ -298,7 +298,7 @@ export function FullscreenAdModal({
   }
 
   if (!isOpen) return null
-  if (!REWARDED_BONUS_ENABLED) {
+  if (!isRewardedAdsEnabledClient()) {
     return (
       <div className="rounded-lg border border-muted bg-muted/20 p-4 text-sm text-muted-foreground">
         Verified rewarded-ad inventory is not enabled for this deployment. Bonus claims are unavailable until a real

@@ -25,7 +25,7 @@ describe("unverified rewarded-ad payout surfaces", () => {
     expect((await supportDoublePost(request as never)).status).toBe(503)
   })
 
-  it("keeps every legacy double-reward payout route fail-closed", () => {
+  it("keeps every legacy double-reward payout route fail-closed by default", () => {
     const routes = [
       "app/api/claim/double/route.ts",
       "app/api/claim/double-reward/route.ts",
@@ -35,8 +35,11 @@ describe("unverified rewarded-ad payout surfaces", () => {
 
     for (const route of routes) {
       const source = readFileSync(resolve(process.cwd(), route), "utf8")
-      expect(source, route).toContain("REWARDED_BONUS_ENABLED = false")
+      // Gated by the shared config check — enabled only when a real
+      // rewarded-ad provider is configured; still 503s otherwise.
+      expect(source, route).toContain("isRewardedAdsEnabled()")
       expect(source, route).toContain("status: 503")
+      expect(source, route).not.toContain("REWARDED_BONUS_ENABLED")
     }
   })
 })
