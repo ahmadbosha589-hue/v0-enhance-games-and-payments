@@ -73,7 +73,7 @@ export async function GET(request: Request) {
           user_id: userId,
           fraud_type: "duplicate_google_account",
           severity: 10,
-          status: "pending",
+          status: "pending_review",
           evidence: {
             google_id: googleId,
             existing_user_id: existingGoogleUser.id,
@@ -133,11 +133,11 @@ export async function GET(request: Request) {
           // Record VPN usage in fraud_flags with detailed info
           await adminSupabase.from("fraud_flags").upsert({
             user_id: userId,
-            flag_type: "vpn_on_auth",
-            severity: vpnResult.isTor ? "critical" :
-              vpnResult.isResidentialProxy ? "critical" :
-                vpnResult.riskLevel === "critical" ? "critical" :
-                  vpnResult.riskLevel === "high" ? "high" : "medium",
+            fraud_type: "vpn_on_auth",
+            severity: vpnResult.isTor ? 10 :
+              vpnResult.isResidentialProxy ? 10 :
+                vpnResult.riskLevel === "critical" ? 10 :
+                  vpnResult.riskLevel === "high" ? 8 : 6,
             details: {
               ip: clientIP,
               vpn: vpnResult.isVPN,
@@ -160,9 +160,9 @@ export async function GET(request: Request) {
               asn: vpnResult.details.asn,
               isNewUser,
             },
-            status: "pending",
+            status: "pending_review",
           }, {
-            onConflict: "user_id,flag_type",
+            onConflict: "user_id,fraud_type",
             ignoreDuplicates: false,
           })
 
@@ -267,17 +267,17 @@ export async function GET(request: Request) {
           // Also flag this as potential account sharing
           await adminSupabase.from("fraud_flags").upsert({
             user_id: userId,
-            flag_type: "account_sharing_suspected",
-            severity: "low",
-            details: {
+            fraud_type: "account_sharing_suspected",
+            severity: 3,
+            evidence: {
               fingerprint: fingerprint.substring(0, 32),
               other_accounts_on_device: otherUserIds.length,
               signed_out_accounts: otherUserIds,
               detected_at: new Date().toISOString(),
             },
-            status: "pending",
+            status: "pending_review",
           }, {
-            onConflict: "user_id,flag_type",
+            onConflict: "user_id,fraud_type",
             ignoreDuplicates: false,
           })
         }
@@ -521,13 +521,13 @@ export async function GET(request: Request) {
 
           await adminSupabase.from("fraud_flags").insert({
             user_id: userId,
-            flag_type: "direct_self_referral",
-            severity: "critical",
-            details: {
+            fraud_type: "direct_self_referral",
+            severity: 10,
+            evidence: {
               referral_code: ref,
               detected_at: new Date().toISOString(),
             },
-            status: "confirmed",
+            status: "confirmed_fraud",
           })
 
           await adminSupabase

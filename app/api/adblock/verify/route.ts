@@ -211,10 +211,10 @@ export async function POST(request: Request) {
       // Create fraud flag
       await adminClient.from("fraud_flags").upsert({
         user_id: user.id,
-        flag_type: "adblock",
-        severity: verificationResult.riskLevel === "critical" ? "critical" : 
-                 verificationResult.riskLevel === "high" ? "high" : "medium",
-        details: {
+        fraud_type: "adblock",
+        severity: verificationResult.riskLevel === "critical" ? 10 :
+                 verificationResult.riskLevel === "high" ? 8 : 6,
+        evidence: {
           serverScore: verificationResult.serverScore,
           confidence: verificationResult.confidence,
           methods: verificationResult.methods,
@@ -225,9 +225,9 @@ export async function POST(request: Request) {
           userAgent: fingerprint.userAgent,
           timestamp: new Date().toISOString(),
         },
-        status: "pending",
+        status: "pending_review",
       }, {
-        onConflict: "user_id,flag_type",
+        onConflict: "user_id,fraud_type",
         ignoreDuplicates: false,
       })
 

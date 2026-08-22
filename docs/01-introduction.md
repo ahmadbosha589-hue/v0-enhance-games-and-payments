@@ -2,10 +2,10 @@
 
 ## What is Crypto Faucet Platform?
 
-Crypto Faucet Platform is a complete, production-ready solution for running a cryptocurrency faucet business. It provides everything you need to:
+Crypto Faucet Platform is a launch-ready solution for running a cryptocurrency faucet business. It provides the core you need to:
 
 - **Attract Users** - Modern, responsive interface that works on all devices
-- **Monetize Traffic** - Multiple offerwall integrations for maximum revenue
+- **Monetize Traffic** - Multiple offerwall integrations (each wall activates once its postback secret is configured)
 - **Prevent Abuse** - Advanced anti-adblock and anti-fraud systems
 - **Manage Operations** - Comprehensive admin dashboard
 
@@ -17,7 +17,7 @@ Crypto Faucet Platform is a complete, production-ready solution for running a cr
 - Easy registration with email or Google
 - Multiple earning methods through offerwalls
 - Real-time balance tracking
-- Fast withdrawals via FaucetPay
+- Withdrawals processed via FaucetPay (~5 minutes)
 - Referral system for bonus earnings
 - Daily bonuses and achievements
 

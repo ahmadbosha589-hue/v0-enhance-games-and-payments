@@ -686,9 +686,10 @@ export async function recordReferralFraudDetection(
     
     await supabase.from("fraud_flags").insert({
       user_id: newUserId,
-      flag_type: "referral_fraud",
-      severity: result.riskLevel,
-      details: {
+      // fraud_flags.severity is a 1-10 INTEGER (schema 006); writers must map
+      // risk words to that scale, not insert strings.
+      severity: ({ critical: 10, high: 8, medium: 6, low: 3, none: 1 } as Record<string, number>)[result.riskLevel] ?? 5,
+      evidence: {
         referrer_id: referrerId,
         confidence: result.confidence,
         evidence_score: result.evidenceScore,
@@ -699,16 +700,16 @@ export async function recordReferralFraudDetection(
         detected_at: new Date().toISOString(),
       },
       related_user_ids: [referrerId],
-      status: result.shouldBlock ? "confirmed" : "pending",
+      status: result.shouldBlock ? "confirmed_fraud" : "pending_review",
     })
-    
+
     // Also flag the referrer if high confidence
     if (result.confidence >= 80) {
       await supabase.from("fraud_flags").upsert({
         user_id: referrerId,
-        flag_type: "referral_abuse",
-        severity: result.riskLevel,
-        details: {
+        fraud_type: "referral_abuse",
+        severity: ({ critical: 10, high: 8, medium: 6, low: 3, none: 1 } as Record<string, number>)[result.riskLevel] ?? 5,
+        evidence: {
           referred_user_id: newUserId,
           confidence: result.confidence,
           evidence_score: result.evidenceScore,
@@ -716,9 +717,9 @@ export async function recordReferralFraudDetection(
           detected_at: new Date().toISOString(),
         },
         related_user_ids: [newUserId],
-        status: "pending",
+        status: "pending_review",
       }, {
-        onConflict: "user_id,flag_type",
+        onConflict: "user_id,fraud_type",
         ignoreDuplicates: false,
       })
     }

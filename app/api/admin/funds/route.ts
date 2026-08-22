@@ -134,13 +134,13 @@ export async function GET(request: Request) {
 
       const totalAdBalance = adData?.reduce((sum, p) => sum + Number(p.ad_balance_usd || 0), 0) || 0
 
-      // Pending withdrawals
+      // Pending withdrawals (schema column is amount_satoshis)
       const { data: withdrawals } = await adminSupabase
         .from("withdrawals")
-        .select("amount")
+        .select("amount_satoshis")
         .eq("status", "pending")
 
-      const pendingWithdrawals = withdrawals?.reduce((sum, w) => sum + Number(w.amount || 0), 0) || 0
+      const pendingWithdrawals = withdrawals?.reduce((sum, w) => sum + Number(w.amount_satoshis || 0), 0) || 0
 
       // Booster revenue (completed purchases only - excludes test_data, failed, refunded)
       const { data: boosterRevenue } = await adminSupabase

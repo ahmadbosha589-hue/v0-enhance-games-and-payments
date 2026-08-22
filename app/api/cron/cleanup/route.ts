@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
@@ -81,10 +82,28 @@ export async function GET() {
   try {
     const headersList = await headers()
     const authHeader = headersList.get("authorization")
-    const cronSecret = process.env.CRON_SECRET
+    const cronSecret = process.env.CRON_SECRET?.trim()
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Fail closed in production: refuse to run without a configured secret.
+    if (
+      !cronSecret &&
+      (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production")
+    ) {
+      return NextResponse.json({ error: "Cron endpoint is not configured" }, { status: 503 })
+    }
+
+    if (cronSecret) {
+      const received = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : ""
+      const receivedBytes = Buffer.from(received, "utf8")
+      const expectedBytes = Buffer.from(cronSecret, "utf8")
+      const valid =
+        receivedBytes.length === expectedBytes.length &&
+        timingSafeEqual(receivedBytes, expectedBytes)
+      if (!valid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    } else {
+      console.warn(
+        "[cron] CRON_SECRET is not set; allowing unauthenticated cron trigger outside production"
+      )
     }
 
     const results = await runCleanup()

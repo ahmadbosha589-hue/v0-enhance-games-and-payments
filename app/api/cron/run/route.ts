@@ -5,7 +5,65 @@ import { log } from "@/lib/logger"
 import { runProcessWithdrawals } from "@/app/api/cron/process-withdrawals/route"
 import { runRetryPostbacks } from "@/app/api/cron/retry-postbacks/route"
 import { runCleanup } from "@/app/api/cron/cleanup/route"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 
+/**
+ * Finalize any tournaments whose end date has passed but which are still
+ * active. finalize_tournament is idempotent (advisory lock + completed
+ * short-circuit), so overlapping ticks are safe. Failures are logged and
+ * surfaced in the response without blocking the other cron jobs.
+ */
+async function finalizeExpiredTournaments(): Promise<{ finalized: number; paid: number; distributed: number; errors: string[] }> {
+  const out = { finalized: 0, paid: 0, distributed: 0, errors: [] as string[] }
+  const admin = requireAdminClient()
+  if (!admin) {
+    out.errors.push("admin client unavailable")
+    return out
+  }
+
+  try {
+    const { data: expired, error } = await admin
+      .from("tournaments")
+      .select("id, name")
+      .eq("status", "active")
+      .lt("ends_at", new Date().toISOString())
+      .limit(25)
+
+    if (error) {
+      out.errors.push(error.message)
+      return out
+    }
+    if (!expired?.length) return out
+
+    for (const t of expired) {
+      const { data, error: rpcError } = await admin.rpc("finalize_tournament", { p_tournament_id: t.id })
+      if (rpcError) {
+        out.errors.push(`${t.id}: ${rpcError.message}`)
+        log.error("[cron/run] tournament finalization failed", { tournamentId: t.id, error: rpcError })
+        continue
+      }
+      const r = data as { success?: boolean; error?: string; already_completed?: boolean; winners_paid?: number; total_distributed?: number } | null
+      if (r?.success) {
+        out.finalized += 1
+        out.paid += r.winners_paid ?? 0
+        out.distributed += r.total_distributed ?? 0
+        log.info("[cron/run] tournament finalized", {
+          tournamentId: t.id,
+          name: t.name,
+          winnersPaid: r.winners_paid,
+          totalDistributed: r.total_distributed,
+          alreadyCompleted: r.already_completed,
+        })
+      } else {
+        out.errors.push(`${t.id}: ${r?.error || "unknown error"}`)
+      }
+    }
+  } catch (e) {
+    out.errors.push(e instanceof Error ? e.message : String(e))
+  }
+
+  return out
+}
 
 export async function GET() {
   const headersList = await headers()
@@ -56,6 +114,14 @@ export async function GET() {
     } catch (e) {
       errors.cleanup = e instanceof Error ? e.message : String(e)
       log.error("[cron/run] cleanup failed", { error: e })
+    }
+
+    // Pay out tournaments whose period ended while no admin was watching.
+    try {
+      ran.finalizeTournaments = await finalizeExpiredTournaments()
+    } catch (e) {
+      errors.finalizeTournaments = e instanceof Error ? e.message : String(e)
+      log.error("[cron/run] finalizeTournaments failed", { error: e })
     }
   }
 

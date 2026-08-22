@@ -144,7 +144,7 @@ export function FaucetPaySettings({ profile }: FaucetPaySettingsProps) {
         <Alert className="border-amber-500 bg-amber-500/10">
           <Mail className="h-4 w-4 text-amber-500" />
           <AlertDescription className="text-amber-600 dark:text-amber-400">
-            Your email is saved. Click "Verify" to confirm your FaucetPay account, or proceed with claiming (verification will be done automatically).
+            Your email is saved but not yet verified. Click &quot;Verify&quot; to confirm your FaucetPay account — claims and withdrawals stay disabled until verification succeeds.
           </AlertDescription>
         </Alert>
       )}

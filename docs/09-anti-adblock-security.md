@@ -8,7 +8,7 @@ This platform includes an advanced security system to protect your revenue.
 
 ### Overview
 
-The adblock detection system uses 30+ detection methods with **zero false positives**.
+The adblock detection system uses 30+ detection methods. High-confidence flagging requires server-verified honeypot/challenge evidence, so client-side claims alone cannot flag a user; recovery paths exist for false positives (`/api/adblock/clear` with clean-evidence requirements, and `/api/fraud/adblock/appeal`).
 
 ### Detection Methods
 

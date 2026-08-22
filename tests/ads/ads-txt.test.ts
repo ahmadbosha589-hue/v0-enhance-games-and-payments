@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
 describe("ads.txt publisher declaration", () => {
-  it("contains the supplied Google seller line", () => {
+  it("is fail-closed while no ad network is verified", () => {
     const adsTxt = readFileSync(resolve(process.cwd(), "public/ads.txt"), "utf8")
-    expect(adsTxt).toContain("google.com, pub-7529947159464197, DIRECT, f08c47fec0942fa0")
+    // No seller lines may be declared until a network is verified and enabled
+    // in the admin panel — the standing no-fake-ads rule.
+    expect(adsTxt).not.toMatch(/DIRECT/)
   })
 })

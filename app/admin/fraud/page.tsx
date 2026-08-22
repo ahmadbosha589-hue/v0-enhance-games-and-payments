@@ -57,10 +57,11 @@ export default async function FraudPage() {
     .limit(20)
 
   // Calculate severity counts
-  const criticalCount = flags?.filter((f) => f.severity >= 80).length || 0
-  const highCount = flags?.filter((f) => f.severity >= 60 && f.severity < 80).length || 0
-  const mediumCount = flags?.filter((f) => f.severity >= 40 && f.severity < 60).length || 0
-  const lowCount = flags?.filter((f) => f.severity < 40).length || 0
+  // Schema scale: severity is a 1-10 INTEGER (scripts/006).
+  const criticalCount = flags?.filter((f) => f.severity >= 8).length || 0
+  const highCount = flags?.filter((f) => f.severity >= 6 && f.severity < 8).length || 0
+  const mediumCount = flags?.filter((f) => f.severity >= 4 && f.severity < 6).length || 0
+  const lowCount = flags?.filter((f) => f.severity < 4).length || 0
 
   // Group flags by type
   const flagsByType =

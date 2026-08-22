@@ -650,19 +650,19 @@ async function recordAbuseDetection(
   try {
     await supabase.from("fraud_flags").insert({
       user_id: context.userId,
-      flag_type: result.abuseType[0] || "unknown",
-      severity: result.shouldBan ? "critical" : result.shouldBlock ? "high" : "medium",
-      details: {
+      fraud_type: result.abuseType[0] || "unknown",
+      severity: result.shouldBan ? 10 : result.shouldBlock ? 8 : 6,
+      evidence: {
         action: context.action,
         ip: context.ip,
         fingerprint: context.fingerprint,
         score: result.riskScore,
         types: result.abuseType,
         reasons: result.reasons,
-        evidence: result.evidence,
+        evidence_data: result.evidence,
         recommendation: result.recommendedAction,
       },
-      status: "detected",
+      status: "pending_review",
     })
     
     // Update user fraud score

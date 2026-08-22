@@ -50,17 +50,19 @@ Prefer Supabase's non-pooling/session connection for DDL migrations. The runner 
 
 ### Required before production rate limiting
 
-The project currently recognizes Redis/Upstash configuration through the variables used by its rate-limit adapters. Configure and verify the exact names used by the deployed build, including the applicable `KV_REST_API_URL`/`KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` pair.
+The project reads Redis/Upstash configuration exclusively through the `KV_REST_API_URL` / `KV_REST_API_TOKEN` pair (`lib/redis/client.ts`). Configure both in Vercel; other Upstash variable names are not read by any code.
 
 Without Redis, the application reports a non-durable local-development fallback. Do not treat that mode as production-safe for abuse-sensitive rewards or mutations.
 
 ### Provider-gated features
 
-- FaucetPay credentials are required before enabling real withdrawals.
-- CCPayment v2 credentials are required before enabling live deposits, swaps, or withdrawals. Configure the production webhook and reconcile order status through the provider API.
+- FaucetPay credentials are required before enabling real withdrawals; email verification fails closed without `FAUCETPAY_API_KEY` (no dev-mode auto-verify).
+- CCPayment v2 credentials are required before enabling live deposits, swaps, or withdrawals. Configure the production webhook and reconcile order status through the provider API. Swaps debit user balance atomically before provider settlement.
 - External ad-network tags require verified publisher accounts and exact provider configuration.
 - AdSense requires publisher approval, compliant placement, `ads.txt`, and an appropriate CMP/TCF posture.
-- Rewarded-ad bonus payouts remain disabled until a verified provider and server-side watch-session proof are implemented.
+- Rewarded-ad bonus payouts enable automatically only when a verified rewarded-ad provider is configured (secret env + enabled network record); until then they stay 503 and the UI hides the upsell.
+- Each offerwall activates once its `OFFERWALL_<NAME>_SECRET` postback secret is configured; walls without secrets render a "Setup Required" state.
+- Cron trigger routes require `CRON_SECRET` in production; they fail closed (503) without it.
 
 ## Database migrations
 

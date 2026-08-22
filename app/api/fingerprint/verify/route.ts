@@ -183,15 +183,16 @@ export async function POST(request: Request) {
 
       await adminSupabase.from("fraud_flags").insert({
         user_id: user.id,
-        flag_type: isBannedDevice ? "flagged_device" : "linked_to_banned_device",
-        severity: "high",
-        details: {
+        // Schema: fraud_type (not flag_type), severity 1-10 int, enum status.
+        fraud_type: isBannedDevice ? "flagged_device" : "linked_to_banned_device",
+        severity: 8,
+        evidence: {
           fingerprint_hash: fingerprintHash,
           linked_user_ids: otherUserIds,
           ip_address: ipAddress,
           detected_at: new Date().toISOString(),
         },
-        status: "pending",
+        status: "pending_review",
       })
 
       // Update the user's fraud score
@@ -224,15 +225,15 @@ export async function POST(request: Request) {
 
       await adminSupabase.from("fraud_flags").insert({
         user_id: user.id,
-        flag_type: "multiple_accounts_same_device",
-        severity: associatedAccountCount > 5 ? "high" : "medium",
-        details: {
+        fraud_type: "multiple_accounts_same_device",
+        severity: associatedAccountCount > 5 ? 8 : 6,
+        evidence: {
           fingerprint_hash: fingerprintHash,
           account_count: associatedAccountCount,
           ip_address: ipAddress,
           detected_at: new Date().toISOString(),
         },
-        status: "pending",
+        status: "pending_review",
       })
     }
 
@@ -248,9 +249,9 @@ export async function POST(request: Request) {
       if (vpnDetected && vpnResult.confidence >= 70) {
         await adminSupabase.from("fraud_flags").upsert({
           user_id: user.id,
-          flag_type: "vpn_on_fingerprint_verify",
-          severity: vpnResult.isTor ? "high" : vpnResult.confidence >= 85 ? "high" : "medium",
-          details: {
+          fraud_type: "vpn_on_fingerprint_verify",
+          severity: vpnResult.isTor ? 8 : vpnResult.confidence >= 85 ? 8 : 6,
+          evidence: {
             ip: ipAddress,
             vpn: vpnResult.isVPN,
             proxy: vpnResult.isProxy,
@@ -258,9 +259,9 @@ export async function POST(request: Request) {
             confidence: vpnResult.confidence,
             methods: vpnResult.method,
           },
-          status: "pending",
+          status: "pending_review",
         }, {
-          onConflict: "user_id,flag_type",
+          onConflict: "user_id,fraud_type",
           ignoreDuplicates: false,
         })
       }

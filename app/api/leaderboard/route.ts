@@ -19,18 +19,89 @@ export async function GET(request: Request) {
 
     let query = db.from("profiles").select("id, username, total_earned, total_claims, level, claim_streak")
 
-    // Filter by period
-    if (period === "today") {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-      // For today's leaderboard, we'd need a different approach with transactions
-      // Simplified: just use total for now
-    } else if (period === "week") {
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      // Similar limitation
+    // Period filter: for time-boxed periods we aggregate real transactions
+    // instead of lifetime profile totals, so the filter actually filters.
+    if (period === "today" || period === "week" || period === "month") {
+      const since = new Date()
+      if (period === "today") {
+        since.setUTCHours(0, 0, 0, 0)
+      } else if (period === "week") {
+        since.setTime(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      } else {
+        since.setTime(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      }
+
+      const { data: agg, error: aggError } = await db
+        .from("transactions")
+        .select("user_id, amount_satoshis")
+        .eq("status", "completed")
+        .gte("created_at", since.toISOString())
+
+      if (aggError) {
+        return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
+      }
+
+      // Aggregate in JS: per-user earned sats within the window.
+      const earnedByUser = new Map<string, number>()
+      const claimsByUser = new Map<string, number>()
+      for (const tx of agg ?? []) {
+        earnedByUser.set(tx.user_id, (earnedByUser.get(tx.user_id) ?? 0) + Number(tx.amount_satoshis || 0))
+        claimsByUser.set(tx.user_id, (claimsByUser.get(tx.user_id) ?? 0) + 1)
+      }
+
+      const topIds = [...earnedByUser.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([id]) => id)
+
+      if (topIds.length === 0) {
+        return NextResponse.json({ leaderboard: [], userRank: null, period })
+      }
+
+      const { data: profiles, error: profilesError } = await db
+        .from("profiles")
+        .select("id, username, total_earned, total_claims, level, claim_streak")
+        .in("id", topIds)
+
+      if (profilesError) {
+        return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
+      }
+
+      const profileById = new Map((profiles ?? []).map((p) => [p.id, p]))
+      const ranked = topIds
+        .map((id) => {
+          const p = profileById.get(id)
+          if (!p) return null
+          return {
+            ...p,
+            period_earned: earnedByUser.get(id) ?? 0,
+            period_claims: claimsByUser.get(id) ?? 0,
+          }
+        })
+        .filter(Boolean)
+
+      // Current user's rank within the period window.
+      let userRank = null
+      const { data: { user } } = authClient
+        ? await authClient.auth.getUser()
+        : { data: { user: null } }
+      if (user) {
+        const earned = earnedByUser.get(user.id) ?? 0
+        const rank = [...earnedByUser.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .findIndex(([id]) => id === user.id)
+        userRank = {
+          id: undefined,
+          username: (await db.from("profiles").select("username").eq("id", user.id).single()).data?.username ?? null,
+          period_earned: earned,
+          rank: rank >= 0 ? rank + 1 : null,
+        }
+      }
+
+      return NextResponse.json({ leaderboard: ranked, userRank, period })
     }
 
-    // Order by type
+    // Order by type (lifetime leaderboards)
     if (type === "earnings") {
       query = query.order("total_earned", { ascending: false })
     } else if (type === "claims") {

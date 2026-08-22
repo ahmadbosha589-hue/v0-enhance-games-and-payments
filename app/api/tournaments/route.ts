@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
@@ -409,17 +410,40 @@ export async function POST(request: Request) {
     }
 
     if (action === "end" && tournamentId) {
-      // End tournament and distribute prizes
-      const { error } = await supabase
-        .from("tournaments")
-        .update({ status: "completed" })
-        .eq("id", tournamentId)
+      // End tournament AND distribute prizes. The admin client is required:
+      // finalize_tournament is service-role only and credits winner balances.
+      const admin = requireAdminClient()
 
-      if (error) {
-        return NextResponse.json({ error: "Failed to end tournament" }, { status: 500 })
+      const { data: finalizeResult, error: finalizeError } = await admin.rpc(
+        "finalize_tournament",
+        { p_tournament_id: tournamentId },
+      )
+
+      if (finalizeError) {
+        console.error("[Tournaments] Finalization failed:", finalizeError)
+        return NextResponse.json(
+          { error: "Failed to distribute prizes; tournament not marked complete", details: finalizeError.message },
+          { status: 500 },
+        )
       }
 
-      return NextResponse.json({ success: true })
+      const result = finalizeResult as
+        | { success?: boolean; error?: string; already_completed?: boolean; winners_paid?: number; total_distributed?: number }
+        | null
+
+      if (!result?.success) {
+        return NextResponse.json(
+          { error: result?.error || "Prize distribution failed" },
+          { status: 500 },
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        already_completed: result.already_completed ?? false,
+        winners_paid: result.winners_paid ?? 0,
+        total_distributed: result.total_distributed ?? 0,
+      })
     }
 
     if (action === "create_all") {

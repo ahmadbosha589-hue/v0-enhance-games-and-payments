@@ -315,13 +315,14 @@ export async function verifyFaucetPayEmail(email: string, currency = "BTC"): Pro
     return { valid: false, error: "Invalid email format" }
   }
 
-  // If FaucetPay API is not configured, assume valid (for development)
-  if (!isFaucetPayConfigured()) {
-    return { valid: true }
+  // Fail closed: with no API key (env or database) there is no way to verify
+  // against FaucetPay, so the email must never be reported as valid.
+  if (!(await isFaucetPayConfiguredAsync())) {
+    return { valid: false, error: "not_configured" }
   }
 
   try {
-    const client = getFaucetPayClient(currency)
+    const client = await getFaucetPayClientAsync(currency)
     await client.checkAddress(email.trim())
     return { valid: true }
   } catch (error) {

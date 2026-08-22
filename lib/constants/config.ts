@@ -30,13 +30,13 @@ export const PLATFORM_CONFIG = {
 
 export const CLAIM_CONFIG = {
   cooldownSeconds: 300, // 5 minutes between claims
-  baseAmountSatoshis: 2, // Minimum claim amount (reduced from 4)
-  maxAmountSatoshis: 6, // Maximum claim amount (reduced from 9) - MAX 6 SATS PER CLAIM
-  streakBonusPercentage: 0, // No streak bonus - users should use offerwalls
+  baseAmountSatoshis: 4, // Minimum claim amount — matches the UI's advertised range
+  maxAmountSatoshis: 9, // Maximum claim amount — matches the UI's advertised range
+  streakBonusPercentage: 0, // Legacy flag: real streak bonus is computed server-side (migration 098)
   maxStreakBonusPercentage: 0,
   maxStreakDays: 30,
-  referralBonusPercentage: 5, // Reduced from 10% to 5%
-  maxClaimsPerDay: 50, // Max 50 claims per day (~300 sats max from faucet)
+  referralBonusPercentage: 5, // Tier-1 referral rate; tiers pay 10/5/2 via process_referral_commission
+  maxClaimsPerDay: 50, // Max 50 claims per day (~450 sats max from faucet)
 } as const
 
 export const REFERRAL_CONFIG = {

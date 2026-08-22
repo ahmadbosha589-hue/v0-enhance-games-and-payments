@@ -114,15 +114,16 @@ export function FraudAlerts() {
   }
 
   function getSeverityLabel(severity: number): string {
-    if (severity >= 80) return "critical"
-    if (severity >= 60) return "high"
-    if (severity >= 40) return "medium"
+    // Schema scale: severity is a 1-10 INTEGER (scripts/006).
+    if (severity >= 8) return "critical"
+    if (severity >= 6) return "high"
+    if (severity >= 4) return "medium"
     return "low"
   }
 
   function getSeverityVariant(severity: number): "destructive" | "default" | "secondary" {
-    if (severity >= 60) return "destructive"
-    if (severity >= 40) return "default"
+    if (severity >= 6) return "destructive"
+    if (severity >= 4) return "default"
     return "secondary"
   }
 
@@ -192,9 +193,9 @@ export function FraudAlerts() {
                   <div className="text-right mr-2">
                     <p className="text-xs text-muted-foreground">Severity</p>
                     <p
-                      className={`font-bold text-sm ${alert.severity >= 70
+                      className={`font-bold text-sm ${alert.severity >= 7
                         ? "text-red-500"
-                        : alert.severity >= 40
+                        : alert.severity >= 4
                           ? "text-amber-500"
                           : "text-emerald-500"
                         }`}

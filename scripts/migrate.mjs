@@ -41,7 +41,8 @@ function checksum(path) {
 const files = [
   join(migrationsDir, "000_migration_state.sql"),
   ...readdirSync(scriptsDir)
-    .filter((name) => /^0(?:7[1-9]|8[0-9]|9[0-9])_.*\.sql$/i.test(name))
+    // 071-099 legacy hardening set, plus 100+ launch-hardening set.
+    .filter((name) => /^(?:0(?:7[1-9]|8[0-9]|9[0-9])|[1-9][0-9]{2,})_.*\.sql$/i.test(name))
     .sort()
     .map((name) => join(scriptsDir, name)),
 ]

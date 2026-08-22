@@ -105,8 +105,7 @@ export default function AdminDashboardPage() {
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="flex items-center gap-1.5 text-xs">
             <Activity className="h-3 w-3" />
-            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            System Online
+            Admin Console
           </Badge>
         </div>
       </div>

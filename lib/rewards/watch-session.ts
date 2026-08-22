@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto"
 
-export type WatchSessionKind = "shortlink" | "ptc"
+export type WatchSessionKind = "shortlink" | "ptc" | "rewarded-ad"
 
 export interface WatchSessionPayload {
   version: 1
@@ -10,6 +10,12 @@ export interface WatchSessionPayload {
   startedAt: number
   expiresAt: number
   nonce: string
+  /**
+   * For `kind: "rewarded-ad"` tokens only: the provider transaction id the
+   * reward was issued for. Bound into the HMAC so a token cannot be replayed
+   * against a different conversion row.
+   */
+  txid?: string
 }
 
 interface WatchSessionExpectation {

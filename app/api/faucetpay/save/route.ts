@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
-import { verifyFaucetPayEmail, isFaucetPayConfigured } from "@/lib/faucetpay/client"
+import { verifyFaucetPayEmail, isFaucetPayConfiguredAsync } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
 
 export async function POST(request: NextRequest) {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     let isVerified = false
     let verificationError: string | undefined
 
-    if (isFaucetPayConfigured() && !skipVerification) {
+    if ((await isFaucetPayConfiguredAsync()) && !skipVerification) {
       try {
         const verification = await verifyFaucetPayEmail(normalizedEmail)
         isVerified = verification.valid

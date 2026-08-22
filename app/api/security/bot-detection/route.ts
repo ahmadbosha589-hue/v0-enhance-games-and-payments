@@ -91,18 +91,18 @@ export async function POST(request: Request) {
     if (user?.id) {
       await adminSupabase.from("fraud_flags").insert({
         user_id: user.id,
-        flag_type: "bot_detected",
-        severity: threatLevel === "critical" ? "critical" : 
-                  threatLevel === "high" ? "high" : 
-                  threatLevel === "medium" ? "medium" : "low",
-        details: {
+        fraud_type: "bot_detected",
+        severity: threatLevel === "critical" ? 10 :
+                  threatLevel === "high" ? 8 :
+                  threatLevel === "medium" ? 6 : 3,
+        evidence: {
           threats,
           score,
           ip: ipAddress,
           userAgent: headersList.get("user-agent"),
           timestamp,
         },
-        status: "pending",
+        status: "pending_review",
       })
       
       // Update user fraud score

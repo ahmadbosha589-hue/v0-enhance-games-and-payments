@@ -21,10 +21,51 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsSubmitting(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsSubmitting(false)
-    setIsSubmitted(true)
-    toast.success(t("contact.success.title"))
+
+    try {
+      const form = e.currentTarget
+      const data = new FormData(form)
+      const payload = {
+        name: String(data.get("name") || "").trim(),
+        email: String(data.get("email") || "").trim(),
+        subject: String(data.get("subject") || "").trim(),
+        message: String(data.get("message") || "").trim(),
+      }
+
+      if (!payload.name || !payload.email || !payload.subject || !payload.message) {
+        toast.error(t("contact.form.error") || "Please fill in all fields.")
+        return
+      }
+
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      })
+
+      if (!res.ok) {
+        let message = "Failed to send your message."
+        try {
+          const body = await res.json()
+          if (body?.error) message = body.error
+        } catch {
+          // keep default
+        }
+        if (res.status === 429) {
+          toast.error(message)
+          return
+        }
+        throw new Error(message)
+      }
+
+      setIsSubmitted(true)
+      toast.success(t("contact.success.title"))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send your message.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (isSubmitted) {
@@ -130,7 +171,7 @@ export default function ContactPage() {
                 <Label htmlFor="subject" className="text-sm">
                   {t("contact.form.subject")}
                 </Label>
-                <Select required disabled={isSubmitting}>
+                <Select name="subject" required disabled={isSubmitting}>
                   <SelectTrigger className="text-sm">
                     <SelectValue placeholder={t("contact.form.subjectPlaceholder")} />
                   </SelectTrigger>

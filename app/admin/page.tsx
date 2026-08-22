@@ -159,6 +159,9 @@ async function AdminStats() {
   let todayClaims = 0
   let todaySignups = 0
   let totalDistributed = 0
+  let dbHealthy = false
+  let dbLatencyMs: number | null = null
+  let authHealthy = false
 
   try {
     const [
@@ -170,6 +173,7 @@ async function AdminStats() {
       totalDistributedResult,
       todayClaimsResult,
       todaySignupsResult,
+      healthResult,
     ] = await Promise.all([
       safeQuery(() => supabase.from("profiles").select("*", { count: "exact", head: true }), null),
       safeQuery(
@@ -203,6 +207,18 @@ async function AdminStats() {
             .gte("created_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
         null,
       ),
+      // Live health signal for the System Status card: a cheap real query
+      // whose latency and success determine the badge. No fabricated uptime.
+      (async () => {
+        const started = Date.now()
+        try {
+          const { error } = await supabase.from("profiles").select("id", { head: true }).limit(1)
+          const ms = Date.now() - started
+          return { healthy: !error, latencyMs: ms, error: error?.message ?? null }
+        } catch (e) {
+          return { healthy: false, latencyMs: Date.now() - started, error: e instanceof Error ? e.message : "unknown" }
+        }
+      })(),
     ])
 
     totalUsers = usersResult.count
@@ -213,11 +229,15 @@ async function AdminStats() {
     todayClaims = todayClaimsResult.count
     todaySignups = todaySignupsResult.count
 
+    dbHealthy = healthResult.healthy
+    dbLatencyMs = healthResult.latencyMs
+    authHealthy = healthResult.healthy
+
     const distributedData = totalDistributedResult.data as { total_earned_satoshis: number }[] | null
     totalDistributed = distributedData?.reduce((sum, p) => sum + Number(p.total_earned_satoshis || 0), 0) || 0
   } catch (err) {
     console.error("[Admin Stats] Failed to fetch stats:", err)
-    // Continue with zeros
+    // Continue with zeros and a Degraded badge
   }
 
   const stats = [
@@ -311,14 +331,25 @@ async function AdminStats() {
 
         <Card className="hover:shadow-md transition-shadow sm:col-span-2 lg:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 p-3 sm:p-6 sm:pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Platform Health</CardTitle>
-            <Badge variant="default" className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30 text-xs">
-              Operational
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">System Status</CardTitle>
+            <Badge
+              variant="default"
+              className={
+                dbHealthy
+                  ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/30 text-xs"
+                  : "bg-red-500/20 text-red-500 border-red-500/30 text-xs"
+              }
+            >
+              {dbHealthy ? "Operational" : "Degraded"}
             </Badge>
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
-            <div className="text-lg sm:text-2xl font-bold">99.9%</div>
-            <p className="text-xs text-muted-foreground mt-1">Uptime last 30 days</p>
+            <div className="text-lg sm:text-2xl font-bold">
+              {dbHealthy ? `${dbLatencyMs} ms` : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Live database response time{authHealthy ? " · Auth healthy" : " · Auth degraded"}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -489,7 +520,8 @@ async function AdblockDetectionStats() {
           .gte("created_at", cutoffDate)
 
         if (!fraudError && fraudData) {
-          const totalVisits = claimsCount || fraudData.length * 10 // Estimate if no claims
+          // Real counts only — no fabricated visit estimates.
+          const totalVisits = claimsCount ?? 0
           const detections = fraudData.length
           stats = {
             total_visits: totalVisits,

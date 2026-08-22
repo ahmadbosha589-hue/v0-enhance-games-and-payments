@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
+import { timingSafeEqual } from "node:crypto"
 import { getFaucetPayClient, FaucetPayError, isFaucetPayConfigured } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
 import { requireAdminClient, type AdminClient } from "@/lib/supabase/admin-client"
@@ -263,10 +264,29 @@ export async function GET(request: Request) {
   try {
     const headersList = await headers()
     const authHeader = headersList.get("authorization")
-    const cronSecret = process.env.CRON_SECRET
+    const cronSecret = process.env.CRON_SECRET?.trim()
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Fail closed in production: refuse to trigger real FaucetPay payouts without
+    // a configured secret. Unset CRON_SECRET must never mean "allow everyone".
+    if (
+      !cronSecret &&
+      (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production")
+    ) {
+      return NextResponse.json({ error: "Cron endpoint is not configured" }, { status: 503 })
+    }
+
+    if (cronSecret) {
+      const received = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : ""
+      const receivedBytes = Buffer.from(received, "utf8")
+      const expectedBytes = Buffer.from(cronSecret, "utf8")
+      const valid =
+        receivedBytes.length === expectedBytes.length &&
+        timingSafeEqual(receivedBytes, expectedBytes)
+      if (!valid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    } else {
+      console.warn(
+        "[cron] CRON_SECRET is not set; allowing unauthenticated cron trigger outside production"
+      )
     }
 
     const results = await runProcessWithdrawals()

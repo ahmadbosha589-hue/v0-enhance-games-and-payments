@@ -1,4 +1,9 @@
-# Operator-supplied Google AdSense seller declaration.
-# AdSense rendering remains gated by publisher approval, eligible placement,
-# consent, and a verified production tag; this line alone does not claim approval.
-google.com, pub-7529947159464197, DIRECT, f08c47fec0942fa0
+# Faucero ads.txt — fail-closed placeholder.
+#
+# No third-party ad network is enabled or verified in this deployment, so no
+# seller lines are declared. The generated ads.txt (lib/ads/registry.ts) emits
+# the same fail-closed output until an operator verifies a real publisher
+# account and enables the network record in the admin panel.
+#
+# When a network is verified, its seller line is added automatically by the
+# registry — do not hand-edit seller lines here.

@@ -17,6 +17,44 @@ interface PostbackParams {
 // provider dashboard surfaces as "Postback Failed" — an extremely common
 // and painful-to-debug misconfiguration. Trimming is always safe because
 // no offerwall issues secrets with meaningful leading/trailing whitespace.
+// ── OPERATOR SETUP: OFFERWALL POSTBACK SECRETS ───────────────────────────────
+// Every wall below is only able to credit users when its secret env var is
+// set. A missing secret makes the handler FAIL CLOSED (403 invalid-signature)
+// — it never credits unverified postbacks. The offerwalls API mirrors this by
+// rendering the wall as "Setup Required" (still visible) until the secret is
+// configured. Operators must set:
+//
+//   Legacy walls (pre-existing scheme):
+//     CCXUA_SECRET_KEY            c.cx.ua            (MD5 subId+transId+reward+secret)
+//     CPX_SECRET_KEY              CPX Research
+//     TOROX_SECRET_KEY            Torox
+//     LOOTABLY_SECRET_KEY         Lootably
+//     ADGATE_SECRET_KEY           AdGate Media
+//     MM_WALL_SECRET_KEY          MM Wall
+//     TIMEWALL_SECRET_KEY         Timewall
+//     OFFERWALLME_SECRET_KEY      Offerwall.me
+//     BICOTASKS_SECRET_KEY        BicoTasks
+//     ADSCEND_SECRET_KEY          Adscend Media
+//     BITLABS_SECRET_KEY          BitLabs
+//     AYET_STUDIOS_SECRET_KEY     ayeT-Studios
+//     HANG_MY_ADS_SECRET_KEY      HangMyAds
+//     NOTIK_SECRET_KEY            Notik
+//
+//   Walls implemented in the phantom-offerwalls pass (HMAC-SHA256 over
+//   sorted params — see validateSignature for per-provider assumptions):
+//     OFFERWALL_WANNADS_SECRET        Wannads
+//     OFFERWALL_MONLIX_SECRET         Monlix
+//     OFFERWALL_REVU_SECRET           Revenue Universe (revu)
+//     OFFERWALL_ADGEM_SECRET          AdGem
+//     OFFERWALL_POLLFISH_SECRET       Pollfish
+//     OFFERWALL_THEOREMREACH_SECRET   TheoremReach
+//     OFFERWALL_CPALEAD_SECRET        CPALead
+//     OFFERWALL_MINUTESTAFF_SECRET    MinuteStaff
+//
+// DB rows for all of the above are seeded idempotently by
+// scripts/095_ccxua_and_provider_seeds.sql (secrets live ONLY in env vars —
+// never in the database).
+// ─────────────────────────────────────────────────────────────────────────────
 const PROVIDER_SECRETS: Record<string, string> = {
   ccxua: (process.env.CCXUA_SECRET_KEY || "").trim(),
   "cpx-research": (process.env.CPX_SECRET_KEY || "").trim(),
@@ -32,6 +70,27 @@ const PROVIDER_SECRETS: Record<string, string> = {
   "ayet-studios": (process.env.AYET_STUDIOS_SECRET_KEY || "").trim(),
   "hang-my-ads": (process.env.HANG_MY_ADS_SECRET_KEY || "").trim(),
   notik: (process.env.NOTIK_SECRET_KEY || "").trim(),
+  wannads: (process.env.OFFERWALL_WANNADS_SECRET || "").trim(),
+  monlix: (process.env.OFFERWALL_MONLIX_SECRET || "").trim(),
+  revu: (process.env.OFFERWALL_REVU_SECRET || "").trim(),
+  adgem: (process.env.OFFERWALL_ADGEM_SECRET || "").trim(),
+  pollfish: (process.env.OFFERWALL_POLLFISH_SECRET || "").trim(),
+  theoremreach: (process.env.OFFERWALL_THEOREMREACH_SECRET || "").trim(),
+  cpalead: (process.env.OFFERWALL_CPALEAD_SECRET || "").trim(),
+  minutestaff: (process.env.OFFERWALL_MINUTESTAFF_SECRET || "").trim(),
+}
+
+// Slug aliases: the UI/offerwall registry uses "adgatemedia" while the
+// postback route + DB row (offerwall_providers.slug) use the provider's own
+// canonical name "adgate". An alias (preferred over a rename) keeps old
+// postback links working and lets both slugs resolve to the same provider
+// row. Aliases are resolved once, at the top of handlePostback.
+const PROVIDER_ALIASES: Record<string, string> = {
+  adgatemedia: "adgate",
+}
+
+function canonicalProvider(provider: string): string {
+  return PROVIDER_ALIASES[provider] ?? provider
 }
 
 // c.cx.ua sends postbacks from these IPs (see https://c.cx.ua/docs/ → "IPs to whitelist").
@@ -92,6 +151,22 @@ function signaturesEqual(received: string, expected: string): boolean {
   const expectedBytes = Buffer.from(expected.trim().toLowerCase(), "utf8")
   if (receivedBytes.length !== expectedBytes.length) return false
   return timingSafeEqual(receivedBytes, expectedBytes)
+}
+
+// Generic scheme used by the walls implemented in the phantom-offerwalls
+// pass: HMAC-SHA256 over the postback params sorted alphabetically,
+// serialized as `key=value` pairs joined with `&` (signature-carrying keys
+// excluded), keyed with the provider secret. This is the most widely
+// documented offerwall convention and the one the implementation directive
+// specifies where per-provider documentation is uncertain — each switch case
+// below notes its assumption explicitly.
+function hmacSortedParams(params: Record<string, string>, secret: string): string {
+  const sortedParams = Object.keys(params)
+    .filter((k) => k !== "sig" && k !== "signature" && k !== "hash")
+    .sort()
+    .map((k) => `${k}=${params[k]}`)
+    .join("&")
+  return createHmac("sha256", secret).update(sortedParams).digest("hex")
 }
 
 function validateSignature(provider: string, params: Record<string, string>, signature: string): boolean {
@@ -218,6 +293,71 @@ function validateSignature(provider: string, params: Record<string, string>, sig
         const dataStr = `${params.userId || params.user_id}${params.transactionId || params.transaction_id}${params.reward}`
         const expectedSig = createHmac("sha256", secret).update(dataStr).digest("hex")
         return signaturesEqual(signature, expectedSig)
+      }
+
+      case "wannads": {
+        // Wannads: HMAC-SHA256 over sorted params (implementation directive).
+        // ASSUMPTION: Wannads' dashboard-configured postback signs the full
+        // parameter set (excluding the signature key itself) sorted
+        // alphabetically as k=v pairs joined with "&". If their account
+        // manager specifies a different scheme, update this case — until
+        // then any mismatch fails closed with 403 and credits nobody.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
+      }
+
+      case "monlix": {
+        // Monlix: HMAC-SHA256 over sorted params.
+        // ASSUMPTION: Monlix's public docs do not pin an exact canonical
+        // string; we use the standard sorted-params HMAC-SHA256 convention.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
+      }
+
+      case "revu": {
+        // Revenue Universe: HMAC-SHA256 over sorted params.
+        // ASSUMPTION: RevU's postback verification scheme is only shared via
+        // their publisher portal; the standard sorted-params HMAC-SHA256
+        // convention is used here.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
+      }
+
+      case "adgem": {
+        // AdGem: HMAC-SHA256 over sorted params.
+        // ASSUMPTION: AdGem's S2S callback signs all non-signature params,
+        // sorted alphabetically, joined k=value with "&" (their most commonly
+        // documented S2S shape). Verify against your AdGem app settings.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
+      }
+
+      case "pollfish": {
+        // Pollfish: HMAC-SHA256 over sorted params.
+        // ASSUMPTION: Pollfish fires a publisher-configured S2S URL template;
+        // no public signature spec exists for it, so the standard
+        // sorted-params HMAC-SHA256 convention is used here.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
+      }
+
+      case "theoremreach": {
+        // TheoremReach: HMAC-SHA256 over sorted params.
+        // ASSUMPTION: TheoremReach's integration guide does not publish a
+        // stable public signature formula; the standard sorted-params
+        // HMAC-SHA256 convention is used here.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
+      }
+
+      case "cpalead": {
+        // CPALead: HMAC-SHA256 over sorted params.
+        // ASSUMPTION: CPALead gateway postbacks are configurable per offer
+        // wall; where a signature is enabled we use the standard
+        // sorted-params HMAC-SHA256 convention keyed with the wall secret.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
+      }
+
+      case "minutestaff": {
+        // MinuteStaff: HMAC-SHA256 over sorted params.
+        // ASSUMPTION: MinuteStaff's postback signature scheme is shared via
+        // their publisher dashboard; the standard sorted-params HMAC-SHA256
+        // convention is used here.
+        return signaturesEqual(signature, hmacSortedParams(params, secret))
       }
 
       default:
@@ -408,6 +548,136 @@ function parsePostbackParams(provider: string, searchParams: URLSearchParams): P
           ip: searchParams.get("ip") || "",
         }
 
+      // ── Phantom-offerwall pass (wannads … minutestaff) ─────────────────────
+      // Contract for all eight walls below: `credits` is the offer payout in
+      // USD (the postback's dollar-denominated field). The satoshi amount is
+      // computed downstream as credits × offerwall_providers.conversion_rate,
+      // and scripts/095_ccxua_and_provider_seeds.sql seeds each row's
+      // conversion_rate to match the rate shown in the UI (sats per $1).
+      // Param reads accept the common spellings each network uses; unknown
+      // params are still included in signature verification (raw params are
+      // hashed verbatim), so parsing leniency never bypasses authentication.
+      case "wannads":
+        return {
+          userId: searchParams.get("subid") || searchParams.get("user_id") || searchParams.get("userid") || "",
+          offerId: searchParams.get("offerid") || searchParams.get("offer_id") || "",
+          offerName: searchParams.get("offername") || searchParams.get("offer_name") || "Wannads Offer",
+          credits:
+            Number.parseFloat(
+              searchParams.get("payout") || searchParams.get("amount_usd") || searchParams.get("amount") || "0",
+            ) || 0,
+          transactionId: searchParams.get("transid") || searchParams.get("transaction_id") || searchParams.get("trans_id") || "",
+          ip: searchParams.get("ip") || searchParams.get("user_ip") || "",
+        }
+
+      case "monlix":
+        return {
+          userId: searchParams.get("user_id") || searchParams.get("userid") || searchParams.get("userId") || "",
+          offerId: searchParams.get("offer_id") || searchParams.get("offerid") || "",
+          offerName: searchParams.get("offer_name") || searchParams.get("offername") || "Monlix Offer",
+          credits:
+            Number.parseFloat(
+              searchParams.get("payout") || searchParams.get("amount_usd") || searchParams.get("amount") || "0",
+            ) || 0,
+          transactionId:
+            searchParams.get("transaction_id") || searchParams.get("trans_id") || searchParams.get("txn_id") || "",
+          ip: searchParams.get("ip") || searchParams.get("user_ip") || "",
+        }
+
+      case "revu":
+        return {
+          userId: searchParams.get("user_id") || searchParams.get("userid") || searchParams.get("subid") || "",
+          offerId: searchParams.get("offer_id") || searchParams.get("survey_id") || "",
+          offerName: searchParams.get("offer_name") || "Revenue Universe Offer",
+          credits:
+            Number.parseFloat(
+              searchParams.get("reward") ||
+                searchParams.get("points") ||
+                searchParams.get("amount_usd") ||
+                searchParams.get("amount") ||
+                "0",
+            ) || 0,
+          transactionId:
+            searchParams.get("transaction_id") || searchParams.get("trans_id") || searchParams.get("txid") || "",
+          ip: searchParams.get("ip") || searchParams.get("user_ip") || "",
+        }
+
+      case "adgem":
+        return {
+          userId: searchParams.get("user_id") || searchParams.get("userId") || searchParams.get("player_id") || "",
+          offerId: searchParams.get("offer_id") || searchParams.get("campaign_id") || "",
+          offerName: searchParams.get("offer_name") || searchParams.get("offerName") || "AdGem Offer",
+          credits:
+            Number.parseFloat(
+              searchParams.get("currency_amount") || searchParams.get("amount") || searchParams.get("payout") || "0",
+            ) || 0,
+          transactionId:
+            searchParams.get("transaction_id") || searchParams.get("txn_id") || searchParams.get("tid") || "",
+          ip: searchParams.get("ip") || searchParams.get("user_ip") || "",
+        }
+
+      case "pollfish":
+        return {
+          userId: searchParams.get("user_id") || searchParams.get("uid") || searchParams.get("userId") || "",
+          offerId:
+            searchParams.get("survey_id") || searchParams.get("offer_id") || searchParams.get("request_uuid") || "",
+          offerName: searchParams.get("survey_name") || searchParams.get("offer_name") || "Pollfish Survey",
+          // Pollfish reports survey completion value via its reward/CPA fields.
+          credits:
+            Number.parseFloat(
+              searchParams.get("reward") || searchParams.get("cpa_credit") || searchParams.get("amount") || "0",
+            ) || 0,
+          // request_uuid is Pollfish's per-completion identifier.
+          transactionId:
+            searchParams.get("request_uuid") || searchParams.get("transaction_id") || searchParams.get("tx_id") || "",
+          ip: searchParams.get("ip") || "",
+        }
+
+      case "theoremreach":
+        return {
+          userId: searchParams.get("user_id") || searchParams.get("userId") || "",
+          offerId: searchParams.get("offer_id") || searchParams.get("survey_id") || "",
+          offerName: searchParams.get("offer_name") || "TheoremReach Survey",
+          credits:
+            Number.parseFloat(
+              searchParams.get("currency_amount") || searchParams.get("reward") || searchParams.get("amount") || "0",
+            ) || 0,
+          transactionId:
+            searchParams.get("uniqueId") || searchParams.get("unique_id") || searchParams.get("transaction_id") || "",
+          ip: searchParams.get("ip") || "",
+        }
+
+      case "cpalead":
+        return {
+          userId: searchParams.get("sub_id") || searchParams.get("user_id") || searchParams.get("subid") || "",
+          offerId: searchParams.get("offer_id") || searchParams.get("campaign_id") || searchParams.get("camp_id") || "",
+          offerName: searchParams.get("offer_name") || searchParams.get("campaign_name") || "CPALead Offer",
+          credits:
+            Number.parseFloat(
+              searchParams.get("payout") || searchParams.get("earnings") || searchParams.get("amount") || "0",
+            ) || 0,
+          // No synthetic fallback: if CPALead sends no unique id we fail with
+          // 400 missing-parameters rather than risk replay/dedup collisions.
+          transactionId:
+            searchParams.get("transaction_id") || searchParams.get("tid") || searchParams.get("click_id") || "",
+          ip: searchParams.get("ip") || searchParams.get("user_ip") || "",
+        }
+
+      case "minutestaff":
+        return {
+          userId: searchParams.get("userid") || searchParams.get("user_id") || searchParams.get("userId") || "",
+          offerId: searchParams.get("task_id") || searchParams.get("campaign_id") || searchParams.get("offer_id") || "",
+          offerName: searchParams.get("task_name") || searchParams.get("offer_name") || "MinuteStaff Task",
+          credits:
+            Number.parseFloat(
+              searchParams.get("reward") || searchParams.get("amount_usd") || searchParams.get("amount") || "0",
+            ) || 0,
+          // Strict unique-id read — task_id repeats across completions and is
+          // deliberately NOT used as a dedup key fallback.
+          transactionId: searchParams.get("transaction_id") || searchParams.get("txn_id") || "",
+          ip: searchParams.get("ip") || "",
+        }
+
       default:
         return null
     }
@@ -471,13 +741,16 @@ async function handlePostback(
     const requestIP =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown"
 
-    // Validate provider
+    // Validate provider. Aliases (UI slug ↔ DB/postback slug) are resolved
+    // first so both spellings reach the same provider row — see
+    // PROVIDER_ALIASES ("adgatemedia" → "adgate").
     const validProviders = [
       "ccxua",
       "cpx-research",
       "torox",
       "lootably",
       "adgate",
+      "adgatemedia", // alias of adgate — resolved below, kept listed for registry completeness
       "mm-wall",
       "timewall",
       "offerwall-me",
@@ -487,7 +760,16 @@ async function handlePostback(
       "ayet-studios",
       "hang-my-ads",
       "notik",
+      "wannads",
+      "monlix",
+      "revu",
+      "adgem",
+      "pollfish",
+      "theoremreach",
+      "cpalead",
+      "minutestaff",
     ]
+    provider = canonicalProvider(provider)
     if (!validProviders.includes(provider)) {
       console.warn(`[Postback] Invalid provider attempt: ${provider} from IP: ${requestIP}`)
       return NextResponse.json({ error: "Invalid provider" }, { status: 400 })
@@ -577,7 +859,7 @@ async function handlePostback(
     if (!providerData) {
       console.error(
         `[Postback] Provider "${provider}" missing from offerwall_providers table. ` +
-          `Run the seed script (e.g. scripts/070_add_ccxua_offerwall_provider.sql).`,
+          `Run the seed script (scripts/095_ccxua_and_provider_seeds.sql).`,
       )
       // For providers that retry on non-2xx (c.cx.ua retries 5x), return
       // their expected plain-text ack ("ok" for c.cx.ua per the official

@@ -51,16 +51,16 @@ function calculateClaimAmount(streak: number): {
   streakBonus: number
   total: number
 } {
-  // Random amount between 2 and 6 satoshis (MAX 6 SATS - stricter limits)
-  // Users should use offerwalls and shortlinks for more earnings
+  // Random amount in the advertised 4–9 sats range, driven by CLAIM_CONFIG.
   const base = Math.floor(
     CLAIM_CONFIG.baseAmountSatoshis +
     Math.random() * (CLAIM_CONFIG.maxAmountSatoshis - CLAIM_CONFIG.baseAmountSatoshis + 1),
   )
 
-  // No streak bonus - encourages users to use other earning methods
+  // The server-side streak bonus is computed inside atomic_claim (migration
+  // 098) from real claim history; the route passes 0 and treats it as advisory.
   const streakBonus = 0
-  const total = Math.min(base, 6) // Hard cap at 6 satoshis per claim
+  const total = Math.min(base, CLAIM_CONFIG.maxAmountSatoshis)
 
   return { base, streakBonus, total }
 }

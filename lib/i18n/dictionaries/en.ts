@@ -474,9 +474,9 @@ export const en = {
           "Your security is our top priority. We use industry-leading encryption and security measures to protect your account and earnings.",
       },
       instant: {
-        title: "Instant Payments",
+        title: "Fast Payments",
         description:
-          "No waiting for your earnings. Withdrawals are processed instantly through FaucetPay, so you get your Bitcoin right away.",
+          "Withdrawals are processed through FaucetPay, typically within about 5 minutes, so your Bitcoin arrives quickly.",
       },
       community: {
         title: "Community Driven",
@@ -498,8 +498,8 @@ export const en = {
         description: "What you earn is what you keep. No hidden charges or surprise deductions from your earnings.",
       },
       instant: {
-        title: "Instant Withdrawals",
-        description: "Get your earnings instantly via FaucetPay. No waiting periods or minimum holding times.",
+        title: "Fast Withdrawals",
+        description: "Get your earnings via FaucetPay — typically processed within about 5 minutes. No long waiting periods.",
       },
       secure: {
         title: "Bank-Level Security",
@@ -639,7 +639,7 @@ export const en = {
         q2: "How do I set up FaucetPay?",
         a2: "Create an account at FaucetPay.io, then link your FaucetPay email in your dashboard settings. Make sure the email matches exactly.",
         q3: "How long do withdrawals take?",
-        a3: "Withdrawals are processed instantly to FaucetPay. You should see your balance update within 1 minute.",
+        a3: "Withdrawals are sent through FaucetPay and typically arrive within about 5 minutes. Delays can occur during FaucetPay maintenance.",
       },
       referrals: {
         q1: "How do referrals work?",

@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { verifyFaucetPayEmail, isFaucetPayConfigured, FaucetPayError } from "@/lib/faucetpay/client"
+import { verifyFaucetPayEmail, isFaucetPayConfiguredAsync, FaucetPayError } from "@/lib/faucetpay/client"
 import { log } from "@/lib/logger"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 
@@ -32,28 +32,14 @@ export async function POST(request: NextRequest) {
     const adminSupabase = requireAdminClient()
     const normalizedEmail = email.trim().toLowerCase()
 
-    // Check if FaucetPay API key is configured
-    if (!isFaucetPayConfigured()) {
-      // Development mode - save without verification
-      const { error } = await adminSupabase
-        .from("profiles")
-        .update({
-          faucetpay_email: normalizedEmail,
-          faucetpay_verified: true, // Auto-verify in dev mode
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
-
-      if (error) {
-        log.error("Failed to save FaucetPay email (dev mode)", { error, userId: user.id })
-        return NextResponse.json({ success: false, error: "Failed to save email" }, { status: 500 })
-      }
-
-      return NextResponse.json({
-        success: true,
-        verified: true,
-        message: "Email saved and verified (development mode - FAUCETPAY_API_KEY not set)",
-      })
+    // Fail closed: without an API key there is no way to verify against the
+    // FaucetPay API, so refuse instead of simulating success.
+    if (!(await isFaucetPayConfiguredAsync())) {
+      log.warn("FaucetPay verification attempted while unconfigured", { userId: user.id })
+      return NextResponse.json(
+        { success: false, error: "FaucetPay verification is not configured" },
+        { status: 503 },
+      )
     }
 
     // Verify with FaucetPay API
@@ -83,6 +69,15 @@ export async function POST(request: NextRequest) {
         message: "FaucetPay account verified successfully!",
       })
     } else {
+      if (verification.error === "not_configured") {
+        // FaucetPay became unconfigured mid-request - do not touch the profile.
+        log.error("FaucetPay became unconfigured during email verification", { userId: user.id })
+        return NextResponse.json(
+          { success: false, error: "FaucetPay verification is not configured" },
+          { status: 503 },
+        )
+      }
+
       // Verification failed - still save the email but mark as unverified
       await adminSupabase
         .from("profiles")

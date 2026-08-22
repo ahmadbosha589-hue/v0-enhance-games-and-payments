@@ -25,6 +25,13 @@ interface OfferwallConfig {
   // env-var placeholders this offerwall needs in order to build a working URL.
   // If any of these is missing, the offerwall is rendered as "Setup Required".
   requiredEnv: string[]
+  // Postback secret env var(s) this offerwall needs so its server-to-server
+  // callback can be authenticated. Mirrors PROVIDER_SECRETS in
+  // app/api/postback/[provider]/route.ts: without the secret the handler
+  // FAILS CLOSED (403 invalid-signature) and can never credit anyone, so the
+  // wall renders as "Setup Required" (still visible) until the operator sets
+  // it. Names only — secret values are never stored here.
+  postbackSecretEnv?: string[]
 }
 
 const OFFERWALLS: OfferwallConfig[] = [
@@ -40,13 +47,14 @@ const OFFERWALLS: OfferwallConfig[] = [
     minPayout: 0,
     // Effective rate users see: c.cx.ua dashboard Exchange Rate (20) ×
     // DB conversion_rate (50 sats/credit) = ~1000 sats per USD of offer payout.
-    // Keep this in sync with scripts/070_add_ccxua_offerwall_provider.sql.
+    // Keep this in sync with scripts/095_ccxua_and_provider_seeds.sql.
     conversionRate: 1000,
     features: ["Auto-translated", "Global offers", "Fast crediting", "Featured"],
     url: "https://c.cx.ua/offerwall/{ccxua_api_key}/{user_id}",
     active: true,
     priority: 0,
     requiredEnv: ["CCXUA_API_KEY"],
+    postbackSecretEnv: ["CCXUA_SECRET_KEY"],
   },
   {
     id: "cpx",
@@ -63,6 +71,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 1,
     requiredEnv: ["CPX_APP_ID"],
+    postbackSecretEnv: ["CPX_SECRET_KEY"],
   },
   {
     id: "torox",
@@ -79,6 +88,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 2,
     requiredEnv: ["TOROX_PUB_ID"],
+    postbackSecretEnv: ["TOROX_SECRET_KEY"],
   },
   {
     id: "adgatemedia",
@@ -95,6 +105,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 3,
     requiredEnv: ["ADGATE_WALL_CODE"],
+    postbackSecretEnv: ["ADGATE_SECRET_KEY"],
   },
   {
     id: "lootably",
@@ -111,6 +122,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 4,
     requiredEnv: ["LOOTABLY_PLACEMENT_ID"],
+    postbackSecretEnv: ["LOOTABLY_SECRET_KEY"],
   },
   {
     id: "bitlabs",
@@ -127,6 +139,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 5,
     requiredEnv: ["BITLABS_TOKEN"],
+    postbackSecretEnv: ["BITLABS_SECRET_KEY"],
   },
   {
     id: "notik",
@@ -143,6 +156,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 6,
     requiredEnv: ["NOTIK_PUB_ID"],
+    postbackSecretEnv: ["NOTIK_SECRET_KEY"],
   },
   {
     id: "timewall",
@@ -159,6 +173,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 7,
     requiredEnv: ["TIMEWALL_KEY"],
+    postbackSecretEnv: ["TIMEWALL_SECRET_KEY"],
   },
   {
     id: "ayet",
@@ -175,6 +190,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 8,
     requiredEnv: ["AYET_ADSLOT"],
+    postbackSecretEnv: ["AYET_STUDIOS_SECRET_KEY"],
   },
   {
     id: "wannads",
@@ -191,6 +207,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 9,
     requiredEnv: ["WANNADS_API_KEY"],
+    postbackSecretEnv: ["OFFERWALL_WANNADS_SECRET"],
   },
   {
     id: "monlix",
@@ -207,6 +224,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 10,
     requiredEnv: ["MONLIX_APP_ID"],
+    postbackSecretEnv: ["OFFERWALL_MONLIX_SECRET"],
   },
   {
     id: "revu",
@@ -223,6 +241,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 11,
     requiredEnv: ["REVU_APP_ID"],
+    postbackSecretEnv: ["OFFERWALL_REVU_SECRET"],
   },
   {
     id: "adgem",
@@ -239,6 +258,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 12,
     requiredEnv: ["ADGEM_PLAYER_ID"],
+    postbackSecretEnv: ["OFFERWALL_ADGEM_SECRET"],
   },
   {
     id: "pollfish",
@@ -255,6 +275,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 13,
     requiredEnv: ["POLLFISH_API_KEY"],
+    postbackSecretEnv: ["OFFERWALL_POLLFISH_SECRET"],
   },
   {
     id: "theoremreach",
@@ -271,6 +292,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 14,
     requiredEnv: ["THEOREMREACH_API_KEY"],
+    postbackSecretEnv: ["OFFERWALL_THEOREMREACH_SECRET"],
   },
   {
     id: "hangmyads",
@@ -287,6 +309,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 15,
     requiredEnv: ["HANG_MY_ADS_PUB_ID"],
+    postbackSecretEnv: ["HANG_MY_ADS_SECRET_KEY"],
   },
   {
     id: "offerwallme",
@@ -303,6 +326,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 16,
     requiredEnv: ["OFFERWALLME_API_KEY"],
+    postbackSecretEnv: ["OFFERWALLME_SECRET_KEY"],
   },
   {
     id: "bicotasks",
@@ -319,6 +343,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 17,
     requiredEnv: ["BICOTASKS_PUB_ID"],
+    postbackSecretEnv: ["BICOTASKS_SECRET_KEY"],
   },
   {
     id: "mmwall",
@@ -335,6 +360,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 18,
     requiredEnv: ["MM_WALL_API_KEY"],
+    postbackSecretEnv: ["MM_WALL_SECRET_KEY"],
   },
   {
     id: "adscend",
@@ -351,6 +377,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 19,
     requiredEnv: ["ADSCEND_PUB_ID"],
+    postbackSecretEnv: ["ADSCEND_SECRET_KEY"],
   },
   {
     id: "cpalead",
@@ -367,6 +394,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 20,
     requiredEnv: ["CPALEAD_GATEWAY"],
+    postbackSecretEnv: ["OFFERWALL_CPALEAD_SECRET"],
   },
   {
     id: "minutestaff",
@@ -383,6 +411,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     active: true,
     priority: 21,
     requiredEnv: ["MINUTESTAFF_PUB_ID"],
+    postbackSecretEnv: ["OFFERWALL_MINUTESTAFF_SECRET"],
   },
 ]
 
@@ -481,6 +510,14 @@ function buildOfferwallUrl(
       missing.push(envKeys[0] || ph.toUpperCase())
     }
     url = url.replaceAll(`{${ph}}`, val)
+  }
+
+  // Postback-secret gate — mirrors the postback route's fail-closed rule:
+  // without its secret a wall's S2S callbacks answer 403 invalid-signature
+  // and nobody can ever be credited, so the wall must not present itself as
+  // fully active. It stays listed/rendered ("Setup Required" state).
+  for (const envKey of cfg.postbackSecretEnv ?? []) {
+    if (!resolveEnv([envKey])) missing.push(envKey)
   }
 
   return { url, configured: missing.length === 0, missing }

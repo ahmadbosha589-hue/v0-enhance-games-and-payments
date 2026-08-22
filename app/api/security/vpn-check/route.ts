@@ -117,11 +117,11 @@ export async function POST(request: NextRequest) {
         
         await adminSupabase.from("fraud_flags").upsert({
           user_id: user.id,
-          flag_type: "vpn_detected",
-          severity: result.riskLevel === "critical" ? "critical" :
-                   result.isTor ? "critical" :
-                   result.confidence >= 90 ? "high" : "medium",
-          details: {
+          fraud_type: "vpn_detected",
+          severity: result.riskLevel === "critical" ? 10 :
+                   result.isTor ? 10 :
+                   result.confidence >= 90 ? 8 : 6,
+          evidence: {
             ip: ipAddress,
             vpn: result.isVPN,
             proxy: result.isProxy,
@@ -141,9 +141,9 @@ export async function POST(request: NextRequest) {
             shouldBlock: result.shouldBlock,
             riskLevel: result.riskLevel,
           },
-          status: "pending",
+          status: "pending_review",
         }, {
-          onConflict: "user_id,flag_type",
+          onConflict: "user_id,fraud_type",
           ignoreDuplicates: false,
         })
 
