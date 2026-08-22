@@ -20,8 +20,14 @@ describe("reward write boundary", () => {
 
     for (const route of criticalRoutes) {
       const code = source(route)
-      expect(code, route).toContain("requireAdminClient")
-      expect(code, route).toContain("const adminDb = requireAdminClient()")
+      // Privileged writes must flow through a service-role client: either the
+      // requireAdminClient() helper or createAdminClient() from lib/supabase
+      // (the fail-closed variant that returns null instead of falling back to
+      // the anon key). Both bypass RLS; neither ever uses browser credentials.
+      const usesServiceRole =
+        code.includes("const adminDb = requireAdminClient()") ||
+        code.includes("const adminDb = createAdminClient()")
+      expect(usesServiceRole, `${route} must obtain a service-role client`).toBe(true)
     }
   })
 

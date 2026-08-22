@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { rejectWithdrawalAndRefund } from "@/lib/admin/reject-withdrawal"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -58,9 +59,25 @@ export async function POST(request: Request) {
 
     const { data: currentFlag } = await supabase
       .from("fraud_flags")
-      .select("status, action_taken, resolution_notes")
+      .select("status, action_taken, resolution_notes, user_id")
       .eq("id", flagId)
       .single()
+
+    // The flag's OWN user_id is the authoritative ban target. A stale or
+    // mismatched client payload must never ban an unrelated account; and a
+    // 'ban' with no resolvable target is a silent partial action — reject it.
+    if (action === "ban") {
+      if (!currentFlag?.user_id) {
+        return NextResponse.json({ error: "Fraud flag has no associated user to ban" }, { status: 400 })
+      }
+      if (userId && userId !== currentFlag.user_id) {
+        return NextResponse.json(
+          { error: "userId does not match the flagged user", expected: currentFlag.user_id },
+          { status: 400 },
+        )
+      }
+    }
+    const authoritativeUserId = currentFlag?.user_id || userId || null
 
     const oldData = currentFlag
       ? {
@@ -86,7 +103,7 @@ export async function POST(request: Request) {
       old_data: oldData,
       new_data: newData,
       metadata: {
-        target_user_id: userId,
+        target_user_id: authoritativeUserId,
         target_email: targetEmail,
         actor_email: adminProfile.faucetpay_email || null,
         notes,
@@ -110,8 +127,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to update flag" }, { status: 500 })
     }
 
-    if (action === "ban" && userId) {
-      // Ban the user
+    if (action === "ban" && authoritativeUserId) {
+      // Ban the flagged user (authoritative id from the flag row)
       const { error: banError } = await adminDb
         .from("profiles")
         .update({
@@ -119,52 +136,50 @@ export async function POST(request: Request) {
           banned_at: new Date().toISOString(),
           banned_reason: notes || "Banned due to fraud flag",
         })
-        .eq("id", userId)
+        .eq("id", authoritativeUserId)
 
       if (banError) {
         console.error("Ban error:", banError)
       }
 
-      // Reject all pending withdrawals for this user
-      const { data: pendingWithdrawals } = await supabase
+      // Auto-reject pending withdrawals via the shared atomic refund helper
+      // (status-guarded flip + atomic balance credit + ledger row).
+      const { data: pendingWithdrawals } = await adminDb
         .from("withdrawals")
-        .select("id, amount_satoshis")
-        .eq("user_id", userId)
+        .select("id, user_id, amount_satoshis")
+        .eq("user_id", authoritativeUserId)
         .in("status", ["pending", "processing"])
 
-      if (pendingWithdrawals && pendingWithdrawals.length > 0) {
-        for (const withdrawal of pendingWithdrawals) {
-          await adminDb
-            .from("withdrawals")
-            .update({
-              status: "rejected",
-              review_notes: "Automatically rejected due to account ban",
-              reviewed_at: new Date().toISOString(),
-              reviewed_by: user.id,
-            })
-            .eq("id", withdrawal.id)
+      let refundedCount = 0
+      for (const withdrawal of pendingWithdrawals ?? []) {
+        const outcome = await rejectWithdrawalAndRefund({
+          withdrawalId: withdrawal.id,
+          userId: authoritativeUserId,
+          amountSatoshis: withdrawal.amount_satoshis,
+          reviewNotes: "Automatically rejected due to fraud ban",
+          reviewedBy: user.id,
+        })
+        if (outcome.refunded) refundedCount++
+      }
 
-          // Refund the amount
-          const { data: userProfile } = await supabase
-            .from("profiles")
-            .select("balance_satoshis")
-            .eq("id", userId)
-            .single()
-
-          if (userProfile) {
-            await adminDb
-              .from("profiles")
-              .update({
-                balance_satoshis: Number(userProfile.balance_satoshis) + Number(withdrawal.amount_satoshis),
-              })
-              .eq("id", userId)
-          }
-        }
+      // Mirror refunds into an audit log entry so they are visible in /admin/audit
+      if (refundedCount > 0) {
+        await adminDb.from("audit_logs").insert({
+          actor_id: user.id,
+          actor_role: adminProfile.role,
+          actor_ip: ipAddress,
+          action: "fraud_ban_withdrawal_refunds",
+          resource_type: "user",
+          resource_id: authoritativeUserId,
+          old_data: {},
+          new_data: { refunded_withdrawals: refundedCount },
+          metadata: { note: "Pending withdrawals auto-rejected and refunded during fraud ban" },
+        })
       }
 
       // Create notification
       await supabase.from("notifications").insert({
-        user_id: userId,
+        user_id: authoritativeUserId,
         type: "account_warning",
         title: "Account Suspended",
         message: "Your account has been suspended due to a violation of our terms of service.",

@@ -547,11 +547,17 @@ export async function POST(request: Request) {
         .eq("id", auditLogId)
 
       // STEP 7: Create transaction record if satoshis (for user-visible history)
+      // Schema-correct shape: amount_satoshis column + enum-valid 'adjustment'
+      // type. The old insert used `amount` + 'admin_adjustment' — it failed on
+      // every call and the error was swallowed, so adjustments never appeared
+      // in any transaction history.
       if (type === "satoshis") {
-        await adminSupabase.from("transactions").insert({
+        const ledgerDelta =
+          balanceAction === "subtract" ? -amount : balanceAction === "set" ? newValue - currentValue : amount
+        const { error: txInsertError } = await adminSupabase.from("transactions").insert({
           user_id: userId,
-          type: "admin_adjustment",
-          amount: balanceAction === "subtract" ? -amount : (balanceAction === "set" ? newValue - currentValue : amount),
+          type: "adjustment",
+          amount_satoshis: ledgerDelta,
           status: "completed",
           description: `Admin adjustment: ${reason}`,
           metadata: {
@@ -561,6 +567,9 @@ export async function POST(request: Request) {
             audit_log_id: auditLogId
           }
         })
+        if (txInsertError) {
+          console.error("[Funds] adjustment ledger insert failed:", txInsertError)
+        }
       }
 
       // STEP 8: Create notification for user

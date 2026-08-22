@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server"
-import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { rejectWithdrawalAndRefund } from "@/lib/admin/reject-withdrawal"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -13,7 +13,10 @@ const actionSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const adminDb = requireAdminClient()
+    const adminDb = createAdminClient()
+    if (!adminDb) {
+      return NextResponse.json({ error: "Admin database unavailable" }, { status: 503 })
+    }
     const supabase = await createClient()
     const headersList = await headers()
 
@@ -98,55 +101,57 @@ export async function POST(request: Request) {
     })
 
     if (action === "approve") {
-      // Keep the row pending so the real FaucetPay cron worker can claim it.
-      // Reviewer metadata records approval without fabricating payout completion.
-      await adminDb
+      // Move to a DISTINCT 'approved' state so a second admin cannot reject an
+      // already-approved payout (the old code wrote status back to 'pending',
+      // allowing approve -> cron pays -> reject refunds an already-paid payout).
+      // The FaucetPay payout worker claims rows in 'approved' and marks them
+      // 'completed' when paid.
+      const { data: claimed, error: claimError } = await adminDb
         .from("withdrawals")
         .update({
-          status: "pending",
+          status: "approved",
           reviewed_at: new Date().toISOString(),
           reviewed_by: user.id,
           review_notes: rejectionReason || "Approved for provider processing",
         })
         .eq("id", withdrawalId)
+        .eq("status", "pending") // atomic claim: only if still pending
+        .select("id")
 
-      return NextResponse.json({ success: true, action, withdrawalId, status: "pending", reviewed: true })
-    } else {
-      // Reject and refund - get user profile with correct column names
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("balance_satoshis, total_withdrawn_satoshis")
-        .eq("id", withdrawal.user_id)
-        .single()
-
-      if (userProfile) {
-        // Refund the amount to user's balance
-        await adminDb
-          .from("profiles")
-          .update({
-            balance_satoshis: Number(userProfile.balance_satoshis) + Number(withdrawal.amount_satoshis),
-            total_withdrawn_satoshis: Math.max(
-              0,
-              Number(userProfile.total_withdrawn_satoshis) - Number(withdrawal.amount_satoshis),
-            ),
-          })
-          .eq("id", withdrawal.user_id)
+      if (claimError) {
+        return NextResponse.json({ error: "Failed to approve withdrawal", details: claimError.message }, { status: 500 })
+      }
+      if (!claimed || claimed.length === 0) {
+        return NextResponse.json({ error: "Withdrawal already processed", message: `Current status changed concurrently` }, { status: 409 })
       }
 
-      // Update withdrawal status with notes
-      await adminDb
-        .from("withdrawals")
-        .update({
-          status: "rejected",
-          review_notes: rejectionReason || "Rejected by admin",
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
-          processed_at: new Date().toISOString(),
-          processed_by: user.id,
-        })
-        .eq("id", withdrawalId)
+      return NextResponse.json({ success: true, action, withdrawalId, status: "approved", reviewed: true })
+    } else {
+      // Reject + refund atomically via the shared helper:
+      // conditional status flip (never rejects an already-paid/approved row),
+      // balance increment RPC, total_withdrawn decrement, ledger row.
+      const outcome = await rejectWithdrawalAndRefund({
+        withdrawalId,
+        userId: withdrawal.user_id,
+        amountSatoshis: withdrawal.amount_satoshis,
+        reviewNotes: rejectionReason || "Rejected by admin",
+        reviewedBy: user.id,
+      })
 
-      // Update transaction to failed
+      if (!outcome.refunded) {
+        if (outcome.error === "ALREADY_PROCESSED") {
+          return NextResponse.json(
+            { error: "Withdrawal already processed", message: `Current status: ${withdrawal.status}` },
+            { status: 409 },
+          )
+        }
+        return NextResponse.json(
+          { error: "Failed to refund rejected withdrawal", details: outcome.error },
+          { status: 500 },
+        )
+      }
+
+      // Mark any linked pending transaction failed (best-effort; refund is done)
       await adminDb
         .from("transactions")
         .update({
@@ -155,23 +160,10 @@ export async function POST(request: Request) {
           description: rejectionReason || "Withdrawal rejected by admin",
         })
         .eq("withdrawal_id", withdrawalId)
-
-      // Create refund transaction
-      await adminDb.from("transactions").insert({
-        user_id: withdrawal.user_id,
-        type: "adjustment",
-        status: "completed",
-        amount_satoshis: withdrawal.amount_satoshis,
-        balance_before: Number(userProfile?.balance_satoshis || 0),
-        balance_after: Number(userProfile?.balance_satoshis || 0) + Number(withdrawal.amount_satoshis),
-        withdrawal_id: withdrawalId,
-        description: "Refund for rejected withdrawal",
-        metadata: { reason: rejectionReason || "Withdrawal rejected", original_withdrawal_id: withdrawalId },
-        completed_at: new Date().toISOString(),
-      })
+        .eq("status", "pending")
 
       // Create notification with reason
-      await supabase.from("notifications").insert({
+      await adminDb.from("notifications").insert({
         user_id: withdrawal.user_id,
         type: "withdrawal_failed",
         title: "Withdrawal Rejected",
@@ -179,6 +171,7 @@ export async function POST(request: Request) {
           ? `Your withdrawal was rejected: ${rejectionReason}. ${withdrawal.amount_satoshis} satoshis have been refunded.`
           : `Your withdrawal was rejected. ${withdrawal.amount_satoshis} satoshis have been refunded to your balance.`,
         data: { withdrawal_id: withdrawalId, amount: withdrawal.amount_satoshis, reason: rejectionReason },
+        is_read: false,
       })
     }
 

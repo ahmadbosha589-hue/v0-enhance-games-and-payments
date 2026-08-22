@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { rejectWithdrawalAndRefund } from "@/lib/admin/reject-withdrawal"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { z } from "zod"
@@ -8,7 +9,7 @@ const adminUserActionSchema = z.object({
   userId: z.string().uuid(),
   action: z.enum(["ban", "unban", "flag", "unflag", "reset_fraud_score", "adjust_balance"]),
   reason: z.string().optional(),
-  amount: z.number().optional(),
+  amount: z.number().int().min(-1_000_000_000).max(1_000_000_000).optional(),
 })
 
 export async function POST(request: Request) {
@@ -46,10 +47,6 @@ export async function POST(request: Request) {
 
     const { userId, action, reason, amount } = validatedData.data
 
-    // Get IP for audit
-    const forwarded = headersList.get("x-forwarded-for")
-    const ipAddress = forwarded ? forwarded.split(",")[0].trim() : null
-
     const { data: targetProfile, error: profileError } = await supabase
       .from("profiles")
       .select("*, faucetpay_email")
@@ -59,6 +56,27 @@ export async function POST(request: Request) {
     if (profileError || !targetProfile) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
+
+    // Per-action role mapping (matches the Permissions page matrix):
+    // moderators may only do soft-moderation; money + ban actions are admin+.
+    const MODERATOR_ALLOWED = new Set(["flag", "unflag", "reset_fraud_score"])
+    if (adminProfile.role === "moderator" && !MODERATOR_ALLOWED.has(action)) {
+      return NextResponse.json(
+        { error: `Role 'moderator' is not permitted to perform '${action}'` },
+        { status: 403 },
+      )
+    }
+
+    // Nobody moderates (bans/demotes) an admin/superadmin account via this route.
+    if ((action === "ban" || action === "adjust_balance") && targetProfile.role && targetProfile.role !== "user") {
+      if (!(adminProfile.role === "superadmin" || adminProfile.role === "owner")) {
+        return NextResponse.json({ error: "Only superadmin can take this action on staff accounts" }, { status: 403 })
+      }
+    }
+
+    // Get IP for audit
+    const forwarded = headersList.get("x-forwarded-for")
+    const ipAddress = forwarded ? forwarded.split(",")[0].trim() : null
 
     // Perform action with correct column names
     let updateData: Record<string, unknown> = {}
@@ -75,31 +93,31 @@ export async function POST(request: Request) {
         }
         newData = updateData
 
-        const { data: pendingWithdrawals } = await supabase
+        // Auto-reject pending withdrawals WITH correct refunds. The shared
+        // helper flips each row under a status guard and refunds atomically
+        // (balance increment RPC + ledger row + total_withdrawn decrement).
+        // The old loop reused one stale balance read — with 2+ withdrawals all
+        // but the last refund were silently overwritten away.
+        const { data: pendingWithdrawals } = await adminDb
           .from("withdrawals")
-          .select("id, amount_satoshis")
+          .select("id, user_id, amount_satoshis")
           .eq("user_id", userId)
           .in("status", ["pending", "processing"])
 
-        if (pendingWithdrawals && pendingWithdrawals.length > 0) {
-          for (const withdrawal of pendingWithdrawals) {
-            await adminDb
-              .from("withdrawals")
-              .update({
-                status: "rejected",
-                review_notes: "Automatically rejected due to account ban",
-                reviewed_at: new Date().toISOString(),
-                reviewed_by: user.id,
-              })
-              .eq("id", withdrawal.id)
-
-            // Refund the amount
-            await adminDb
-              .from("profiles")
-              .update({
-                balance_satoshis: Number(targetProfile.balance_satoshis) + Number(withdrawal.amount_satoshis),
-              })
-              .eq("id", userId)
+        let refundedCount = 0
+        let skippedCount = 0
+        for (const withdrawal of pendingWithdrawals ?? []) {
+          const outcome = await rejectWithdrawalAndRefund({
+            withdrawalId: withdrawal.id,
+            userId,
+            amountSatoshis: withdrawal.amount_satoshis,
+            reviewNotes: "Automatically rejected due to account ban",
+            reviewedBy: user.id,
+          })
+          if (outcome.refunded) {
+            refundedCount++
+          } else {
+            skippedCount++ // e.g. ALREADY_PROCESSED by the payout worker
           }
         }
 
@@ -166,7 +184,14 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: "Amount required for balance adjustment" }, { status: 400 })
         }
         oldData = { balance_satoshis: targetProfile.balance_satoshis }
-        const newBalance = Math.max(0, Number(targetProfile.balance_satoshis) + amount)
+        const currentBalance = Number(targetProfile.balance_satoshis) || 0
+        const newBalance = currentBalance + amount
+        if (newBalance < 0) {
+          return NextResponse.json(
+            { error: `Debit of ${Math.abs(amount)} exceeds current balance ${currentBalance}` },
+            { status: 400 },
+          )
+        }
         updateData = { balance_satoshis: newBalance }
         newData = { balance_satoshis: newBalance, adjustment: amount }
 

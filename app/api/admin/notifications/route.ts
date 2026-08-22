@@ -86,25 +86,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    if (targetAudience === "all") {
-      const { data: users } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("status", "active")
+    // Page through profiles so broadcasts are NOT silently truncated at the
+    // PostgREST default 1000-row cap (the old code reported the truncated
+    // length as `sent`).
+    const PAGE_SIZE = 1000
 
-      if (!users || users.length === 0) {
-        return NextResponse.json({ error: "No active users found" }, { status: 404 })
+    async function collectRecipientIds(): Promise<string[]> {
+      const ids: string[] = []
+      let from = 0
+      for (;;) {
+        let q = supabase!.from("profiles").select("id").eq("status", "active").range(from, from + PAGE_SIZE - 1)
+        if (targetAudience === "active") {
+          const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+          q = q.gte("last_claim_at", dayAgo)
+        }
+        const { data, error } = await q
+        if (error) throw error
+        const page = data ?? []
+        ids.push(...page.map((u) => u.id))
+        if (page.length < PAGE_SIZE) break
+        from += PAGE_SIZE
+      }
+      return ids
+    }
+
+    if (targetAudience === "all" || targetAudience === "active") {
+      const userIds = await collectRecipientIds()
+
+      if (userIds.length === 0) {
+        return NextResponse.json(
+          { error: targetAudience === "active" ? "No active users in the last 24h" : "No active users found" },
+          { status: 404 },
+        )
       }
 
-      const { error } = await supabase.from("notifications").insert(
-        users.map((u) => ({ user_id: u.id, type, title, message, is_read: false })),
-      )
-      if (error) throw error
+      // Insert in chunks to stay within request-size limits.
+      const CHUNK = 500
+      for (let i = 0; i < userIds.length; i += CHUNK) {
+        const rows = userIds.slice(i, i + CHUNK).map((uid) => ({
+          user_id: uid, type, title, message, is_read: false,
+        }))
+        const { error } = await supabase!.from("notifications").insert(rows)
+        if (error) throw error
+      }
 
-      return NextResponse.json({ sent: users.length })
+      return NextResponse.json({ sent: userIds.length })
     } else if (targetAudience === "specific" && userId) {
-      const { error } = await supabase.from("notifications").insert({
-        user_id: userId, type, title, message, read: false,
+      // Column is is_read (the old code wrote a nonexistent `read` column and
+      // targeted sends always failed with a 500).
+      const { error } = await supabase!.from("notifications").insert({
+        user_id: userId, type, title, message, is_read: false,
       })
       if (error) throw error
       return NextResponse.json({ sent: 1 })
