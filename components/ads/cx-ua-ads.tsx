@@ -136,8 +136,13 @@ export function CxUaBanner({
   // c.cx.ua returns an EMPTY 200 when it has no campaign for this
   // domain/zone (e.g. referrer not matching the registered site, or no
   // active campaigns). When the iframe's final check finds no creative we
-  // collapse the whole banner instead of showing an empty white box.
+  // collapse the whole banner instead of showing an empty white box — BUT
+  // only if we never measured a real creative. Once something has rendered,
+  // a subsequent empty verdict (rotation gap between campaigns) must NOT
+  // unmount the banner: that unmount-remount cycle is exactly the
+  // "Sponsored appears then disappears" flash on the landing page.
   const [empty, setEmpty] = useState(false)
+  const everMeasuredRef = useRef(false)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
   useEffect(() => {
@@ -159,14 +164,17 @@ export function CxUaBanner({
       if (!data || typeof data !== "object") return
       if (data.__cxuaBanner !== true || data.token !== token) return
       if (data.empty === true) {
-        // Final verdict from the iframe: no creative was served.
-        setEmpty(true)
+        // Final verdict from the iframe: no creative served THIS load.
+        // Collapse only if we have never seen one — otherwise keep the last
+        // known-good banner instead of flashing away mid-session.
+        if (!everMeasuredRef.current) setEmpty(true)
         return
       }
       const h = Number(data.height)
       const w = Number(data.width)
       if (Number.isFinite(h) && h > 0 && Number.isFinite(w) && w > 0) {
         setEmpty(false)
+        everMeasuredRef.current = true
         setNatural({ width: Math.round(w), height: Math.round(h) })
       }
     }
@@ -221,7 +229,19 @@ export function CxUaBanner({
         var nh=img.naturalHeight||parseInt(img.getAttribute("height"),10)||0;
         if(nw>0&&nh>0){return {w:nw,h:nh}}
       }
-      // Non-image creative (HTML/iframe ad): fall back to its layout box.
+      // HTML/iframe creatives (shape B): the network's script builds its OWN
+      // nested iframe with explicit style.width/maxWidth + style.height.
+      // Read those DECLARED dimensions — the element's layout box may still
+      // be mid-layout (or clipped by our overflow:hidden) and measuring it
+      // produced bogus sizes that made the banner flash away.
+      var nested=document.querySelector("iframe:not([data-self])");
+      if(nested){
+        var st=nested.style;
+        var iw=parseInt(st.maxWidth,10)||parseInt(st.width,10)||0;
+        var ih=parseInt(st.height,10)||0;
+        if(iw>0&&ih>0){return {w:iw,h:ih}}
+      }
+      // Generic fallback: layout box of whatever visible creative exists.
       var el=creative();
       if(el){
         var r=el.getBoundingClientRect();
@@ -237,7 +257,7 @@ export function CxUaBanner({
       // anything wildly flatter or taller than that is treated as
       // "not ready yet" rather than locked in as the true size.
       var ratio=m.w/m.h;
-      return ratio>=0.2 && ratio<=12;
+      return ratio>=0.15 && ratio<=14;
     }
     function report(){
       try{
