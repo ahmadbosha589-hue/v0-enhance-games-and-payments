@@ -2,93 +2,91 @@
 <html>
 <head>
 <meta charset="utf-8">
-<!-- c.cx.ua validates the serve-request referrer against the registered site.
-     A sandboxed/srcdoc frame strips the referrer, so this SAME-ORIGIN static
-     page hosts the official one-line embed: the referrer is naturally
-     faucero.com/ads/cxua/banner.html and document.write runs during parse. -->
 <style>
   html,body{margin:0;padding:0;background:transparent;overflow:hidden}
   html,body{width:100%;height:100%}
   body{display:flex;align-items:center;justify-content:center}
   a{display:block;max-width:100%;max-height:100%}
   img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+  #status{position:fixed;top:0;left:0;right:0;background:#ff0;color:#000;font:bold 14px monospace;padding:6px;z-index:9999;text-align:left;display:none}
 </style>
 </head>
 <body>
-<div id="status" style="background:#ffff00;color:#000;font:bold 16px monospace;padding:8px;text-align:left">init…</div>
-<script>
-(function(){
-  var s=document.getElementById("status");
-  function st(t){s.textContent=t}
-  window.__st=st;
-})();
-</script>
+<div id="status">boot…</div>
 <script src="https://c.cx.ua/ad/serve/banner/32"></script>
 <script>
 (function(){
-  var params=new URLSearchParams(location.search);
-  var TOKEN=params.get("t")||"";
+  var st=document.getElementById("status");
+  function say(t){ if(st) st.textContent=t; try{ parent.postMessage({__cxuaStatus:t},"*"); }catch(e){} }
+  try{
+    var params=new URLSearchParams(location.search);
+    var TOKEN=params.get("t")||"";
+    var DEBUG=params.get("debug")==="1";
+    if(DEBUG){ st.style.display="block"; }
 
-  function creative(){
-    return document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
-  }
-  function measure(){
-    var img=document.querySelector("img");
-    if(img){
-      var nw=img.naturalWidth||parseInt(img.getAttribute("width"),10)||0;
-      var nh=img.naturalHeight||parseInt(img.getAttribute("height"),10)||0;
-      if(nw>0&&nh>0){return {w:nw,h:nh}}
+    function creative(){
+      return document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
     }
-    var nested=document.querySelector("iframe:not([data-self])");
-    if(nested){
-      var st=nested.style;
-      var iw=parseInt(st.maxWidth,10)||parseInt(st.width,10)||0;
-      var ih=parseInt(st.height,10)||0;
-      if(iw>0&&ih>0){return {w:iw,h:ih}}
+    function measure(){
+      var img=document.querySelector("img");
+      if(img){
+        var nw=img.naturalWidth||parseInt(img.getAttribute("width"),10)||0;
+        var nh=img.naturalHeight||parseInt(img.getAttribute("height"),10)||0;
+        if(nw>0&&nh>0){return {w:nw,h:nh}}
+      }
+      var nested=document.querySelector("iframe:not([data-self])");
+      if(nested){
+        var s2=nested.style;
+        var iw=parseInt(s2.maxWidth,10)||parseInt(s2.width,10)||0;
+        var ih=parseInt(s2.height,10)||0;
+        if(iw>0&&ih>0){return {w:iw,h:ih}}
+      }
+      var el=creative();
+      if(el){
+        var r=el.getBoundingClientRect();
+        if(r.width>0&&r.height>0){return {w:r.width,h:r.height}}
+      }
+      return null;
     }
-    var el=creative();
-    if(el){
-      var r=el.getBoundingClientRect();
-      if(r.width>0&&r.height>0){return {w:r.width,h:r.height}}
+    function plausible(m){
+      var ratio=m.w/m.h;
+      return ratio>=0.15 && ratio<=14;
     }
-    return null;
-  }
-  function plausible(m){
-    var ratio=m.w/m.h;
-    return ratio>=0.15 && ratio<=14;
-  }
-  function report(){
-    try{
-      var m=measure();
-      if(!m){return}
-      if(!plausible(m)){return}
-      parent.postMessage({__cxuaBanner:true,token:TOKEN,width:m.w,height:m.h},"*");
-    }catch(e){}
-  }
-  function domHasCreative(){
-    return !!document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
-  }
-
-  function finalCheck(){
-    try{
-      var m=measure();
-      if(m&&plausible(m)){report();return}
-      if(domHasCreative()){setTimeout(finalCheck,1500);return}
-      parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
-    }catch(e){}
-  }
-  if(document.readyState!=="loading")report();
-  window.addEventListener("load",report);
-  var imgs=document.images||[];
-  for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
-  setTimeout(report,300);setTimeout(report,1200);setTimeout(report,2000);
-  setTimeout(finalCheck,4000);
-  setInterval(function(){
-    var m=(function(){try{return measure()}catch(e){return null}})();
-    var el=document.querySelector("a[href],img,iframe:not([data-self])");
-    if(window.__st) window.__st("creative="+(el?el.tagName:"NONE")+" measured="+(m?m.w+"x"+m.h:"-")+" ref="+(document.referrer||"none"));
-  },500);
+    function report(){
+      try{
+        var m=measure();
+        if(!m){return}
+        if(!plausible(m)){return}
+        say("ok "+m.w+"x"+m.h);
+        parent.postMessage({__cxuaBanner:true,token:TOKEN,width:m.w,height:m.h},"*");
+      }catch(e){ say("report-err "+e); }
+    }
+    function domHasCreative(){
+      return !!document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
+    }
+    function finalCheck(){
+      try{
+        var m=measure();
+        if(m&&plausible(m)){report();return}
+        if(domHasCreative()){setTimeout(finalCheck,1500);return}
+        say("empty ref="+(document.referrer||"none"));
+        parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
+      }catch(e){ say("final-err "+e); }
+    }
+    if(document.readyState!=="loading")report();
+    window.addEventListener("load",report);
+    var imgs=document.images||[];
+    for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
+    setTimeout(report,300);setTimeout(report,1200);setTimeout(report,2000);
+    setTimeout(finalCheck,4000);
+    setInterval(function(){
+      if(!DEBUG) return;
+      var m=null; try{m=measure()}catch(e){}
+      var el=creative();
+      say("live creative="+(el?el.tagName:"NONE")+" measured="+(m?m.w+"x"+m.h:"-")+" ref="+(document.referrer||"none"));
+    },600);
+  }catch(e){ say("FATAL "+e); }
 })();
-<\/script>
+</script>
 </body>
 </html>
