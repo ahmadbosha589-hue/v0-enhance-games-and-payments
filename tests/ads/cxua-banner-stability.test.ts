@@ -24,6 +24,19 @@ describe("c.cx.ua banner stability (no appear/disappear flash)", () => {
     expect(src).toContain("ratio>=0.15 && ratio<=14")
   })
 
+  it("late-loading creatives are never declared empty — re-checks while a creative element exists", () => {
+    const src = read("components/ads/cx-ua-ads.tsx")
+    // re-check loop instead of instant collapse
+    expect(src).toContain("domHasCreative")
+    expect(src).toContain("setTimeout(finalCheck,1500)")
+    // empty is only declared when the DOM has NO creative element at all
+    const finalCheckIdx = src.indexOf("function finalCheck()")
+    const emptyIdx = src.indexOf('empty:true}', finalCheckIdx)
+    const domIdx = src.lastIndexOf("domHasCreative()", emptyIdx)
+    expect(emptyIdx).toBeGreaterThan(finalCheckIdx)
+    expect(domIdx).toBeGreaterThan(finalCheckIdx)
+  })
+
   it("public layer chrome stays gated on real visibility (no empty Sponsored box)", () => {
     const src = read("components/ads/public-ads-layer.tsx")
     expect(src).toContain("onVisibilityChange={setAdVisible}")

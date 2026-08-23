@@ -268,18 +268,28 @@ export function CxUaBanner({
         parent.postMessage({__cxuaBanner:true,token:TOKEN,width:m.w,height:m.h},"*");
       }catch(e){}
     }
+    function domHasCreative(){
+      // ANY creative-ish element present at all (even mid-load). The network's
+      // HTML banners build their own nested iframe; its srcdoc may still be
+      // parsing when we check. If the element exists, the slot is NOT empty —
+      // it just hasn't finished rendering, so keep waiting instead of
+      // collapsing (which caused the visible appear/disappear flash).
+      return !!document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
+    }
     function finalCheck(){
-      // After all retries: if nothing was written, or what's there never
-      // settled into a plausible ad shape, tell the parent to collapse
-      // the slot (c.cx.ua returns an empty 200 when it has no campaign
-      // for this site/zone).
+      // After all retries: collapse ONLY when nothing was written at all
+      // (c.cx.ua returns an empty 200 when it has no campaign for this
+      // site/zone). A present-but-slow creative never counts as empty here;
+      // report() keeps firing from image/load listeners once it renders.
       try{
         var m=measure();
-        if(!m||!plausible(m)){
-          parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
-        }else{
-          report();
+        if(m&&plausible(m)){report();return}
+        if(domHasCreative()){
+          // Creative exists but isn't measurable yet — re-check shortly.
+          setTimeout(finalCheck,1500);
+          return;
         }
+        parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
       }catch(e){}
     }
     // Report after initial parse, after full load, after each image loads,
