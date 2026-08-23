@@ -21,14 +21,21 @@
   var params=new URLSearchParams(location.search);
   var TOKEN=params.get("t")||"";
   var DEBUG=params.get("debug")==="1";
+  var dbgLines=[];
   function dbg(msg){
     if(!DEBUG) return;
     try{
       parent.postMessage({__cxuaBanner:true,token:TOKEN,debug:true,msg:msg},"*");
-      var d=document.createElement("div");
-      d.style.cssText="position:fixed;top:0;left:0;background:#000;color:#0f0;font:10px monospace;padding:2px;z-index:9999";
-      d.textContent=msg;
-      document.body.appendChild(d);
+      dbgLines.push(msg);
+      var d=document.getElementById("dbg");
+      if(!d){
+        d=document.createElement("div");
+        d.id="dbg";
+        d.style.cssText="background:#000;color:#0f0;font:12px monospace;padding:4px;white-space:pre-wrap";
+        document.body.appendChild(d);
+      }
+      d.textContent=dbgLines.join("\n");
+      document.title="DBG "+dbgLines.join(" | ");
     }catch(e){}
   }
   function creative(){
