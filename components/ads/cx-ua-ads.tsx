@@ -6,6 +6,7 @@ import { Megaphone } from "lucide-react"
 import {
   getBannerScriptUrl,
   getBannerZoneId,
+  getPopupParams,
   getPopupScriptUrl,
   getPopupZoneId,
   CXUA_ORIGIN,
@@ -448,9 +449,17 @@ export function CxUaPopupLoader({
     )
     if (existing) return
 
-    const src = params
-      ? getPopupScriptUrl(zone, params)
-      : getPopupScriptUrl(zone)
+    // Reputation guard: the t=1 panel mode redirects the CURRENT tab to the
+    // ad offer — behavior that reputation scanners (GridinSoft et al.)
+    // classify as a browser hijacker and that tanks the domain's trust
+    // score. Same-tab redirects are therefore hard-disabled at the component
+    // level; only new-tab popunder modes are allowed through.
+    const effectiveParams = params || getPopupParams()
+    if (/(^|&)t=1(&|$)/.test(effectiveParams)) {
+      console.warn("[cxua] popup zone uses same-tab redirect mode (t=1); refused to load")
+      return
+    }
+    const src = getPopupScriptUrl(zone, effectiveParams)
 
     const s = document.createElement("script")
     s.src = src

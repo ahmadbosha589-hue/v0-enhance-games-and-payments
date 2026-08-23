@@ -106,7 +106,7 @@ export default async function DashboardLayout({
                   Mounted on every dashboard page so logged-in users get
                   the partner banner and self-throttled popup, but NOT
                   shown in the admin panel (which never mounts this). */}
-              <PublicAdsLayer />
+              <PublicAdsLayer disablePopup />
             </SidebarInset>
           </AdblockProvider>
         </AntiBotProvider>

@@ -17,7 +17,7 @@ export default function AuthLayout({
       {children}
       {/* c.cx.ua partner banner + popup redirect on every auth surface
           (login, sign-up, verify-email, etc.). Admin panel is excluded. */}
-      <PublicAdsLayer />
+      <PublicAdsLayer disablePopup />
     </>
   )
 }
