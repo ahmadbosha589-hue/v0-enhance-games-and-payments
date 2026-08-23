@@ -6,6 +6,7 @@ import { X } from "lucide-react"
 import { CxUaBanner, CxUaPopupLoader } from "@/components/ads/cx-ua-ads"
 import { cn } from "@/lib/utils"
 import { useAdConsent } from "@/lib/hooks/use-ad-consent"
+import { useConsentDecision } from "@/lib/hooks/use-consent-decision"
 
 /**
  * PublicAdsLayer
@@ -42,6 +43,7 @@ export interface PublicAdsLayerProps {
 export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {}) {
   const pathname = usePathname()
   const hasMarketingConsent = useAdConsent()
+  const { decided, marketing } = useConsentDecision()
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const [mounted, setMounted] = useState(false)
   // Whether CxUaBanner has actually measured and is rendering a real
@@ -72,7 +74,35 @@ export function PublicAdsLayer({ disablePopup = false }: PublicAdsLayerProps = {
     setBannerDismissed(true)
   }
 
-  if (!hasMarketingConsent) return null
+  // Decided AGAINST marketing ads: show a one-line explainer instead of
+  // silently rendering nothing. Visitors (and the operator testing the site)
+  // otherwise have no way to tell "ads are off for you" from "the banner is
+  // broken" — which is exactly the confusion this component's history caused.
+  // Undecided visitors get the consent banner instead; DNT stays silent.
+  const dnt =
+    typeof window !== "undefined" &&
+    ((window as unknown as { doNotTrack?: string }).doNotTrack === "1" ||
+      (navigator as unknown as { doNotTrack?: string }).doNotTrack === "1")
+
+  if (!hasMarketingConsent) {
+    if (!mounted || dnt) return null
+    if (decided && marketing === false) {
+      return (
+        <div
+          className="fixed bottom-0 inset-x-0 z-40 flex justify-center px-2 pb-2 sm:px-3 sm:pb-3 pointer-events-none"
+          aria-label="Partner ads disabled"
+        >
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background/95 backdrop-blur-sm px-3 py-1.5 text-[11px] text-muted-foreground shadow-sm">
+            <span>Partner ads are turned off in your cookie choices.</span>
+            <a href="/cookies" className="font-medium text-primary hover:underline">
+              Enable
+            </a>
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
 
   return (
     <>
