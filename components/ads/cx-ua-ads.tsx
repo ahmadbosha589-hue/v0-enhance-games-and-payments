@@ -46,6 +46,12 @@ import { useAdConsent } from "@/lib/hooks/use-ad-consent"
  * allow-popups-to-escape-sandbox" — no allow-same-origin — so the ad
  * script runs in an opaque origin with zero access to our cookies/DOM,
  * while click-through (target=_blank) still works.
+ *
+ * Referrer: c.cx.ua validates the serve-request referrer against the
+ * registered site and returns an EMPTY response without one. A sandboxed
+ * srcdoc iframe strips the referrer for cross-origin subresources under the
+ * default policy, so the iframe sets referrerPolicy="origin" to send the
+ * site origin explicitly.
  */
 
 // IAB standard leaderboard — matches the size configured in the c.cx.ua
@@ -382,7 +388,7 @@ export function CxUaBanner({
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             scrolling="no"
             loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
+            referrerPolicy="origin"
             className="w-full border-0 block"
             style={{
               // Width comes from the parent (w-full, capped at the
