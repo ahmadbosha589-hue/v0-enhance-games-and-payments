@@ -15,6 +15,14 @@
 </style>
 </head>
 <body>
+<div id="status" style="background:#ffff00;color:#000;font:bold 16px monospace;padding:8px;text-align:left">init…</div>
+<script>
+(function(){
+  var s=document.getElementById("status");
+  function st(t){s.textContent=t}
+  window.__st=st;
+})();
+</script>
 <script src="https://c.cx.ua/ad/serve/banner/32"></script>
 <script>
 (function(){
@@ -75,6 +83,11 @@
   for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
   setTimeout(report,300);setTimeout(report,1200);setTimeout(report,2000);
   setTimeout(finalCheck,4000);
+  setInterval(function(){
+    var m=(function(){try{return measure()}catch(e){return null}})();
+    var el=document.querySelector("a[href],img,iframe:not([data-self])");
+    if(window.__st) window.__st("creative="+(el?el.tagName:"NONE")+" measured="+(m?m.w+"x"+m.h:"-")+" ref="+(document.referrer||"none"));
+  },500);
 })();
 <\/script>
 </body>
