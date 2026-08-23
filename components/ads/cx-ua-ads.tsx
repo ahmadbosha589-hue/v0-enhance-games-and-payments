@@ -170,6 +170,15 @@ export function CxUaBanner({
       const data = e.data
       if (!data || typeof data !== "object") return
       if (data.__cxuaBanner !== true || data.token !== token) return
+      if ((data as { debug?: boolean }).debug === true) {
+        // Temporary diagnostics — remove after banner investigation.
+        if (typeof window !== "undefined") {
+          (window as unknown as { __cxuaDebug?: string[] }).__cxuaDebug =
+            (window as unknown as { __cxuaDebug?: string[] }).__cxuaDebug || []
+          ;(window as unknown as { __cxuaDebug?: string[] }).__cxuaDebug!.push(String((data as { msg?: unknown }).msg))
+        }
+        return
+      }
       if (data.empty === true) {
         // Final verdict from the iframe: no creative served THIS load.
         // Collapse only if we have never seen one — otherwise keep the last
