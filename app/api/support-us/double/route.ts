@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies, headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { log } from "@/lib/logger"
+import { isRewardedAdsEnabled } from "@/lib/rewards/rewarded-ads"
+import { verifyWatchToken } from "@/lib/rewards/watch-session"
 
 // Triple-reward bonus: base $0.0003 + bonus $0.0006 = $0.0009 total per session.
 // This endpoint sends ONLY the bonus ($0.0006) after the user watches the
@@ -106,16 +108,15 @@ async function sendFaucetPayPayment(
   }
 }
 
-const SUPPORT_REWARDED_ADS_ENABLED = false
-
 export async function POST(request: NextRequest) {
-  if (!SUPPORT_REWARDED_ADS_ENABLED) {
+  // Config-gated on a real rewarded-ad provider (same gate as bonus rewards).
+  if (!isRewardedAdsEnabled()) {
     return NextResponse.json({ error: "Verified support-ad sessions are not enabled" }, { status: 503 })
   }
 
   try {
     const body = await request.json()
-    const { adsWatched = 0 } = body
+    const { adsWatched = 0, watchToken } = body
 
     // Get user from session directly
     const cookieStore = await cookies()
@@ -158,6 +159,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: `Please watch all ${ADS_PER_SESSION} ads to claim double reward` },
         { status: 400 }
+      )
+    }
+
+    // Provider-verified proof: the S2S callback must have minted a claim token
+    // for this user. Client-side "adsWatched" counts alone never pay.
+    if (!watchToken || typeof watchToken !== "string") {
+      return NextResponse.json(
+        { error: "Missing verified ad session — watch the rewarded ads first" },
+        { status: 400 },
+      )
+    }
+    try {
+      verifyWatchToken(watchToken, {
+        kind: "rewarded-ad",
+        userId: user.id,
+        resourceId: "*",
+      })
+    } catch {
+      return NextResponse.json(
+        { error: "Ad session is invalid or expired — rewatch the ads" },
+        { status: 400 },
       )
     }
 

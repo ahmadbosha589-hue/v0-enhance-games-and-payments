@@ -11,6 +11,7 @@ import confetti from "canvas-confetti"
 import { cn } from "@/lib/utils"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { isRewardedAdsEnabledClient } from "@/lib/rewards/rewarded-ads"
+import { RewardedAdUnit } from "@/components/ads/rewarded-ad-unit"
 
 export type BonusRewardType =
   | "shortlink_double"     // After completing shortlink - 2x reward
@@ -105,9 +106,7 @@ export function WatchAdBonusReward({
   className
 }: WatchAdBonusRewardProps) {
   const [showModal, setShowModal] = useState(false)
-  const [adProgress, setAdProgress] = useState<number[]>([0, 0, 0])
-  const [adStatus, setAdStatus] = useState<("pending" | "playing" | "completed")[]>(["pending", "pending", "pending"])
-  const [timeRemaining, setTimeRemaining] = useState([60, 60, 60])
+  const [verifiedTokens, setVerifiedTokens] = useState<string[]>([])
   const [allCompleted, setAllCompleted] = useState(false)
   const [isClaiming, setIsClaiming] = useState(false)
 
@@ -116,31 +115,9 @@ export function WatchAdBonusReward({
   const totalAmount = Math.floor(baseAmount * multiplier)
   const Icon = config.icon
 
-  // Run all 3 ads simultaneously
-  useEffect(() => {
-    if (!showModal || allCompleted) return
-
-    const interval = setInterval(() => {
-      setTimeRemaining(prev => {
-        const newTimes = prev.map(t => Math.max(0, t - 1))
-        setAdProgress(newTimes.map(t => ((60 - t) / 60) * 100))
-        setAdStatus(newTimes.map(t => t === 0 ? "completed" : "playing"))
-
-        if (newTimes.every(t => t === 0)) {
-          setAllCompleted(true)
-        }
-        return newTimes
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [showModal, allCompleted])
-
   const startAds = useCallback(() => {
     setShowModal(true)
-    setAdStatus(["playing", "playing", "playing"])
-    setAdProgress([0, 0, 0])
-    setTimeRemaining([60, 60, 60])
+    setVerifiedTokens([])
     setAllCompleted(false)
   }, [])
 
@@ -154,9 +131,7 @@ export function WatchAdBonusReward({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          baseAmount,
-          multiplier,
-          cryptoSymbol
+          watchToken: verifiedTokens[0],
         })
       })
 
@@ -272,66 +247,33 @@ export function WatchAdBonusReward({
                 </p>
               </div>
 
-              {/* 3 Ad Slots Running Simultaneously — sized as 300x250 medium
-                  rectangles on desktop (standard ad network creative size)
-                  and 320x250 banners on mobile so the ad fills the column. */}
+              {/* 3 verified rewarded-ad units. Each unit only completes when
+                  the provider's server-to-server callback confirms the view and
+                  mints a single-use claim token — client timers never unlock
+                  rewards on their own. The bonus pays once, on the first
+                  verified token (server-enforced via the event ledger). */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
                 {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "relative rounded-xl border p-3 sm:p-4 transition-all",
-                      adStatus[i] === "completed" && "bg-green-500/10 border-green-500/30",
-                      adStatus[i] === "playing" && "bg-red-500/5 border-red-500/30 animate-pulse",
-                      adStatus[i] === "pending" && "bg-muted/30"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs sm:text-sm font-medium">Ad #{i + 1}</span>
-                      {adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
-                      ) : (
-                        <div className="flex items-center gap-1 text-red-500">
-                          <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
-                          <span className="text-xs sm:text-sm font-mono">{timeRemaining[i]}s</span>
-                        </div>
-                      )}
-                    </div>
-                    <Progress value={adProgress[i]} className="h-1.5 sm:h-2" />
-
-                    {/* Ad Content Placeholder — sized for real impressions:
-                        ≥250px on mobile, ≥280px tablet, ≥320px desktop. */}
-                    <div
-                      className="mt-3 min-h-[250px] sm:min-h-[280px] lg:min-h-[320px] bg-muted/50 rounded-lg flex items-center justify-center border border-dashed"
-                      data-ad-slot={`bonus-reward-${type}-${i}`}
-                    >
-                      {adStatus[i] === "playing" ? (
-                        <div className="text-center px-2">
-                          <Play className="h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 mx-auto text-muted-foreground/50 animate-pulse" />
-                          <span className="text-[10px] sm:text-xs text-muted-foreground block mt-1">Ad playing...</span>
-                          <span className="text-[10px] sm:text-xs text-muted-foreground/60 block">300 × 250</span>
-                        </div>
-                      ) : adStatus[i] === "completed" ? (
-                        <CheckCircle className="h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 text-green-500" />
-                      ) : (
-                        <span className="text-[10px] sm:text-xs text-muted-foreground">Ready</span>
-                      )}
-                    </div>
-                  </div>
+                  <RewardedAdUnit
+                    key={`${type}-${i}`}
+                    index={i}
+                    seconds={20}
+                    onVerified={(token) => {
+                      setVerifiedTokens(prev => {
+                        const next = prev.includes(token) ? prev : [...prev, token]
+                        if (!allCompleted) setAllCompleted(true)
+                        return next
+                      })
+                    }}
+                  />
                 ))}
               </div>
 
-              {/* Overall Progress */}
+              {/* Status */}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                <div className="flex-1">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span>Overall Progress</span>
-                    <span>{adStatus.filter(s => s === "completed").length}/3 completed</span>
-                  </div>
-                  <Progress
-                    value={(adStatus.filter(s => s === "completed").length / 3) * 100}
-                    className="h-2"
-                  />
+                <div className="flex-1 text-xs text-muted-foreground">
+                  Watch an ad until it verifies, then claim your bonus. Rewards pay
+                  once per verified view.
                 </div>
                 {allCompleted && (
                   <Badge className="bg-green-500 text-white animate-pulse">

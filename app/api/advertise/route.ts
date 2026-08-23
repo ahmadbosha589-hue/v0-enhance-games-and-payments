@@ -7,16 +7,19 @@ import { isSafeTargetUrl } from "@/lib/ads/safe-target-url"
 import { validateCreativeUrl } from "@/lib/ads/campaign-contract"
 
 // Ad Networks supported
+// Real self-serve networks the platform can genuinely deliver advertiser
+// campaigns through (same list as the advertise page UI). Budgets/CPMs mirror
+// each network's published minimums.
 const AD_NETWORKS = {
-  "google-ads": { name: "Google Ads", minBudget: 10, cpm: 2.5 },
-  "facebook-ads": { name: "Facebook Ads", minBudget: 5, cpm: 3.0 },
-  "tiktok-ads": { name: "TikTok Ads", minBudget: 20, cpm: 2.0 },
-  "twitter-ads": { name: "Twitter/X Ads", minBudget: 10, cpm: 4.0 },
-  "banner-network": { name: "Banner Network", minBudget: 5, cpm: 1.5 },
-  "native-ads": { name: "Native Ads", minBudget: 10, cpm: 2.8 },
-  "push-notifications": { name: "Push Notifications", minBudget: 5, cpm: 0.5 },
-  "popup-ads": { name: "Popup Ads", minBudget: 5, cpm: 1.0 },
-  "crypto-ads": { name: "Crypto Ad Inventory (first-party review required)", minBudget: 25, cpm: 2.0 },
+  "adsterra": { name: "Adsterra", minBudget: 25, cpm: 0.80 },
+  "propellerads": { name: "PropellerAds", minBudget: 100, cpm: 0.50 },
+  "hilltopads": { name: "HilltopAds", minBudget: 20, cpm: 0.45 },
+  "coinzilla": { name: "Coinzilla", minBudget: 50, cpm: 2.00 },
+  "bitmedia": { name: "Bitmedia", minBudget: 50, cpm: 1.50 },
+  "a-ads": { name: "A-ADS", minBudget: 5, cpm: 0.30 },
+  "cointraffic": { name: "Cointraffic", minBudget: 100, cpm: 2.50 },
+  "trafficstars": { name: "TrafficStars", minBudget: 20, cpm: 0.40 },
+  "mellowads": { name: "MellowAds", minBudget: 10, cpm: 0.25 },
 }
 
 const DEFAULT_TARGETING = {
