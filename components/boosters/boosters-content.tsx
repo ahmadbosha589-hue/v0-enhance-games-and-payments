@@ -199,9 +199,14 @@ function BoosterTierCard({
         {/* Price */}
         <div className="text-center py-3 sm:py-4 rounded-xl bg-muted/50">
           <p className="text-3xl sm:text-4xl font-bold">${tier.price_usd}</p>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            or {tier.price_satoshis.toLocaleString()} sats
-          </p>
+          {tier.price_satoshis > 0 && (
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              ≈ {(tier.price_satoshis / 100_000_000).toFixed(8)} BTC
+              <span className="block text-[10px] mt-0.5" title="Satoshi amount is calculated at the live BTC/USD rate at purchase time and may vary slightly.">
+                Live-rate pricing
+              </span>
+            </p>
+          )}
         </div>
 
         {/* Bonuses */}
@@ -469,7 +474,14 @@ function PurchaseDialog({
             <div className="border-t pt-2 mt-2">
               <div className="flex justify-between font-bold">
                 <span>Total</span>
-                <span>${tier.price_usd} / {tier.price_satoshis.toLocaleString()} sats</span>
+                <span>
+                  ${tier.price_usd}
+                  {tier.price_satoshis > 0 && (
+                    <span className="block text-right text-xs font-normal text-muted-foreground">
+                      ≈ {(tier.price_satoshis / 100_000_000).toFixed(8)} BTC at live rate
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
           </div>
@@ -496,7 +508,7 @@ function PurchaseDialog({
                   </div>
                   {!hasEnoughSatoshis && (
                     <p className="text-xs text-red-500 mt-1">
-                      Insufficient balance (need {tier.price_satoshis.toLocaleString()})
+                      Insufficient balance (need {(tier.price_satoshis / 100_000_000).toFixed(8)} BTC ≈ {tier.price_satoshis.toLocaleString()} sats)
                     </p>
                   )}
                 </Label>
@@ -574,7 +586,7 @@ function PurchaseDialog({
             ) : paymentMethod === "faucetpay" ? (
               <>
                 <Coins className="h-4 w-4 mr-2" />
-                Pay {tier.price_satoshis.toLocaleString()} sats
+                Pay ${(tier.price_satoshis / 100_000_000).toFixed(8)} BTC
               </>
             ) : (
               <>

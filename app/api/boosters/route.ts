@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { decimalToBaseUnits, getWalletPaymentConfig } from "@/lib/wallet/evm-payment"
+import { usdToSatoshis } from "@/lib/pricing/crypto-rates"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +34,27 @@ export async function GET(request: Request) {
         tiers: getDefaultTiers(),
         activeBooster: null,
       })
+    }
+
+    // Live BTC pricing: the stored price_satoshis is a stale snapshot (5,000
+    // sats was worth $5 when BTC was ~$100k; it drifts every day). Recompute
+    // every tier's satoshi price from price_usd at the CURRENT BTC/USD rate.
+    let pricingMeta: { btcUsd: number; rateFetchedAt: string } | null = null
+    if (tiers && tiers.length > 0) {
+      try {
+        const first = await usdToSatoshis(Number(tiers[0].price_usd))
+        pricingMeta = { btcUsd: first.btcUsd, rateFetchedAt: first.rateFetchedAt }
+        tiers.forEach((t) => {
+          t.price_satoshis = Math.floor((Number(t.price_usd) / first.btcUsd) * 100_000_000)
+        })
+      } catch (e) {
+        console.error("Live BTC pricing unavailable:", e)
+        // Refuse to serve stale prices rather than mischarging users.
+        return NextResponse.json({
+          error: "Pricing temporarily unavailable — live BTC rate could not be fetched",
+          code: "RATE_UNAVAILABLE",
+        }, { status: 503 })
+      }
     }
 
     // Get user's active booster if logged in
@@ -102,6 +124,7 @@ export async function GET(request: Request) {
       tiers: tiers || getDefaultTiers(),
       activeBooster,
       orderStatus,
+      pricing: pricingMeta,
       paymentMethods: {
         faucetpay: true,
         ccpayment: ccpaymentEnabled,
@@ -229,14 +252,25 @@ export async function POST(request: Request) {
 
     switch (paymentMethod) {
       case "faucetpay": {
-        // FaucetPay payment - requires user's satoshi balance
+        // FaucetPay payment - requires user's satoshi balance.
+        // The charge is computed at the LIVE BTC/USD rate at purchase time —
+        // the stored price_satoshis is only a cached display hint.
+        let liveRate: number
+        try {
+          liveRate = (await usdToSatoshis(tierData.price_usd)).btcUsd
+        } catch {
+          return NextResponse.json({
+            error: "Pricing temporarily unavailable — live BTC rate could not be fetched",
+            code: "RATE_UNAVAILABLE",
+          }, { status: 503 })
+        }
+        const requiredSatoshis = Math.floor((Number(tierData.price_usd) / liveRate) * 100_000_000)
+
         const { data: profile } = await adminSupabase
           .from("profiles")
           .select("balance_satoshis")
           .eq("id", user.id)
           .single()
-
-        const requiredSatoshis = tierData.price_satoshis
         const currentBalance = Number(profile?.balance_satoshis || 0)
 
         if (currentBalance < requiredSatoshis) {
@@ -252,12 +286,13 @@ export async function POST(request: Request) {
         // booster in one locked database transaction. The old read/update/insert
         // sequence could double-spend under concurrent requests.
         const { data: purchaseResult, error: purchaseError } = await adminSupabase.rpc(
-          "purchase_booster_with_balance",
+          "purchase_booster_with_balance_at_price",
           {
             p_user_id: user.id,
             p_booster_tier_id: tierData.id,
             p_payment_method: paymentMethod,
             p_payment_reference: orderId,
+            p_price_satoshis: requiredSatoshis,
           },
         )
 
