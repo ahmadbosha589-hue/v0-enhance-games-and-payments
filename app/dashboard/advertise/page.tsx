@@ -25,6 +25,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -75,7 +76,8 @@ import {
   Rocket,
   Award,
   PieChart
-} from "lucide-react"
+,
+  Coins } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from "swr"
 import { cn } from "@/lib/utils"
@@ -255,6 +257,8 @@ export default function AdvertisePage() {
   const [depositAmount, setDepositAmount] = useState("")
   const [depositCoin, setDepositCoin] = useState("USDT")
   const [isDepositing, setIsDepositing] = useState(false)
+  const [fpDepositAmount, setFpDepositAmount] = useState("")
+  const [isFpDepositing, setIsFpDepositing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [depositAddress, setDepositAddress] = useState<string | null>(null)
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null)
@@ -362,6 +366,74 @@ export default function AdvertisePage() {
       toast.error("Failed to create deposit")
     } finally {
       setIsDepositing(false)
+    }
+  }
+
+  // Deposit advertising funds directly from the user's on-platform satoshi
+  // balance via FaucetPay. The satoshis leave their earning balance and are
+  // credited to ad_balance_usd at the live BTC/USD rate.
+  const handleFaucetPayDeposit = async () => {
+    const amount = parseFloat(fpDepositAmount)
+    if (!amount || amount < 5) {
+      toast.error("Minimum deposit is $5")
+      return
+    }
+
+    setIsFpDepositing(true)
+    try {
+      const response = await fetch("/api/advertise/deposit-faucetpay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(`${amount.toFixed(2)} USD credited to your advertising balance!`, {
+          description: `Charged ${data.satoshisCharged?.toLocaleString()} satoshis at the live BTC rate ($${data.btcUsd?.toLocaleString()})`,
+        })
+        setFpDepositAmount("")
+        refreshBalance()
+      } else {
+        toast.error(data.error || "Deposit failed")
+      }
+    } catch {
+      toast.error("Deposit failed")
+    } finally {
+      setIsFpDepositing(false)
+    }
+  }
+
+  // Withdraw unused advertising balance to FaucetPay (USDT, 1:1 USD).
+  const [cashoutAmount, setCashoutAmount] = useState("")
+  const [isCashingOut, setIsCashingOut] = useState(false)
+  const handleCashout = async () => {
+    const amount = parseFloat(cashoutAmount)
+    if (!amount || amount < 1) {
+      toast.error("Minimum withdrawal is $1")
+      return
+    }
+
+    setIsCashingOut(true)
+    try {
+      const response = await fetch("/api/advertise/cashout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(data.message || "Withdrawal sent!")
+        setCashoutAmount("")
+        refreshBalance()
+      } else {
+        toast.error(data.error || "Withdrawal failed")
+      }
+    } catch {
+      toast.error("Withdrawal failed")
+    } finally {
+      setIsCashingOut(false)
     }
   }
 
@@ -624,6 +696,44 @@ export default function AdvertisePage() {
                   </>
                 )}
 
+                {/* Pay from Site Balance (FaucetPay satoshis) */}
+                <div className="pt-4 border-t space-y-3">
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Coins className="h-4 w-4 text-primary" />
+                      Or pay from your site balance
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Instantly convert satoshis from your earning balance to advertising credit at the live BTC rate. No waiting for confirmations.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="USD amount (min $5)"
+                      value={fpDepositAmount}
+                      onChange={(e) => setFpDepositAmount(e.target.value)}
+                      min="5"
+                      step="0.01"
+                      className="font-mono"
+                    />
+                    <Button
+                      onClick={handleFaucetPayDeposit}
+                      disabled={isFpDepositing || !fpDepositAmount || parseFloat(fpDepositAmount) < 5}
+                      className="shrink-0"
+                    >
+                      {isFpDepositing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Processing…
+                        </>
+                      ) : (
+                        "Credit Now"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Recent Deposits */}
                 {deposits.length > 0 && !depositAddress && (
                   <div className="space-y-2 pt-4 border-t">
@@ -659,6 +769,63 @@ export default function AdvertisePage() {
               </div>
             </DialogContent>
           </Dialog>
+
+        {/* Withdraw unused advertising balance to FaucetPay */}
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Withdraw
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Withdraw Ad Balance
+              </DialogTitle>
+              <DialogDescription>
+                Send unused advertising credit to your FaucetPay account as USDT (1 USD = 1 USDT).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="p-3 rounded-lg bg-muted/50 text-sm flex justify-between">
+                <span className="text-muted-foreground">Available</span>
+                <span className="font-bold">${(balance || 0).toFixed(2)}</span>
+              </div>
+              <div className="space-y-2">
+                <Label>Amount (USD)</Label>
+                <Input
+                  type="number"
+                  placeholder="Minimum $1"
+                  value={cashoutAmount}
+                  onChange={(e) => setCashoutAmount(e.target.value)}
+                  min="1"
+                  step="0.01"
+                  className="font-mono"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Paid instantly to your linked FaucetPay email as USDT.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={handleCashout}
+                disabled={isCashingOut || !cashoutAmount || parseFloat(cashoutAmount) < 1 || (balance || 0) < parseFloat(cashoutAmount || "0")}
+              >
+                {isCashingOut ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending…
+                  </>
+                ) : (
+                  "Withdraw to FaucetPay"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
