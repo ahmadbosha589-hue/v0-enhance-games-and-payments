@@ -459,8 +459,10 @@ function PurchaseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[90dvh] flex flex-col overflow-hidden p-0 gap-0">
+        {/* Scrollable body */}
+        <div className="overflow-y-auto px-6 pt-6">
+          <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Icon className="h-5 w-5" style={{ color: tier.badge_color }} />
             Purchase {tier.name} Booster
@@ -470,7 +472,7 @@ function PurchaseDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 pb-4">
           {/* Summary */}
           <div className={cn(
             "p-3 rounded-xl bg-muted/50 space-y-1.5 text-sm",
@@ -627,7 +629,10 @@ function PurchaseDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2 sticky bottom-0 bg-background pt-2 pb-1 -mx-6 px-6 border-t sm:justify-end">
+        </div>
+
+        {/* Pinned action bar — normal flow, never overlaps content */}
+        <DialogFooter className="flex-col sm:flex-row gap-2 shrink-0 border-t bg-background px-6 py-3 sm:justify-end">
           {/*
             Button matrix (exactly ONE primary action visible at a time):
               mobile step 1: Cancel | Continue
