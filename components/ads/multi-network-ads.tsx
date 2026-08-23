@@ -309,6 +309,21 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   // Filter to only enabled networks
   const networksToRender = RENDERABLE_NETWORKS.filter(n => enabledNetworks.includes(n.id))
 
+  // Zero third-party networks configured: render a SINGLE clean c.cx.ua
+  // partner banner (where the slot shape allows) instead of an empty-grid
+  // graveyard. Multiple instances each show one banner; sidebar/stack shapes
+  // skip cx-ua entirely (wrong aspect ratio for a narrow column).
+  if (networksToRender.length === 0) {
+    if (position === "sidebar" || layout === "stack") {
+      return <FirstPartyAdSlot placement={position} className={className} />
+    }
+    return (
+      <div ref={containerRef} className={cn("relative", className)}>
+        <CxUaBanner variant="card" showLabel className="w-full" />
+      </div>
+    )
+  }
+
   return (
     <div
       ref={containerRef}
@@ -320,11 +335,8 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
       {/* Ad disclosure label. Always shown (not gated on the showLabels
           prop) on top of the grid so this block of third-party creative is
           never ambiguous with page content - showLabels only controls the
-          extra refresh-indicator styling below it. Suppressed when nothing is
-          configured — an "Advertisement" header over empty space looks broken. */}
-      {(networksToRender.length > 0 || position !== "sidebar") && (
-        <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">Advertisement</div>
-      )}
+          extra refresh-indicator styling below it. */}
+      <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">Advertisement</div>
       {showLabels && (
         <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
           <span>Partner Ads</span>
