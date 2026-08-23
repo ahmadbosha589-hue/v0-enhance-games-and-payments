@@ -445,7 +445,7 @@ function PurchaseDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Icon className="h-5 w-5" style={{ color: tier.badge_color }} />
@@ -456,22 +456,22 @@ function PurchaseDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-2">
           {/* Summary */}
-          <div className="p-4 rounded-xl bg-muted/50 space-y-2">
-            <div className="flex justify-between text-sm">
+          <div className="p-3 rounded-xl bg-muted/50 space-y-1.5 text-sm">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Duration</span>
               <span className="font-medium">{tier.duration_days} days</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Faucet Bonus</span>
-              <span className="font-medium text-green-500">+{tier.faucet_bonus_percentage}%</span>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Bonuses</span>
+              <span className="font-medium">
+                <span className="text-green-500">+{tier.faucet_bonus_percentage}% faucet</span>
+                {" · "}
+                <span className="text-blue-500">+{tier.offerwall_bonus_percentage}% walls</span>
+              </span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Offerwall Bonus</span>
-              <span className="font-medium text-blue-500">+{tier.offerwall_bonus_percentage}%</span>
-            </div>
-            <div className="border-t pt-2 mt-2">
+            <div className="border-t pt-1.5 mt-1.5">
               <div className="flex justify-between font-bold">
                 <span>Total</span>
                 <span>
@@ -487,11 +487,11 @@ function PurchaseDialog({
           </div>
 
           {/* Payment Methods */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Label>Payment Method</Label>
-            <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid gap-2">
+            <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid gap-1.5">
               <div className={cn(
-                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                "flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer transition-colors",
                 hasEnoughSatoshis ? "hover:bg-muted/50" : "opacity-50 cursor-not-allowed",
                 paymentMethod === "faucetpay" && hasEnoughSatoshis && "border-primary bg-primary/5"
               )}>
@@ -514,7 +514,7 @@ function PurchaseDialog({
                 </Label>
               </div>
               <div className={cn(
-                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                "flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "ccpayment" && "border-primary bg-primary/5"
               )}>
                 <RadioGroupItem value="ccpayment" id="ccpayment" disabled={!paymentMethods.ccpayment} />
@@ -524,12 +524,12 @@ function PurchaseDialog({
                     <span>Pay with Crypto (CCPayment)</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {paymentMethods.ccpayment ? "BTC, ETH, USDT, and 50+ coins" : "Unavailable until CCPayment is configured"}
+                    {paymentMethods.ccpayment ? "BTC, ETH, USDT & 50+ coins" : "Unavailable — not configured"}
                   </p>
                 </Label>
               </div>
               <div className={cn(
-                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                "flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "faucetpay_merchant" && "border-primary bg-primary/5"
               )}>
                 <RadioGroupItem value="faucetpay_merchant" id="faucetpay_merchant" />
@@ -539,12 +539,12 @@ function PurchaseDialog({
                     <span>Pay with FaucetPay</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    BTC, ETH, LTC, USDT & more — pay from your FaucetPay wallet or send from any address. Activates automatically after confirmation.
+                    BTC, ETH, LTC, USDT & more — activates automatically after confirmation.
                   </p>
                 </Label>
               </div>
               <div className={cn(
-                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                "flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "cwallet" && "border-primary bg-primary/5"
               )}>
                 <RadioGroupItem value="cwallet" id="cwallet" disabled={!paymentMethods.cwallet} />
@@ -554,12 +554,12 @@ function PurchaseDialog({
                     <span>CWallet via CCPayment</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {paymentMethods.cwallet ? "Open CCPayment checkout and pay from your Cwallet wallet" : "Unavailable until CCPayment is configured"}
+                    {paymentMethods.cwallet ? "Pay from your CWallet balance" : "Unavailable — not configured"}
                   </p>
                 </Label>
               </div>
               <div className={cn(
-                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                "flex items-center space-x-3 p-2.5 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "wallet_connect" && "border-primary bg-primary/5"
               )}>
                 <RadioGroupItem value="wallet_connect" id="wallet_connect" disabled={!paymentMethods.wallet_connect} />
@@ -569,25 +569,23 @@ function PurchaseDialog({
                     <span>WalletConnect / EVM Wallet</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {paymentMethods.wallet_connect ? "ERC-20 payment with MetaMask or WalletConnect and server-side confirmation" : "Unavailable until the EVM chain, token, destination, RPC, and confirmations are configured"}
+                    {paymentMethods.wallet_connect ? "MetaMask / WalletConnect ERC-20 transfer" : "Unavailable — not configured"}
                   </p>
                 </Label>
               </div>
             </RadioGroup>
           </div>
 
-          {/* Payment info for crypto methods */}
-          {paymentMethod !== "faucetpay" && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-xs">
-                Crypto payments require blockchain confirmation. Your booster will be activated within 10-30 minutes after payment.
-              </AlertDescription>
-            </Alert>
+          {/* Payment info for external methods */}
+          {(paymentMethod === "ccpayment" || paymentMethod === "cwallet") && (
+            <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground px-0.5">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
+              Requires blockchain confirmation — activates within ~10–30 min.
+            </p>
           )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
+        <DialogFooter className="flex-col sm:flex-row gap-2 sticky bottom-0 bg-background pt-2 pb-1 -mx-6 px-6 border-t sm:justify-end [html[data-scroll-locked]_&]:pb-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessing}>
             Cancel
           </Button>
