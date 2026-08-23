@@ -628,51 +628,42 @@ function PurchaseDialog({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2 sticky bottom-0 bg-background pt-2 pb-1 -mx-6 px-6 border-t sm:justify-end">
-          {step === 2 ? (
-            <Button variant="outline" className="sm:hidden w-full" onClick={() => setStep(1)} disabled={isProcessing}>
-              Back
-            </Button>
-          ) : (
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)} disabled={isProcessing}>
-              Cancel
+          {/*
+            Button matrix (exactly ONE primary action visible at a time):
+              mobile step 1: Cancel | Continue
+              mobile step 2: Back    | Pay <amount>
+              desktop:       Cancel  | Pay <amount>   (single screen, no steps)
+          */}
+          {/* Secondary action: Cancel (mobile step 1 + desktop) / Back (mobile step 2) */}
+          <Button
+            variant="outline"
+            className={cn("w-full sm:w-auto", step === 2 && "hidden sm:inline-flex")}
+            onClick={() => (step === 2 ? setStep(1) : onOpenChange(false))}
+            disabled={isProcessing}
+          >
+            {step === 2 ? "Back" : "Cancel"}
+          </Button>
+
+          {/* Mobile-only Continue (step 1 → 2) */}
+          {step === 1 && (
+            <Button className="w-full sm:hidden" onClick={() => setStep(2)} disabled={!paymentMethodAvailable}>
+              Continue
             </Button>
           )}
-          {/* Mobile: step 1 shows Continue; step 2 shows the pay action */}
+
+          {/* Primary pay action: mobile step 2 + always on desktop */}
           <Button
-            className="hidden sm:inline-flex"
-            onClick={() => setStep(2)}
-            disabled={!paymentMethodAvailable}
-          >
-            Continue
-          </Button>
-          <Button
-            className={cn("w-full sm:hidden", step === 1 && "hidden")}
             onClick={handleConfirm}
             disabled={isProcessing || !paymentMethodAvailable}
             style={{ backgroundColor: tier.badge_color }}
+            className={cn("w-full sm:w-auto", step === 1 && "hidden sm:inline-flex")}
           >
             {isProcessing ? (
               <>Processing…</>
             ) : paymentMethod === "faucetpay" ? (
-              <>Pay {(tier.price_satoshis / 100_000_000).toFixed(8)} BTC</>
-            ) : paymentMethod === "faucetpay_merchant" ? (
-              <>Pay ${tier.price_usd.toFixed(2)} with FaucetPay</>
-            ) : (
-              <>Confirm ${tier.price_usd}</>
-            )}
-          </Button>
-          <Button
-            className="hidden sm:inline-flex"
-            onClick={handleConfirm}
-            disabled={isProcessing || !paymentMethodAvailable}
-            style={{ backgroundColor: tier.badge_color }}
-          >
-            {isProcessing ? (
-              <>Processing...</>
-            ) : paymentMethod === "faucetpay" ? (
               <>
                 <Coins className="h-4 w-4 mr-2" />
-                Pay ${(tier.price_satoshis / 100_000_000).toFixed(8)} BTC
+                Pay {(tier.price_satoshis / 100_000_000).toFixed(8)} BTC
               </>
             ) : paymentMethod === "faucetpay_merchant" ? (
               <>
