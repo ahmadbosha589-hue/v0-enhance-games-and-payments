@@ -53,8 +53,16 @@ function formatSatoshis(satoshis: number): string {
   return `${satoshis} sats`
 }
 
+// Thresholds render in satoshis, not BTC: "0.001 BTC" read like a deposit
+// instruction to users. Sats make it clearly an internal ops metric.
 function formatThreshold(sats: number): string {
-  return `${(sats / 100_000_000).toFixed(3)} BTC`
+  if (sats >= 1_000_000) {
+    return `${(sats / 1_000_000).toFixed(1)}M sats`
+  }
+  if (sats >= 10_000) {
+    return `${(sats / 1_000).toFixed(0)}K sats`
+  }
+  return `${sats.toLocaleString()} sats`
 }
 
 export function FaucetHealth() {
@@ -144,19 +152,22 @@ export function FaucetHealth() {
     }
   }
 
-  const getRecommendation = (status: string, thresholds?: FaucetHealthData["thresholds"]) => {
+  const getRecommendation = (_status: string, thresholds?: FaucetHealthData["thresholds"]) => {
     if (!thresholds) return null
-    switch (status) {
+    // This card is informational: it reflects the PLATFORM's payout-wallet
+    // reserve, not anything the user does. Never phrase it as a user action
+    // ("top up" read like a deposit instruction).
+    switch (_status) {
       case "critical":
-        return `Top up to at least ${formatThreshold(thresholds.low)} to avoid failed payouts`
+        return "Platform payout reserve — claims continue normally"
       case "low":
-        return `Consider topping up to ${formatThreshold(thresholds.moderate)} for stable operation`
+        return "Platform payout reserve — claims continue normally"
       case "moderate":
-        return `Top up to ${formatThreshold(thresholds.healthy)} for optimal health`
+        return "Payout reserves are stable — no action needed"
       case "healthy":
-        return "Balance is optimal for operations"
+        return "Payout reserves are fully stocked — all systems nominal"
       default:
-        return "Connect FaucetPay to see balance"
+        return "Live platform payout status"
     }
   }
 
@@ -241,7 +252,9 @@ export function FaucetHealth() {
                     ) : (
                       <TrendingDown className="h-3 w-3 text-red-500" />
                     )}
-                    {formatSatoshis(data.balanceSatoshis)}
+                    <span title="Platform payout wallet reserve — not your balance">
+                      {formatSatoshis(data.balanceSatoshis)} reserve
+                    </span>
                   </>
                 ) : (
                   <>
@@ -291,7 +304,10 @@ export function FaucetHealth() {
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <div className="text-xs space-y-1">
-                    <p className="font-semibold">Health Thresholds:</p>
+                    <p className="font-semibold">Platform Reserve Tiers</p>
+                    <p className="text-muted-foreground">
+                      Internal payout-wallet levels &mdash; your balance and claims are unaffected.
+                    </p>
                     {data.thresholds && (
                       <>
                         <p>
