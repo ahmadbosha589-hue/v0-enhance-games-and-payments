@@ -208,9 +208,11 @@ export function CxUaBanner({
     onVisibilityChange?.(visible)
   }, [mounted, hasMarketingConsent, dnt, empty, natural, onVisibilityChange])
 
+  // Card chrome only once a creative is actually rendering — otherwise a
+  // bordered empty box flashes before collapse/measurement completes.
   const wrapperCls = cn(
     "relative",
-    variant === "card" && "rounded-lg border bg-card p-2 shadow-sm",
+    variant === "card" && natural !== null && "rounded-lg border bg-card p-2 shadow-sm",
     "flex w-full flex-col items-center",
     className,
   )

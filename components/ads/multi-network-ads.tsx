@@ -160,6 +160,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
   const [refreshCounts, setRefreshCounts] = useState<Record<string, number>>({})
   const [isVisible, setIsVisible] = useState(!lazyLoad || priority === "high")
   const [shouldRender, setShouldRender] = useState(!lazyLoad || priority === "high")
+  const [cxuaVisible, setCxuaVisible] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const hasMarketingConsent = useAdConsent()
   const { configs: adConfigs, isLoading: configLoading } = useAdConfig(hasMarketingConsent)
@@ -378,12 +379,20 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
               "col-span-full",
               density === "compact"
                 ? "min-h-[80px] sm:min-h-[100px]"
-                : "min-h-[100px] sm:min-h-[120px]"
+                : "min-h-[100px] sm:min-h-[120px]",
+              // Hide the slot entirely until/unless a creative actually
+              // renders — an empty bordered box reads as broken.
+              !cxuaVisible && "hidden"
             )}
             data-ad-network="cx-ua"
             data-ad-position={position}
           >
-            <CxUaBanner variant="compact" showLabel={false} className="w-full" />
+            <CxUaBanner
+              variant="compact"
+              showLabel={false}
+              className="w-full"
+              onVisibilityChange={setCxuaVisible}
+            />
           </div>
         )}
       </div>
