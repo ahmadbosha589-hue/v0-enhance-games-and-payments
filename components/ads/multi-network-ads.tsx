@@ -291,10 +291,11 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
     )
   }
 
-  // Don't render if no ad networks are enabled/configured
-  if (enabledNetworks.length === 0) {
-    return <FirstPartyAdSlot placement={position} className={className} />
-  }
+  // No third-party network is configured: still render the shell so the
+  // FIRST-PARTY slot and the c.cx.ua partner banner keep their placements.
+  // Returning null here orphaned the cx-ua banner whenever zero external
+  // networks were enabled — the "Sponsored" section silently vanished even
+  // though c.cx.ua itself needs no per-network configuration.
 
   // Show skeleton while lazy loading
   if (!shouldRender) {
@@ -319,8 +320,11 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
       {/* Ad disclosure label. Always shown (not gated on the showLabels
           prop) on top of the grid so this block of third-party creative is
           never ambiguous with page content - showLabels only controls the
-          extra refresh-indicator styling below it. */}
-      <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">Advertisement</div>
+          extra refresh-indicator styling below it. Suppressed when nothing is
+          configured — an "Advertisement" header over empty space looks broken. */}
+      {(networksToRender.length > 0 || position !== "sidebar") && (
+        <div className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground/70">Advertisement</div>
+      )}
       {showLabels && (
         <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
           <span>Partner Ads</span>
