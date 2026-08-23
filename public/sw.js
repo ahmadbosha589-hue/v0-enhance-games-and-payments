@@ -1,6 +1,6 @@
 // Faucero service worker — minimal, no dependencies.
 // Registered by components/pwa/pwa-provider.tsx.
-const CACHE_VERSION = "faucero-v1"
+const CACHE_VERSION = "faucero-v2"
 const STATIC_CACHE = `${CACHE_VERSION}-static`
 const OFFLINE_URL = "/offline"
 
