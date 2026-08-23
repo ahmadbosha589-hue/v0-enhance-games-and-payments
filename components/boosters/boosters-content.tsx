@@ -64,6 +64,14 @@ const TIER_ICONS: Record<string, typeof Zap> = {
   star: Star,
 }
 
+const METHOD_LABELS: Record<string, string> = {
+  faucetpay: "Site Balance (Satoshis)",
+  faucetpay_merchant: "FaucetPay",
+  ccpayment: "Crypto (CCPayment)",
+  cwallet: "CWallet",
+  wallet_connect: "EVM Wallet",
+}
+
 const TIER_GRADIENTS: Record<string, string> = {
   basic: "from-green-500 to-emerald-400",
   pro: "from-blue-500 to-cyan-400",
@@ -290,6 +298,12 @@ function PurchaseDialog({
 }) {
   const [paymentMethod, setPaymentMethod] = useState("faucetpay")
   const [isProcessing, setIsProcessing] = useState(false)
+  // Mobile two-step flow: 1 = pick method, 2 = confirm. Desktop shows both at once.
+  const [step, setStep] = useState<1 | 2>(1)
+  // Reset to step 1 whenever the dialog opens or a different tier is opened.
+  useEffect(() => {
+    if (open) setStep(1)
+  }, [open, tier?.id])
 
   if (!tier) return null
 
@@ -458,7 +472,10 @@ function PurchaseDialog({
 
         <div className="space-y-4 py-2">
           {/* Summary */}
-          <div className="p-3 rounded-xl bg-muted/50 space-y-1.5 text-sm">
+          <div className={cn(
+            "p-3 rounded-xl bg-muted/50 space-y-1.5 text-sm",
+            step === 2 && "hidden sm:block"
+          )}>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Duration</span>
               <span className="font-medium">{tier.duration_days} days</span>
@@ -486,8 +503,8 @@ function PurchaseDialog({
             </div>
           </div>
 
-          {/* Payment Methods */}
-          <div className="space-y-2">
+          {/* Payment Methods — mobile: step 1 only */}
+          <div className={cn("space-y-2", step === 2 && "hidden sm:block")}>
             <Label>Payment Method</Label>
             <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod} className="grid gap-1.5">
               <div className={cn(
@@ -578,18 +595,74 @@ function PurchaseDialog({
 
           {/* Payment info for external methods */}
           {(paymentMethod === "ccpayment" || paymentMethod === "cwallet") && (
-            <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground px-0.5">
+            <p className={cn("flex items-start gap-1.5 text-[11px] text-muted-foreground px-0.5", step === 2 && "hidden sm:flex")}>
               <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
               Requires blockchain confirmation — activates within ~10–30 min.
             </p>
           )}
+
+          {/* Mobile step 2: compact confirm panel */}
+          {step === 2 && (
+            <div className="sm:hidden space-y-3">
+              <div className="p-3 rounded-xl bg-muted/50 flex items-center justify-between text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Paying with</p>
+                  <p className="font-medium">{METHOD_LABELS[paymentMethod] ?? paymentMethod}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-bold">${tier.price_usd}</p>
+                  {tier.price_satoshis > 0 && (
+                    <p className="text-[10px] text-muted-foreground">{(tier.price_satoshis / 100_000_000).toFixed(8)} BTC</p>
+                  )}
+                </div>
+              </div>
+              {(paymentMethod === "ccpayment" || paymentMethod === "cwallet") && (
+                <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                  Requires blockchain confirmation — activates within ~10–30 min.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="flex-col sm:flex-row gap-2 sticky bottom-0 bg-background pt-2 pb-1 -mx-6 px-6 border-t sm:justify-end [html[data-scroll-locked]_&]:pb-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessing}>
-            Cancel
+        <DialogFooter className="flex-col sm:flex-row gap-2 sticky bottom-0 bg-background pt-2 pb-1 -mx-6 px-6 border-t sm:justify-end">
+          {step === 2 ? (
+            <Button variant="outline" className="sm:hidden w-full" onClick={() => setStep(1)} disabled={isProcessing}>
+              Back
+            </Button>
+          ) : (
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)} disabled={isProcessing}>
+              Cancel
+            </Button>
+          )}
+          {/* Mobile: step 1 shows Continue; step 2 shows the pay action */}
+          <Button
+            className="hidden sm:inline-flex"
+            onClick={() => setStep(2)}
+            disabled={!paymentMethodAvailable}
+          >
+            Continue
           </Button>
           <Button
+            className={cn("w-full sm:hidden", step === 1 && "hidden")}
+            onClick={handleConfirm}
+            disabled={isProcessing || !paymentMethodAvailable}
+            style={{ backgroundColor: tier.badge_color }}
+          >
+            {isProcessing ? (
+              <>Processing…</>
+            ) : paymentMethod === "faucetpay" ? (
+              <>Pay {(tier.price_satoshis / 100_000_000).toFixed(8)} BTC</>
+            ) : paymentMethod === "faucetpay_merchant" ? (
+              <>Pay ${tier.price_usd.toFixed(2)} with FaucetPay</>
+            ) : (
+              <>Confirm ${tier.price_usd}</>
+            )}
+          </Button>
+          <Button
+            className="hidden sm:inline-flex"
             onClick={handleConfirm}
             disabled={isProcessing || !paymentMethodAvailable}
             style={{ backgroundColor: tier.badge_color }}
