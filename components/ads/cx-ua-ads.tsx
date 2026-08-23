@@ -34,13 +34,13 @@ import { useAdConsent } from "@/lib/hooks/use-ad-consent"
  * IGNORES the write — so the creative never appears and you get an empty
  * (black) reserved box. That was the bug.
  *
- * The fix: embed the serve <script> as parser-inserted markup inside an
- * <iframe srcDoc>. Inside the iframe the document is freshly parsing, so
- * `document.write` executes natively and the <a><img> creative renders at
- * its true size. The script is still fetched from the user's browser, so
- * impressions and clicks attribute correctly to the visitor (not our
- * server). The iframe measures its own content and posts the height back
- * so the banner stays responsive — no cut-off, no fixed white box.
+ * The fix: host the official one-line embed in a SAME-ORIGIN static frame
+ * (public/ads/cxua/banner-frame.html). Being a real document on our origin,
+ * (a) `document.write` executes during its parse, and (b) the browser sends
+ * the faucero.com referrer that c.cx.ua REQUIRES — it returns an empty
+ * response otherwise. A sandboxed/srcdoc frame can satisfy neither, which is
+ * why earlier attempts rendered nothing. The frame reports its measured size
+ * back via postMessage so the banner stays responsive.
  *
  * Security: the iframe is sandboxed with only "allow-scripts allow-popups
  * allow-popups-to-escape-sandbox" — no allow-same-origin — so the ad
@@ -199,118 +199,6 @@ export function CxUaBanner({
     onVisibilityChange?.(visible)
   }, [mounted, hasMarketingConsent, dnt, empty, natural, onVisibilityChange])
 
-  // The srcDoc embeds the serve <script> as parser-inserted markup so its
-  // internal document.write() runs during parse (the whole point), then
-  // measures and reports the rendered height back to us.
-  const srcDoc = (() => {
-    const src = getBannerScriptUrl(zone)
-    return `<!doctype html><html><head><meta charset="utf-8">
-<style>
-  html,body{margin:0;padding:0;background:transparent;overflow:hidden}
-  /* Fill the iframe exactly. The parent sets the iframe's aspect-ratio to
-     the creative's own ratio, so "contain" scales the creative to fit
-     edge-to-edge with no letterboxing and no distortion. */
-  html,body{width:100%;height:100%}
-  body{display:flex;align-items:center;justify-content:center}
-  a{display:block;max-width:100%;max-height:100%}
-  img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
-</style></head><body>
-<script src="${src}"><\/script>
-<script>
-  (function(){
-    var TOKEN=${JSON.stringify(token)};
-    function creative(){
-      // The serve script document.writes an <a><img></a>. Anything visible
-      // besides our own <script> tags counts as a creative.
-      return document.querySelector("a,img,iframe:not([data-self]),div,table");
-    }
-    function measure(){
-      // Prefer the <img>'s INTRINSIC dimensions. naturalWidth/Height are
-      // immune to the CSS that shrinks the creative to fit this iframe, so
-      // the parent gets the creative's true size (e.g. 728x90) regardless
-      // of how narrow the current viewport is. The width/height attributes
-      // written by the serve script are the fallback.
-      var img=document.querySelector("img");
-      if(img){
-        var nw=img.naturalWidth||parseInt(img.getAttribute("width"),10)||0;
-        var nh=img.naturalHeight||parseInt(img.getAttribute("height"),10)||0;
-        if(nw>0&&nh>0){return {w:nw,h:nh}}
-      }
-      // HTML/iframe creatives (shape B): the network's script builds its OWN
-      // nested iframe with explicit style.width/maxWidth + style.height.
-      // Read those DECLARED dimensions — the element's layout box may still
-      // be mid-layout (or clipped by our overflow:hidden) and measuring it
-      // produced bogus sizes that made the banner flash away.
-      var nested=document.querySelector("iframe:not([data-self])");
-      if(nested){
-        var st=nested.style;
-        var iw=parseInt(st.maxWidth,10)||parseInt(st.width,10)||0;
-        var ih=parseInt(st.height,10)||0;
-        if(iw>0&&ih>0){return {w:iw,h:ih}}
-      }
-      // Generic fallback: layout box of whatever visible creative exists.
-      var el=creative();
-      if(el){
-        var r=el.getBoundingClientRect();
-        if(r.width>0&&r.height>0){return {w:r.width,h:r.height}}
-      }
-      return null;
-    }
-    function plausible(m){
-      // Guard against a premature/partial measurement (e.g. the ad's
-      // wrapping element has stretched to full width but its image
-      // hasn't finished loading yet, so the box is only 1-2px tall).
-      // Real ad creatives fall within a known band of aspect ratios;
-      // anything wildly flatter or taller than that is treated as
-      // "not ready yet" rather than locked in as the true size.
-      var ratio=m.w/m.h;
-      return ratio>=0.15 && ratio<=14;
-    }
-    function report(){
-      try{
-        var m=measure();
-        if(!m){return}
-        if(!plausible(m)){return}
-        parent.postMessage({__cxuaBanner:true,token:TOKEN,width:m.w,height:m.h},"*");
-      }catch(e){}
-    }
-    function domHasCreative(){
-      // ANY creative-ish element present at all (even mid-load). The network's
-      // HTML banners build their own nested iframe; its srcdoc may still be
-      // parsing when we check. If the element exists, the slot is NOT empty —
-      // it just hasn't finished rendering, so keep waiting instead of
-      // collapsing (which caused the visible appear/disappear flash).
-      return !!document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
-    }
-    function finalCheck(){
-      // After all retries: collapse ONLY when nothing was written at all
-      // (c.cx.ua returns an empty 200 when it has no campaign for this
-      // site/zone). A present-but-slow creative never counts as empty here;
-      // report() keeps firing from image/load listeners once it renders.
-      try{
-        var m=measure();
-        if(m&&plausible(m)){report();return}
-        if(domHasCreative()){
-          // Creative exists but isn't measurable yet — re-check shortly.
-          setTimeout(finalCheck,1500);
-          return;
-        }
-        parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
-      }catch(e){}
-    }
-    // Report after initial parse, after full load, after each image loads,
-    // and a couple of safety re-checks for late creatives.
-    if(document.readyState!=="loading")report();
-    window.addEventListener("load",report);
-    var imgs=document.images||[];
-    for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
-    setTimeout(report,300);setTimeout(report,1200);setTimeout(report,2000);
-    setTimeout(finalCheck,4000);
-  })();
-<\/script>
-</body></html>`
-  })()
-
   const wrapperCls = cn(
     "relative",
     variant === "card" && "rounded-lg border bg-card p-2 shadow-sm",
@@ -367,11 +255,10 @@ export function CxUaBanner({
         </span>
       )}
 
-      {/* The creative is served via document.write(), which only runs while
-          a document is parsing. We therefore host it in a sandboxed iframe
-          whose srcDoc contains the parser-inserted serve <script>. The
-          iframe reports its rendered height back so we can size to the
-          creative (728×90 on desktop, scaled down on mobile). */}
+      {/* The creative lives in our same-origin static frame
+          (public/ads/cxua/banner-frame.html) which hosts the official embed.
+          See the file header for why srcdoc/sandboxed frames cannot work:
+          c.cx.ua refuses requests without a faucero.com referrer. */}
       <div
         className="w-full flex items-center justify-center"
         style={{ maxWidth: frameMaxWidth }}
@@ -381,11 +268,12 @@ export function CxUaBanner({
           <iframe
             ref={iframeRef}
             title="Sponsored content"
-            srcDoc={srcDoc}
-            // No allow-same-origin: the ad script runs in an opaque origin
-            // with no access to our cookies/DOM. allow-popups lets the
-            // click-through open in a new tab.
-            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+            src={`/ads/cxua/banner-frame.html?z=${encodeURIComponent(zone)}&t=${token}`}
+            // Same-origin static frame (see public/ads/cxua/banner-frame.html):
+            // c.cx.ua refuses to serve without a faucero.com referrer, which a
+            // sandboxed/srcdoc frame cannot provide. The frame contains only
+            // the official one-line embed. Click-through opens a new tab via
+            // the creative's own target=_blank.
             scrolling="no"
             loading="lazy"
             referrerPolicy="origin"

@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- c.cx.ua validates the serve-request referrer against the registered site.
+     A sandboxed/srcdoc frame strips the referrer, so this SAME-ORIGIN static
+     page hosts the official one-line embed: the referrer is naturally
+     faucero.com/ads/cxua/banner.html and document.write runs during parse. -->
+<style>
+  html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+  html,body{width:100%;height:100%}
+  body{display:flex;align-items:center;justify-content:center}
+  a{display:block;max-width:100%;max-height:100%}
+  img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+</style>
+</head>
+<body>
+<script src="https://c.cx.ua/ad/serve/banner/32"></script>
+<script>
+(function(){
+  var params=new URLSearchParams(location.search);
+  var TOKEN=params.get("t")||"";
+  function creative(){
+    return document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
+  }
+  function measure(){
+    var img=document.querySelector("img");
+    if(img){
+      var nw=img.naturalWidth||parseInt(img.getAttribute("width"),10)||0;
+      var nh=img.naturalHeight||parseInt(img.getAttribute("height"),10)||0;
+      if(nw>0&&nh>0){return {w:nw,h:nh}}
+    }
+    var nested=document.querySelector("iframe:not([data-self])");
+    if(nested){
+      var st=nested.style;
+      var iw=parseInt(st.maxWidth,10)||parseInt(st.width,10)||0;
+      var ih=parseInt(st.height,10)||0;
+      if(iw>0&&ih>0){return {w:iw,h:ih}}
+    }
+    var el=creative();
+    if(el){
+      var r=el.getBoundingClientRect();
+      if(r.width>0&&r.height>0){return {w:r.width,h:r.height}}
+    }
+    return null;
+  }
+  function plausible(m){
+    var ratio=m.w/m.h;
+    return ratio>=0.15 && ratio<=14;
+  }
+  function report(){
+    try{
+      var m=measure();
+      if(!m){return}
+      if(!plausible(m)){return}
+      parent.postMessage({__cxuaBanner:true,token:TOKEN,width:m.w,height:m.h},"*");
+    }catch(e){}
+  }
+  function domHasCreative(){
+    return !!document.querySelector("a[href],img,iframe:not([data-self]),div:not(:empty),table");
+  }
+  function finalCheck(){
+    try{
+      var m=measure();
+      if(m&&plausible(m)){report();return}
+      if(domHasCreative()){setTimeout(finalCheck,1500);return}
+      parent.postMessage({__cxuaBanner:true,token:TOKEN,empty:true},"*");
+    }catch(e){}
+  }
+  if(document.readyState!=="loading")report();
+  window.addEventListener("load",report);
+  var imgs=document.images||[];
+  for(var i=0;i<imgs.length;i++){imgs[i].addEventListener("load",report);imgs[i].addEventListener("error",report);}
+  setTimeout(report,300);setTimeout(report,1200);setTimeout(report,2000);
+  setTimeout(finalCheck,4000);
+})();
+<\/script>
+</body>
+</html>

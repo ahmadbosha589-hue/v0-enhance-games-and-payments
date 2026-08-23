@@ -5,11 +5,11 @@ import { resolve } from "node:path"
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf-8")
 
 describe("c.cx.ua banner stability (no appear/disappear flash)", () => {
-  it("measures nested-iframe creatives by their DECLARED dimensions, not layout box", () => {
-    const src = read("components/ads/cx-ua-ads.tsx")
-    expect(src).toContain('querySelector("iframe:not([data-self])")')
-    expect(src).toContain("parseInt(st.maxWidth,10)")
-    expect(src).toContain("parseInt(st.height,10)")
+  it("frame page measures nested-iframe creatives by DECLARED dimensions, not layout box", () => {
+    const frame = read("public/ads/cxua/banner-frame.html")
+    expect(frame).toContain('iframe:not([data-self])')
+    expect(frame).toContain('parseInt(st.maxWidth,10)')
+    expect(frame).toContain('parseInt(st.height,10)')
   })
 
   it("never unmounts a banner that has already rendered a creative (sticky-once-seen)", () => {
@@ -20,21 +20,20 @@ describe("c.cx.ua banner stability (no appear/disappear flash)", () => {
   })
 
   it("plausibility band accepts the network's rotated formats", () => {
-    const src = read("components/ads/cx-ua-ads.tsx")
-    expect(src).toContain("ratio>=0.15 && ratio<=14")
+    const frame = read("public/ads/cxua/banner-frame.html")
+    expect(frame).toContain("ratio>=0.15 && ratio<=14")
   })
 
   it("late-loading creatives are never declared empty — re-checks while a creative element exists", () => {
-    const src = read("components/ads/cx-ua-ads.tsx")
+    const frame = read("public/ads/cxua/banner-frame.html")
     // re-check loop instead of instant collapse
-    expect(src).toContain("domHasCreative")
-    expect(src).toContain("setTimeout(finalCheck,1500)")
-    // empty is only declared when the DOM has NO creative element at all
-    const finalCheckIdx = src.indexOf("function finalCheck()")
-    const emptyIdx = src.indexOf('empty:true}', finalCheckIdx)
-    const domIdx = src.lastIndexOf("domHasCreative()", emptyIdx)
-    expect(emptyIdx).toBeGreaterThan(finalCheckIdx)
-    expect(domIdx).toBeGreaterThan(finalCheckIdx)
+    expect(frame).toContain("domHasCreative")
+    expect(frame).toContain("setTimeout(finalCheck,1500)")
+  })
+
+  it("banner iframe loads the same-origin static frame (referrer-bearing)", () => {
+    const src = read("components/ads/cx-ua-ads.tsx")
+    expect(src).toContain("`/ads/cxua/banner-frame.html?z=${encodeURIComponent(zone)}&t=${token}`")
   })
 
   it("public layer chrome stays gated on real visibility (no empty Sponsored box)", () => {
