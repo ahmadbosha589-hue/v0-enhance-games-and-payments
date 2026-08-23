@@ -259,6 +259,8 @@ export default function AdvertisePage() {
   const [isDepositing, setIsDepositing] = useState(false)
   const [fpDepositAmount, setFpDepositAmount] = useState("")
   const [isFpDepositing, setIsFpDepositing] = useState(false)
+  const [fpmAmount, setFpmAmount] = useState("")
+  const [isFpmLoading, setIsFpmLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [depositAddress, setDepositAddress] = useState<string | null>(null)
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null)
@@ -401,6 +403,36 @@ export default function AdvertisePage() {
       toast.error("Deposit failed")
     } finally {
       setIsFpDepositing(false)
+    }
+  }
+
+  // Deposit advertising funds via FaucetPay Merchant checkout (external wallet).
+  const handleFaucetPayMerchantDeposit = async () => {
+    const amount = parseFloat(fpmAmount)
+    if (!amount || amount < 5) {
+      toast.error("Minimum deposit is $5")
+      return
+    }
+
+    setIsFpmLoading(true)
+    try {
+      const response = await fetch("/api/deposit/faucetpay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, currency: "USDT", purpose: "advertising" }),
+      })
+      const data = await response.json()
+
+      if (data.success && data.merchantUrl) {
+        toast.info("Redirecting to FaucetPay…")
+        window.location.href = data.merchantUrl
+      } else {
+        toast.error(data.error || "Could not start the FaucetPay deposit")
+      }
+    } catch {
+      toast.error("Deposit failed to start")
+    } finally {
+      setIsFpmLoading(false)
     }
   }
 
@@ -695,6 +727,47 @@ export default function AdvertisePage() {
                     </div>
                   </>
                 )}
+
+                {/* Pay with FaucetPay (external wallet checkout) */}
+                <div className="pt-4 border-t space-y-3">
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Coins className="h-4 w-4 text-primary" />
+                      Or deposit with FaucetPay
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      BTC, ETH, LTC, USDT & more — pay from your FaucetPay wallet or send from any address. Credited automatically after confirmation.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="USD amount (min $5)"
+                      value={fpmAmount}
+                      onChange={(e) => setFpmAmount(e.target.value)}
+                      min="5"
+                      step="0.01"
+                      className="font-mono"
+                    />
+                    <Button
+                      onClick={handleFaucetPayMerchantDeposit}
+                      disabled={isFpmLoading || !fpmAmount || parseFloat(fpmAmount) < 5}
+                      className="shrink-0"
+                    >
+                      {isFpmLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Starting…
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Pay with FaucetPay
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
 
                 {/* Pay from Site Balance (FaucetPay satoshis) */}
                 <div className="pt-4 border-t space-y-3">

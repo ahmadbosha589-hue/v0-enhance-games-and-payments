@@ -250,6 +250,14 @@ export async function POST(request: Request) {
 
     const orderId = `booster_${Date.now()}_${Math.random().toString(36).substring(7)}`
 
+    // Live-rate satoshi price, shared by the balance and merchant paths.
+    let requiredLiveSats: number | null = null
+    try {
+      requiredLiveSats = (await usdToSatoshis(Number(tierData.price_usd))).satoshis
+    } catch {
+      requiredLiveSats = null // merchant path can still proceed (USD-priced); balance path re-fetches
+    }
+
     switch (paymentMethod) {
       case "faucetpay": {
         // FaucetPay payment - requires user's satoshi balance.
@@ -442,6 +450,75 @@ export async function POST(request: Request) {
             `Send exactly ${amountToken} ${walletConfig.tokenSymbol}`,
             `Wait for ${walletConfig.confirmations} blockchain confirmations`,
           ],
+        })
+      }
+
+      case "faucetpay_merchant": {
+        // FaucetPay Merchant checkout: user pays from their FaucetPay wallet
+        // (or any crypto address). The existing IPN callback
+        // (/api/deposit/faucetpay/callback) verifies the payment
+        // server-to-server; a booster-kind session activates the tier.
+        const merchantUsername = process.env.FAUCETPAY_MERCHANT_USERNAME?.trim()
+        if (!merchantUsername) {
+          return NextResponse.json({
+            success: false,
+            error: "FaucetPay payments are not enabled yet",
+            code: "FAUCETPAY_MERCHANT_DISABLED",
+          }, { status: 503 })
+        }
+
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 1)
+
+        // Record the pending purchase first (webhook activates it).
+        const { error: purchaseInsertError } = await adminSupabase.from("booster_purchases").insert({
+          user_id: user.id,
+          booster_tier_id: tierData.id,
+          payment_method: "faucetpay_merchant",
+          payment_status: "pending",
+          payment_reference: orderId,
+          amount_usd: tierData.price_usd,
+          amount_satoshis: requiredLiveSats ?? tierData.price_satoshis,
+        })
+        if (purchaseInsertError) throw purchaseInsertError
+
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin
+        const { createHmac, randomBytes } = await import("node:crypto")
+        const secret =
+          process.env.FAUCETPAY_IPN_SECRET?.trim() || process.env.FAUCETPAY_API_KEY?.trim() || ""
+        const payload = Buffer.from(
+          JSON.stringify({
+            kind: "booster",
+            userId: user.id,
+            tierId: tierData.id,
+            orderId,
+            nonce: randomBytes(8).toString("hex"),
+            createdAt: Date.now(),
+          }),
+        ).toString("base64url")
+        const sig = secret ? createHmac("sha256", secret).update(payload).digest("base64url") : ""
+        const custom = `${payload}.${sig}`
+
+        const params = new URLSearchParams({
+          merchant_username: merchantUsername,
+          item_description: `${tierData.name} Booster (${tierData.duration_days} days)`,
+          amount1: Number(tierData.price_usd).toFixed(2),
+          currency1: "USD",
+          callback_url: `${baseUrl}/api/deposit/faucetpay/callback`,
+          success_url: `${baseUrl}/dashboard/boosters?order=${orderId}`,
+          cancel_url: `${baseUrl}/dashboard/boosters?order=${orderId}&cancelled=1`,
+          custom,
+        })
+
+        return NextResponse.json({
+          success: true,
+          paymentCompleted: false,
+          orderId,
+          paymentMethod,
+          paymentUrl: `https://faucetpay.io/merchant/webscr?${params.toString()}`,
+          amountUsd: tierData.price_usd,
+          expiresAt: expiresAt.toISOString(),
+          message: "You will be redirected to FaucetPay to complete the payment. Your booster activates automatically after confirmation.",
         })
       }
 

@@ -530,6 +530,21 @@ function PurchaseDialog({
               </div>
               <div className={cn(
                 "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                paymentMethod === "faucetpay_merchant" && "border-primary bg-primary/5"
+              )}>
+                <RadioGroupItem value="faucetpay_merchant" id="faucetpay_merchant" />
+                <Label htmlFor="faucetpay_merchant" className="flex-1 cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <Coins className="h-4 w-4" />
+                    <span>Pay with FaucetPay</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    BTC, ETH, LTC, USDT & more — pay from your FaucetPay wallet or send from any address. Activates automatically after confirmation.
+                  </p>
+                </Label>
+              </div>
+              <div className={cn(
+                "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
                 paymentMethod === "cwallet" && "border-primary bg-primary/5"
               )}>
                 <RadioGroupItem value="cwallet" id="cwallet" disabled={!paymentMethods.cwallet} />
@@ -587,6 +602,11 @@ function PurchaseDialog({
               <>
                 <Coins className="h-4 w-4 mr-2" />
                 Pay ${(tier.price_satoshis / 100_000_000).toFixed(8)} BTC
+              </>
+            ) : paymentMethod === "faucetpay_merchant" ? (
+              <>
+                <Coins className="h-4 w-4 mr-2" />
+                Pay ${tier.price_usd.toFixed(2)} with FaucetPay
               </>
             ) : (
               <>
@@ -722,6 +742,11 @@ export function BoostersContent({ userId }: BoostersContentProps) {
           mutateProfile() // Refresh balance
           setDialogOpen(false)
           setSelectedTier(null)
+        } else if (result.paymentUrl && paymentMethod === "faucetpay_merchant") {
+          toast.info("Redirecting to FaucetPay…", {
+            description: "Complete the payment there — your booster activates automatically after confirmation.",
+          })
+          window.location.href = result.paymentUrl
         } else if (paymentMethod === "wallet_connect" && result.walletPayment) {
           try {
             const transactionHash = await sendErc20Payment(result.walletPayment as WalletPaymentDetails)

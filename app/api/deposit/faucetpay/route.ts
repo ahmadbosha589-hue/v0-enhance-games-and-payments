@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic"
 const depositSchema = z.object({
   amount: z.number().min(0.01).max(10000), // USD
   currency: z.enum(["BTC", "ETH", "LTC", "USDT"]).default("BTC"),
+  // balance = site earning balance; advertising = advertise-page credit
+  purpose: z.enum(["balance", "advertising"]).default("balance"),
 })
 
 /**
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { amount, currency } = parsed.data
+    const { amount, currency, purpose } = parsed.data
     const admin = requireAdminClient()
     if (!admin) {
       return NextResponse.json({ error: "Database not configured" }, { status: 503 })
@@ -105,6 +107,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       amountUsd: amount,
       currency,
+      purpose,
       nonce,
       createdAt: Date.now(),
     })
@@ -117,7 +120,7 @@ export async function POST(request: NextRequest) {
       ccpayment_order_id: merchantOrderId,
       amount_usd: amount,
       currency,
-      purpose: "balance",
+      purpose,
       status: "pending",
       pay_address: `faucetpay:${merchantUsername}`,
     })
@@ -131,8 +134,8 @@ export async function POST(request: NextRequest) {
       amount1: amount.toFixed(2),
       currency1: "USD",
       callback_url: `${baseUrl}/api/deposit/faucetpay/callback`,
-      success_url: `${baseUrl}/dashboard/withdrawals?deposit=success&order=${merchantOrderId}`,
-      cancel_url: `${baseUrl}/dashboard/withdrawals?deposit=cancelled`,
+      success_url: `${baseUrl}/dashboard/${purpose === "advertising" ? "advertise" : "withdrawals"}?deposit=success&order=${merchantOrderId}`,
+      cancel_url: `${baseUrl}/dashboard/${purpose === "advertising" ? "advertise" : "withdrawals"}?deposit=cancelled`,
       custom: sessionToken,
     })
 
