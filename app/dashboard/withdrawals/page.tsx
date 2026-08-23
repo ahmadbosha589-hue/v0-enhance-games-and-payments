@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { WithdrawalForm } from "@/components/dashboard/withdrawal-form"
 import { WithdrawalHistory } from "@/components/dashboard/withdrawal-history"
 import { CCPaymentWithdrawalForm } from "@/components/dashboard/ccpayment-withdrawal-form"
+import { FaucetPayDeposit } from "@/components/dashboard/faucetpay-deposit"
 import { WITHDRAWAL_CONFIG } from "@/lib/constants/config"
 import { formatSatoshisDisplay } from "@/lib/utils/format"
 import { Wallet, AlertCircle, Info, Shield, Zap, Bitcoin, CreditCard } from "lucide-react"
@@ -170,6 +171,10 @@ export default async function WithdrawalsPage() {
                 </div>
               </CardContent>
             </Card>
+
+              {/* FaucetPay Deposit — top up balance from an external wallet */}
+              <FaucetPayDeposit />
+            
 
             {/* Withdrawal Form */}
             <Card className="lg:col-span-2">
