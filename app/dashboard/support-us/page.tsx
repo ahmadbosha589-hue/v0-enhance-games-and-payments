@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Heart, Info, Megaphone, ShieldCheck, WalletCards } from "lucide-react"
 import { SupportUsContent } from "@/components/support-us/support-us-content"
+import { isRewardedAdsEnabled } from "@/lib/rewards/rewarded-ads"
 
 export const metadata = {
   title: "Support Us | Faucero",
@@ -29,6 +30,11 @@ export default async function SupportUsPage() {
   const profile = await getProfile(user.id)
   if (!profile) redirect("/auth/login?redirect=/dashboard/support-us")
 
+  // Derive rewarded-payout availability from the SAME config gate the claim
+  // routes use — a hardcoded "Unavailable" would go stale the moment a real
+  // rewarded-ad provider is wired up.
+  const rewardedEnabled = isRewardedAdsEnabled()
+
   return (
     <div className="space-y-6 p-4 sm:space-y-8 sm:p-6">
       <header className="flex flex-col gap-2">
@@ -48,8 +54,10 @@ export default async function SupportUsPage() {
         <Info className="h-4 w-4 text-primary" />
         <AlertDescription className="text-xs sm:text-sm">
           This page shows non-Google partner inventory only. Marketing consent and a verified provider
-          configuration are required before third-party ads appear. Rewarded watch payouts are currently
-          unavailable, so no payout is promised for viewing ads.
+          configuration are required before third-party ads appear.
+          {rewardedEnabled
+            ? " Watching rewarded partner ads earns satoshi rewards, verified server-side."
+            : " Rewarded watch payouts are not enabled yet, so no payout is promised for viewing ads."}
         </AlertDescription>
       </Alert>
 
@@ -82,7 +90,9 @@ export default async function SupportUsPage() {
               <WalletCards className="h-5 w-5 text-amber-500" aria-hidden="true" />
               <div>
                 <p className="text-xs text-muted-foreground">Rewarded payouts</p>
-                <p className="text-lg font-bold">Unavailable</p>
+                <p className={`text-lg font-bold ${rewardedEnabled ? "text-emerald-500" : ""}`}>
+                  {rewardedEnabled ? "Active" : "Not enabled"}
+                </p>
               </div>
             </div>
           </CardContent>
