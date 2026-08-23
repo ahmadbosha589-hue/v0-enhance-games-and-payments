@@ -8,8 +8,8 @@ describe("c.cx.ua banner stability (no appear/disappear flash)", () => {
   it("frame page measures nested-iframe creatives by DECLARED dimensions, not layout box", () => {
     const frame = read("public/ads/cxua/banner-frame.html")
     expect(frame).toContain('iframe:not([data-self])')
-    expect(frame).toContain('parseInt(st.maxWidth,10)')
-    expect(frame).toContain('parseInt(st.height,10)')
+    expect(frame).toContain('parseInt(s2.maxWidth,10)')
+    expect(frame).toContain('parseInt(s2.height,10)')
   })
 
   it("never unmounts a banner that has already rendered a creative (sticky-once-seen)", () => {
