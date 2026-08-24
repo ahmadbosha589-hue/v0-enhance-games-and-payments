@@ -174,14 +174,17 @@ A missing Redis URL/token means rate limiting is using the local-development fal
 
 ### c.cx.ua banner appears empty
 
-The c.cx.ua banner endpoint is domain-aware. The configured zone returned an empty
-200 response for the Vercel preview origin but returned a real creative for the
-registered production origins. Set the c.cx.ua publisher site's domain to the
-actual production hostname, deploy there, and verify the zone is active. The
-Vercel preview URL is not evidence that the production banner is broken.
+See `docs/10-advertising.md` for the full integration notes. Quick checklist:
 
-The banner is also gated by Marketing consent and Do-Not-Track. The UI now hides
-the `Sponsored` label until a real creative has been measured.
+- The serve endpoint requires a `faucero.com` referrer; the same-origin frame
+  (`public/ads/cxua/banner-frame.html`) provides it. Do not revert to sandboxed
+  or srcdoc embedding — those strip the referrer and ads can never load.
+- Marketing consent (or Do-Not-Track) gates every surface; declined consent on
+  public pages shows an explainer pill instead of silent nothing.
+- c.cx.ua applies per-visitor frequency caps configured in their panel. Ads
+  appearing on first pages then vanishing during deeper navigation is the cap
+  exhausting — raise it in Zone settings.
+- Verify with a fresh incognito session before debugging code.
 ### Withdrawals or swaps unavailable
 
 This is expected until the corresponding provider credentials, account balances, webhook signatures, and small-value test transactions are verified.

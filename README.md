@@ -21,6 +21,8 @@ The demo is for software evaluation. It is not a guarantee of revenue, user grow
 - Faucet claims, streaks, referrals, bonuses, and user dashboards
 - PTC, offerwall, games, tournaments, and achievements
 - Advertiser campaign creation, review, first-party serving, click tracking, daily statistics, and refunds
+- c.cx.ua partner banner integration (same-origin frame architecture; see docs/10-advertising.md)
+- FaucetPay deposits (Merchant API checkout) for balance, advertising credit, and boosters
 - Supabase authentication, 2FA, admin authorization, security controls, and fraud protections
 - Crypto pricing and CCPayment v2 hosted-checkout/webhook reconciliation
 - CWallet payments through the verified CCPayment hosted checkout path
@@ -35,7 +37,8 @@ This is a **pre-revenue software asset**, not a profitable operating business. C
 - Redis/Upstash must be configured for durable production rate limiting.
 - CCPayment v2 and CWallet-via-CCPayment require the buyer's own accounts, credentials, webhook domain, and small-value test transactions.
 - EVM wallet payments require the buyer's own WalletConnect/Reown project ID, chain, RPC endpoint, ERC-20 token, treasury address, token rate, and confirmation policy.
-- AdSense approval, publisher tag verification, and CMP/TCF configuration remain buyer/deployment-specific; `ads.txt` contains the supplied seller declaration.
+- AdSense is not integrated by design (reward-framed Google creative is a policy violation); the 9 self-serve networks in the advertise registry require the operator's own verified accounts before enabling.
+- c.cx.ua banner zone 32 requires the registered domain and per-zone frequency settings in the publisher panel; the same-tab redirect popup zone stays permanently disabled.
 - Authenticated browser, load, abuse, and final production rollout testing remain required.
 
 ## Local setup
