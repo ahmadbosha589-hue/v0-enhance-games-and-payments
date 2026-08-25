@@ -155,6 +155,27 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Canonical host: everything that is not www.faucero.com redirects there.
+  // The same deployment answers for v0 *.vercel.app preview aliases and the
+  // bare apex; sessions created on those hosts never see c.cx.ua ads (the ad
+  // server validates the referer against the registered domain), so keep every
+  // visitor on one origin. Skipped for health probes and provider webhooks,
+  // which must always answer in place.
+  const host = request.headers.get("host") || request.nextUrl.host
+  const CANONICAL_HOST = "www.faucero.com"
+  if (
+    process.env.NODE_ENV === "production" &&
+    host !== CANONICAL_HOST &&
+    !pathname.startsWith("/api/cron") &&
+    !pathname.startsWith("/api/postback") &&
+    !pathname.startsWith("/api/webhook")
+  ) {
+    const url = request.nextUrl.clone()
+    url.host = CANONICAL_HOST
+    url.protocol = "https:"
+    return NextResponse.redirect(url, 308)
+  }
+
   // Check for suspicious requests (potential attacks)
   const suspicious = detectSuspiciousRequest(request)
   if (!isWebhookPath && suspicious.blocked) {

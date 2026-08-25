@@ -72,6 +72,20 @@ Raise or remove the frequency limit in the c.cx.ua panel (Zone settings →
 Frequency). Panel changes apply automatically — no code change needed. Verify
 with a fresh incognito session (new visitor identity).
 
+### CSP note (operator)
+
+The production `Content-Security-Policy-Report-Only` header is configured in
+the Vercel dashboard. Its `script-src` allowlist does not yet include the ad
+network, so every banner load logs a console violation. Report-only policies do
+not block anything, but before ever switching the policy to enforcing mode, add:
+
+```
+https://c.cx.ua
+```
+
+to `script-src` (and `frame-src` if you embed other providers) in the Vercel
+headers configuration.
+
 ### Troubleshooting checklist
 
 | Symptom | Cause | Fix |

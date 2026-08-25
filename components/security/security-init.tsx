@@ -69,11 +69,17 @@ export function SecurityInit() {
         // Check if iframe was injected by a script (not in original HTML)
         if (!iframe.hasAttribute("data-allowed")) {
           const src = iframe.src || ""
-          // Allow certain known iframes (like Turnstile)
+          // Allow known first-party and partner iframes. Our own banner frame
+          // (public/ads/cxua/banner-frame.html) is same-origin and hosts the
+          // c.cx.ua embed; without this entry every dashboard page logged a
+          // false-positive "[Security] Unauthorized iframe" for it.
           const allowedSources = [
             "challenges.cloudflare.com",
             "youtube.com",
             "player.vimeo.com",
+            "/ads/cxua/banner-frame.html",
+            "c.cx.ua",
+            window.location.host,
           ]
 
           const isAllowed = allowedSources.some(source => src.includes(source))
