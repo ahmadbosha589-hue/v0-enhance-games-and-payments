@@ -195,13 +195,24 @@ function validateSignature(provider: string, params: Record<string, string>, sig
       }
 
       case "cpx-research": {
-        // CPX Research uses MD5: md5(transId-usrId-amountUSD-secretKey)
-        const expectedSig = createHash("md5")
-          .update(
-            `${params.trans_id || params.transaction_id}-${params.user_id || params.ext_user_id}-${params.amount_usd}-${secret}`,
-          )
+        // CPX Research S2S hash. Mirrored guides show two dash-separated
+        // variants depending on account age:
+        //   v1: md5(transId-usrId-amountUSD-secretKey)
+        //   v2: md5(transId-usrId-amountUSD-currency-secretKey)
+        // Accept either; the mismatch log in handlePostback prints both
+        // candidates so an operator can see which one their account uses.
+        const trans = params.trans_id || params.transaction_id || ""
+        const user = params.user_id || params.ext_user_id || ""
+        const amountUsd = params.amount_usd || ""
+        const currency = params.currency || "USD"
+        const v1 = createHash("md5")
+          .update(`${trans}-${user}-${amountUsd}-${secret}`)
           .digest("hex")
-        return signaturesEqual(signature, expectedSig)
+        if (signaturesEqual(signature, v1)) return true
+        const v2 = createHash("md5")
+          .update(`${trans}-${user}-${amountUsd}-${currency}-${secret}`)
+          .digest("hex")
+        return signaturesEqual(signature, v2)
       }
 
       case "torox": {
@@ -787,10 +798,26 @@ async function handlePostback(
     })
 
     if (!validateSignature(provider, paramsObj, signature)) {
-      console.warn(`[Postback] Invalid signature for ${provider} from IP: ${requestIP}`, {
+      const debug: Record<string, unknown> = {
         receivedSignature: signature,
         rawParams: paramsObj,
-      })
+      }
+      if (provider === "cpx-research" && process.env.CPX_SECRET_KEY) {
+        // Surface both accepted variants so a dashboard misconfiguration is
+        // diagnosable from the logs without guessing.
+        const trans = paramsObj.trans_id || paramsObj.transaction_id || ""
+        const user = paramsObj.user_id || paramsObj.ext_user_id || ""
+        const secret = (process.env.CPX_SECRET_KEY || "").trim()
+        debug.expected_v1 = createHash("md5")
+          .update(`${trans}-${user}-${paramsObj.amount_usd || ""}-${secret}`)
+          .digest("hex")
+        debug.expected_v2 = createHash("md5")
+          .update(
+            `${trans}-${user}-${paramsObj.amount_usd || ""}-${paramsObj.currency || "USD"}-${secret}`,
+          )
+          .digest("hex")
+      }
+      console.warn(`[Postback] Invalid signature for ${provider} from IP: ${requestIP}`, debug)
       // c.cx.ua's own docs respond with this exact plain-text convention on
       // signature mismatch. It will (correctly) be marked Failed in their
       // dashboard, but the readable body makes the root cause obvious there

@@ -61,7 +61,7 @@ const OFFERWALLS: OfferwallConfig[] = [
     name: "CPX Research",
     slug: "cpx-research",
     description: "Complete high-paying surveys from trusted research companies. Average payout: 50-200 sats per survey.",
-    logo: "",
+    logo: "/offerwalls/cpx-research/logo-light.png",
     color: "#00C853",
     bgGradient: "from-green-500/20 to-green-600/10",
     minPayout: 0,
