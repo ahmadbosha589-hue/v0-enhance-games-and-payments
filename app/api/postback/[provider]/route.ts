@@ -195,20 +195,26 @@ function validateSignature(provider: string, params: Record<string, string>, sig
       }
 
       case "cpx-research": {
-        // CPX Research S2S hash. Mirrored guides show two dash-separated
-        // variants depending on account age:
-        //   v1: md5(transId-usrId-amountUSD-secretKey)
-        //   v2: md5(transId-usrId-amountUSD-currency-secretKey)
-        // Accept either; the mismatch log in handlePostback prints both
-        // candidates so an operator can see which one their account uses.
+        // CPX Research postback hash. PRIMARY per the official dashboard:
+        //   md5({trans_id}-SECRET)
+        // Fallbacks kept for older mirrored guide variants so legacy links
+        // keep verifying; every candidate is logged on mismatch (see handler).
         const trans = params.trans_id || params.transaction_id || ""
+
+        // Documented primary: md5(transId-secret)
+        const docScheme = createHash("md5").update(`${trans}-${secret}`).digest("hex")
+        if (signaturesEqual(signature, docScheme)) return true
+
+        // Legacy v1: md5(trans-user-amountUSD-secret)
         const user = params.user_id || params.ext_user_id || ""
         const amountUsd = params.amount_usd || ""
-        const currency = params.currency || "USD"
         const v1 = createHash("md5")
           .update(`${trans}-${user}-${amountUsd}-${secret}`)
           .digest("hex")
         if (signaturesEqual(signature, v1)) return true
+
+        // Legacy v2: md5(trans-user-amountUSD-currency-secret)
+        const currency = params.currency || "USD"
         const v2 = createHash("md5")
           .update(`${trans}-${user}-${amountUsd}-${currency}-${secret}`)
           .digest("hex")
@@ -432,15 +438,30 @@ function parsePostbackParams(provider: string, searchParams: URLSearchParams): P
         }
       }
 
-      case "cpx-research":
+      case "cpx-research": {
+        // CPX dashboard placeholders (exact names):
+        //   {status} 1=completed 2=canceled/reversed
+        //   {trans_id} {user_id} {subid_1}/{subid_2}
+        //   {amount_local} {amount_usd} {offer_ID} {ip_click} {type}
+        // user identity: we pass our UUID as {user_id}; ext_user_id kept as a
+        // legacy fallback for older links.
+        const statusRaw = searchParams.get("status") || "1"
+        const isReversal = statusRaw === "2"
         return {
-          userId: searchParams.get("user_id") || searchParams.get("ext_user_id") || "",
+          userId:
+            searchParams.get("user_id") ||
+            searchParams.get("ext_user_id") ||
+            searchParams.get("subid_1") ||
+            "",
           offerId: searchParams.get("offer_id") || searchParams.get("survey_id") || "",
-          offerName: searchParams.get("offer_name") || "CPX Survey",
+          offerName: searchParams.get("offer_name") || `CPX Survey (${searchParams.get("type") || "complete"})`,
           credits: Number.parseFloat(searchParams.get("amount_usd") || "0") * 100,
-          transactionId: searchParams.get("trans_id") || searchParams.get("transaction_id") || "",
-          ip: searchParams.get("ip") || "",
+          transactionId:
+            (isReversal ? "rev_" : "") +
+            (searchParams.get("trans_id") || searchParams.get("transaction_id") || ""),
+          ip: searchParams.get("ip_click") || searchParams.get("ip") || "",
         }
+      }
 
       case "torox":
         return {
@@ -803,11 +824,13 @@ async function handlePostback(
         rawParams: paramsObj,
       }
       if (provider === "cpx-research" && process.env.CPX_SECRET_KEY) {
-        // Surface both accepted variants so a dashboard misconfiguration is
-        // diagnosable from the logs without guessing.
+        // Surface ALL accepted candidates so a dashboard misconfiguration is
+        // diagnosable from the logs without guessing. expected_doc is the
+        // officially documented md5({trans_id}-SECRET).
         const trans = paramsObj.trans_id || paramsObj.transaction_id || ""
         const user = paramsObj.user_id || paramsObj.ext_user_id || ""
-        const secret = (process.env.CPX_SECRET_KEY || "").trim()
+        const secret = process.env.CPX_SECRET_KEY.trim()
+        debug.expected_doc = createHash("md5").update(`${trans}-${secret}`).digest("hex")
         debug.expected_v1 = createHash("md5")
           .update(`${trans}-${user}-${paramsObj.amount_usd || ""}-${secret}`)
           .digest("hex")
@@ -846,6 +869,33 @@ async function handlePostback(
         return new NextResponse(okText, { status: 200, headers: { "Content-Type": "text/plain" } })
       }
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 })
+    }
+
+    // CPX Research sends status=2 when a completed offer is later detected as
+    // fraud (typically 15-60 days after completion). Reverse the original
+    // conversion atomically via reverse_offerwall_conversion (deducts balance,
+    // writes ledger, idempotent on repeat calls) so the user's balance matches
+    // what CPX will actually pay out.
+    if (provider === "cpx-research" && searchParams.get("status") === "2") {
+      const txId = postbackParams.transactionId.replace(/^rev_/, "")
+      console.warn(
+        `[Postback] cpx-research reversal received - user: ${postbackParams.userId}, tx: ${txId}`,
+      )
+      try {
+        const { data: reverseResult, error: reverseError } = await supabaseAdmin.rpc(
+          "reverse_offerwall_conversion",
+          { p_transaction_id: txId, p_reason: "CPX Research fraud detection (status=2)" },
+        )
+        if (reverseError) {
+          console.error("[Postback] cpx-research reversal RPC error:", reverseError)
+        } else {
+          console.log("[Postback] cpx-research reversal result:", reverseResult)
+        }
+      } catch (revErr) {
+        console.error("[Postback] cpx-research reversal error:", revErr)
+      }
+      // Always ack so CPX doesn't retry; outcome is recorded either way.
+      return NextResponse.json({ ok: true })
     }
 
     // c.cx.ua sends status=2 for chargebacks (offer reversal).
