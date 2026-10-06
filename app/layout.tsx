@@ -1,6 +1,5 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import Script from "next/script"
 import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
@@ -111,19 +110,17 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning dir="ltr">
       <head>
-        <Script
-          async
-          src="https://www.googletagmanager.com/gtag/js?id=G-1XJ0BSE9YZ"
-          strategy="beforeInteractive"
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-1XJ0BSE9YZ" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-1XJ0BSE9YZ');
+            `,
+          }}
         />
-        <Script id="google-analytics" strategy="beforeInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){window.dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-1XJ0BSE9YZ');
-          `}
-        </Script>
 
         {/* Font preconnects */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
