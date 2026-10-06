@@ -111,18 +111,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning dir="ltr">
       <head>
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-1XJ0BSE9YZ"
-          strategy="beforeInteractive"
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-1XJ0BSE9YZ" />
+        <script
+          id="google-analytics"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){window.dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-1XJ0BSE9YZ', { send_page_view: true });
+            `,
+          }}
         />
-        <Script id="google-analytics" strategy="beforeInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){window.dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-1XJ0BSE9YZ', { send_page_view: true });
-          `}
-        </Script>
 
         {/* Font preconnects */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
