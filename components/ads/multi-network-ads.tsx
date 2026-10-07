@@ -131,7 +131,7 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
       data-ad-network={network.id}
       data-ad-position={position}
       data-refresh-count={refreshCount}
-      data-page-load-only={network.pageLoadOnly || false}
+      data-page-load-only={"pageLoadOnly" in network ? network.pageLoadOnly : false}
     >
       <div
         className={cn("w-full h-full flex items-center justify-center", slotHeight)}
@@ -268,7 +268,7 @@ export const MultiNetworkAds = memo(function MultiNetworkAds({
 
     AD_NETWORKS.forEach(network => {
       // Skip AdsKeeper - it only refreshes on page load
-      if (network.pageLoadOnly || network.refreshInterval === 0) return
+      if (("pageLoadOnly" in network && network.pageLoadOnly) || network.refreshInterval === 0) return
 
       const existingInterval = intervalsRef.current.get(network.id)
       if (existingInterval) clearInterval(existingInterval)

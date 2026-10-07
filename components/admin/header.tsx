@@ -37,6 +37,19 @@ interface AdminNotification {
   created_at: string
 }
 
+interface FraudFlagNotification {
+  id: string
+  fraud_type: string
+  severity: string
+  created_at: string
+}
+
+interface WithdrawalNotification {
+  id: string
+  amount_satoshis: number
+  created_at: string
+}
+
 export function AdminHeader({ profile, email }: AdminHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [notifications, setNotifications] = useState<AdminNotification[]>([])
@@ -74,7 +87,7 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
 
         // Add fraud flags as notifications
         if (fraudFlags && fraudFlags.length > 0) {
-          fraudFlags.forEach((flag) => {
+          fraudFlags.forEach((flag: FraudFlagNotification) => {
             notifs.push({
               id: `fraud-${flag.id}`,
               type: "fraud",
@@ -87,7 +100,7 @@ export function AdminHeader({ profile, email }: AdminHeaderProps) {
 
         // Add pending withdrawals as notifications
         if (withdrawals && withdrawals.length > 0) {
-          withdrawals.forEach((w) => {
+          withdrawals.forEach((w: WithdrawalNotification) => {
             notifs.push({
               id: `withdrawal-${w.id}`,
               type: "withdrawal",

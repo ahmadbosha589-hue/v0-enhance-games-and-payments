@@ -94,7 +94,7 @@ export function DashboardHeader({ profile: initialProfile }: DashboardHeaderProp
           table: "notifications",
           filter: `user_id=eq.${profile.id}`,
         },
-        (payload) => {
+        (payload: { new: unknown }) => {
           setNotifications((prev) => [payload.new as Notification, ...prev.slice(0, 4)])
           setUnreadCount((prev) => prev + 1)
         },

@@ -1,8 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { Button, type ButtonProps } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { useButtonSounds, type SoundType } from "@/hooks/use-button-sounds"
+
+type ButtonProps = React.ComponentProps<typeof Button>
 
 interface SoundButtonProps extends ButtonProps {
   clickSound?: SoundType | false

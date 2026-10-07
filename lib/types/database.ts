@@ -94,6 +94,7 @@ export interface Withdrawal {
   payment_address: string
   payment_currency: string
   faucetpay_payout_id: string | null
+  tx_hash?: string | null
   faucetpay_response: Record<string, unknown> | null
   processed_at: string | null
   processed_by: string | null

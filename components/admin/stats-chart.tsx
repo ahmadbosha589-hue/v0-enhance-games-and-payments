@@ -87,7 +87,7 @@ export function AdminStatsChart() {
         dailyData[key] = { claims: 0, users: new Set(), satoshis: 0 }
       }
 
-      claims?.forEach((claim) => {
+      claims?.forEach((claim: { created_at: string; amount_satoshis: number; user_id: string }) => {
         const key = claim.created_at.split("T")[0]
         if (dailyData[key]) {
           dailyData[key].claims++

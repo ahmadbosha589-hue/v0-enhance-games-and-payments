@@ -87,7 +87,7 @@ async function getAdConfigs(): Promise<Record<string, unknown>> {
     .then(res => res.ok ? res.json() : { configs: {} })
     .then(data => {
       configCache = data.configs || {}
-      return configCache
+      return configCache ?? {}
     })
     .catch(() => ({}))
   

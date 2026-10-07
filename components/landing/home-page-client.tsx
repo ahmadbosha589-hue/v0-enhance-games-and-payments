@@ -23,6 +23,7 @@ import { Menu, Loader2 } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { createClient } from "@/lib/supabase/client"
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 
 function HomePageContent() {
   const { t } = useLanguage()
@@ -62,7 +63,7 @@ function HomePageContent() {
     // work for non-logged-in visitors or fight with the server decision.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (cancelled) return
       if (event !== "SIGNED_IN") return
       if (!session?.user) return
