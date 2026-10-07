@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
 import type { Profile } from "@/lib/types/database"
-import type { RealtimeChannel } from "@supabase/supabase-js"
+import type { AuthChangeEvent, Session, RealtimeChannel } from "@supabase/supabase-js"
 
 interface UseRealtimeProfileReturn {
   profile: Profile | null
@@ -77,7 +77,7 @@ export function useRealtimeProfile(userId: string | undefined): UseRealtimeProfi
           table: "profiles",
           filter: `id=eq.${userId}`,
         },
-        (payload) => {
+        (payload: { eventType: string; new: unknown }) => {
           if (payload.eventType === "UPDATE") {
             setProfile(payload.new as Profile)
           }
@@ -88,7 +88,7 @@ export function useRealtimeProfile(userId: string | undefined): UseRealtimeProfi
     // Listen for auth state changes to refetch on re-authentication
     // This ensures we get fresh data when user logs back in
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
         if (event === "SIGNED_IN" && session?.user?.id === userId) {
           // ALWAYS refetch on SIGNED_IN to get the authoritative balance from database
           // This prevents stale/cached data from showing incorrect balance
@@ -107,7 +107,8 @@ export function useRealtimeProfile(userId: string | undefined): UseRealtimeProfi
     // Initialize session ID (don't fetch here, fetchProfile() is already called above)
     // Clear orphaned Web Lock before any auth operation to prevent hangs
     clearOrphanedAuthLock().then(() => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
+        const { session } = data
         sessionIdRef.current = session?.access_token?.substring(0, 20) || null
       })
     })

@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const th: Dictionary = {
+export const th = {
   common: {
     loading: "กำลังโหลด...",
     error: "เกิดข้อผิดพลาด",
@@ -285,7 +285,7 @@ export const th: Dictionary = {
     adjustment: "การปรับ",
   },
   errors: {
-    notFound: "ไม่พบหน้า",
+    notFound: "ไม่พบห��้า",
     unauthorized: "ไม่ได้รับอนุญาต",
     serverError: "ข้อผิดพลาดเซิร์ฟเวอร์",
     networkError: "ข้อผิดพลาดเครือข่าย",

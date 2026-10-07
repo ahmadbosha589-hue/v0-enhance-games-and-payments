@@ -2,9 +2,7 @@
 // ITALIAN (Italiano) - Flat translations
 // =============================================================================
 
-import type { TranslationKey } from "./translations"
-
-const it: Record<TranslationKey, string> = {
+const it: Record<string, string> = {
   "nav.features": "Funzionalità",
   "nav.howItWorks": "Come Funziona",
   "nav.faq": "FAQ",

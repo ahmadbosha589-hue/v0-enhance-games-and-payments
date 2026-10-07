@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const id: Dictionary = {
+export const id = {
   common: {
     loading: "Memuat...",
     error: "Terjadi kesalahan",

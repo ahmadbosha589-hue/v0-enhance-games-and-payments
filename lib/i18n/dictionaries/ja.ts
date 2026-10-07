@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const ja: Dictionary = {
+export const ja = {
   common: {
     loading: "読み込み中...",
     error: "エラーが発生しました",
@@ -207,7 +207,7 @@ export const ja: Dictionary = {
     referralCode: "紹介コード",
     referredBy: "紹介者",
     referralStats: "紹介統計",
-    pendingReferrals: "保留中の紹介",
+    pendingReferrals: "保留中の���介",
     lifetimeEarnings: "生涯収益",
     thisMonth: "今月",
     shareOn: "共有先",
@@ -400,7 +400,7 @@ export const ja: Dictionary = {
   adblock: {
     title: "広告ブロッカーが検出されました",
     message: "続行するには広告ブロッカーを無効にしてください",
-    countdown: "{{seconds}}秒後にフラグが付けられます",
+    countdown: "{{seconds}}秒��にフラグが付けられます",
     disableInstructions: "広告ブロッカーを無効にする方法：",
     step1: "ブラウザの広告ブロッカーアイコンをクリック",
     step2: "このサイトで「無効にする」を選択",

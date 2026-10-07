@@ -2,9 +2,7 @@
 // Arabic Dictionary (RTL) - Extended
 // =====================================================
 
-import type { Dictionary } from "./en"
-
-export const ar: Dictionary = {
+export const ar = {
   common: {
     loading: "جاري التحميل...",
     error: "حدث خطأ",
@@ -90,6 +88,10 @@ export const ar: Dictionary = {
     statistics: "الإحصائيات",
     security: "الأمان",
     preferences: "التفضيلات",
+    blog: "المدونة",
+    earn: "اكسب",
+    offerwalls: "جدران العروض",
+    ptc: "انقر للربح",
   },
   auth: {
     loginTitle: "مرحباً بعودتك",
@@ -283,6 +285,10 @@ export const ar: Dictionary = {
     bonus: "مكافأة",
     penalty: "عقوبة",
     adjustment: "تعديل",
+    adManagement: "إدارة الإعلانات",
+    fraudReview: "مراجعة الاحتيال",
+    systemSettings: "إعدادات النظام",
+    backToUserView: "العودة إلى عرض المستخدم",
   },
   errors: {
     notFound: "الصفحة غير موجودة",
@@ -334,6 +340,7 @@ export const ar: Dictionary = {
     legal: "قانوني",
     resources: "الموارد",
     company: "الشركة",
+    aml: "مكافحة غسل الأموال",
   },
   settings: {
     title: "الإعدادات",

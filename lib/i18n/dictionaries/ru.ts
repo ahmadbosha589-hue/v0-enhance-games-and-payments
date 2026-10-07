@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const ru: Dictionary = {
+export const ru = {
   common: {
     loading: "Загрузка...",
     error: "Произошла ошибка",
@@ -331,7 +331,7 @@ export const ru: Dictionary = {
     newsletter: "Рассылка",
     subscribe: "Подписаться",
     subscribeSuccess: "Подписка оформлена!",
-    legal: "Юридическая информация",
+    legal: "Юр��дическая информация",
     resources: "Ресурсы",
     company: "Компания",
   },

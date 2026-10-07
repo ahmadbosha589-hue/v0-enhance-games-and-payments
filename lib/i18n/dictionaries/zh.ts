@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const zh: Dictionary = {
+export const zh = {
   common: {
     loading: "加载中...",
     error: "发生错误",

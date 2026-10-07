@@ -72,7 +72,7 @@ export function useNotifications(userId: string | undefined): UseNotificationsRe
           table: "notifications",
           filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
+        (payload: { new: unknown }) => {
           setNotifications((prev) => [payload.new as Notification, ...prev])
         },
       )

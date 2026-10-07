@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const ko: Dictionary = {
+export const ko = {
   common: {
     loading: "로딩 중...",
     error: "오류가 발생했습니다",
@@ -221,7 +221,7 @@ export const ko: Dictionary = {
     rank: "순위",
     user: "사용자",
     earnings: "수입",
-    claims: "청구",
+    claims: "��구",
     streak: "연속",
     topEarners: "최고 수입자",
     topClaimers: "최다 청구",

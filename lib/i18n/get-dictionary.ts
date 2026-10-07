@@ -25,7 +25,7 @@ const dictionaries = {
   de,
   ja,
   ko,
-}
+} as unknown as Record<string, typeof en>
 
 export async function getDictionary(locale: Locale) {
   return dictionaries[locale] || dictionaries.en

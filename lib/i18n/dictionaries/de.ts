@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const de: Dictionary = {
+export const de = {
   common: {
     loading: "Laden...",
     error: "Ein Fehler ist aufgetreten",

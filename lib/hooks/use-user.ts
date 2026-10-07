@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { User } from "@supabase/supabase-js"
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js"
 import type { Profile } from "@/lib/types/database"
 
 interface UseUserReturn {
@@ -167,7 +167,7 @@ export function useUser(): UseUserReturn {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (!mountedRef.current) return
 
       if (event === "INITIAL_SESSION") return

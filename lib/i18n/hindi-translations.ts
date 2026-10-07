@@ -2,9 +2,7 @@
 // HINDI (हिन्दी) - Flat translations
 // =============================================================================
 
-import type { TranslationKey } from "./translations"
-
-const hi: Record<TranslationKey, string> = {
+const hi: Record<string, string> = {
   "nav.features": "विशेषताएं",
   "nav.howItWorks": "कैसे काम करता है",
   "nav.faq": "अक्सर पूछे जाने वाले प्रश्न",
@@ -82,7 +80,7 @@ const hi: Record<TranslationKey, string> = {
   "faq.q3": "निकासी कैसे काम करती है?",
   "faq.a3": "हम FaucetPay के माध्यम से तुरंत निकासी प्रोसेस करते हैं। बस अपना FaucetPay अकाउंट कनेक्ट करें और कभी भी अपनी कमाई निकालें।",
   "faq.q4": "क्या कोई न्यूनतम निकासी है?",
-  "faq.a4": "हां, न्यूनतम निकासी 10,000 सातोशी है। यह कुशल लेनदेन प्रोसेसिंग सुनिश्चित करता है।",
+  "faq.a4": "हां, ���्यूनतम निकासी 10,000 सातोशी है। यह कुशल लेनदेन प्रोसेसिंग सुनिश्चित करता है।",
   "faq.q5": "रेफरल सिस्टम कैसे काम करता है?",
   "faq.a5": "हमारा 3-स्तरीय रेफरल सिस्टम आपको सीधे रेफरल से 10%, उनके रेफरल से 5%, और तीसरे स्तर से 2% कमाने देता है।",
   "faq.q6": "क्या Faucero सुरक्षित है?",
@@ -157,7 +155,7 @@ const hi: Record<TranslationKey, string> = {
   "about.values.community.description":
     "समुदाय द्वारा, समुदाय के लिए बनाया गया। आपकी प्रतिक्रिया हमारे प्लेटफॉर्म को आकार देती है।",
   "about.values.global.title": "वैश्विक पहुंच",
-  "about.values.global.description": "कई भाषाओं और मुद्राओं के समर्थन के साथ दुनिया भर में उपलब्ध।",
+  "about.values.global.description": "कई भाषाओं और मुद���राओं के समर्थन के साथ दुनिया भर में उपलब्ध।",
   "about.why.title": "क्यों",
   "about.why.titleHighlight": "हमें चुनें",
   "about.why.subtitle": "यहां बताया गया है कि हम अन्य प्लेटफॉर्म से अलग क्यों हैं",

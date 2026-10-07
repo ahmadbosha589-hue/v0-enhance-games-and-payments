@@ -4,7 +4,7 @@
 
 import type { Dictionary } from "./en"
 
-export const vi: Dictionary = {
+export const vi = {
   common: {
     loading: "Đang tải...",
     error: "Đã xảy ra lỗi",
