@@ -77,12 +77,16 @@ export async function GET() {
 
   const db = createAdminClient()
 
-  // Try DB first, then env var
-  const { data: row } = await db
-    .from("system_settings")
-    .select("value, updated_at, updated_by")
-    .eq("key", SETTINGS_KEY)
-    .maybeSingle()  // returns null (not throws) when key not yet set
+  // Try DB first, then env var. The admin client is unavailable when the
+  // server-side Supabase credentials are not configured, so env-only mode
+  // must remain a safe and functional fallback.
+  const row = db
+    ? (await db
+        .from("system_settings")
+        .select("value, updated_at, updated_by")
+        .eq("key", SETTINGS_KEY)
+        .maybeSingle()).data
+    : null
 
   const rawKey = (row?.value as string | null)?.trim()
     || process.env.FAUCETPAY_API_KEY?.trim()
@@ -145,6 +149,13 @@ export async function POST(request: NextRequest) {
 
   // Save to system_settings
   const db = createAdminClient()
+  if (!db) {
+    return NextResponse.json(
+      { error: "Database service is not configured; the key was validated but could not be saved." },
+      { status: 503 },
+    )
+  }
+
   const { error: saveError } = await db
     .from("system_settings")
     .upsert(
@@ -159,7 +170,7 @@ export async function POST(request: NextRequest) {
     )
 
   if (saveError) {
-    log.error("Failed to save FaucetPay API key", { error: saveError })
+    log.error(`Failed to save FaucetPay API key: ${saveError.message}`)
     return NextResponse.json({ error: "Failed to save API key to database" }, { status: 500 })
   }
 
@@ -184,6 +195,13 @@ export async function DELETE() {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const db = createAdminClient()
+  if (!db) {
+    return NextResponse.json(
+      { error: "Database service is not configured; no stored key was removed." },
+      { status: 503 },
+    )
+  }
+
   const { error } = await db
     .from("system_settings")
     .delete()

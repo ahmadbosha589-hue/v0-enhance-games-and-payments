@@ -90,7 +90,7 @@ async function verifyAdminPermissions(requestType: string) {
 
     return { error: null, status: 200, user, profile }
   } catch (error) {
-    log.error("Auth verification error", { requestType, error })
+    log.error(`Auth verification error (${requestType}): ${error instanceof Error ? error.message : String(error)}`)
     return { error: "Authentication error", status: 500, user: null, profile: null }
   }
 }
@@ -219,7 +219,7 @@ export async function GET(request: Request) {
       }
 
       if (error) {
-        log.error("Failed to fetch users for funds management", { error: error.message, code: error.code })
+        log.error(`Failed to fetch users for funds management: ${error.message} (${error.code ?? "unknown"})`)
         return NextResponse.json({
           error: "Failed to fetch users",
           details: error.message,
@@ -302,7 +302,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   } catch (error) {
-    log.error("Admin funds GET error", { error })
+    log.error(`Admin funds GET error: ${error instanceof Error ? error.message : String(error)}`)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
@@ -322,7 +322,7 @@ export async function POST(request: Request) {
 
     const adminSupabase = createAdminClient()
     if (!adminSupabase) {
-      log.error("Database connection failed for funds operation", { operationId })
+      log.error(`Database connection failed for funds operation: ${operationId}`)
       return NextResponse.json({ error: "Database connection failed" }, { status: 503 })
     }
 
@@ -378,11 +378,11 @@ export async function POST(request: Request) {
         .single()
 
       if (fetchError || !targetProfile) {
-        log.error("User not found for balance adjustment", { operationId, userId })
+        log.error(`User not found for balance adjustment: ${operationId} (${userId})`)
         return NextResponse.json({ error: "User not found" }, { status: 404 })
       }
 
-      const currentValue = Number(targetProfile[field] || 0)
+      const currentValue = Number((targetProfile as Record<string, unknown>)[field] || 0)
       const originalUpdatedAt = targetProfile.updated_at
 
       // STEP 2: Calculate new value with safety bounds
@@ -438,7 +438,7 @@ export async function POST(request: Request) {
         })
 
       if (auditPreError) {
-        log.error("Failed to create pre-audit log", { operationId, error: auditPreError })
+        log.error(`Failed to create pre-audit log: ${operationId} (${auditPreError.message})`)
         return NextResponse.json({ error: "Failed to initialize operation audit" }, { status: 500 })
       }
 
@@ -456,11 +456,7 @@ export async function POST(request: Request) {
 
       if (updateError || !updateResult) {
         // Concurrent modification detected - the balance was changed by another operation
-        log.error("Concurrent modification detected during balance adjustment", {
-          operationId,
-          userId,
-          error: updateError
-        })
+        log.error(`Concurrent modification detected during balance adjustment: ${operationId} (${userId})${updateError ? ` - ${updateError.message}` : ""}`)
 
         // Update audit log to reflect failure
         await adminSupabase
@@ -488,13 +484,9 @@ export async function POST(request: Request) {
       }
 
       // STEP 5: Verify the update was applied correctly
-      const actualNewValue = Number(updateResult[field])
+      const actualNewValue = Number((updateResult as Record<string, unknown>)[field])
       if (actualNewValue !== newValue) {
-        log.error("Balance verification failed after update", {
-          operationId,
-          expected: newValue,
-          actual: actualNewValue
-        })
+        log.error(`Balance verification failed after update: ${operationId} (expected ${newValue}, actual ${actualNewValue})`)
 
         // CRITICAL: Attempt to rollback
         await adminSupabase
@@ -741,7 +733,7 @@ export async function POST(request: Request) {
         .single()
 
       if (updatePurchaseError || !updatedPurchase) {
-        log.error("Failed to update purchase status - concurrent modification", { operationId, purchaseId })
+        log.error(`Failed to update purchase status - concurrent modification: ${operationId} (${purchaseId})`)
         return NextResponse.json({
           error: "Purchase status was modified by another operation. Please refresh."
         }, { status: 409 })
@@ -923,7 +915,7 @@ export async function POST(request: Request) {
         .eq("id", purchaseId)
 
       if (updateError) {
-        log.error("Failed to correct revenue", { operationId, purchaseId, error: updateError })
+        log.error(`Failed to correct revenue: ${operationId} (${purchaseId}) - ${updateError.message}`)
         return NextResponse.json({ error: "Failed to correct revenue data" }, { status: 500 })
       }
 
@@ -1018,7 +1010,7 @@ export async function POST(request: Request) {
         .in("id", purchaseIds)
 
       if (updateError) {
-        log.error("Failed to reset test revenue", { operationId, error: updateError })
+        log.error(`Failed to reset test revenue: ${operationId} - ${updateError.message}`)
         return NextResponse.json({ error: "Failed to reset revenue" }, { status: 500 })
       }
 
@@ -1063,7 +1055,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   } catch (error) {
-    log.error("Admin funds POST error", { operationId, error })
+    log.error(`Admin funds POST error: ${operationId} - ${error instanceof Error ? error.message : String(error)}`)
     return NextResponse.json({
       error: "Internal server error. Operation has been logged for review.",
       operationId

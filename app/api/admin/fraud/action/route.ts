@@ -15,6 +15,10 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const headersList = await headers()
 
+    if (!supabase) {
+      return NextResponse.json({ error: "Authentication service is not configured" }, { status: 503 })
+    }
+
     // Verify admin
     const {
       data: { user },
