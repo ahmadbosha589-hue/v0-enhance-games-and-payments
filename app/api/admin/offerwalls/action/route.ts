@@ -29,6 +29,9 @@ const ADMIN_ROLES = ["admin", "superadmin"]
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
+    if (!supabase) {
+      return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 })
+    }
 
     // Verify admin
     const {

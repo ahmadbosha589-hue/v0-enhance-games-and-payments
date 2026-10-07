@@ -8,8 +8,7 @@ export async function createClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("[Supabase Server] Environment variables not configured")
-    return null
+    throw new Error("Supabase server environment variables are not configured")
   }
 
   const cookieStore = await cookies()
@@ -38,16 +37,14 @@ export const createAdminClient = cache(function createAdminClient() {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl) {
-    console.warn("[Supabase Admin] NEXT_PUBLIC_SUPABASE_URL not configured")
-    return null
+    throw new Error("Supabase admin URL is not configured")
   }
 
   // This client is used for privileged server-side operations. Falling back
   // to the publishable key can silently turn authorization failures into
   // partial writes, so fail closed when the service-role key is absent.
   if (!serviceRoleKey) {
-    console.error("[Supabase Admin] SUPABASE_SERVICE_ROLE_KEY is not configured")
-    return null
+    throw new Error("Supabase service-role key is not configured")
   }
 
   return createSupabaseClient(supabaseUrl, serviceRoleKey, {
