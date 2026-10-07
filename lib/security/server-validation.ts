@@ -623,12 +623,12 @@ export async function validateSecurityServerSide(
     })
 
     if (vpnFortressResult.isVPN || vpnFortressResult.isProxy) {
-      const vpnPenalty = vpnFortressResult.confidence === "absolute" ? 70 :
-        vpnFortressResult.confidence === "high" ? 55 :
-          vpnFortressResult.confidence === "medium" ? 40 : 25
+      const vpnPenalty = vpnFortressResult.confidence >= 90 ? 70 :
+        vpnFortressResult.confidence >= 70 ? 55 :
+          vpnFortressResult.confidence >= 40 ? 40 : 25
       totalScore += vpnPenalty
 
-      vpnFortressResult.detectionMethods.forEach(method => {
+      vpnFortressResult.methods.forEach(method => {
         allFlags.push(`vpn_fortress_${method}`)
       })
 
@@ -720,7 +720,7 @@ export async function validateSecurityServerSide(
   }
 
   // FORTRESS v4.0 correlations
-  if (adblockFortressResult?.isBlocking && serverOnlyDetection) {
+  if (adblockFortressResult?.isAdblockDetected && serverOnlyDetection) {
     correlatedThreats.push("adblock_evasion_confirmed")
     // User is actively trying to hide adblock usage - severe violation
     totalScore += 30
@@ -739,7 +739,7 @@ export async function validateSecurityServerSide(
   }
 
   // Cross-system correlation: adblock + VPN = likely fraud
-  if ((adblockFortressResult?.isBlocking || adblockResult.detected) &&
+  if ((adblockFortressResult?.isAdblockDetected || adblockResult.detected) &&
     (vpnFortressResult?.isVPN || vpnResult?.isVPN)) {
     correlatedThreats.push("multi_evasion_detected")
     totalScore += 25
@@ -757,7 +757,7 @@ export async function validateSecurityServerSide(
     vpnResult,
     vpnFortressResult,
     botScore: behaviorResult.score + headerResult.score,
-    adblockDetected: adblockResult.detected || (adblockFortressResult?.isBlocking ?? false),
+    adblockDetected: adblockResult.detected || (adblockFortressResult?.isAdblockDetected ?? false),
     adblockFortressResult,
     shouldLogout,
     banReason,

@@ -449,18 +449,20 @@ async function recordRateLimitViolation(
     
     // Update user fraud score if logged in
     if (context.userId) {
-      await adminSupabase.rpc("increment_fraud_score", {
-        p_user_id: context.userId,
-        p_amount: result.penaltyLevel * 2,
-      }).catch(() => {
+      try {
+        await adminSupabase.rpc("increment_fraud_score", {
+          p_user_id: context.userId,
+          p_amount: result.penaltyLevel * 2,
+        })
+      } catch {
         // Fallback if RPC doesn't exist
-        adminSupabase
+        await adminSupabase
           .from("profiles")
           .update({
             fraud_score: Math.min(100, result.penaltyLevel * 5),
           })
           .eq("id", context.userId)
-      })
+      }
     }
   } catch (error) {
     log.error("Failed to record rate limit violation", { error, context })

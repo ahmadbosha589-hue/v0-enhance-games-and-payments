@@ -805,18 +805,20 @@ async function recordFraudAttempt(
     })
 
     // Increment user's fraud score
-    await adminSupabase.rpc("increment_fraud_score", {
-      p_user_id: context.userId,
-      p_amount: Math.ceil(riskScore / 10)
-    }).catch(() => {
+    try {
+      await adminSupabase.rpc("increment_fraud_score", {
+        p_user_id: context.userId,
+        p_amount: Math.ceil(riskScore / 10)
+      })
+    } catch {
       // Fallback if RPC doesn't exist
-      adminSupabase
+      await adminSupabase
         .from("profiles")
         .update({
           fraud_score: Math.min(100, riskScore)
         })
         .eq("id", context.userId)
-    })
+    }
 
   } catch (error) {
     log.error("Failed to record fraud attempt", { error })

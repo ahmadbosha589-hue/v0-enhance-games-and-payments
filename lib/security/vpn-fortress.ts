@@ -78,6 +78,7 @@ export interface ClientVPNData {
   webrtcIPs?: string[]
   timezone?: string
   language?: string
+  acceptLanguage?: string
   /** v12.0: full languages array (used by residential VPN behavioral detector) */
   languages?: string[]
   screenResolution?: string
@@ -297,7 +298,6 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS35540: { name: "Privax (HideMyAss)", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS57858: { name: "Fast Servers Pty Ltd", type: "vpn", confidence: 97, priority: 10, category: "definite" },
   AS200651: { name: "Flokinet Ltd", type: "vpn", confidence: 97, priority: 10, category: "definite" },
-  AS206092: { name: "VPNUnlimited", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS208567: { name: "WeVPN", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS395954: { name: "Atlas VPN", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS213373: { name: "Hide.me VPN", type: "vpn", confidence: 98, priority: 10, category: "definite" },
@@ -321,7 +321,6 @@ const VPN_HOSTING_ASNS: Record<string, {
   // v6.0 NEW: Additional VPN providers (2026)
   AS211106: { name: "FastestVPN", type: "vpn", confidence: 96, priority: 10, category: "definite" },
   AS212477: { name: "Rayobyte VPN", type: "vpn", confidence: 95, priority: 10, category: "definite" },
-  AS57858: { name: "Fast Servers (VPN)", type: "vpn", confidence: 96, priority: 10, category: "definite" },
   AS201197: { name: "VPN Service Provider", type: "vpn", confidence: 94, priority: 10, category: "definite" },
   AS43513: { name: "AirVPN (Alt)", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS203388: { name: "Mysterium Network", type: "vpn", confidence: 93, priority: 10, category: "definite" },
@@ -360,7 +359,6 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS210948: { name: "VPN Monster", type: "vpn", confidence: 93, priority: 10, category: "definite" },
   AS35913: { name: "DediPath (VPN host)", type: "vpn", confidence: 89, priority: 9, category: "high_probability" },
   AS398355: { name: "Datacamp Limited (Nord)", type: "vpn", confidence: 97, priority: 10, category: "definite" },
-  AS136787: { name: "TEFINCOM (NordVPN Asia)", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS206150: { name: "Surfshark Infrastructure", type: "vpn", confidence: 98, priority: 10, category: "definite" },
   AS57169: { name: "EDIS (VPN host)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
   AS48090: { name: "Basis VPN", type: "vpn", confidence: 92, priority: 10, category: "definite" },
@@ -381,12 +379,10 @@ const VPN_HOSTING_ASNS: Record<string, {
   // ══════════════════════════════════════════════════════════════════════════
 
   // Mysterium Network (decentralized dVPN) - node operators + coordinator infra
-  AS203388: { name: "Mysterium Network (dVPN)", type: "vpn", confidence: 95, priority: 10, category: "definite" },
   AS50360: { name: "Mysterium Network Nodes", type: "residential_proxy", confidence: 92, priority: 10, category: "definite" },
   AS200019: { name: "Mysterium Validator (AlexHost)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
 
   // Sentinel dVPN (Cosmos-based decentralized VPN)
-  AS207059: { name: "Sentinel dVPN", type: "vpn", confidence: 92, priority: 10, category: "definite" },
   AS213251: { name: "Sentinel Network Nodes", type: "residential_proxy", confidence: 90, priority: 9, category: "definite" },
 
   // Anomi VPN (Tachyon Protocol - X-VPN / NoBorder)
@@ -405,8 +401,6 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS211398: { name: "Bowtie Works (WireGuard mesh)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
 
   // Hola VPN (RESIDENTIAL P2P - very common with abusers)
-  AS39351: { name: "Hola Networks (Luminati)", type: "residential_proxy", confidence: 98, priority: 10, category: "definite" },
-  AS212238: { name: "Hola P2P Exit Nodes", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
 
   // PacketStream (residential proxy / SDK monetization)
   AS210289: { name: "PacketStream Residential", type: "residential_proxy", confidence: 95, priority: 10, category: "definite" },
@@ -420,7 +414,6 @@ const VPN_HOSTING_ASNS: Record<string, {
 
   // Nexus Network / Tor2Web / Lokinet (anonymity overlay nets)
   AS398772: { name: "Lokinet / Session", type: "tor", confidence: 92, priority: 10, category: "definite" },
-  AS398823: { name: "I2P Network Exits", type: "tor", confidence: 90, priority: 9, category: "high_probability" },
 
   // Brave Firewall+VPN (Guardian) / Guardian Mobile Firewall
   AS395823: { name: "Guardian Mobile Firewall+VPN", type: "vpn", confidence: 95, priority: 10, category: "definite" },
@@ -429,15 +422,11 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS202018: { name: "Cryptostorm VPN", type: "vpn", confidence: 96, priority: 10, category: "definite" },
 
   // F-Secure FreedomVPN
-  AS396998: { name: "F-Secure Freedome VPN", type: "vpn", confidence: 94, priority: 10, category: "definite" },
 
   // BoxPN, FrootVPN, FreeVPN, all the rest
-  AS197540: { name: "FrootVPN", type: "vpn", confidence: 92, priority: 10, category: "definite" },
   AS200912: { name: "FreeVPN", type: "vpn", confidence: 90, priority: 9, category: "definite" },
-  AS9009: { name: "M247 (NordVPN/Surfshark primary)", type: "vpn", confidence: 99, priority: 10, category: "definite" },
 
   // Hacker-favorite VPN providers (anonymous payment, low logging)
-  AS200651: { name: "FlokiNET (Hacker VPN host)", type: "vpn", confidence: 95, priority: 10, category: "definite" },
   AS49870: { name: "Alsycon (Anonymous VPN)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
   AS43847: { name: "Quasi Networks (Anonymous)", type: "vpn", confidence: 88, priority: 9, category: "high_probability" },
   AS44103: { name: "Calyx Institute (Privacy)", type: "vpn", confidence: 92, priority: 10, category: "definite" },
@@ -456,15 +445,10 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS8075: { name: "Microsoft Azure", type: "hosting", confidence: 80, priority: 7, category: "high_probability" },
   AS15169: { name: "Google Cloud", type: "hosting", confidence: 80, priority: 7, category: "high_probability" },
   AS396982: { name: "Google Cloud Platform", type: "hosting", confidence: 80, priority: 7, category: "high_probability" },
-  AS45102: { name: "Alibaba Cloud", type: "hosting", confidence: 85, priority: 7, category: "high_probability" },
   AS132203: { name: "Tencent Cloud", type: "hosting", confidence: 85, priority: 7, category: "high_probability" },
   
   // VPS/Hosting (VERY High VPN usage)
-  AS14061: { name: "DigitalOcean", type: "hosting", confidence: 95, priority: 9, category: "definite" },
-  AS63949: { name: "Akamai/Linode", type: "hosting", confidence: 95, priority: 9, category: "definite" },
-  AS20473: { name: "AS-CHOOPA (Vultr)", type: "hosting", confidence: 95, priority: 9, category: "definite" },
   AS51167: { name: "Contabo GmbH", type: "hosting", confidence: 95, priority: 9, category: "definite" },
-  AS24940: { name: "Hetzner Online", type: "hosting", confidence: 93, priority: 9, category: "definite" },
   AS16276: { name: "OVH SAS", type: "hosting", confidence: 90, priority: 8, category: "high_probability" },
   AS12876: { name: "Scaleway", type: "hosting", confidence: 93, priority: 9, category: "definite" },
   AS55081: { name: "24Shells", type: "hosting", confidence: 95, priority: 9, category: "definite" },
@@ -474,7 +458,6 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS396356: { name: "Maxihost", type: "hosting", confidence: 90, priority: 8, category: "high_probability" },
   AS206264: { name: "Amarutu Technology", type: "hosting", confidence: 92, priority: 8, category: "high_probability" },
   AS44901: { name: "Belcloud", type: "hosting", confidence: 90, priority: 8, category: "high_probability" },
-  AS50673: { name: "Serverius Holding", type: "hosting", confidence: 90, priority: 8, category: "high_probability" },
   AS57043: { name: "HOSTKEY", type: "hosting", confidence: 88, priority: 8, category: "high_probability" },
   AS207960: { name: "VEESP", type: "hosting", confidence: 88, priority: 8, category: "high_probability" },
   AS211252: { name: "Derak Cloud", type: "hosting", confidence: 88, priority: 8, category: "high_probability" },
@@ -493,7 +476,6 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS46475: { name: "Limestone Networks", type: "hosting", confidence: 90, priority: 8, category: "high_probability" },
   AS13739: { name: "OneAndOne", type: "hosting", confidence: 85, priority: 7, category: "high_probability" },
   AS62567: { name: "Digital Ocean Toronto", type: "hosting", confidence: 95, priority: 9, category: "definite" },
-  AS202018: { name: "ArubaCloud", type: "hosting", confidence: 88, priority: 8, category: "high_probability" },
   AS35017: { name: "Swisscom", type: "hosting", confidence: 75, priority: 6, category: "moderate" },
   AS60781: { name: "LeaseWeb Netherlands", type: "hosting", confidence: 92, priority: 8, category: "high_probability" },
   
@@ -504,34 +486,25 @@ const VPN_HOSTING_ASNS: Record<string, {
   AS202425: { name: "IP Volume (Residential Proxy)", type: "residential_proxy", confidence: 95, priority: 9, category: "definite" },
   AS50300: { name: "CustodianDC (Proxy)", type: "proxy", confidence: 93, priority: 9, category: "definite" },
   AS62563: { name: "GTHost", type: "proxy", confidence: 90, priority: 8, category: "high_probability" },
-  AS200019: { name: "AlexHost", type: "proxy", confidence: 90, priority: 8, category: "high_probability" },
   AS49981: { name: "WorldStream", type: "proxy", confidence: 88, priority: 8, category: "high_probability" },
-  AS204957: { name: "Bright Data (Luminati)", type: "residential_proxy", confidence: 98, priority: 10, category: "definite" },
-  AS209242: { name: "Oxylabs", type: "residential_proxy", confidence: 98, priority: 10, category: "definite" },
   AS211298: { name: "SOAX", type: "residential_proxy", confidence: 98, priority: 10, category: "definite" },
   AS396503: { name: "Smartproxy", type: "residential_proxy", confidence: 98, priority: 10, category: "definite" },
   AS212547: { name: "PacketHub", type: "proxy", confidence: 90, priority: 8, category: "high_probability" },
   AS207590: { name: "NetNut", type: "residential_proxy", confidence: 97, priority: 10, category: "definite" },
   AS210558: { name: "GeoSurf", type: "residential_proxy", confidence: 97, priority: 10, category: "definite" },
   AS62044: { name: "Zyte (Crawlera)", type: "proxy", confidence: 95, priority: 9, category: "definite" },
-  AS398823: { name: "IPRoyal", type: "residential_proxy", confidence: 97, priority: 10, category: "definite" },
-  AS47328: { name: "DataImpulse", type: "residential_proxy", confidence: 95, priority: 9, category: "definite" },
-  AS212477: { name: "Rayobyte", type: "residential_proxy", confidence: 97, priority: 10, category: "definite" },
   AS208843: { name: "Shifter.io", type: "residential_proxy", confidence: 96, priority: 10, category: "definite" },
   
   // ══════════════════════════════════════════════════════════════════════════
   // TIER 4: TOR INFRASTRUCTURE
   // ══════════════════════════════════════════════════════════════════════════
   
-  AS44103: { name: "The Calyx Institute (Tor)", type: "tor", confidence: 99, priority: 10, category: "definite" },
   AS208323: { name: "Emerald Onion", type: "tor", confidence: 100, priority: 10, category: "definite" },
   AS51395: { name: "Serveroid (Tor relays)", type: "tor", confidence: 88, priority: 8, category: "high_probability" },
   AS42708: { name: "Portlane (Tor relays)", type: "tor", confidence: 85, priority: 8, category: "high_probability" },
   AS60729: { name: "Zwiebelfreunde", type: "tor", confidence: 98, priority: 10, category: "definite" },
-  AS197540: { name: "netcup (Tor nodes)", type: "tor", confidence: 78, priority: 7, category: "high_probability" },
   AS198385: { name: "Tor Noisebridge", type: "tor", confidence: 99, priority: 10, category: "definite" },
   AS205100: { name: "F3 Netze (Tor)", type: "tor", confidence: 95, priority: 9, category: "definite" },
-  AS208567: { name: "Artikel10 (Tor)", type: "tor", confidence: 95, priority: 9, category: "definite" },
   AS212520: { name: "Torservers.net", type: "tor", confidence: 100, priority: 10, category: "definite" },
 }
 

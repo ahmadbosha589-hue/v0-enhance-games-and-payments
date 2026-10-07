@@ -283,7 +283,7 @@ export async function getAuthoritativeBalance(userId: string): Promise<{
   // Quick validation - compute from transactions
   const { data: txSums } = await adminSupabase
     .rpc("calculate_user_balance_from_transactions", { p_user_id: userId })
-    .single()
+    .single() as { data: { computed_balance?: number | string | bigint } | null }
 
   const balance = BigInt(profile.balance_satoshis)
   const totalEarned = BigInt(profile.total_earned_satoshis)

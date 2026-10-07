@@ -430,7 +430,7 @@ export const languages: { code: LanguageCode; name: string; nativeName: string; 
 // =============================================================================
 // ENGLISH (English) - Base translations
 // =============================================================================
-const en: Record<TranslationKey, string> = {
+const en: Record<string, string> = {
   "nav.features": "Features",
   "nav.howItWorks": "How It Works",
   "nav.faq": "FAQ",
@@ -829,7 +829,7 @@ const en: Record<TranslationKey, string> = {
 // =============================================================================
 // SPANISH (Español)
 // =============================================================================
-const es: Record<TranslationKey, string> = {
+const es: Record<string, string> = {
   ...en,
   "nav.features": "Características",
   "nav.howItWorks": "Cómo funciona",
@@ -1222,7 +1222,7 @@ const es: Record<TranslationKey, string> = {
 // =============================================================================
 // RUSSIAN (Русский)
 // =============================================================================
-const ru: Record<TranslationKey, string> = {
+const ru: Record<string, string> = {
   ...en,
   "nav.features": "Функции",
   "nav.howItWorks": "Как это работает",
@@ -1334,7 +1334,7 @@ const ru: Record<TranslationKey, string> = {
   "footer.about": "О нас",
   "footer.blog": "Blog",
   "footer.contact": "Контакты",
-  "footer.terms": "Усл��вия использования",
+  "footer.terms": "Усл����вия использования",
   "footer.privacy": "Политика конфиденциальности",
   "footer.cookies": "Политика Cookie",
   "footer.aml": "Политика AML",
@@ -1403,7 +1403,7 @@ const ru: Record<TranslationKey, string> = {
   "about.cta.learnMore": "Узнать больше",
   "contact.badge": "Свяжитесь с нами",
   "contact.title": "Свяжитесь с",
-  "contact.titleHighlight": "наш��й командой",
+  "contact.titleHighlight": "н��ш��й командой",
   "contact.description": "Есть вопросы или нужна помощь? Мы здесь для вас.",
   "contact.email.title": "Поддержка по email",
   "contact.chat.title": "Живой чат",
@@ -1614,7 +1614,7 @@ const ru: Record<TranslationKey, string> = {
 // =============================================================================
 // CHINESE (中文)
 // =============================================================================
-const zh: Record<TranslationKey, string> = {
+const zh: Record<string, string> = {
   ...en,
   "nav.features": "功能",
   "nav.howItWorks": "工作原理",
@@ -1809,7 +1809,7 @@ const zh: Record<TranslationKey, string> = {
   "contact.form.message": "消息",
   "contact.form.messagePlaceholder": "告诉我们如何提供帮助...",
   "contact.form.submit": "发送消息",
-  "contact.form.sending": "正在发送...",
+  "contact.form.sending": "正在��送...",
   "contact.form.success": "消息发送成功！",
   "contact.form.error": "消息发送失败。请重试。",
   "contact.success.title": "消息已发送！",
@@ -1955,7 +1955,7 @@ const zh: Record<TranslationKey, string> = {
 // =============================================================================
 // JAPANESE (日本語)
 // =============================================================================
-const ja: Record<TranslationKey, string> = {
+const ja: Record<string, string> = {
   ...en,
   "nav.features": "特徴",
   "nav.howItWorks": "仕組み",
@@ -1980,7 +1980,7 @@ const ja: Record<TranslationKey, string> = {
   "hero.trust.trusted": "1万人以上のユーザーが信頼",
   "footer.rights": "全著作権所有。",
   "common.loading": "読み込み中...",
-  "time.justNow": "たった今",
+  "time.justNow": "たっ���今",
   "features.title": "収入を",
   "features.titleHighlight": "最大化するためのすべて",
   "features.subtitle": "私たちのプラットフォームは、より少ない労力でより多く稼げるように設計されています。",
@@ -2063,7 +2063,6 @@ const ja: Record<TranslationKey, string> = {
   "footer.company": "会社",
   "footer.legal": "法的情報",
   "footer.support": "サポート",
-  "footer.rights": "全著作権所有。",
   "footer.about": "私たちについて",
   "footer.blog": "ブログ",
   "footer.contact": "お問い合わせ",
@@ -2300,52 +2299,12 @@ const ja: Record<TranslationKey, string> = {
   "userMenu.signOut": "ログアウト",
   "userMenu.signIn": "サインイン",
   "userMenu.getStarted": "始める",
-  "common.loading": "読み込み中...",
-  "common.error": "エラー",
-  "common.success": "成功",
-  "common.save": "保存",
-  "common.cancel": "キャンセル",
-  "common.confirm": "確認",
-  "common.delete": "削除",
-  "common.edit": "編集",
-  "common.view": "表示",
-  "common.close": "閉じる",
-  "common.back": "戻��",
-  "common.next": "次へ",
-  "common.previous": "前へ",
-  "common.search": "検索",
-  "common.filter": "フィルター",
-  "common.sort": "並べ替え",
-  "common.refresh": "更新",
-  "common.download": "ダウンロード",
-  "common.upload": "アップロード",
-  "common.copy": "コピー",
-  "common.copied": "コピーしました！",
-  "common.share": "共有",
-  "common.noData": "データなし",
-  "common.noResults": "結果なし",
-  "common.tryAgain": "再試行",
-  "common.learnMore": "もっと学ぶ",
-  "common.seeAll": "すべて表示",
-  "common.showMore": "もっと表示",
-  "common.showLess": "少なく表示",
-  "time.justNow": "たった今",
-  "time.minutesAgo": "分前",
-  "time.hoursAgo": "時間前",
-  "time.daysAgo": "日前",
-  "time.weeksAgo": "週間前",
-  "time.monthsAgo": "ヶ��前",
-  "badge.hot": "HOT",
-  "badge.new": "NEW",
-  "badge.beta": "BETA",
-  "badge.admin": "Admin",
-  "badge.verified": "検証済み",
 }
 
 // =============================================================================
 // KOREAN (한국어)
 // =============================================================================
-const ko: Record<TranslationKey, string> = {
+const ko: Record<string, string> = {
   ...en,
   "nav.features": "기능",
   "nav.howItWorks": "이용 방법",
@@ -2410,7 +2369,7 @@ const ko: Record<TranslationKey, string> = {
   "stats.users": "활성 사용자",
   "stats.claimsToday": "오늘 받은 횟수",
   "stats.totalClaims": "총 받은 횟수",
-  "faq.badge": "자주 묻는 질문",
+  "faq.badge": "자주 ���는 질문",
   "faq.title": "자주",
   "faq.titleHighlight": "���는 질문",
   "faq.subtitle": "저희 플랫폼에 대해 알아��� 할 모든 것.",
@@ -2448,7 +2407,6 @@ const ko: Record<TranslationKey, string> = {
   "footer.company": "회사",
   "footer.legal": "법률",
   "footer.support": "지원",
-  "footer.rights": "모든 권리 보유.",
   "footer.about": "소개",
   "footer.blog": "블로그",
   "footer.contact": "연락처",
@@ -2684,10 +2642,9 @@ const ko: Record<TranslationKey, string> = {
   "userMenu.signOut": "로그아웃",
   "userMenu.signIn": "로그인",
   "userMenu.getStarted": "시작하기",
-  "common.loading": "로딩 중...",
   "common.error": "오류",
   "common.success": "성공",
-  "common.save": "저장",
+  "common.save": "저��",
   "common.cancel": "취소",
   "common.confirm": "확인",
   "common.delete": "삭제",
@@ -2713,7 +2670,6 @@ const ko: Record<TranslationKey, string> = {
   "common.seeAll": "모두 보기",
   "common.showMore": "더 보기",
   "common.showLess": "덜 보기",
-  "time.justNow": "방금",
   "time.minutesAgo": "분 전",
   "time.hoursAgo": "시간 전",
   "time.daysAgo": "일 전",
@@ -2729,7 +2685,7 @@ const ko: Record<TranslationKey, string> = {
 // =============================================================================
 // CZECH (Čeština)
 // =============================================================================
-const cs: Record<TranslationKey, string> = {
+const cs: Record<string, string> = {
   ...en,
   "nav.features": "Funkce",
   "nav.howItWorks": "Jak to funguje",
@@ -2765,7 +2721,7 @@ import hiTranslations from "./hindi-translations"
 // REMAINING LANGUAGES (French, German, Portuguese, Arabic, Turkish, Vietnamese)
 // These use English as fallback with spread operator
 // =============================================================================
-const fr: Record<TranslationKey, string> = {
+const fr: Record<string, string> = {
   ...en,
   "nav.features": "Fonctionnalités",
   "nav.howItWorks": "Comment ça marche",
@@ -2804,7 +2760,7 @@ const fr: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const de: Record<TranslationKey, string> = {
+const de: Record<string, string> = {
   ...en,
   "nav.features": "Funktionen",
   "nav.howItWorks": "So funktioniert es",
@@ -2843,7 +2799,7 @@ const de: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const pt: Record<TranslationKey, string> = {
+const pt: Record<string, string> = {
   ...en,
   "nav.features": "Recursos",
   "nav.howItWorks": "Como funciona",
@@ -2882,7 +2838,7 @@ const pt: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const ar: Record<TranslationKey, string> = {
+const ar: Record<string, string> = {
   ...en,
   "nav.features": "ا��ميزات",
   "nav.howItWorks": "كيف يعمل",
@@ -2921,7 +2877,7 @@ const ar: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const tr: Record<TranslationKey, string> = {
+const tr: Record<string, string> = {
   ...en,
   "nav.features": "Özellikler",
   "nav.howItWorks": "Nasıl Çalışır",
@@ -2960,7 +2916,7 @@ const tr: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const vi: Record<TranslationKey, string> = {
+const vi: Record<string, string> = {
   ...en,
   "nav.features": "Tính năng",
   "nav.howItWorks": "Cách hoạt động",
@@ -2999,7 +2955,7 @@ const vi: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const th: Record<TranslationKey, string> = {
+const th: Record<string, string> = {
   ...en,
   "nav.features": "คุณสมบัติ",
   "nav.howItWorks": "วิธีการทำงาน",
@@ -3032,11 +2988,11 @@ const th: Record<TranslationKey, string> = {
   "footer.aml": "นโยบาย AML",
   "footer.help": "ศูนย์ช่วยเหลือ",
   "footer.community": "ชุมชน",
-  "footer.status": "สถานะระบบ",
+  "footer.status": "ส���านะระบบ",
   "footer.api": "API",
 }
 
-const id: Record<TranslationKey, string> = {
+const id: Record<string, string> = {
   ...en,
   "nav.features": "Fitur",
   "nav.howItWorks": "Cara Kerja",
@@ -3075,7 +3031,7 @@ const id: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const nl: Record<TranslationKey, string> = {
+const nl: Record<string, string> = {
   ...en,
   "nav.features": "Functies",
   "nav.howItWorks": "Hoe het werkt",
@@ -3114,7 +3070,7 @@ const nl: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const pl: Record<TranslationKey, string> = {
+const pl: Record<string, string> = {
   ...en,
   "nav.features": "Funkcje",
   "nav.howItWorks": "Jak to działa",
@@ -3153,7 +3109,7 @@ const pl: Record<TranslationKey, string> = {
   "footer.api": "API",
 }
 
-const uk: Record<TranslationKey, string> = {
+const uk: Record<string, string> = {
   ...en,
   "nav.features": "Функції",
   "nav.howItWorks": "Як це працює",
@@ -3195,7 +3151,7 @@ const uk: Record<TranslationKey, string> = {
 // =============================================================================
 // TRANSLATIONS EXPORT
 // =============================================================================
-export const translations: Record<LanguageCode, Record<TranslationKey, string>> = {
+export const translations: Record<LanguageCode, Record<string, string>> = {
   en,
   es,
   fr,

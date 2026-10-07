@@ -667,18 +667,20 @@ async function recordAbuseDetection(
     
     // Update user fraud score
     if (result.riskScore > 0) {
-      await supabase.rpc("increment_fraud_score", {
-        p_user_id: context.userId,
-        p_amount: Math.ceil(result.riskScore / 10),
-      }).catch(() => {
+      try {
+        await supabase.rpc("increment_fraud_score", {
+          p_user_id: context.userId,
+          p_amount: Math.ceil(result.riskScore / 10),
+        })
+      } catch {
         // Fallback
-        supabase
+        await supabase
           .from("profiles")
           .update({
             fraud_score: Math.min(100, result.riskScore),
           })
           .eq("id", context.userId)
-      })
+      }
     }
     
     // Auto-ban if score is high enough
