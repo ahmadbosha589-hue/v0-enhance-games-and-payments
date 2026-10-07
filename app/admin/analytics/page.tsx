@@ -56,11 +56,11 @@ export default async function AnalyticsPage() {
         claimsWeekResult,
         withdrawalsResult,
       ] = await Promise.all([
-        supabase.from("profiles").select("*", { count: "exact", head: true }).catch(() => ({ count: 0 })),
-        supabase.from("claims").select("*", { count: "exact", head: true }).catch(() => ({ count: 0 })),
-        supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
-        supabase.from("claims").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
-        supabase.from("withdrawals").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString()).catch(() => ({ count: 0 })),
+        Promise.resolve(supabase.from("profiles").select("*", { count: "exact", head: true })).catch(() => ({ count: 0 })),
+        Promise.resolve(supabase.from("claims").select("*", { count: "exact", head: true })).catch(() => ({ count: 0 })),
+        Promise.resolve(supabase.from("profiles").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString())).catch(() => ({ count: 0 })),
+        Promise.resolve(supabase.from("claims").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString())).catch(() => ({ count: 0 })),
+        Promise.resolve(supabase.from("withdrawals").select("*", { count: "exact", head: true }).gte("created_at", weekAgo.toISOString())).catch(() => ({ count: 0 })),
       ])
 
       totalUsers = totalUsersResult.count || 0
@@ -72,8 +72,19 @@ export default async function AnalyticsPage() {
       // Get adblock stats
       try {
         const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
-        if (!error && data) {
-          adblockStats = data
+        if (
+          !error &&
+          data &&
+          typeof data === "object" &&
+          "total_visits" in data &&
+          "adblock_detections" in data &&
+          "detection_rate" in data
+        ) {
+          adblockStats = {
+            total_visits: Number(data.total_visits) || 0,
+            adblock_detections: Number(data.adblock_detections) || 0,
+            detection_rate: Number(data.detection_rate) || 0,
+          }
         } else {
           // Fallback query
           const { data: analyticsData } = await supabase

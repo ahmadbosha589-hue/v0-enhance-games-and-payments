@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic"
 export default async function AdminSettingsPage() {
   const supabase = await createClient()
 
-  // Get current settings
-  const { data: settings } = await supabase.from("system_settings").select("*")
+  // Get current settings when the database is configured.
+  const { data: settings } = supabase
+    ? await supabase.from("system_settings").select("*")
+    : { data: null }
 
   const settingsMap =
     settings?.reduce(

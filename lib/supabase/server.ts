@@ -42,13 +42,15 @@ export const createAdminClient = cache(function createAdminClient() {
     return null
   }
 
-  const keyToUse = serviceRoleKey || anonKey
-  if (!keyToUse) {
-    console.warn("[Supabase Admin] No API key configured")
+  // This client is used for privileged server-side operations. Falling back
+  // to the publishable key can silently turn authorization failures into
+  // partial writes, so fail closed when the service-role key is absent.
+  if (!serviceRoleKey) {
+    console.error("[Supabase Admin] SUPABASE_SERVICE_ROLE_KEY is not configured")
     return null
   }
 
-  return createSupabaseClient(supabaseUrl, keyToUse, {
+  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

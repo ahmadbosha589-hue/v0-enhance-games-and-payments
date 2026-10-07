@@ -7,7 +7,7 @@ const adminUserActionSchema = z.object({
   userId: z.string().uuid(),
   action: z.enum(["ban", "unban", "flag", "unflag", "reset_fraud_score", "adjust_balance"]),
   reason: z.string().optional(),
-  amount: z.number().optional(),
+  amount: z.number().finite().safe().optional(),
 })
 
 export async function POST(request: Request) {

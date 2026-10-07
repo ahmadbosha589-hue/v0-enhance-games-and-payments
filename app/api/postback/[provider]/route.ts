@@ -90,16 +90,11 @@ function getSupabaseAdmin() {
 function validateSignature(provider: string, params: Record<string, string>, signature: string): boolean {
   const secret = PROVIDER_SECRETS[provider]
 
-  // If no secret is configured, skip validation (with a loud warning).
-  // We intentionally allow this in production so a freshly-configured
-  // provider doesn't silently start rejecting every postback as 403; the
-  // operator sets the secret env var (e.g. CCXUA_SECRET_KEY) when ready.
-  if (!secret) {
-    console.warn(
-      `[Postback] No secret configured for provider "${provider}" — signature check skipped. ` +
-        `Set the corresponding env var (e.g. CCXUA_SECRET_KEY) to enable verification.`,
-    )
-    return true
+  // Never accept unsigned provider callbacks. A missing secret is a
+  // configuration error, not a reason to credit an untrusted request.
+  if (!secret || !signature) {
+    console.error(`[Postback] Missing secret or signature for provider "${provider}"`)
+    return false
   }
 
   try {

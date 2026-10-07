@@ -11,6 +11,15 @@ export const dynamic = "force-dynamic"
 export default async function FraudPage() {
   const supabase = await createClient()
 
+  if (!supabase) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl font-bold tracking-tight">Fraud Detection Center</h1>
+        <p className="text-sm text-muted-foreground">Database connection is not configured.</p>
+      </div>
+    )
+  }
+
   // Fetch fraud flags with user profiles
   const { data: flags } = await supabase
     .from("fraud_flags")
@@ -149,7 +158,7 @@ export default async function FraudPage() {
           <div className="flex flex-wrap gap-2">
             {Object.entries(flagsByType).map(([type, count]) => (
               <Badge key={type} variant="outline" className="text-xs sm:text-sm py-1 px-2 sm:px-3">
-                {type.replace(/_/g, " ")}: {count}
+                {type.replace(/_/g, " ")}: {String(count)}
               </Badge>
             ))}
             {Object.keys(flagsByType).length === 0 && (

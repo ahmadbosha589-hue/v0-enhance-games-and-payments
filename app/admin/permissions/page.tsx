@@ -62,8 +62,10 @@ const rolePermissions = {
 export default async function PermissionsPage() {
   const supabase = await createClient()
 
-  // Get user counts by role
-  const { data: roleCounts } = await supabase.from("profiles").select("role")
+  // Get user counts by role when the database is configured.
+  const { data: roleCounts } = supabase
+    ? await supabase.from("profiles").select("role")
+    : { data: null }
 
   const counts = {
     superadmin: roleCounts?.filter((u) => u.role === "superadmin").length || 0,

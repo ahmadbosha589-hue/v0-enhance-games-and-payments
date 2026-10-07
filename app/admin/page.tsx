@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 10
 
 async function safeQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any; count?: number | null }>,
+  queryFn: () => PromiseLike<{ data: T | null; error: any; count?: number | null }>,
   fallback: T,
   timeoutMs = 5000,
 ): Promise<{ data: T; count: number }> {
@@ -425,11 +425,12 @@ async function AdblockDetectionStats() {
     try {
       const { data, error } = await supabase.rpc("get_adblock_stats", { p_days: 7 }).single()
       if (!error && data) {
+        const rpcStats = data as Record<string, unknown>
         stats = {
-          total_visits: Number(data.total_visits) || 0,
-          adblock_detections: Number(data.adblock_detections) || 0,
-          detection_rate: Number(data.detection_rate) || 0,
-          unique_users_with_adblock: Number(data.unique_users_with_adblock) || 0,
+          total_visits: Number(rpcStats.total_visits) || 0,
+          adblock_detections: Number(rpcStats.adblock_detections) || 0,
+          detection_rate: Number(rpcStats.detection_rate) || 0,
+          unique_users_with_adblock: Number(rpcStats.unique_users_with_adblock) || 0,
         }
         dataSource = "function"
       }

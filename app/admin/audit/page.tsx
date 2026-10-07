@@ -187,10 +187,10 @@ export default async function AuditLogsPage() {
                           <div className="flex items-center gap-1.5">
                             <User className="h-3 w-3 text-purple-400" />
                             <span className="font-medium text-sm">
-                              {getDisplayName(log.actor_profile, log.actor_id)}
+                              {getDisplayName(log.actor_profile ?? null, log.actor_id)}
                             </span>
                           </div>
-                          <p className="text-xs text-muted-foreground">{getEmail(log.actor_profile)}</p>
+                          <p className="text-xs text-muted-foreground">{getEmail(log.actor_profile ?? null)}</p>
                           {log.actor_role && (
                             <Badge variant="outline" className="text-[10px] capitalize">
                               {log.actor_role}
@@ -205,10 +205,10 @@ export default async function AuditLogsPage() {
                             <div className="flex items-center gap-1.5">
                               <AlertTriangle className="h-3 w-3 text-amber-400" />
                               <span className="font-medium text-sm">
-                                {getDisplayName(log.target_profile, targetUserId as string)}
+                                {getDisplayName(log.target_profile ?? null, targetUserId as string)}
                               </span>
                             </div>
-                            <p className="text-xs text-muted-foreground">{getEmail(log.target_profile)}</p>
+                            <p className="text-xs text-muted-foreground">{getEmail(log.target_profile ?? null)}</p>
                           </div>
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>

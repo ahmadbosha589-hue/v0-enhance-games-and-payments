@@ -27,6 +27,10 @@ export default async function WithdrawalsPage({ searchParams }: WithdrawalsPageP
   const supabase = await createClient()
   const activeTab = params.tab || "pending"
 
+  if (!supabase) {
+    return <div className="p-6 text-muted-foreground">Database is not configured.</div>
+  }
+
   // Build base query with filters
   const buildQuery = (status: string | string[]) => {
     let query = supabase.from("withdrawals").select(`
@@ -94,9 +98,9 @@ export default async function WithdrawalsPage({ searchParams }: WithdrawalsPageP
     { data: recentWithdrawals, count: recentCount },
     { data: flaggedWithdrawals, count: flaggedCount },
   ] = await Promise.all([
-    buildQuery("pending").select("*", { count: "exact" }),
-    buildQuery("processing").select("*", { count: "exact" }),
-    buildQuery(["completed", "failed", "rejected"]).limit(100).select("*", { count: "exact" }),
+    buildQuery("pending"),
+    buildQuery("processing"),
+    buildQuery(["completed", "failed", "rejected"]).limit(100),
     supabase
       .from("withdrawals")
       .select("*", { count: "exact" })

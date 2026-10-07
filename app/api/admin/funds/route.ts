@@ -333,7 +333,10 @@ export async function POST(request: Request) {
     // BALANCE ADJUSTMENT - Most critical operation, requires maximum safety
     // =========================================================================
     if (action === "adjust_balance") {
-      const validated = adjustBalanceSchema.safeParse(body)
+      const validated = adjustBalanceSchema.safeParse({
+    ...body,
+    action: body.adjustmentAction,
+  })
       if (!validated.success) {
         return NextResponse.json({
           error: "Invalid request",

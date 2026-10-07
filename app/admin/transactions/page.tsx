@@ -62,6 +62,10 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const supabase = await createClient()
   const activeTab = params.tab || "all"
 
+  if (!supabase) {
+    return <div className="p-6 text-muted-foreground">Database is not configured.</div>
+  }
+
   const buildQuery = (type?: string) => {
     let query = supabase.from("transactions").select(
       `
