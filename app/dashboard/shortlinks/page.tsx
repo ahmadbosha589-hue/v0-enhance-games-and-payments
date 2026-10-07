@@ -104,7 +104,7 @@ export default function ShortlinksPage() {
         const todayVisits = visitsJson.todayVisits ?? []
         const recentVisits = visitsJson.recentVisits ?? []
 
-        const visited = new Set(todayVisits.map((v: { shortlink_id: string }) => v.shortlink_id))
+        const visited = new Set<string>(todayVisits.map((v: { shortlink_id: string }) => v.shortlink_id))
         setVisitedToday(visited)
         setDailyProgress({
           total_earned: todayVisits.reduce((sum: number, v: { reward_satoshis: number }) => sum + v.reward_satoshis, 0),

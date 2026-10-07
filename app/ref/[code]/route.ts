@@ -91,17 +91,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   })
   
   // Log referral click (non-blocking)
-  supabase
-    .from("referral_clicks")
-    .insert({
+  void Promise.resolve(
+    supabase.from("referral_clicks").insert({
       referral_code: normalizedCode,
       referrer_id: referrer.id,
       ip_address: clientIP !== "unknown" ? clientIP : null,
       user_agent: headersList.get("user-agent"),
       clicked_at: new Date().toISOString(),
-    })
-    .then(() => {})
-    .catch(() => {})
+    }),
+  ).catch(() => {})
 
   redirect("/auth/sign-up")
 }

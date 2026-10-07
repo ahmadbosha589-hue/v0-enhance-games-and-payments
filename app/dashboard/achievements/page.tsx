@@ -44,6 +44,7 @@ interface ProfileStats {
   max_claim_streak: number
   total_earned_satoshis: number
   referral_count: number
+  total_withdrawn_satoshis: number
 }
 
 async function AchievementStats({ userId }: { userId: string }) {
@@ -169,7 +170,7 @@ async function AchievementsList({ userId, category }: { userId: string; category
     safeQuery(() => adminSupabase.from("user_achievements").select("*").eq("user_id", userId), []) as Promise<
       UserAchievement[]
     >,
-    safeQuery(
+    safeQuery<ProfileStats | null>(
       () =>
         adminSupabase
           .from("profiles")

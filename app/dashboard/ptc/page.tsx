@@ -210,7 +210,7 @@ async function WatchHistory({ userId }: { userId: string }) {
         .order("created_at", { ascending: false })
         .limit(20),
     [],
-  )) as PTCView[]
+  )) as unknown as PTCView[]
 
   if (!views || views.length === 0) {
     return (

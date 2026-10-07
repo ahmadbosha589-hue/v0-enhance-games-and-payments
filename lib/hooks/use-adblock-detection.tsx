@@ -475,6 +475,7 @@ export type AdblockType =
   | "Safari Content Blocker"
   | "DuckDuckGo Privacy"
   | "DNS Blocker"
+  | "DNS/Network Level Blocker"
   | "Extension-based"
   | "Advanced Detection"
   | "Unknown"
@@ -3365,7 +3366,7 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
         return
       }
 
-      // ══════════════════════════════════════���══════════════════════════════
+      // ══════════════════════════════════��═══���══════════════════════════════
       // v11.0 INSTANT-FLAG TIER — bait-overwhelming evidence with all controls
       // visible. Bypasses the consecutive-cycle gate because at this aggression
       // level the FP probability is mathematically near-zero: a website cannot

@@ -331,7 +331,7 @@ export default function ProfilePage() {
           <CardDescription className="text-xs sm:text-sm">Update your profile information</CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileSettings profile={profile} email={user.email || ""} />
+          <ProfileSettings profile={profile as import("@/lib/types/database").Profile} email={user.email || ""} />
         </CardContent>
       </Card>
 

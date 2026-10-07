@@ -247,7 +247,8 @@ async function robustFetch<T>(
 }
 
 // SWR fetcher
-const swrFetcher = async (url: string) => robustFetch(url, undefined, 2, 5000)
+const swrFetcher = async <T,>(url: string): Promise<T> =>
+    (await robustFetch(url, undefined, 2, 5000)) as T
 
 // Detailed loading screen
 function DetailedLoadingScreen({
@@ -1967,7 +1968,7 @@ function DirectFaucetContent() {
                       {/* Watch Ad to Double Reward Button */}
                       <WatchAdDoubleReward
                         cryptoSymbol={crypto.symbol}
-                        baseAmount={rawAmount}
+                        baseAmount={Number(rawAmount)}
                         isAvailable={!isOnCooldown && hasPriceData && claimCount > 0}
                       />
                     </CardContent>

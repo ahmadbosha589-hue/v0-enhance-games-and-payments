@@ -31,6 +31,7 @@ interface MemoryGameProps {
   onScoreUpdate: (score: number) => void
   isActive: boolean
   difficulty?: DifficultySettings
+  initialScore?: number
 }
 
 const GRID_SIZES = {
@@ -39,7 +40,7 @@ const GRID_SIZES = {
   hard: { cols: 6, rows: 4, pairs: 12, timeBonus: 600 }
 }
 
-export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty }: MemoryGameProps) {
+export function MemoryGame({ onGameEnd, onScoreUpdate, isActive, difficulty: externalDifficulty, initialScore = 0 }: MemoryGameProps) {
   // Choose grid difficulty based on level
   const gridDifficulty = externalDifficulty && externalDifficulty.level >= 5
     ? "hard"

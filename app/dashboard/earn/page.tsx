@@ -13,6 +13,12 @@ export const metadata = {
   description: "10+ ways to earn free Bitcoin and crypto - Faucet claims, Direct Crypto Faucet to FaucetPay, Games, Shortlinks, Offerwalls, PTC Ads, Coupons, Achievements, Tournaments, and more!",
 }
 
+interface EarnProfile {
+  balance_satoshis: number
+  total_earned_satoshis: number
+  total_claims: number
+}
+
 function EarnPageSkeleton() {
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -38,7 +44,7 @@ async function EarnStats({ userId }: { userId: string }) {
   const adminSupabase = createAdminClient()
 
   const [profile, offerwallEarnings, ptcEarnings, achievements] = await Promise.all([
-    safeQuery(
+    safeQuery<EarnProfile | null>(
       () =>
         adminSupabase
           .from("profiles")
