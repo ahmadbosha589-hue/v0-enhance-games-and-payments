@@ -111,7 +111,7 @@ export async function runRetryPostbacks() {
       .eq("id", conversion.id)
 
     // Create transaction record
-    await db.from("transactions").insert({
+    const { error: transactionError } = await db.from("transactions").insert({
       user_id: conversion.user_id,
       type: "offerwall",
       amount_satoshis: conversion.payout_satoshis,
@@ -120,16 +120,24 @@ export async function runRetryPostbacks() {
       status: "completed",
       description: `${conversion.offer_name} (retry)`,
       metadata: { conversion_id: conversion.id, retried: true },
-    }).catch(() => { /* non-critical */ })
+    })
+
+    if (transactionError) {
+      log.warn("[RetryPostbacks] Transaction record failed", { errorMessage: transactionError.message })
+    }
 
     // Notify user
-    await db.from("notifications").insert({
+    const { error: notificationError } = await db.from("notifications").insert({
       user_id: conversion.user_id,
       type: "offerwall_credit",
       title: "Offerwall Reward Credited",
       message: `You earned ${conversion.payout_satoshis} satoshis from ${conversion.offer_name}`,
       metadata: { amount: conversion.payout_satoshis, conversion_id: conversion.id },
-    }).catch(() => { /* non-critical */ })
+    })
+
+    if (notificationError) {
+      log.warn("[RetryPostbacks] Notification record failed", { errorMessage: notificationError.message })
+    }
 
     log.info("[RetryPostbacks] Successfully retried conversion", {
       id: conversion.id,

@@ -191,15 +191,20 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString()
       }).eq("user_id", user.id)
     } else {
-      await adminSupabase.from("support_stats").insert({
+      const { error: supportStatsError } = await adminSupabase.from("support_stats").insert({
         user_id: user.id,
         ads_watched_today: 3,
         total_ads_watched: 3,
         total_support_earnings: bonusAmount,
         updated_at: new Date().toISOString()
-      }).catch(() => {
-        // Table might not exist yet
       })
+
+      if (supportStatsError) {
+        log.warn("Unable to create support stats record", {
+          userId: user.id,
+          errorMessage: supportStatsError.message,
+        })
+      }
     }
 
     log.info("Bonus reward claimed", {

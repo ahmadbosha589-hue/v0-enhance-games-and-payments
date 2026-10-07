@@ -64,7 +64,7 @@ function calculateClaimAmount(streak: number): {
   return { base, streakBonus, total }
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs = 8000): Promise<T> {
+async function withTimeout<T>(promise: PromiseLike<T>, timeoutMs = 8000): Promise<T> {
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error("Operation timed out")), timeoutMs)
   })
@@ -383,7 +383,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Account flagged for review" }, { status: 403 })
     }
 
-    // ── SERVER-SIDE COOLDOWN VALIDATION ──────────────────────────────────────
+    // ── SERVER-SIDE COOLDOWN VALIDATION ───────────────���──────────────────────
     // This is the authoritative check. The client timer is UI-only and can be
     // bypassed. We always enforce the cooldown on the server regardless of
     // what the client reports.
@@ -446,13 +446,14 @@ export async function POST(request: Request) {
       if (profile.referred_by) {
         const commission = Math.floor(total * (CLAIM_CONFIG.referralBonusPercentage / 100))
         if (commission > 0) {
-          supabase
-            .rpc("process_referral_commission", {
+          Promise.resolve(
+            supabase.rpc("process_referral_commission", {
               p_claim_id: atomicResult.claim_id,
               p_referrer_id: profile.referred_by,
               p_claim_amount: total,
               p_commission_rate: CLAIM_CONFIG.referralBonusPercentage / 100,
-            })
+            }),
+          )
             .then(() => { })
             .catch((err: unknown) => log.error("Referral commission failed", { error: err }))
         }

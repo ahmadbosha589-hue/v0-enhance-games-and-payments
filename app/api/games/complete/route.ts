@@ -358,7 +358,7 @@ export async function POST(req: NextRequest) {
       isWinner: false,
       reward: 0,
       score: 0,
-      winThreshold: getAdjustedWinThreshold(typeof bodyGameType === "string" ? bodyGameType : "unknown", 1),
+      winThreshold: getAdjustedWinThreshold("unknown", 1),
       newBalance: 0,
       cooldownMinutes: GAME_COOLDOWN_MINUTES,
       cooldownUntil: new Date(Date.now() + GAME_COOLDOWN_MINUTES * 60 * 1000).toISOString(),

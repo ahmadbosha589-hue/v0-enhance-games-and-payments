@@ -55,8 +55,12 @@ class Logger {
     this.logInternal("warn", message, context)
   }
 
-  error(message: string, error?: Error, context?: LogContext) {
+  error(message: string, errorOrContext?: unknown, context?: LogContext) {
+    const error = errorOrContext instanceof Error ? errorOrContext : undefined
+    const inlineContext = errorOrContext && !(errorOrContext instanceof Error) ? errorOrContext : undefined
+
     this.logInternal("error", message, {
+      ...inlineContext,
       ...context,
       errorMessage: error?.message,
       ...(this.isDev && { errorStack: error?.stack }),

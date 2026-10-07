@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
           consensus: result.consensus,
           details: result.details,
           factors: result.factors,
-        }).onConflict("id") // Allow insert even if duplicate (each check is logged)
+        })
       } catch {
         // Ignore logging errors
       }

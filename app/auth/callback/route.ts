@@ -354,10 +354,10 @@ export async function GET(request: Request) {
 
         // For existing users, increase fraud score (non-blocking)
         const fraudScoreIncrease = Math.min(100, otherUserIds.length * 25 + (hasBannedLinkedAccount ? 50 : 0))
-        await adminSupabase.rpc("increment_fraud_score", {
+        await Promise.resolve(adminSupabase.rpc("increment_fraud_score", {
           p_user_id: userId,
           p_amount: fraudScoreIncrease,
-        }).catch(() => {
+        })).catch(() => {
           // RPC might not exist, update directly
           adminSupabase
             .from("profiles")
@@ -370,7 +370,7 @@ export async function GET(request: Request) {
 
     // Store device fingerprint if provided (non-blocking)
     if (fingerprint) {
-      supabase
+      Promise.resolve(supabase
         .from("device_fingerprints")
         .upsert(
           {
@@ -387,7 +387,7 @@ export async function GET(request: Request) {
             onConflict: "user_id,fingerprint_hash",
             ignoreDuplicates: false,
           },
-        )
+        ))
         .then(() => {
           log.info("Device fingerprint stored", { userId })
         })

@@ -34,13 +34,14 @@ export async function POST(request: Request) {
 
     // Get FaucetPay client and send the double reward
     const faucetPay = getFaucetPayClient()
+    const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
 
-    const result = await faucetPay.send({
-      to: profile.faucetpay_email,
-      amount: doubleAmount,
-      currency: cryptoSymbol.toLowerCase(),
-      referral: false,
-    })
+    faucetPay.setCurrency(cryptoSymbol.toUpperCase())
+    const result = await faucetPay.sendPayment(
+      profile.faucetpay_email,
+      doubleAmount,
+      ipAddress,
+    )
 
     if (result.status !== 200) {
       logger.warn("Double reward failed", {
@@ -56,16 +57,21 @@ export async function POST(request: Request) {
 
     // Log the double reward claim
     const supabase = createAdminClient()
-    await supabase.from("double_reward_claims").insert({
+    const { error: claimLogError } = await supabase.from("double_reward_claims").insert({
       user_id: user.id,
       crypto_symbol: cryptoSymbol,
       base_amount: baseAmount,
       double_amount: doubleAmount,
       ads_watched: 3,
       created_at: new Date().toISOString()
-    }).catch(() => {
-      // Table might not exist, that's okay
     })
+
+    if (claimLogError) {
+      logger.warn("Double reward claim log failed", {
+        userId: user.id,
+        error: claimLogError.message,
+      })
+    }
 
     // Track for support tournament - increment values
     const { data: existingStats } = await supabase
@@ -75,22 +81,34 @@ export async function POST(request: Request) {
       .single()
 
     if (existingStats) {
-      await supabase.from("support_stats").update({
+      const { error: supportStatsUpdateError } = await supabase.from("support_stats").update({
         ads_watched_today: (existingStats.ads_watched_today || 0) + 3,
         total_ads_watched: (existingStats.total_ads_watched || 0) + 3,
         total_support_earnings: (existingStats.total_support_earnings || 0) + doubleAmount,
         updated_at: new Date().toISOString()
-      }).eq("user_id", user.id).catch(() => { })
+      }).eq("user_id", user.id)
+
+      if (supportStatsUpdateError) {
+        logger.warn("Support stats update failed", {
+          userId: user.id,
+          error: supportStatsUpdateError.message,
+        })
+      }
     } else {
-      await supabase.from("support_stats").insert({
+      const { error: supportStatsInsertError } = await supabase.from("support_stats").insert({
         user_id: user.id,
         ads_watched_today: 3,
         total_ads_watched: 3,
         total_support_earnings: doubleAmount,
         updated_at: new Date().toISOString()
-      }).catch(() => {
-        // Table might not exist
       })
+
+      if (supportStatsInsertError) {
+        logger.warn("Support stats insert failed", {
+          userId: user.id,
+          error: supportStatsInsertError.message,
+        })
+      }
     }
 
     logger.info("Double reward claimed", {

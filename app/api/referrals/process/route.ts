@@ -49,14 +49,14 @@ export async function POST(request: Request) {
         })
 
         // Credit the referrer
-        await supabase
+        await Promise.resolve(supabase
           .rpc("credit_referral_bonus", {
             p_referrer_id: referrer.id,
             p_amount: bonusAmount,
             p_claim_id: claimId,
             p_referred_user_id: userId,
             p_tier: tier.tier,
-          })
+          }))
           .catch(async () => {
             // Fallback if RPC doesn't exist - manual update
             const { data: currentProfile } = await supabase

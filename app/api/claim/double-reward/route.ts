@@ -171,15 +171,20 @@ export async function POST(request: NextRequest) {
     })
 
     // Record double reward claim
-    await supabase.from("double_reward_claims").insert({
+    const { error: doubleRewardClaimError } = await supabase.from("double_reward_claims").insert({
       user_id: user.id,
       original_claim_id: recentClaim.id,
       original_amount: baseAmount,
       bonus_amount: doubleAmount,
       claim_type: "faucet"
-    }).catch(() => {
-      // Table might not exist yet
     })
+
+    if (doubleRewardClaimError) {
+      log.warn("Unable to create double reward claim record", {
+        userId: user.id,
+        errorMessage: doubleRewardClaimError.message,
+      })
+    }
 
     // Track for support tournament
     const { data: existingStats } = await supabase
@@ -189,20 +194,34 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (existingStats) {
-      await supabase.from("support_stats").update({
+      const { error: supportStatsUpdateError } = await supabase.from("support_stats").update({
         ads_watched_today: (existingStats.ads_watched_today || 0) + 3,
         total_ads_watched: (existingStats.total_ads_watched || 0) + 3,
         total_support_earnings: (existingStats.total_support_earnings || 0) + doubleAmount,
         updated_at: new Date().toISOString()
-      }).eq("user_id", user.id).catch(() => { })
+      }).eq("user_id", user.id)
+
+      if (supportStatsUpdateError) {
+        log.warn("Unable to update support stats", {
+          userId: user.id,
+          errorMessage: supportStatsUpdateError.message,
+        })
+      }
     } else {
-      await supabase.from("support_stats").insert({
+      const { error: supportStatsInsertError } = await supabase.from("support_stats").insert({
         user_id: user.id,
         ads_watched_today: 3,
         total_ads_watched: 3,
         total_support_earnings: doubleAmount,
         updated_at: new Date().toISOString()
-      }).catch(() => { })
+      })
+
+      if (supportStatsInsertError) {
+        log.warn("Unable to create support stats", {
+          userId: user.id,
+          errorMessage: supportStatsInsertError.message,
+        })
+      }
     }
 
     // Increment daily usage counter in Redis
