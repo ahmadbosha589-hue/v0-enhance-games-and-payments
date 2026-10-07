@@ -38,13 +38,21 @@ interface UserAchievement {
   reward_claimed_at: string | null
 }
 
+interface ProfileStats {
+  total_claims: number
+  claim_streak: number
+  max_claim_streak: number
+  total_earned_satoshis: number
+  referral_count: number
+}
+
 async function AchievementStats({ userId }: { userId: string }) {
   const adminSupabase = createAdminClient()
 
   const [achievements, userAchievements, profile] = await Promise.all([
-    safeQuery(() => adminSupabase.from("achievements").select("*").eq("is_active", true), []),
-    safeQuery(() => adminSupabase.from("user_achievements").select("*").eq("user_id", userId), []),
-    safeQuery(
+    safeQuery<Achievement[]>(() => adminSupabase.from("achievements").select("*").eq("is_active", true), []),
+    safeQuery<UserAchievement[]>(() => adminSupabase.from("user_achievements").select("*").eq("user_id", userId), []),
+    safeQuery<ProfileStats | null>(
       () =>
         adminSupabase
           .from("profiles")

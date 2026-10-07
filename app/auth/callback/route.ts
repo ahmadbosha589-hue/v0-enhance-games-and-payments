@@ -407,10 +407,12 @@ export async function GET(request: Request) {
       profileUpdate.signup_ip = clientIP
     }
 
-    supabase
-      .from("profiles")
-      .update(profileUpdate)
-      .eq("id", userId)
+    Promise.resolve(
+      supabase
+        .from("profiles")
+        .update(profileUpdate)
+        .eq("id", userId),
+    )
       .then(() => {
         console.log("[Auth Callback] Profile updated")
       })
@@ -459,11 +461,13 @@ export async function GET(request: Request) {
               .eq("id", userId)
 
             // Increment referrer's count
-            await adminSupabase.rpc("increment_referral_count", {
-              p_referrer_id: referrer.id,
-            }).catch(() => {
+            try {
+              await adminSupabase.rpc("increment_referral_count", {
+                p_referrer_id: referrer.id,
+              })
+            } catch {
               // Fallback if RPC doesn't exist
-              adminSupabase
+              await adminSupabase
                 .from("profiles")
                 .update({
                   referral_count: (referrer as { referral_count?: number }).referral_count
@@ -471,7 +475,7 @@ export async function GET(request: Request) {
                     : 1,
                 })
                 .eq("id", referrer.id)
-            })
+            }
 
             log.info("Valid referral applied", {
               newUserId: userId,
@@ -500,17 +504,19 @@ export async function GET(request: Request) {
 
             // If high confidence, also penalize the referrer (potential abuse)
             if (referralValidation.fraudResult && referralValidation.fraudResult.confidence >= 80) {
-              await adminSupabase.rpc("increment_fraud_score", {
-                p_user_id: referrer.id,
-                p_amount: 20,
-              }).catch(() => {
-                adminSupabase
+              try {
+                await adminSupabase.rpc("increment_fraud_score", {
+                  p_user_id: referrer.id,
+                  p_amount: 20,
+                })
+              } catch {
+                await adminSupabase
                   .from("profiles")
                   .update({
                     fraud_score: Math.min(100, (referrer.fraud_score || 0) + 20),
                   })
                   .eq("id", referrer.id)
-              })
+              }
             }
           }
         } else if (referrer && referrer.id === userId) {

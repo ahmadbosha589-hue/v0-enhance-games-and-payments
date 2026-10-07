@@ -405,7 +405,7 @@ export const getUserWithProfile = cache(async function getUserWithProfile() {
 })
 
 export async function safeQuery<T>(
-  queryFn: (supabase: NonNullable<ReturnType<typeof createAdminClient>>) => Promise<{ data: T | null; error: any }>,
+  queryFn: (supabase: NonNullable<ReturnType<typeof createAdminClient>>) => PromiseLike<{ data: T | null; error: any }>,
   defaultValue: T,
 ): Promise<T> {
   try {

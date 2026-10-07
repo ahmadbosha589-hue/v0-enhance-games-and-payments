@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient, clearOrphanedAuthLock } from "@/lib/supabase/client"
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -128,7 +129,7 @@ export default function SignUpPage() {
     // which would spam toasts and fight with server-side redirects.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (cancelled) return
       if (event !== "SIGNED_IN") return
       if (!session?.user) return
@@ -596,7 +597,7 @@ export default function SignUpPage() {
               </TooltipTrigger>
               {!acceptedTerms && (
                 <TooltipContent side="top" className="max-w-[250px] text-center">
-                  {t("acceptTermsForGoogle", "auth", "Please accept the Terms of Service and Privacy Policy to enable Google Sign-up")}
+                  {t("acceptTermsForGoogle", "auth") || "Please accept the Terms of Service and Privacy Policy to enable Google Sign-up"}
                 </TooltipContent>
               )}
             </Tooltip>
