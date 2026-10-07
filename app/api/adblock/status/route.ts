@@ -25,6 +25,10 @@ export const revalidate = 0
 export async function GET() {
   try {
     const supabase = await createClient()
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -35,6 +39,10 @@ export async function GET() {
 
     // Read persisted state via admin client (bypasses RLS for this self-lookup)
     const admin = createAdminClient()
+    if (!admin) {
+      return NextResponse.json({ error: "Database admin not configured" }, { status: 503 })
+    }
+
     const { data: profile, error } = await admin
       .from("profiles")
       .select(
@@ -87,7 +95,10 @@ export async function GET() {
       flagStatus: flag?.status ?? null,
     })
   } catch (error) {
-    log.error("Adblock status endpoint error", { error })
+    log.error(
+      "Adblock status endpoint error",
+      error instanceof Error ? error : new Error(String(error)),
+    )
     // Fail open
     return NextResponse.json({ isFlagged: false, persisted: false })
   }

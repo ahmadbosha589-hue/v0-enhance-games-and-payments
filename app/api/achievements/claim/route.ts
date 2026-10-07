@@ -27,6 +27,9 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ success: false, error: "Database admin not configured" }, { status: 503 })
+    }
 
     const { data: achievement, error: achError } = await adminSupabase
       .from("achievements")

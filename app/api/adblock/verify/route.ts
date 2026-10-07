@@ -85,6 +85,9 @@ interface VerifyRequest {
 export async function GET() {
   try {
     const supabase = await createClient()
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
+    }
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
@@ -116,7 +119,10 @@ export async function GET() {
       timestamp: Date.now(),
     })
   } catch (error) {
-    log.error("Challenge generation error", { error })
+    log.error(
+      "Challenge generation error",
+      error instanceof Error ? error : new Error(String(error)),
+    )
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
@@ -125,6 +131,9 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
+    if (!supabase) {
+      return NextResponse.json({ error: "Database not configured" }, { status: 503 })
+    }
     const headersList = await headers()
 
     // Get authenticated user
@@ -179,7 +188,7 @@ export async function POST(request: Request) {
       timestamp: timestamp || Date.now(),
       clientSignals: signals,
       clientConfidence: clientConfidence || 0,
-      clientBlockerType: blockerType,
+      clientBlockerType: blockerType ?? undefined,
       challengeResponse,
       honeypotResults,
     }
@@ -192,6 +201,9 @@ export async function POST(request: Request) {
 
     if (verificationResult.shouldBlock) {
       const adminClient = createAdminClient()
+      if (!adminClient) {
+        return NextResponse.json({ error: "Database admin not configured" }, { status: 503 })
+      }
 
       // Update user profile
       await adminClient
@@ -247,6 +259,9 @@ export async function POST(request: Request) {
 
     try {
       const adminClient = createAdminClient()
+      if (!adminClient) {
+        return NextResponse.json({ error: "Database admin not configured" }, { status: 503 })
+      }
       
       await adminClient.from("adblock_analytics").upsert({
         user_id: user.id,
@@ -289,7 +304,10 @@ export async function POST(request: Request) {
       timestamp: Date.now(),
     })
   } catch (error) {
-    log.error("Adblock verify error", { error })
+    log.error(
+      "Adblock verify error",
+      error instanceof Error ? error : new Error(String(error)),
+    )
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

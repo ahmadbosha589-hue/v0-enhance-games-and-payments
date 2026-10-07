@@ -55,6 +55,10 @@ const recentClears = new Map<string, number>()
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
+    if (!supabase) {
+      return NextResponse.json({ ok: false, error: "Database not configured" }, { status: 503 })
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -101,6 +105,9 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = createAdminClient()
+    if (!admin) {
+      return NextResponse.json({ ok: false, error: "Database admin not configured" }, { status: 503 })
+    }
 
     // ─────────────────────────────────────────────────────────────────────
     // Check whether there is an admin-confirmed or high-severity flag.
@@ -223,7 +230,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, cleared: true })
   } catch (error) {
-    log.error("Adblock self-heal endpoint error", { error })
+    log.error(
+      "Adblock self-heal endpoint error",
+      error instanceof Error ? error : new Error(String(error)),
+    )
     return NextResponse.json({ ok: false, error: "Internal error" }, { status: 500 })
   }
 }

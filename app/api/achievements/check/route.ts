@@ -6,12 +6,19 @@ export const dynamic = "force-dynamic"
 export async function POST() {
   try {
     const supabase = await createClient()
+    if (!supabase) {
+      return NextResponse.json({ error: "Supabase is not configured" }, { status: 503 })
+    }
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "Supabase admin is not configured" }, { status: 503 })
+    }
 
     // Fetch all active achievements
     const { data: achievements } = await adminSupabase

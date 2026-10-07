@@ -5,6 +5,9 @@ import { log } from "@/lib/logger"
 export async function GET(request: Request) {
   try {
     const supabase = createAdminClient()
+    if (!supabase) {
+      return NextResponse.json({ success: false, error: "Database admin not configured" }, { status: 503 })
+    }
 
     // Get query parameters
     const url = new URL(request.url)
@@ -67,12 +70,15 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       data: {
-        ...stats,
+        ...(stats && typeof stats === "object" ? stats : {}),
         days,
       },
     })
   } catch (error) {
-    log.error("Error fetching adblock stats", { error })
+    log.error(
+      "Error fetching adblock stats",
+      error instanceof Error ? error : new Error(String(error)),
+    )
     return NextResponse.json({ success: false, error: "Failed to fetch adblock stats" }, { status: 500 })
   }
 }

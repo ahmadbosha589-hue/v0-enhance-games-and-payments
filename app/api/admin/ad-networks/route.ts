@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "Database admin not configured" }, { status: 503 })
+    }
 
     // Encrypt the configuration
     const encryptedConfig = encrypt(JSON.stringify(config))
@@ -104,6 +107,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "Database admin not configured" }, { status: 503 })
+    }
 
     const { error } = await adminSupabase
       .from("ad_network_configs")
@@ -143,6 +149,9 @@ export async function GET(request: NextRequest) {
     }
 
     const adminSupabase = createAdminClient()
+    if (!adminSupabase) {
+      return NextResponse.json({ error: "Database admin not configured" }, { status: 503 })
+    }
 
     const { data: configs, error } = await adminSupabase
       .from("ad_network_configs")

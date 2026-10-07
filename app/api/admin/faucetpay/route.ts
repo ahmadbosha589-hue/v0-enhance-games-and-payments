@@ -9,6 +9,7 @@ const SETTINGS_KEY = "faucetpay_api_key"
 
 async function requireAdmin() {
   const supabase = await createClient()
+  if (!supabase) return null
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data: profile } = await supabase
