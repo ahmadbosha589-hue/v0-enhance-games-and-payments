@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { isValidCouponCodeFormat } from "@/lib/utils/secure-coupon-generator"
+import { checkRateLimit } from "@/lib/api/rate-limiter"
 
 const MAX_REDEMPTIONS_PER_DAY = 10
 const MIN_CODE_LENGTH = 6
@@ -19,6 +20,17 @@ export async function POST(req: NextRequest) {
       headersList.get("x-real-ip") ||
       "unknown"
     const userAgent = headersList.get("user-agent") || "unknown"
+
+    // SECURITY: fail-closed rate limit BEFORE any redemption logic. Coupon
+    // redemption mints satoshis — unlimited brute force of 12-char codes is
+    // the exact attack this blocks. Denies when Redis is unconfigured.
+    const rl = await checkRateLimit(`coupon:${user.id}:${ip}`, {
+      maxRequests: 5,
+      windowMs: 60 * 1000,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many redemption attempts — try again shortly" }, { status: 429 })
+    }
 
     // Bot detection
     if (userAgent.toLowerCase().includes("bot") ||

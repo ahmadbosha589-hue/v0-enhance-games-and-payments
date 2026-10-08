@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { headers } from "next/headers"
+import { checkRateLimit } from "@/lib/api/rate-limiter"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { decimalToBaseUnits, getWalletPaymentConfig } from "@/lib/wallet/evm-payment"
 import { usdToSatoshis } from "@/lib/pricing/crypto-rates"
@@ -221,6 +223,19 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // SECURITY: fail-closed rate limit BEFORE any payment creation. Booster
+    // purchase initiates real payment flows — unlimited purchase attempts per
+    // user would spam payment-provider APIs. Denies when Redis is unconfigured.
+    const headersList = await headers()
+    const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    const rl = await checkRateLimit(`boosters:${user.id}:${ip}`, {
+      maxRequests: 10,
+      windowMs: 60 * 1000,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many requests — try again shortly" }, { status: 429 })
     }
 
     const body = await request.json()

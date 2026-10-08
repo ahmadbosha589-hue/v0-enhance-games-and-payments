@@ -1,10 +1,14 @@
 import { Redis } from '@upstash/redis'
 
-// Initialize Redis client
-const redis = new Redis({
-  url: process.env.KV_REST_API_URL!,
-  token: process.env.KV_REST_API_TOKEN!,
-})
+// Initialize Redis client — lazily: without Upstash credentials the client is
+// null and checkRateLimit FAILS CLOSED for money/auth routes (failOpen: true
+// opts read-only routes into allow-with-warning instead). Constructing lazily
+// also means importing this module can no longer throw on a Vercel cold start
+// when KV vars are unset.
+const redisUrl = process.env.KV_REST_API_URL
+const redisToken = process.env.KV_REST_API_TOKEN
+const redis: Redis | null =
+  redisUrl && redisToken ? new Redis({ url: redisUrl, token: redisToken }) : null
 
 interface RateLimitEntry {
   count: number
@@ -18,6 +22,13 @@ export interface RateLimitConfig {
   windowMs: number
   burstAllowance?: number // Extra requests allowed for burst traffic
   violationMultiplier?: number // Multiplier for repeat offenders
+  /**
+   * Behavior when Redis is unavailable (unconfigured or erroring).
+   * Default (undefined/false): DENY — correct for money/auth routes where an
+   * open gate means unlimited claims/withdrawals. Set true ONLY for read-only
+   * routes where locking every user out is worse than no limit.
+   */
+  failOpen?: boolean
 }
 
 export interface RateLimitResult {
@@ -39,6 +50,18 @@ export async function checkRateLimit(key: string, config: RateLimitConfig): Prom
   const burstAllowance = config.burstAllowance ?? Math.floor(config.maxRequests * 0.2)
   const effectiveMax = config.maxRequests + burstAllowance
   const ttlSeconds = Math.ceil(config.windowMs / 1000) + 60 // Add 60s buffer for violations tracking
+
+  // FAIL CLOSED when Redis is unconfigured: money/auth routes must not run
+  // unlimited just because Upstash creds are missing. Only routes that opt in
+  // with failOpen (read-only) are allowed through with a warning.
+  if (!redis) {
+    if (config.failOpen) {
+      console.warn(`[RateLimiter] Redis unconfigured — allowing (failOpen): ${key}`)
+      return { allowed: true, remaining: config.maxRequests, resetAt: now + config.windowMs, isWarning: true }
+    }
+    console.warn(`[RateLimiter] Redis unconfigured — DENYING (fail closed): ${key}`)
+    return { allowed: false, remaining: 0, resetAt: now + 60_000, retryAfter: 60 }
+  }
 
   try {
     // Get existing entry from Redis
@@ -107,13 +130,13 @@ export async function checkRateLimit(key: string, config: RateLimitConfig): Prom
       resetAt: entry.resetAt,
     }
   } catch (error) {
-    // If Redis fails, allow the request but log the error
+    // Redis erroring at runtime: same policy as unconfigured — money/auth
+    // routes fail closed; only failOpen (read-only) routes pass through.
     console.error('[RateLimiter] Redis error:', error)
-    return {
-      allowed: true,
-      remaining: effectiveMax,
-      resetAt: now + config.windowMs,
+    if (config.failOpen) {
+      return { allowed: true, remaining: effectiveMax, resetAt: now + config.windowMs, isWarning: true }
     }
+    return { allowed: false, remaining: 0, resetAt: now + 60_000, retryAfter: 60 }
   }
 }
 
@@ -164,6 +187,7 @@ export function checkRateLimitSync(key: string, config: RateLimitConfig): RateLi
 }
 
 export async function resetRateLimitViolations(key: string): Promise<void> {
+  if (!redis) return // Nothing to reset when the limiter is fail-closed offline
   const redisKey = getRateLimitKey(key)
   try {
     const entry = await redis.get<RateLimitEntry>(redisKey)

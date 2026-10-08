@@ -216,7 +216,11 @@ class CCPaymentClient {
   }
 
   private async request<T>(endpoint: string, method: "POST" = "POST", body?: Record<string, unknown>): Promise<T> {
-    const rateLimitResult = await checkRateLimit(`ccpayment:${this.appId}`, RATE_LIMITS.api)
+    // Outbound-API client: this rate limit protects CCPayment's servers from
+    // OUR call volume, it is not a security gate on user money. failOpen
+    // keeps payments working when Redis is unconfigured (the limiter logs a
+    // warning); a money-issuing route would use the fail-closed default.
+    const rateLimitResult = await checkRateLimit(`ccpayment:${this.appId}`, { ...RATE_LIMITS.api, failOpen: true })
     if (!rateLimitResult.allowed) {
       throw new Error("Rate limit exceeded. Please try again in a moment.")
     }
