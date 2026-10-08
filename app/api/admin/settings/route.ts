@@ -1,5 +1,5 @@
 import { validateSystemSettingUpdates } from "@/lib/admin/system-settings-validation"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getVerifiedUser } from "@/lib/supabase/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
@@ -13,10 +13,9 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const headersList = await headers()
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+    // SECURITY: LIVE-verified admin identity — platform settings writes
+    // cannot run on a stale cookie-derived session.
+    const user = await getVerifiedUser()
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

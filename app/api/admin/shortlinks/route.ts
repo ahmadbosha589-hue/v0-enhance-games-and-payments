@@ -1,13 +1,15 @@
 export const dynamic = "force-dynamic"
 
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getVerifiedUser } from "@/lib/supabase/server"
 import { shortenUrl, isShortlinkConfigured } from "@/lib/shortlinks/provider"
 
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 async function getAdmin() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // SECURITY: LIVE-verified identity — shortlink CRUD cannot run on a stale
+  // cookie-derived session.
+  const user = await getVerifiedUser()
   if (!user) return null
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
   if (!profile || !["admin", "superadmin"].includes(profile.role)) return null

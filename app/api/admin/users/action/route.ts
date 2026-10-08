@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getVerifiedUser } from "@/lib/supabase/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { rejectWithdrawalAndRefund } from "@/lib/admin/reject-withdrawal"
 import { NextResponse } from "next/server"
@@ -18,10 +18,9 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const headersList = await headers()
 
-    // Verify admin
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // SECURITY: LIVE-verified admin identity — user actions (ban, balance
+    // edits, role changes) cannot run on a stale cookie-derived session.
+    const user = await getVerifiedUser()
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

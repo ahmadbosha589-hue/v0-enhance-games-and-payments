@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getVerifiedUser } from "@/lib/supabase/server"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -32,10 +32,9 @@ export async function POST(request: Request) {
     const adminDb = requireAdminClient()
     const supabase = await createClient()
 
-    // Verify admin
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // SECURITY: LIVE-verified admin identity — offerwall crediting/refund
+    // actions cannot run on a stale cookie-derived session.
+    const user = await getVerifiedUser()
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

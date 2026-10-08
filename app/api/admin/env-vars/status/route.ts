@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getVerifiedUser } from "@/lib/supabase/server"
 
 // All the env vars we want to track status for
 const TRACKED_ENV_VARS = [
@@ -100,9 +100,8 @@ export async function GET() {
       return NextResponse.json({ configured: [], lastUpdated: {} })
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // SECURITY: LIVE-verified identity (env-var status listing).
+    const user = await getVerifiedUser()
 
     if (!user) {
       return NextResponse.json({ configured: [], lastUpdated: {} })

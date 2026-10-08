@@ -1,4 +1,4 @@
-import { createClient, createAdminClient } from "@/lib/supabase/server"
+import { createClient, createAdminClient, getVerifiedUser } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { log } from "@/lib/logger"
 import { z } from "zod"
@@ -66,9 +66,12 @@ async function verifyAdminPermissions(requestType: string) {
       return { error: "Database not configured", status: 503, user: null, profile: null }
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      log.warn("Unauthorized funds access attempt - no user session", { requestType, authError: authError?.message })
+    // SECURITY: LIVE-verified identity. This is a money endpoint (balance
+    // add/subtract/set) — a stale cookie-derived session (logged out
+    // elsewhere, banned, password reset) must not pass the admin gate.
+    const user = await getVerifiedUser()
+    if (!user) {
+      log.warn("Unauthorized funds access attempt - no verified session", { requestType })
       return { error: "Unauthorized - Please log in", status: 401, user: null, profile: null }
     }
 
