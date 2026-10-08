@@ -3,12 +3,12 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main]
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,3 +20,9 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+      # Supply-chain gate: fail on any critical finding. High/moderate are
+      # reported but do not block (documented in docs/PRODUCTION-READINESS.md).
+      - run: npm audit --audit-level=critical
+      # Launch gate in CI mode: missing operator env vars are WARNINGS here
+      # (Actions has no secrets); code-level checks still FAIL the build.
+      - run: node scripts/verify-launch.mjs --ci
