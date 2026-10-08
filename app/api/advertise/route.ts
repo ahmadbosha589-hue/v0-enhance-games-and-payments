@@ -5,22 +5,7 @@ import { z } from "zod"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { isSafeTargetUrl } from "@/lib/ads/safe-target-url"
 import { validateCreativeUrl } from "@/lib/ads/campaign-contract"
-
-// Ad Networks supported
-// Real self-serve networks the platform can genuinely deliver advertiser
-// campaigns through (same list as the advertise page UI). Budgets/CPMs mirror
-// each network's published minimums.
-const AD_NETWORKS = {
-  "adsterra": { name: "Adsterra", minBudget: 25, cpm: 0.80 },
-  "propellerads": { name: "PropellerAds", minBudget: 100, cpm: 0.50 },
-  "hilltopads": { name: "HilltopAds", minBudget: 20, cpm: 0.45 },
-  "coinzilla": { name: "Coinzilla", minBudget: 50, cpm: 2.00 },
-  "bitmedia": { name: "Bitmedia", minBudget: 50, cpm: 1.50 },
-  "a-ads": { name: "A-ADS", minBudget: 5, cpm: 0.30 },
-  "cointraffic": { name: "Cointraffic", minBudget: 100, cpm: 2.50 },
-  "trafficstars": { name: "TrafficStars", minBudget: 20, cpm: 0.40 },
-  "mellowads": { name: "MellowAds", minBudget: 10, cpm: 0.25 },
-}
+import { AD_NETWORK_CONFIG as AD_NETWORKS, AD_NETWORK_IDS } from "@/lib/config/ad-networks"
 
 const DEFAULT_TARGETING = {
   countries: [] as string[],
@@ -38,7 +23,7 @@ const targetingSchema = z.object({
 
 const createCampaignSchema = z.object({
   name: z.string().min(3).max(100),
-  network: z.enum(Object.keys(AD_NETWORKS) as [string, ...string[]]),
+  network: z.enum(AD_NETWORK_IDS),
   budget: z.number().min(5).max(100000),
   dailyBudget: z.number().min(1).max(10000),
   targetUrl: z.string().url().refine(isSafeTargetUrl, "Target URL must use HTTPS and a public hostname"),

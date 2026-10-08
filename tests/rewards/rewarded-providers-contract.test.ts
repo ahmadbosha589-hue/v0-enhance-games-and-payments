@@ -78,15 +78,21 @@ describe("rewarded-ads provider integration (contract)", () => {
   it("advertise page + API expose the same 9 real self-serve networks", () => {
     const page = read("app/dashboard/advertise/page.tsx")
     const api = read("app/api/advertise/route.ts")
+    const config = read("lib/config/ad-networks.ts")
     const expected = ["adsterra", "propellerads", "hilltopads", "coinzilla", "bitmedia", "a-ads", "cointraffic", "trafficstars", "mellowads"]
+    // Both surfaces must import the SHARED single source of truth (the ids are
+    // declared exactly once in lib/config/ad-networks.ts — neither file may
+    // keep a local copy that can drift again).
+    expect(page).toContain('from "@/lib/config/ad-networks"')
+    expect(api).toContain('from "@/lib/config/ad-networks"')
     for (const id of expected) {
-      expect(page).toContain(`"${id}"`)
-      expect(api).toContain(`"${id}"`)
+      expect(config).toContain(`"${id}"`)
     }
     // fictional networks gone
     for (const fake of ["google-ads", "facebook-ads", "tiktok-ads", "twitter-ads"]) {
       expect(page).not.toContain(`"${fake}": {`)
       expect(api).not.toContain(`"${fake}"`)
+      expect(config).not.toContain(`"${fake}": {`)
     }
   })
 })

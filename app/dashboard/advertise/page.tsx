@@ -80,128 +80,32 @@ import {
   Coins } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from "swr"
+import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { AD_NETWORK_CONFIG } from "@/lib/config/ad-networks"
 
-// Ad Network configurations
-const AD_NETWORKS = {
-  "adsterra": {
-    name: "Adsterra",
-    description: "Global ad network: banner, native, popunder, social bar",
-    icon: Globe,
-    logo: "/images/ads/crypto-ads.jpg",
-    color: "from-cyan-500 to-sky-600",
-    bgColor: "bg-cyan-500/10",
-    minBudget: 25,
-    cpm: 0.80,
-    features: ["Banner", "Native", "Popunder", "Social Bar"],
-    avgCtr: "0.8%",
-    recommended: true
-  },
-  "propellerads": {
-    name: "PropellerAds",
-    description: "Push, onclick, interstitial and in-page push traffic",
-    icon: Bell,
-    logo: "/images/ads/push-notifications.jpg",
-    color: "from-pink-500 to-rose-600",
-    bgColor: "bg-pink-500/10",
-    minBudget: 100,
-    cpm: 0.50,
-    features: ["Push", "Onclick", "Interstitial", "In-Page Push"],
-    avgCtr: "1.1%",
-    recommended: true
-  },
-  "hilltopads": {
-    name: "HilltopAds",
-    description: "High-performance network with strong pop/push fill rates",
-    icon: Zap,
-    logo: "/images/ads/banner-network.jpg",
-    color: "from-red-500 to-rose-600",
-    bgColor: "bg-red-500/10",
-    minBudget: 20,
-    cpm: 0.45,
-    features: ["Banner", "Pop-under", "In-Page Push", "Video"],
-    avgCtr: "0.7%",
-    recommended: false
-  },
-  "coinzilla": {
-    name: "Coinzilla",
-    description: "Premium crypto advertising network (banner + native)",
-    icon: Award,
-    logo: "/images/ads/native-ads.jpg",
-    color: "from-amber-500 to-orange-500",
-    bgColor: "bg-amber-500/10",
-    minBudget: 50,
-    cpm: 2.00,
-    features: ["Crypto Banner", "Native", "Header Banner"],
-    avgCtr: "0.9%",
-    recommended: true
-  },
-  "bitmedia": {
-    name: "Bitmedia",
-    description: "Bitcoin and crypto ad platform with precise targeting",
-    icon: BarChart3,
-    logo: "/images/ads/google-ads.jpg",
-    color: "from-orange-500 to-amber-600",
-    bgColor: "bg-orange-500/10",
-    minBudget: 50,
-    cpm: 1.50,
-    features: ["Crypto Banner", "Native", "Rich Media"],
-    avgCtr: "1.0%",
-    recommended: false
-  },
-  "a-ads": {
-    name: "A-ADS",
-    description: "Anonymous bitcoin advertising — simple CPM banners",
-    icon: Eye,
-    logo: "/images/ads/twitter-ads.jpg",
-    color: "from-blue-500 to-blue-600",
-    bgColor: "bg-blue-500/10",
-    minBudget: 5,
-    cpm: 0.30,
-    features: ["Banner", "Crypto Audience"],
-    avgCtr: "0.5%",
-    recommended: false
-  },
-  "cointraffic": {
-    name: "Cointraffic",
-    description: "Premium crypto network for banner and native placements",
-    icon: FileText,
-    logo: "/images/ads/meta-ads.jpg",
-    color: "from-emerald-500 to-green-600",
-    bgColor: "bg-emerald-500/10",
-    minBudget: 100,
-    cpm: 2.50,
-    features: ["Banner", "Native", "Press Release"],
-    avgCtr: "0.9%",
-    recommended: false
-  },
-  "trafficstars": {
-    name: "TrafficStars",
-    description: "Self-serve adult-mainstream network with broad formats",
-    icon: Globe,
-    logo: "/images/ads/tiktok-ads.jpg",
-    color: "from-indigo-500 to-violet-600",
-    bgColor: "bg-indigo-500/10",
-    minBudget: 20,
-    cpm: 0.40,
-    features: ["Banner", "Native", "Video", "Push"],
-    avgCtr: "0.6%",
-    recommended: false
-  },
-  "mellowads": {
-    name: "MellowAds",
-    description: "Simple bitcoin banner advertising with low minimums",
-    icon: Megaphone,
-    logo: "/images/ads/popup-ads.jpg",
-    color: "from-teal-500 to-cyan-600",
-    bgColor: "bg-teal-500/10",
-    minBudget: 10,
-    cpm: 0.25,
-    features: ["Banner", "Popup"],
-    avgCtr: "0.4%",
-    recommended: false
-  }
+// Ad network data comes from the SHARED single source of truth
+// (lib/config/ad-networks.ts) so the UI can never drift from the API's
+// validation, minimum budgets, or CPMs again. Only the icon components are
+// resolved locally — the shared config stores an `iconKey` string because
+// component references cannot be serialized/shared with the server route.
+const NETWORK_ICONS: Record<string, LucideIcon> = {
+  Globe,
+  Zap,
+  BarChart3,
+  FileText,
+  Bell,
+  Eye,
+  Award,
+  Megaphone,
 }
+
+const AD_NETWORKS = Object.fromEntries(
+  Object.entries(AD_NETWORK_CONFIG).map(([key, cfg]) => [
+    key,
+    { ...cfg, icon: NETWORK_ICONS[cfg.iconKey] ?? Globe },
+  ]),
+) as Record<string, (typeof AD_NETWORK_CONFIG)[string] & { icon: LucideIcon }>
 
 
 interface Campaign {
