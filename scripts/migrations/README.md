@@ -38,6 +38,17 @@ live ACL and required columns with:
 node scripts/verify-reward-acl.mjs
 ```
 
+Migrations 094–110 (lexical order) cover provider seeds (095 c.cx.ua +
+postback secrets), contact messages (100), security hygiene (101), game
+cooldown ACL (102), games logic (103), tournaments reconciliation (104),
+admin withdrawal refunds (105), admin balance RPC (106), rewarded-ad events
+(107), booster live pricing (108), ad balance cashout (109), and CPX branding
+(110). New integrations continue the same lexical sequence:
+
+1. `111_telegram_links.sql` — backing tables for the Telegram bot
+   (app/api/telegram/webhook/route.ts): `telegram_links` chat↔user mapping and
+   `profiles.telegram_chat_id` + one-time `telegram_link_token`.
+
 Use the runner from the repository root:
 
 ```bash

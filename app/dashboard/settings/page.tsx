@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ProfileSettings } from "@/components/dashboard/profile-settings"
 import { FaucetPaySettings } from "@/components/dashboard/faucetpay-settings"
 import { SecuritySettings } from "@/components/dashboard/security-settings"
-import { User, Wallet, Shield, AlertCircle } from "lucide-react"
+import { TelegramSettings } from "@/components/dashboard/telegram-settings"
+import { User, Wallet, Shield, Send, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -101,6 +102,22 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent>
             <SecuritySettings profile={profile} />
+          </CardContent>
+        </Card>
+
+        {/* Telegram Bot Linking — rewarded ads (AdsGram) + balance in Telegram */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Send className="h-5 w-5" />
+              Telegram Bot
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              Link your Telegram to watch rewarded ads and check your balance in the bot
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TelegramSettings />
           </CardContent>
         </Card>
       </div>
