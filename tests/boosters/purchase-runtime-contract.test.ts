@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 
-const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8")
+const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8").replace(/\r\n/g, "\n")
 
 describe("booster purchase runtime contracts", () => {
   it("uses the real profile endpoint and keeps pending payment state visible", () => {

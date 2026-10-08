@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { readFileSync, existsSync } from "node:fs"
 import { resolve } from "node:path"
 
-const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8")
+const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8").replace(/\r\n/g, "\n")
 const has = (p: string) => existsSync(resolve(process.cwd(), p))
 
 describe("tournament payouts are wired", () => {
