@@ -3,6 +3,7 @@ import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { isValidCouponCodeFormat } from "@/lib/utils/secure-coupon-generator"
 import { checkRateLimit } from "@/lib/api/rate-limiter"
+import { verifyCSRFFromRequest } from "@/lib/security/csrf"
 
 const MAX_REDEMPTIONS_PER_DAY = 10
 const MIN_CODE_LENGTH = 6
@@ -13,6 +14,12 @@ export async function POST(req: NextRequest) {
     const user = await getUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // SECURITY: CSRF double-submit verification — redemption mints satoshis,
+    // so reject cross-site forgeries before any state change.
+    if (!(await verifyCSRFFromRequest(req))) {
+      return NextResponse.json({ error: "Invalid or missing CSRF token" }, { status: 403 })
     }
 
     const headersList = await headers()

@@ -10,6 +10,7 @@ import { Ticket, Gift, Clock, CheckCircle, XCircle, Sparkles, Coins, AlertCircle
 import { WatchAdBonusReward } from "@/components/ads/watch-ad-bonus-reward"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { useLanguage } from "@/lib/i18n/language-context"
+import { useCsrf } from "@/hooks/use-csrf"
 
 interface CouponRedemption {
   id: string
@@ -24,6 +25,7 @@ interface CouponRedemption {
 
 export default function CouponsPage() {
   const { t } = useLanguage()
+  const { csrfHeaders } = useCsrf()
   const router = useRouter()
   const [couponCode, setCouponCode] = useState("")
   const [isRedeeming, setIsRedeeming] = useState(false)
@@ -74,9 +76,10 @@ export default function CouponsPage() {
       // Generate a simple fingerprint for anti-fraud
       const fingerprint = `${navigator.userAgent}-${screen.width}x${screen.height}-${new Date().getTimezoneOffset()}`
 
+      const csrf = await csrfHeaders()
       const res = await fetch("/api/coupons/redeem", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrf },
         body: JSON.stringify({
           code: couponCode.trim(),
           fingerprint

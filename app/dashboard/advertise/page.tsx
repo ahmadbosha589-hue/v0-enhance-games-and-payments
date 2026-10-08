@@ -82,6 +82,7 @@ import { toast } from "sonner"
 import useSWR from "swr"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useCsrf } from "@/hooks/use-csrf"
 import { AD_NETWORK_CONFIG } from "@/lib/config/ad-networks"
 
 // Ad network data comes from the SHARED single source of truth
@@ -155,6 +156,7 @@ const DEPOSIT_COINS = [
 ]
 
 export default function AdvertisePage() {
+  const { csrfHeaders } = useCsrf()
   const [activeTab, setActiveTab] = useState("campaigns")
   const [isDepositOpen, setIsDepositOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -397,9 +399,10 @@ export default function AdvertisePage() {
 
     setIsCreating(true)
     try {
+      const csrf = await csrfHeaders()
       const response = await fetch("/api/advertise", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrf },
         body: JSON.stringify({
           name,
           network,
@@ -438,9 +441,10 @@ export default function AdvertisePage() {
 
   const handleCampaignAction = async (campaignId: string, action: string) => {
     try {
+      const csrf = await csrfHeaders()
       const response = await fetch("/api/advertise", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrf },
         body: JSON.stringify({ campaignId, action })
       })
 

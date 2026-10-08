@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { withdrawalRequestSchema } from "@/lib/api/validators"
 import { checkRateLimit, RATE_LIMITS } from "@/lib/api/rate-limiter"
+import { verifyCSRFFromRequest } from "@/lib/security/csrf"
 import { WITHDRAWAL_CONFIG, FRAUD_CONFIG } from "@/lib/constants/config"
 import { log } from "@/lib/logger"
 import { v4 as uuidv4 } from "uuid"
@@ -23,6 +24,13 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // SECURITY: CSRF double-submit verification — a withdrawal moves real
+    // satoshis out of the user's balance, so a cross-site forgery with the
+    // victim's cookies attached must be rejected before any state change.
+    if (!(await verifyCSRFFromRequest(request))) {
+      return NextResponse.json({ error: "Invalid or missing CSRF token" }, { status: 403 })
     }
 
     const forwarded = headersList.get("x-forwarded-for")

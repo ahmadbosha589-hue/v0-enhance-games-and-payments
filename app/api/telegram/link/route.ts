@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient, createAdminClient } from "@/lib/supabase/server"
 import { log } from "@/lib/logger"
+import { verifyCSRFFromRequest } from "@/lib/security/csrf"
 
 /**
  * Telegram link token management.
@@ -59,7 +60,7 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     if (!supabase) return NextResponse.json({ error: "Database not configured" }, { status: 503 })
@@ -68,6 +69,12 @@ export async function POST() {
       data: { user },
     } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    // SECURITY: CSRF double-submit verification — token regeneration binds a
+    // Telegram chat to this account, so reject cross-site forgeries.
+    if (!(await verifyCSRFFromRequest(request))) {
+      return NextResponse.json({ error: "Invalid or missing CSRF token" }, { status: 403 })
+    }
 
     const admin = createAdminClient()
     if (!admin) return NextResponse.json({ error: "Database not configured" }, { status: 503 })

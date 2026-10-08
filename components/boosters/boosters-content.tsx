@@ -18,6 +18,7 @@ import {
   CreditCard, Wallet, Timer, TrendingUp, Shield, Copy
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useCsrf } from "@/hooks/use-csrf"
 import { toast } from "sonner"
 import { sendErc20Payment } from "@/lib/wallet/client"
 import type { WalletPaymentDetails } from "@/lib/wallet/evm-payment"
@@ -689,6 +690,7 @@ function PurchaseDialog({
 }
 
 export function BoostersContent({ userId }: BoostersContentProps) {
+  const { csrfHeaders } = useCsrf()
   const [selectedTier, setSelectedTier] = useState<BoosterTier | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [pendingPayment, setPendingPayment] = useState<{
@@ -788,9 +790,10 @@ export function BoostersContent({ userId }: BoostersContentProps) {
     if (!selectedTier) return
 
     try {
+      const csrf = await csrfHeaders()
       const response = await fetch("/api/boosters", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrf },
         body: JSON.stringify({
           tierId: selectedTier.id,
           paymentMethod,

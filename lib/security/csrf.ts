@@ -3,38 +3,28 @@
 // =====================================================
 
 import { cookies } from "next/headers"
-import { randomBytes, createHmac } from "crypto"
+import { generateSignedCSRFToken, validateSignedCSRFToken } from "@/lib/security/csrf-token"
 
-const CSRF_SECRET = process.env.CSRF_SECRET || process.env.SUPABASE_JWT_SECRET || "fallback-secret-change-me"
+const CSRF_SECRET = process.env.CSRF_SECRET || process.env.SUPABASE_JWT_SECRET
 const CSRF_COOKIE_NAME = "__csrf"
 const CSRF_HEADER_NAME = "x-csrf-token"
 
-export async function generateCSRFToken(): Promise<string> {
-  const token = randomBytes(32).toString("hex")
-  const timestamp = Date.now().toString()
-  const signature = createHmac("sha256", CSRF_SECRET).update(`${token}:${timestamp}`).digest("hex")
+function requireCsrfSecret(): string {
+  // No predictable development fallback: missing/weak secret must fail the
+  // token operation rather than silently weakening CSRF protection.
+  if (!CSRF_SECRET || Buffer.byteLength(CSRF_SECRET, "utf8") < 32) {
+    throw new Error("Set CSRF_SECRET (recommended) or SUPABASE_JWT_SECRET to at least 32 UTF-8 bytes")
+  }
+  return CSRF_SECRET
+}
 
-  return `${token}:${timestamp}:${signature}`
+export async function generateCSRFToken(): Promise<string> {
+  return generateSignedCSRFToken(requireCsrfSecret())
 }
 
 export async function validateCSRFToken(token: string | null): Promise<boolean> {
-  if (!token) return false
-
-  const parts = token.split(":")
-  if (parts.length !== 3) return false
-
-  const [tokenValue, timestamp, signature] = parts
-
-  // Check timestamp (valid for 1 hour)
-  const tokenTime = Number.parseInt(timestamp, 10)
-  if (isNaN(tokenTime) || Date.now() - tokenTime > 3600000) {
-    return false
-  }
-
-  // Verify signature
-  const expectedSignature = createHmac("sha256", CSRF_SECRET).update(`${tokenValue}:${timestamp}`).digest("hex")
-
-  return signature === expectedSignature
+  if (!CSRF_SECRET || Buffer.byteLength(CSRF_SECRET, "utf8") < 32) return false
+  return validateSignedCSRFToken(token, CSRF_SECRET)
 }
 
 export async function setCSRFCookie(): Promise<string> {
@@ -63,5 +53,11 @@ export async function verifyCSRFFromRequest(request: Request): Promise<boolean> 
 
   if (!headerToken || !cookieToken) return false
 
+  // Header must match the cookie AND the token must still be valid (signature
+  // + expiry). The cookie is SameSite=Strict + httpOnly, so a cross-site
+  // attacker can neither read nor forge it — but same-site XSS can read the
+  // header value out of JS memory only if it also obtained the cookie, which
+  // requires httpOnly bypass. Belt and suspenders: both must be present and
+  // cryptographically valid.
   return headerToken === cookieToken && (await validateCSRFToken(cookieToken))
 }

@@ -6,6 +6,7 @@ import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { isSafeTargetUrl } from "@/lib/ads/safe-target-url"
 import { validateCreativeUrl } from "@/lib/ads/campaign-contract"
 import { AD_NETWORK_CONFIG as AD_NETWORKS, AD_NETWORK_IDS } from "@/lib/config/ad-networks"
+import { verifyCSRFFromRequest } from "@/lib/security/csrf"
 
 const DEFAULT_TARGETING = {
   countries: [] as string[],
@@ -50,6 +51,13 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // SECURITY: CSRF double-submit verification — campaign creation spends the
+    // advertiser's ad-balance, so reject cross-site forgeries before any
+    // state change.
+    if (!(await verifyCSRFFromRequest(request))) {
+      return NextResponse.json({ error: "Invalid or missing CSRF token" }, { status: 403 })
     }
 
     const body = await request.json()
@@ -264,6 +272,12 @@ export async function PATCH(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // SECURITY: CSRF verification is required for pause/resume/stop because
+    // stopping a campaign can release/refund advertiser balance.
+    if (!(await verifyCSRFFromRequest(request))) {
+      return NextResponse.json({ error: "Invalid or missing CSRF token" }, { status: 403 })
     }
 
     const body = await request.json()

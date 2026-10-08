@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Loader2, Copy, CheckCircle2, RefreshCw, ExternalLink, MessageCircle } from "lucide-react"
 import { toast } from "sonner"
+import { useCsrf } from "@/hooks/use-csrf"
 
 interface TelegramLinkData {
   linked: boolean
@@ -25,6 +26,7 @@ interface TelegramLinkData {
  * Telegram and the bot can show the balance.
  */
 export function TelegramSettings() {
+  const { csrfHeaders } = useCsrf()
   const [data, setData] = useState<TelegramLinkData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -52,7 +54,8 @@ export function TelegramSettings() {
   const generateToken = async () => {
     setIsGenerating(true)
     try {
-      const res = await fetch("/api/telegram/link", { method: "POST" })
+      const csrf = await csrfHeaders()
+      const res = await fetch("/api/telegram/link", { method: "POST", headers: csrf })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || "Failed to generate token")
       toast.success("Token generated", { description: json.message })

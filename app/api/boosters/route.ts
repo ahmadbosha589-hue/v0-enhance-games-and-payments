@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { checkRateLimit } from "@/lib/api/rate-limiter"
+import { verifyCSRFFromRequest } from "@/lib/security/csrf"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
 import { decimalToBaseUnits, getWalletPaymentConfig } from "@/lib/wallet/evm-payment"
 import { usdToSatoshis } from "@/lib/pricing/crypto-rates"
@@ -223,6 +224,12 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // SECURITY: CSRF double-submit verification — purchase initiates real
+    // payment flows, so reject cross-site forgeries before any state change.
+    if (!(await verifyCSRFFromRequest(request))) {
+      return NextResponse.json({ error: "Invalid or missing CSRF token" }, { status: 403 })
     }
 
     // SECURITY: fail-closed rate limit BEFORE any payment creation. Booster

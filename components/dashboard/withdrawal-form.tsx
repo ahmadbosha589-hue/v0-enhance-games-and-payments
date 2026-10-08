@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
+import { useCsrf } from "@/hooks/use-csrf"
 
 interface WithdrawalFormProps {
   profile: Profile
@@ -24,6 +25,7 @@ interface WithdrawalFormProps {
 type WithdrawalState = "idle" | "validating" | "submitting" | "success" | "error"
 
 export function WithdrawalForm({ profile, canWithdraw }: WithdrawalFormProps) {
+  const { csrfHeaders } = useCsrf()
   const [amount, setAmount] = useState("")
   const [state, setState] = useState<WithdrawalState>("idle")
   const [dailyUsed, setDailyUsed] = useState(0)
@@ -94,9 +96,10 @@ export function WithdrawalForm({ profile, canWithdraw }: WithdrawalFormProps) {
     setState("submitting")
 
     try {
+      const csrf = await csrfHeaders()
       const response = await fetch("/api/withdraw", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...csrf },
         body: JSON.stringify({ amount: amountNum }),
       })
 
