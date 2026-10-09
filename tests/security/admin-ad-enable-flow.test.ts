@@ -97,3 +97,39 @@ describe("admin ad-network enable flow is real, not a facade", () => {
     }
   })
 })
+
+describe("admin ad-network enable switch actually persists", () => {
+  it("API exposes PATCH that flips only the enabled flag and never rewrites credentials", () => {
+    const src = read("app/api/admin/ad-networks/route.ts")
+    expect(src).toContain("export async function PATCH")
+    const patchBody = src.slice(src.indexOf("export async function PATCH"))
+    expect(patchBody).toContain("networkId, enabled")
+    expect(patchBody).not.toContain("encryptNetworkConfig")
+    expect(patchBody).toContain("admin_logs")
+  })
+
+  it("card toggle persists through the API instead of only local state", () => {
+    const src = read("components/admin/ad-network-settings.tsx")
+    expect(src).not.toMatch(/onCheckedChange=\{setEnabled\}/)
+    expect(src).toMatch(/onCheckedChange=\{handleToggle\}/)
+    expect(src).toContain("onToggle")
+    expect(src).toContain('method: "PATCH"')
+  })
+
+  it("parent keeps its enabled state in sync after a persisted toggle", () => {
+    const src = read("components/admin/ad-network-settings.tsx")
+    const parent = src.slice(src.indexOf("export function AdNetworkSettings"))
+    expect(parent).toMatch(/handleToggle|onToggle/)
+    expect(parent).toContain("setConfigs")
+  })
+
+  it("first save enables the network and the button says so", () => {
+    const src = read("components/admin/ad-network-settings.tsx")
+    expect(src).toContain("Save & Enable")
+  })
+
+  it("locked switch explains why it will not move", () => {
+    const src = read("components/admin/ad-network-settings.tsx")
+    expect(src).toMatch(/Save & Enable|unlocks after saving/)
+  })
+})

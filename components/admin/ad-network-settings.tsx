@@ -213,13 +213,16 @@ const AD_NETWORKS: AdNetwork[] = [
 interface AdNetworkCardProps {
   network: AdNetwork
   savedConfig: Record<string, string>
+  enabled: boolean
   onSave: (networkId: string, config: Record<string, string>, enabled: boolean) => Promise<void>
   onDelete: (networkId: string) => Promise<void>
+  onToggle: (networkId: string, enabled: boolean) => Promise<void>
 }
 
-function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCardProps) {
+function AdNetworkCard({ network, savedConfig, enabled, onSave, onDelete, onToggle }: AdNetworkCardProps) {
   const [config, setConfig] = useState<Record<string, string>>(savedConfig || {})
-  const [enabled, setEnabled] = useState(network.enabled)
+  const [enabledState, setEnabledState] = useState(enabled)
+  const [isToggling, setIsToggling] = useState(false)
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -229,6 +232,28 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
   const hasRequiredFields = network.fields
     .filter(f => f.required)
     .every(f => config[f.key]?.trim())
+
+  // The switch PERSISTS through PATCH. Local state updates optimistically so
+  // the control visibly moves the moment it is clicked; on failure it snaps
+  // back and the toast explains why (e.g. "not configured yet").
+  const handleToggle = async (next: boolean) => {
+    if (isToggling) return
+    const previous = enabledState
+    setEnabledState(next)
+    setIsToggling(true)
+    try {
+      await onToggle(network.id, next)
+    } catch (error) {
+      setEnabledState(previous)
+      toast({
+        title: "Toggle Failed",
+        description: error instanceof Error ? error.message : "Failed to update the network.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsToggling(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!hasRequiredFields) {
@@ -242,7 +267,12 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
 
     setIsSaving(true)
     try {
-      await onSave(network.id, config, enabled)
+      // First save of a network: save AND enable in one step — the whole point
+      // of entering the credentials. The switch stays in sync with the state
+      // the server now has instead of drifting from a dead local flag.
+      const nextEnabled = isConfigured ? enabledState : true
+      await onSave(network.id, config, nextEnabled)
+      setEnabledState(nextEnabled)
       const registryId = network.id === "a_ads" ? "a-ads" : network.id
       const rendersLive = getNetwork(registryId)?.enabled === true
       toast({
@@ -267,7 +297,7 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
     try {
       await onDelete(network.id)
       setConfig({})
-      setEnabled(false)
+      setEnabledState(false)
       toast({
         title: "Configuration Deleted",
         description: `${network.name} configuration has been removed.`,
@@ -284,7 +314,7 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
   }
 
   return (
-    <Card className={enabled && isConfigured ? "border-green-500/30 bg-green-500/5" : ""}>
+    <Card className={enabledState && isConfigured ? "border-green-500/30 bg-green-500/5" : ""}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1 flex-1 min-w-0">
@@ -330,10 +360,16 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
               </a>
             </Button>
             <Switch
-              checked={enabled}
-              onCheckedChange={setEnabled}
-              disabled={!isConfigured}
+              checked={enabledState}
+              onCheckedChange={handleToggle}
+              disabled={!isConfigured || isToggling}
+              aria-label={`Enable ${network.name}`}
             />
+            {!isConfigured && (
+              <span className="text-[10px] text-muted-foreground hidden sm:block">
+                unlocks after saving
+              </span>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -444,7 +480,7 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
-              Save Configuration
+              {isConfigured ? "Save Configuration" : "Save & Enable"}
             </Button>
           </div>
         )}
@@ -487,6 +523,28 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
       delete newConfigs[networkId]
       return newConfigs
     })
+  }
+
+  // Persist an enable/disable toggle through the PATCH endpoint. The switch
+  // flips ONLY the enabled flag server-side — the encrypted credentials are
+  // never rewritten. Keeps the parent's config map (and every card badge)
+  // in sync with what the database now says.
+  const handleToggle = async (networkId: string, enabled: boolean) => {
+    const response = await fetch("/api/admin/ad-networks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ networkId, enabled }),
+    })
+
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}))
+      throw new Error(detail.error || "Failed to toggle")
+    }
+
+    setConfigs(prev => ({
+      ...prev,
+      [networkId]: { config: prev[networkId]?.config ?? { _configured: "true" }, enabled },
+    }))
   }
 
   const configuredCount = Object.keys(configs).length
@@ -587,8 +645,10 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
                   enabled: configs[network.id]?.enabled || false,
                 }}
                 savedConfig={configs[network.id]?.config || {}}
+                enabled={configs[network.id]?.enabled || false}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                onToggle={handleToggle}
               />
             ))}
           </div>
@@ -607,8 +667,10 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
                   enabled: configs[network.id]?.enabled || false,
                 }}
                 savedConfig={configs[network.id]?.config || {}}
+                enabled={configs[network.id]?.enabled || false}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                onToggle={handleToggle}
               />
             ))}
           </div>
@@ -627,8 +689,10 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
                   enabled: configs[network.id]?.enabled || false,
                 }}
                 savedConfig={configs[network.id]?.config || {}}
+                enabled={configs[network.id]?.enabled || false}
                 onSave={handleSave}
                 onDelete={handleDelete}
+                onToggle={handleToggle}
               />
             ))}
           </div>
@@ -656,8 +720,10 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
                     enabled: configs[network.id]?.enabled || false,
                   }}
                   savedConfig={configs[network.id]?.config || {}}
+                  enabled={configs[network.id]?.enabled || false}
                   onSave={handleSave}
                   onDelete={handleDelete}
+                  onToggle={handleToggle}
                 />
               ))}
             </div>
