@@ -79,7 +79,7 @@ describe("rewarded-ads provider integration (contract)", () => {
     const page = read("app/dashboard/advertise/page.tsx")
     const api = read("app/api/advertise/route.ts")
     const config = read("lib/config/ad-networks.ts")
-    const expected = ["adsterra", "propellerads", "hilltopads", "coinzilla", "bitmedia", "a-ads", "cointraffic", "trafficstars", "mellowads"]
+    const expected = ["adsterra", "propellerads", "hilltopads", "coinzilla", "bitmedia", "a-ads", "cointraffic", "trafficstars", "coinads"]
     // Both surfaces must import the SHARED single source of truth (the ids are
     // declared exactly once in lib/config/ad-networks.ts — neither file may
     // keep a local copy that can drift again).

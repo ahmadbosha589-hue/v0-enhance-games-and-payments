@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { getUser } from "@/lib/supabase/server"
 import HomePageClient from "@/components/landing/home-page-client"
 import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
+import { AAdsStickyUnit } from "@/components/ads/aads-sticky-unit"
 
 // Force this route to render dynamically — it needs request-scoped cookies
 // to make the auth-aware redirect decision below.
@@ -41,6 +42,8 @@ export default async function HomePage({
         {/* A-ADS adaptive banner unit 2457981 — the landing page renders
             outside the (public) route group, so mount it explicitly. */}
         <AAdsAdaptiveUnit />
+        {/* A-ADS dismissable sticky/anchor unit at the top of the viewport. */}
+        <AAdsStickyUnit />
       </>
     )
   }
@@ -69,6 +72,8 @@ export default async function HomePage({
       {/* A-ADS adaptive banner unit 2457981 — the landing page renders
           outside the (public) route group, so mount it explicitly. */}
       <AAdsAdaptiveUnit />
+      {/* A-ADS dismissable sticky/anchor unit at the top of the viewport. */}
+      <AAdsStickyUnit />
     </>
   )
 }

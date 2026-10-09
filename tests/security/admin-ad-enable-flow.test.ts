@@ -23,7 +23,7 @@ describe("admin ad-network enable flow is real, not a facade", () => {
       "adsterra",
       "propellerads",
       "trafficstars",
-      "mellowads",
+      "coinads",
       "adskeeper",
     ]) {
       expect(getNetwork(id)?.enabled, `${id} must stay disabled until its tag is verified`).toBe(false)

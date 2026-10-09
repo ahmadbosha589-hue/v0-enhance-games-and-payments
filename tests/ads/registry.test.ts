@@ -26,7 +26,7 @@ describe("publisher ad registry", () => {
     expect(isNetworkRenderable("coinzilla")).toBe(true)
     expect(isNetworkRenderable("bitmedia")).toBe(true)
     // Unverified tags stay non-renderable no matter what credentials exist.
-    for (const id of ["google", "cointraffic", "medianet", "hilltopads", "adsterra", "propellerads", "trafficstars", "mellowads", "adskeeper"]) {
+    for (const id of ["google", "cointraffic", "medianet", "hilltopads", "adsterra", "propellerads", "trafficstars", "coinads", "adskeeper"]) {
       expect(isNetworkRenderable(id), `${id} must not be renderable yet`).toBe(false)
     }
     expect(getNetwork("does-not-exist")).toBeUndefined()

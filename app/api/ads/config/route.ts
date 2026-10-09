@@ -55,9 +55,9 @@ const DEFAULT_CONFIGS: Record<string, any> = {
     enabled: !!process.env.TRAFFICSTARS_ZONE_ID,
     zoneId: process.env.TRAFFICSTARS_ZONE_ID || "",
   },
-  mellowads: {
-    enabled: !!process.env.MELLOWADS_ZONE_ID,
-    zoneId: process.env.MELLOWADS_ZONE_ID || "",
+  coinads: {
+    enabled: !!process.env.COINADS_ZONE_ID,
+    zoneId: process.env.COINADS_ZONE_ID || "",
   },
   adskeeper: {
     enabled: !!process.env.ADSKEEPER_SITE_ID,
@@ -158,8 +158,8 @@ export async function GET() {
       bitmedia: {
         BITMEDIA_ZONE_ID: "zoneId",
       },
-      mellowads: {
-        MELLOWADS_AD_ID: "zoneId",
+      coinads: {
+        COINADS_ZONE_ID: "zoneId",
       },
     }
 

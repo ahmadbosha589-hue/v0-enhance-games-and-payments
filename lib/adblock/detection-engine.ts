@@ -960,7 +960,7 @@ export const BAIT_PATTERNS = {
     "/api/ads/galaksion.js",
     "/api/ads/yllix.js",
     "/api/ads/revenuehits.js",
-    "/api/ads/mellowads.js",
+    "/api/ads/coinads.js",
   ],
 
   // v12.0 NEW: Crypto / mining / faucet ad networks

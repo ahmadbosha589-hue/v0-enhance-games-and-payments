@@ -209,7 +209,7 @@ async function ActiveNetworksList() {
       trafficstars: "TrafficStars",
       adskeeper: "AdsKeeper",
       a_ads: "A-ADS",
-      mellowads: "MellowAds",
+      coinads: "CoinAds",
     }
 
     return (

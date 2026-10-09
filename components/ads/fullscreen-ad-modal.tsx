@@ -119,7 +119,7 @@ const AD_NETWORKS = [
   { id: "adsterra", name: "Adsterra", color: "bg-cyan-500" },
   { id: "propellerads", name: "PropellerAds", color: "bg-pink-500" },
   { id: "trafficstars", name: "TrafficStars", color: "bg-indigo-500" },
-  { id: "mellowads", name: "MellowAds", color: "bg-teal-500" },
+  { id: "coinads", name: "CoinAds", color: "bg-teal-500" },
   { id: "adskeeper", name: "AdsKeeper", color: "bg-emerald-500" },
 ] as const
 

@@ -6,6 +6,7 @@ import { LogoFull } from "@/components/icons/logo"
 import { Home, ArrowLeft, Search, HelpCircle } from "lucide-react"
 import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
 import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
+import { AAdsStickyUnit } from "@/components/ads/aads-sticky-unit"
 
 export default function NotFound() {
   return (
@@ -65,6 +66,8 @@ export default function NotFound() {
       <PublicAdsLayer disablePopup />
       {/* A-ADS adaptive banner unit 2457981. */}
       <AAdsAdaptiveUnit />
+      {/* A-ADS dismissable sticky/anchor unit at the top of the viewport. */}
+      <AAdsStickyUnit />
     </div>
   )
 }

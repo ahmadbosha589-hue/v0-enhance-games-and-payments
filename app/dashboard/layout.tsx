@@ -17,6 +17,7 @@ import { DeviceFingerprintProvider } from "@/components/security/device-fingerpr
 import { AntiBotProvider } from "@/components/security/anti-bot-provider"
 import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
 import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
+import { AAdsStickyUnit } from "@/components/ads/aads-sticky-unit"
 
 export const metadata: Metadata = {
   title: {
@@ -110,6 +111,8 @@ export default async function DashboardLayout({
               <PublicAdsLayer disablePopup />
               {/* A-ADS adaptive banner unit 2457981 on every dashboard page. */}
               <AAdsAdaptiveUnit />
+              {/* A-ADS dismissable sticky/anchor unit at the top of the viewport. */}
+              <AAdsStickyUnit />
             </SidebarInset>
           </AdblockProvider>
         </AntiBotProvider>

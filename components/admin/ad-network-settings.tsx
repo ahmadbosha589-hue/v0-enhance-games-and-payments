@@ -196,17 +196,17 @@ const AD_NETWORKS: AdNetwork[] = [
     supportedFormats: ["Banner", "Native", "Rich Media"],
   },
   {
-    id: "mellowads",
-    name: "MellowAds",
-    description: "Simple bitcoin advertising",
+    id: "coinads",
+    name: "CoinAds",
+    description: "Crypto banner, text and popunder network",
     status: "not_configured",
     enabled: false,
     fields: [
-      { key: "MELLOWADS_AD_ID", label: "Ad ID", type: "text", placeholder: "12345", required: true },
+      { key: "COINADS_ZONE_ID", label: "Zone ID", type: "text", placeholder: "zone_XXXXX", required: true },
     ],
-    website: "https://mellowads.com",
+    website: "https://coinads.io",
     revenueType: "CPM",
-    supportedFormats: ["Banner"],
+    supportedFormats: ["Banner", "Text Ads", "Popunder"],
   },
 ]
 
@@ -635,7 +635,7 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all">All ({AD_NETWORKS.length})</TabsTrigger>
-          <TabsTrigger value="crypto">Crypto ({AD_NETWORKS.filter(n => ["cointraffic", "a_ads", "coinzilla", "bitmedia", "mellowads"].includes(n.id)).length})</TabsTrigger>
+          <TabsTrigger value="crypto">Crypto ({AD_NETWORKS.filter(n => ["cointraffic", "a_ads", "coinzilla", "bitmedia", "coinads"].includes(n.id)).length})</TabsTrigger>
           <TabsTrigger value="premium">Premium ({AD_NETWORKS.filter(n => ["medianet", "adsterra", "trafficstars"].includes(n.id)).length})</TabsTrigger>
           <TabsTrigger value="configured">Configured ({configuredCount})</TabsTrigger>
         </TabsList>
@@ -663,7 +663,7 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
         <TabsContent value="crypto" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             {AD_NETWORKS.filter(n =>
-              ["cointraffic", "a_ads", "coinzilla", "bitmedia", "mellowads"].includes(n.id)
+              ["cointraffic", "a_ads", "coinzilla", "bitmedia", "coinads"].includes(n.id)
             ).map((network) => (
               <AdNetworkCard
                 key={network.id}

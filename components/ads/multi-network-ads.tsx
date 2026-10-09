@@ -22,7 +22,7 @@ const AD_NETWORKS = [
   { id: "adsterra", name: "Adsterra", refreshInterval: 45000, color: "bg-cyan-500" },
   { id: "propellerads", name: "PropellerAds", refreshInterval: 40000, color: "bg-pink-500" },
   { id: "trafficstars", name: "TrafficStars", refreshInterval: 35000, color: "bg-indigo-500" },
-  { id: "mellowads", name: "MellowAds", refreshInterval: 50000, color: "bg-teal-500" },
+  { id: "coinads", name: "CoinAds", refreshInterval: 50000, color: "bg-teal-500" },
   // AdsKeeper only refreshes on page load, not on timer
   { id: "adskeeper", name: "AdsKeeper", refreshInterval: 0, color: "bg-emerald-500", pageLoadOnly: true },
 ] as const

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
+import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
 import { isNetworkRenderable } from "@/lib/ads/registry"
 import { AlertCircle, ArrowDown, CheckCircle2, Cookie, Megaphone } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -27,7 +28,7 @@ const AD_NETWORKS = [
   { id: "adsterra", name: "Adsterra" },
   { id: "propellerads", name: "PropellerAds" },
   { id: "trafficstars", name: "TrafficStars" },
-  { id: "mellowads", name: "MellowAds" },
+  { id: "coinads", name: "CoinAds" },
   { id: "adskeeper", name: "AdsKeeper" },
 ] as const
 
@@ -107,6 +108,12 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
           showLabels
           className="rounded-xl"
         />
+        {/* A live, always-renderable ad so the page shows real inventory even
+            when no third-party network has been enabled by the operator yet.
+            Previously this section listed only status cards: with zero
+            verified networks it displayed "3 of 11 verified" and no ad at
+            all, which read as broken. */}
+        <AAdsAdaptiveUnit />
       </div>
 
       <p className="text-xs text-muted-foreground">

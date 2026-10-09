@@ -37,7 +37,7 @@ const AD_NETWORKS = [
   { id: "adsterra", name: "Adsterra", priority: 7 },
   { id: "propellerads", name: "PropellerAds", priority: 8 },
   { id: "trafficstars", name: "TrafficStars", priority: 9 },
-  { id: "mellowads", name: "MellowAds", priority: 10 },
+  { id: "coinads", name: "CoinAds", priority: 10 },
   { id: "adskeeper", name: "AdsKeeper", priority: 11 },
 ] as const
 
@@ -279,11 +279,11 @@ export const AdSlotMultiNetwork = memo(function AdSlotMultiNetwork({
           />
         )
 
-      case "mellowads":
+      case "coinads":
         return (
           <iframe
-            data-mellow-ad={configTyped.zoneId}
-            src={`https://mellowads.com/ad/${configTyped.zoneId}`}
+            data-coinads-zone={configTyped.zoneId}
+            src={`https://coinads.io/show/${configTyped.zoneId}`}
             width={sizeConfig.width}
             height={sizeConfig.height}
             frameBorder="0"

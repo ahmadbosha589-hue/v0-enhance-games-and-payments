@@ -22,7 +22,7 @@ const NETWORK_IDS = [
   "a-ads",
   "cointraffic",
   "trafficstars",
-  "mellowads",
+  "coinads",
 ]
 
 describe("advertise networks have one source of truth", () => {
