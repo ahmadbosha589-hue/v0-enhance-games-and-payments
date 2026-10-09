@@ -28,8 +28,28 @@ export async function POST(request: NextRequest) {
 
     const adminSupabase = requireAdminClient()
 
-    // Encrypt the configuration
-    const encryptedConfig = encryptNetworkConfig(JSON.stringify(config))
+    // Encrypt the configuration. When ENCRYPTION_KEY is not set in the host
+    // environment this throws — previously the catch below turned that into a
+    // bare "Internal server error" 500, which the admin UI displayed as a
+    // generic "Failed to save configuration" toast. The operator then saw a
+    // switch that would never unlock with no explanation why. Fail loudly and
+    // specifically instead: the panel tells the operator exactly which
+    // environment variable to set in Vercel.
+    const encryptedConfig = (() => {
+      try {
+        return encryptNetworkConfig(JSON.stringify(config))
+      } catch (encryptError) {
+        const message = encryptError instanceof Error ? encryptError.message : "encryption failed"
+        console.error("Ad network config encryption failed:", message)
+        return NextResponse.json(
+          {
+            error: `Cannot save: ENCRYPTION_KEY is not configured on this deployment (${message}). Set ENCRYPTION_KEY in your hosting environment (Vercel → Project → Settings → Environment Variables), redeploy, then save again.`,
+          },
+          { status: 503 },
+        )
+      }
+    })()
+    if (encryptedConfig instanceof NextResponse) return encryptedConfig
 
     // Upsert the configuration
     const { error } = await adminSupabase

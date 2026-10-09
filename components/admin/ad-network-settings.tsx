@@ -281,10 +281,10 @@ function AdNetworkCard({ network, savedConfig, enabled, onSave, onDelete, onTogg
           ? `${network.name} has been configured. The ad appears on public pages for visitors with marketing consent within ~5 minutes (config cache: s-maxage=300).`
           : `${network.name} credentials stored, but this network's ad tag is not verified yet — it will not render until the tag is implemented. The "Tag verification pending" badge stays until then.`,
       })
-    } catch {
+    } catch (saveError) {
       toast({
         title: "Error",
-        description: "Failed to save configuration. Please try again.",
+        description: saveError instanceof Error ? saveError.message : "Failed to save configuration. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -503,7 +503,13 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
       body: JSON.stringify({ networkId, config, enabled }),
     })
 
-    if (!response.ok) throw new Error("Failed to save")
+    if (!response.ok) {
+      // Surface the server's actual reason (e.g. missing ENCRYPTION_KEY)
+      // instead of a generic message that leaves the operator guessing why
+      // the switch will not unlock.
+      const detail = await response.json().catch(() => ({}))
+      throw new Error(detail.error || "Failed to save")
+    }
 
     setConfigs(prev => ({
       ...prev,

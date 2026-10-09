@@ -132,4 +132,19 @@ describe("admin ad-network enable switch actually persists", () => {
     const src = read("components/admin/ad-network-settings.tsx")
     expect(src).toMatch(/Save & Enable|unlocks after saving/)
   })
+
+  it("save failures surface the server's actual error, not a generic toast", () => {
+    const parent = read("components/admin/ad-network-settings.tsx")
+    expect(parent).toMatch(/detail\.error/)
+    const api = read("app/api/admin/ad-networks/route.ts")
+    expect(api).toContain("ENCRYPTION_KEY is not configured")
+  })
+
+  it("POST explains the missing-encryption-key failure instead of a bare 500", () => {
+    const api = read("app/api/admin/ad-networks/route.ts")
+    const postBody = api.slice(api.indexOf("export async function POST"))
+    expect(postBody).toContain("encryptNetworkConfig")
+    expect(postBody).toMatch(/ENCRYPTION_KEY is not configured/)
+    expect(postBody).toContain("503")
+  })
 })
