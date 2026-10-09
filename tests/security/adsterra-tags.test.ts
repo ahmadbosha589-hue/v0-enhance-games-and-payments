@@ -31,7 +31,7 @@ describe("Adsterra real account tags are implemented site-wide", () => {
     expect(src).toContain("appendScript(POPUNDER_SRC)")
     expect(src).toContain("appendScript(SOCIAL_BAR_SRC)")
     expect(src).toContain("appendScript(`${ADSTERRA_CDN}/${NATIVE_KEY}/invoke.js`")
-    expect(src).toContain("appendScript(`${ADSTERRA_CDN}/${BANNER_KEY}/invoke.js`")
+    expect(src).toContain("bannerWrapper.appendChild(bannerScript)")
   })
 
   it("sets the 728x90 atOptions before its invoke script runs", () => {
@@ -42,9 +42,18 @@ describe("Adsterra real account tags are implemented site-wide", () => {
     expect(src).toContain("width: 728")
     // atOptions assignment must appear BEFORE the banner invoke append.
     const atIdx = src.indexOf("window.atOptions = {")
-    const invokeIdx = src.indexOf("appendScript(`${ADSTERRA_CDN}/${BANNER_KEY}/invoke.js`")
+    const invokeIdx = src.indexOf("bannerWrapper.appendChild(bannerScript)")
     expect(atIdx).toBeGreaterThan(-1)
     expect(invokeIdx).toBeGreaterThan(atIdx)
+  })
+
+  it("invoke scripts render into body containers, never the head", () => {
+    const src = read("components/ads/adsterra-units.tsx")
+    // Adsterra's renderer draws the creative into the invoke script's PARENT
+    // node — a <head> parent renders nothing (verified on production).
+    expect(src).not.toMatch(/document\.head\.appendChild\(script\)/)
+    expect(src).toContain("bannerWrapper.appendChild(bannerScript)")
+    expect(src).toContain('document.body.appendChild(container)')
   })
 
   it("is consent-gated and injects only once per page load", () => {

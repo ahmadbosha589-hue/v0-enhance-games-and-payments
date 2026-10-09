@@ -46,13 +46,17 @@ declare global {
   }
 }
 
-function appendScript(src: string, attrs: Record<string, string> = {}) {
+function appendScript(src: string, attrs: Record<string, string> = {}, where: "body" | "head" = "body") {
   const script = document.createElement("script")
   script.type = "text/javascript"
   script.async = true
   for (const [key, value] of Object.entries(attrs)) script.setAttribute(key, value)
   script.src = src
-  document.head.appendChild(script)
+  // Adsterra's invoke.js locates its own <script> element and renders the
+  // creative into the PARENT node. Appending to <head> therefore rendered
+  // nothing (verified live: zero template XHRs, parentOfInvoke=HEAD).
+  // Everything goes into <body>, where the creative containers live.
+  ;(where === "head" ? document.head : document.body).appendChild(script)
   return script
 }
 
@@ -92,7 +96,15 @@ export function AdsterraUnits({ disableIntrusive = false, disableDisplay = false
       }
       appendScript(`${ADSTERRA_CDN}/${NATIVE_KEY}/invoke.js`, { async: "async", "data-cfasync": "false" })
 
-      // Banner 728x90: window.atOptions MUST be set before invoke.js runs.
+      // Banner 728x90: window.atOptions MUST be set before invoke.js runs,
+      // and the invoke script must sit inside a VISIBLE wrapper div in
+      // <body> — Adsterra's renderer draws the iframe into the script's
+      // parent node (verified: parent=<head> produced zero creative).
+      const bannerWrapper = document.createElement("div")
+      bannerWrapper.setAttribute("aria-label", "Sponsored banner")
+      bannerWrapper.style.cssText = "width:728px;max-width:100%;margin:8px auto;min-height:90px;overflow:visible;text-align:center"
+      document.body.appendChild(bannerWrapper)
+
       window.atOptions = {
         key: BANNER_KEY,
         format: "iframe",
@@ -100,7 +112,12 @@ export function AdsterraUnits({ disableIntrusive = false, disableDisplay = false
         width: 728,
         params: {},
       }
-      appendScript(`${ADSTERRA_CDN}/${BANNER_KEY}/invoke.js`, { async: "async", "data-cfasync": "false" })
+
+      const bannerScript = document.createElement("script")
+      bannerScript.type = "text/javascript"
+      bannerScript.setAttribute("data-cfasync", "false")
+      bannerScript.src = `${ADSTERRA_CDN}/${BANNER_KEY}/invoke.js`
+      bannerWrapper.appendChild(bannerScript)
     }
 
     window.__fauceroAdsterraInjected = {
