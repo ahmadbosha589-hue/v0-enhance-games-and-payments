@@ -65,7 +65,7 @@ async function AdStats() {
     const legacyActiveNetworks = ads.filter((ad) => ad.enabled).length
     const newActiveNetworks = networkConfigs.filter((n) => n.enabled).length
     const totalActiveNetworks = legacyActiveNetworks + newActiveNetworks
-    const totalNetworks = 12
+    const totalNetworks = 11
 
     const stats = [
       {
@@ -127,7 +127,7 @@ async function AdStats() {
 
 function AdStatsEmpty() {
   const stats = [
-    { label: "Available Networks", value: "12", icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { label: "Available Networks", value: "11", icon: Globe, color: "text-blue-500", bg: "bg-blue-500/10" },
     { label: "Configured", value: "0", icon: Settings2, color: "text-amber-500", bg: "bg-amber-500/10" },
     { label: "Active", value: "0", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-500/10" },
     { label: "Est. Revenue", value: "$0", icon: DollarSign, color: "text-emerald-500", bg: "bg-emerald-500/10" },
@@ -188,7 +188,6 @@ async function ActiveNetworksList() {
       aads: "bg-orange-500/10 text-orange-500 border-orange-500/20",
       coinzilla: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
       bitsmedia: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-      google_ads: "bg-blue-500/10 text-blue-500 border-blue-500/20",
       cointraffic: "bg-amber-500/10 text-amber-500 border-amber-500/20",
       medianet: "bg-red-500/10 text-red-500 border-red-500/20",
       hilltopads: "bg-green-500/10 text-green-500 border-green-500/20",
@@ -202,7 +201,6 @@ async function ActiveNetworksList() {
       aads: "A-ADS",
       coinzilla: "CoinZilla",
       bitsmedia: "Bitmedia",
-      google_ads: "Google AdSense",
       cointraffic: "Cointraffic",
       medianet: "Media.net",
       hilltopads: "HilltopAds",
@@ -343,7 +341,7 @@ export default async function AdminAdsPage() {
       <div>
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight">Ad Network Management</h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          Configure and manage 12 advertising networks to maximize revenue
+          Configure and manage 11 advertising networks to maximize revenue
         </p>
       </div>
 
@@ -355,8 +353,8 @@ export default async function AdminAdsPage() {
               <Megaphone className="h-4 w-4 text-primary" />
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-sm">12 Ad Networks</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Google, Cointraffic, Adsterra & more</p>
+              <p className="font-semibold text-sm">11 Ad Networks</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">A-ADS, Coinzilla, Bitmedia & more</p>
             </div>
           </CardContent>
         </Card>

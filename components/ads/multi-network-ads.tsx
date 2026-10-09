@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback, memo } from "react"
+import Script from "next/script"
 import { cn } from "@/lib/utils"
 import { RefreshCw } from "lucide-react"
 import { CxUaBanner } from "@/components/ads/cx-ua-ads"
@@ -87,8 +88,11 @@ const AdsSkeleton = memo(function AdsSkeleton({ layout }: { layout: string }) {
   )
 })
 
-// Memoized network ad slot - container for ad script injection
-// Only rendered for enabled/configured networks
+// Memoized network ad slot - renders the network's REAL publisher tag once the
+// network is both registry-enabled and has a usable credential from
+// /api/ads/config. Previously this rendered an empty placeholder box for every
+// enabled network, so enabling a network in the admin panel never surfaced
+// anything on the page.
 const NetworkAdSlot = memo(function NetworkAdSlot({
   network,
   refreshCount,
@@ -104,29 +108,18 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
   density?: "default" | "compact"
 }) {
   const slotRef = useRef<HTMLDivElement>(null)
+  const hasMarketingConsent = useAdConsent()
+  const { configs: adConfigs } = useAdConfig(hasMarketingConsent)
+  const config = adConfigs?.[network.id] as { enabled?: boolean; publisherId?: string; zoneId?: string } | undefined
 
-  // Set ad config data for ad scripts to use
-  useEffect(() => {
-    if (!slotRef.current || !isVisible) return
-
-    const adConfig = {
-      network: network.id,
-      position,
-      refreshKey: refreshCount,
-      timestamp: Date.now(),
-    }
-
-    slotRef.current.dataset.adConfig = JSON.stringify(adConfig)
-  }, [network.id, position, refreshCount, isVisible])
-
-  // Ad slot container - ad scripts inject content into the inner div.
-  // Default density: 300x250 medium rectangle (industry standard, best fill).
-  // Compact density: lighter footprint for marketing pages.
   const slotHeight =
     density === "compact"
       ? "min-h-[120px] sm:min-h-[150px]"
       : "min-h-[200px] sm:min-h-[250px]"
 
+  const renderable = Boolean(config?.enabled && (config.publisherId || config.zoneId))
+
+  // Ad slot container - the network's real creative is injected here.
   return (
     <div
       ref={slotRef}
@@ -139,11 +132,36 @@ const NetworkAdSlot = memo(function NetworkAdSlot({
       data-refresh-count={refreshCount}
       data-page-load-only={"pageLoadOnly" in network ? network.pageLoadOnly : false}
     >
-      <div
-        className={cn("w-full h-full flex items-center justify-center", slotHeight)}
-        id={`ad-${network.id}-${position}`}
-        data-ad-slot={`${network.id}-${position}`}
-      />
+      {!renderable ? (
+        <div className="w-full h-full flex items-center justify-center" id={`ad-${network.id}-${position}`} data-ad-slot={`${network.id}-${position}`} />
+      ) : network.id === "a-ads" ? (
+        <iframe
+          data-aa={config!.publisherId}
+          src={`//ad.a-ads.com/${config!.publisherId}?size=Adaptive`}
+          style={{ border: 0, padding: 0, width: "100%", height: "100%", overflow: "hidden", display: "block", margin: "auto", backgroundColor: "transparent" }}
+          title="A-ADS sponsored ad"
+          loading="lazy"
+        />
+      ) : network.id === "bitmedia" ? (
+        <iframe
+          src={`https://bitmedia.io/embed/${config!.zoneId}`}
+          style={{ border: 0, padding: 0, width: "100%", height: "100%", overflow: "hidden", display: "block", margin: "auto", backgroundColor: "transparent" }}
+          title="Bitmedia sponsored ad"
+          scrolling="no"
+          loading="lazy"
+        />
+      ) : network.id === "coinzilla" ? (
+        <>
+          <div
+            className="coinzilla"
+            data-zone={config!.zoneId}
+            style={{ width: "100%", height: "100%" }}
+          />
+          <Script src="https://coinzillatag.com/lib/display.js" strategy="lazyOnload" />
+        </>
+      ) : (
+        <div className="w-full h-full flex items-center justify-center" id={`ad-${network.id}-${position}`} data-ad-slot={`${network.id}-${position}`} />
+      )}
     </div>
   )
 })

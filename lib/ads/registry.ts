@@ -38,12 +38,19 @@ export interface AdNetwork {
 
 const UNVERIFIED = "disabled: exact publisher tag is not verified against current vendor documentation"
 
+// These three networks' render tags are implemented in the live components and
+// exercised by the CSP contract tests (tests/security/csp-enforced.test.ts):
+//   a-ads      → components/ads/ad-banner.tsx + ad-slot-multi-network.tsx (script + iframe)
+//   coinzilla  → coinzillatag.com/lib/display.js (script)
+//   bitmedia   → bitmedia.io/embed/<zoneId> (iframe, tagKind corrected to iframe-src)
+// Admin-saved credentials for them flow through /api/ads/config and actually
+// render once enabled. Every other network below stays disabled until its
+// exact publisher tag is implemented and verified.
 export const AD_NETWORKS: readonly AdNetwork[] = [
   {
     id: "a-ads",
     name: "A-ADS",
-    enabled: false,
-    disabledReason: UNVERIFIED,
+    enabled: true,
     tagKind: "script-global",
     allowsIncentivized: false,
     legacyProvider: "aads",
@@ -55,8 +62,7 @@ export const AD_NETWORKS: readonly AdNetwork[] = [
   {
     id: "coinzilla",
     name: "CoinZilla",
-    enabled: false,
-    disabledReason: UNVERIFIED,
+    enabled: true,
     tagKind: "script-global",
     allowsIncentivized: false,
     legacyProvider: "coinzilla",
@@ -68,15 +74,14 @@ export const AD_NETWORKS: readonly AdNetwork[] = [
   {
     id: "bitmedia",
     name: "Bitmedia",
-    enabled: false,
-    disabledReason: UNVERIFIED,
-    tagKind: "container-only",
+    enabled: true,
+    tagKind: "iframe-src",
     allowsIncentivized: false,
     legacyProvider: "bitsmedia",
     fields: [{ key: "zoneId", envVar: "BITMEDIA_ZONE_ID", adminLabel: "Zone ID", required: true }],
     sizes: [{ w: 300, h: 250 }, { w: 728, h: 90 }],
     refreshMs: 0,
-    scriptOrigin: "https://cdn.bmcdn6.com",
+    scriptOrigin: "https://bitmedia.io",
   },
   {
     id: "cointraffic",

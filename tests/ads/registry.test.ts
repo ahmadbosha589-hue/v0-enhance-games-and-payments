@@ -19,11 +19,24 @@ describe("publisher ad registry", () => {
     }
   })
 
-  it("does not expose unverified vendors as renderable", () => {
-    expect(enabledNetworks()).toEqual([])
-    expect(adScriptOrigins()).toEqual([])
-    expect(adFrameOrigins()).toEqual([])
-    expect(isNetworkRenderable("bitmedia")).toBe(false)
+  it("renders exactly the three tag-verified legacy networks and gates the rest", () => {
+    const renderableIds = enabledNetworks().map((network) => network.id).sort()
+    expect(renderableIds).toEqual(["a-ads", "bitmedia", "coinzilla"])
+    expect(isNetworkRenderable("a-ads")).toBe(true)
+    expect(isNetworkRenderable("coinzilla")).toBe(true)
+    expect(isNetworkRenderable("bitmedia")).toBe(true)
+    // Unverified tags stay non-renderable no matter what credentials exist.
+    for (const id of ["google", "cointraffic", "medianet", "hilltopads", "adsterra", "propellerads", "trafficstars", "mellowads", "adskeeper"]) {
+      expect(isNetworkRenderable(id), `${id} must not be renderable yet`).toBe(false)
+    }
     expect(getNetwork("does-not-exist")).toBeUndefined()
+  })
+
+  it("exposes the verified networks' script and frame origins for CSP", () => {
+    const scripts = adScriptOrigins()
+    expect(scripts).toContain("https://a-ads.com")
+    expect(scripts).toContain("https://coinzillatag.com")
+    // bitmedia renders via iframe; its frame origin must be exposed.
+    expect(adFrameOrigins()).toContain("https://bitmedia.io")
   })
 })

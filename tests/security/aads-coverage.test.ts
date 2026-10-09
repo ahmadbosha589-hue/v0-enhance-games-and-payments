@@ -21,6 +21,7 @@ describe("A-Ads adaptive unit 2457981 renders on every non-admin page", () => {
   })
 
   const MOUNTING_LAYOUTS = [
+    "app/page.tsx",
     "app/(public)/layout.tsx",
     "app/dashboard/layout.tsx",
     "app/auth/layout.tsx",

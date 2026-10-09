@@ -35,6 +35,7 @@ import {
   DollarSign,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { getNetwork } from "@/lib/ads/registry"
 
 interface AdNetwork {
   id: string
@@ -56,23 +57,6 @@ interface AdNetwork {
 }
 
 const AD_NETWORKS: AdNetwork[] = [
-  {
-    id: "google_ads",
-    name: "Google AdSense",
-    description: "Google's advertising program for displaying targeted ads",
-    status: "not_configured",
-    enabled: false,
-    fields: [
-      { key: "GOOGLE_ADS_CLIENT_ID", label: "Client ID", type: "text", placeholder: "ca-pub-XXXXXXXXXXXXXXXX", required: true },
-      { key: "GOOGLE_ADS_SLOT_BANNER", label: "Banner Slot ID", type: "text", placeholder: "1234567890", required: true },
-      { key: "GOOGLE_ADS_SLOT_REWARDED_1", label: "Rewarded Ad Slot 1", type: "text", placeholder: "0987654321", helpText: "First 60-second rewarded ad slot" },
-      { key: "GOOGLE_ADS_SLOT_REWARDED_2", label: "Rewarded Ad Slot 2", type: "text", placeholder: "0987654322", helpText: "Second 60-second rewarded ad slot" },
-      { key: "GOOGLE_ADS_SLOT_REWARDED_3", label: "Rewarded Ad Slot 3", type: "text", placeholder: "0987654323", helpText: "Third 60-second rewarded ad slot" },
-    ],
-    website: "https://adsense.google.com",
-    revenueType: "CPC",
-    supportedFormats: ["Banner", "Display", "Rewarded", "Native"],
-  },
   {
     id: "cointraffic",
     name: "Cointraffic",
@@ -259,9 +243,13 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
     setIsSaving(true)
     try {
       await onSave(network.id, config, enabled)
+      const registryId = network.id === "a_ads" ? "a-ads" : network.id
+      const rendersLive = getNetwork(registryId)?.enabled === true
       toast({
-        title: "Configuration Saved",
-        description: `${network.name} has been configured successfully.`,
+        title: rendersLive ? "Configuration Saved — Ad Goes Live" : "Configuration Saved",
+        description: rendersLive
+          ? `${network.name} has been configured. The ad appears on public pages for visitors with marketing consent within ~5 minutes (config cache: s-maxage=300).`
+          : `${network.name} credentials stored, but this network's ad tag is not verified yet — it will not render until the tag is implemented. The "Tag verification pending" badge stays until then.`,
       })
     } catch {
       toast({
@@ -302,26 +290,28 @@ function AdNetworkCard({ network, savedConfig, onSave, onDelete }: AdNetworkCard
           <div className="space-y-1 flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <CardTitle className="text-base">{network.name}</CardTitle>
-              <Badge
-                variant="outline"
-                className={
-                  isConfigured
-                    ? "bg-green-500/10 text-green-500 border-green-500/30"
-                    : "bg-muted text-muted-foreground"
+              {/* Honest per-network render status from the canonical registry.
+                  A network whose publisher tag is not implemented/verified
+                  cannot render no matter what credentials are saved — say so
+                  on the card instead of letting the switch imply otherwise. */}
+              {(() => {
+                const registryId = network.id === "a_ads" ? "a-ads" : network.id
+                const registryNetwork = getNetwork(registryId)
+                if (registryNetwork?.enabled) {
+                  return (
+                    <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/30">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Renders live
+                    </Badge>
+                  )
                 }
-              >
-                {isConfigured ? (
-                  <>
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Configured
-                  </>
-                ) : (
-                  <>
+                return (
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/30">
                     <AlertCircle className="h-3 w-3 mr-1" />
-                    Not Configured
-                  </>
-                )}
-              </Badge>
+                    Tag verification pending
+                  </Badge>
+                )
+              })()}
               <Badge variant="secondary" className="text-[10px]">
                 {network.revenueType}
               </Badge>
@@ -582,7 +572,7 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="all">All ({AD_NETWORKS.length})</TabsTrigger>
           <TabsTrigger value="crypto">Crypto ({AD_NETWORKS.filter(n => ["cointraffic", "a_ads", "coinzilla", "bitmedia", "mellowads"].includes(n.id)).length})</TabsTrigger>
-          <TabsTrigger value="premium">Premium ({AD_NETWORKS.filter(n => ["google_ads", "medianet", "adsterra"].includes(n.id)).length})</TabsTrigger>
+          <TabsTrigger value="premium">Premium ({AD_NETWORKS.filter(n => ["medianet", "adsterra", "trafficstars"].includes(n.id)).length})</TabsTrigger>
           <TabsTrigger value="configured">Configured ({configuredCount})</TabsTrigger>
         </TabsList>
 
@@ -627,7 +617,7 @@ export function AdNetworkSettings({ initialConfigs }: AdNetworkSettingsProps) {
         <TabsContent value="premium" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             {AD_NETWORKS.filter(n =>
-              ["google_ads", "medianet", "adsterra"].includes(n.id)
+              ["medianet", "adsterra", "trafficstars"].includes(n.id)
             ).map((network) => (
               <AdNetworkCard
                 key={network.id}

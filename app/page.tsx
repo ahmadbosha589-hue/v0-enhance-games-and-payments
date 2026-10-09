@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { getUser } from "@/lib/supabase/server"
 import HomePageClient from "@/components/landing/home-page-client"
+import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
 
 // Force this route to render dynamically — it needs request-scoped cookies
 // to make the auth-aware redirect decision below.
@@ -34,7 +35,14 @@ export default async function HomePage({
   // holds a transient cookie for a tick, we want to show them the landing
   // page (the client component will clean the URL on mount).
   if (params?.signedOut) {
-    return <HomePageClient />
+    return (
+      <>
+        <HomePageClient />
+        {/* A-ADS adaptive banner unit 2457981 — the landing page renders
+            outside the (public) route group, so mount it explicitly. */}
+        <AAdsAdaptiveUnit />
+      </>
+    )
   }
 
   // Cheap cookie sniff first — most visitors are anonymous and won't even
@@ -55,5 +63,12 @@ export default async function HomePage({
     // fall through and render the landing page so the user can sign in again.
   }
 
-  return <HomePageClient />
+  return (
+    <>
+      <HomePageClient />
+      {/* A-ADS adaptive banner unit 2457981 — the landing page renders
+          outside the (public) route group, so mount it explicitly. */}
+      <AAdsAdaptiveUnit />
+    </>
+  )
 }
