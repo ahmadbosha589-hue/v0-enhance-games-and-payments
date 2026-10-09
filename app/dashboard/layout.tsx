@@ -16,6 +16,7 @@ import { ServerTime } from "@/components/server-time"
 import { DeviceFingerprintProvider } from "@/components/security/device-fingerprint-provider"
 import { AntiBotProvider } from "@/components/security/anti-bot-provider"
 import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
+import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
 
 export const metadata: Metadata = {
   title: {
@@ -107,6 +108,8 @@ export default async function DashboardLayout({
                   the partner banner and self-throttled popup, but NOT
                   shown in the admin panel (which never mounts this). */}
               <PublicAdsLayer disablePopup />
+              {/* A-ADS adaptive banner unit 2457981 on every dashboard page. */}
+              <AAdsAdaptiveUnit />
             </SidebarInset>
           </AdblockProvider>
         </AntiBotProvider>

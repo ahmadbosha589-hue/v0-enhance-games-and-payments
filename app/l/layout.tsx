@@ -1,5 +1,6 @@
 import type React from "react"
 import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
+import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
 
 /**
  * Shortlink view layout
@@ -18,6 +19,8 @@ export default function ShortlinkLayout({
     <>
       {children}
       <PublicAdsLayer disablePopup />
+      {/* A-ADS adaptive banner unit 2457981 on every shortlink page. */}
+      <AAdsAdaptiveUnit />
     </>
   )
 }

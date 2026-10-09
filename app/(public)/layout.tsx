@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Menu } from "lucide-react"
 import { useLanguage } from "@/lib/i18n/language-context"
 import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
+import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
 
 export default function PublicLayout({
   children,
@@ -167,6 +168,9 @@ export default function PublicLayout({
           visitors off the page, which violates AdSense's prohibition on
           publisher pages triggering unwanted redirects. */}
       <PublicAdsLayer />
+
+      {/* A-ADS adaptive banner unit 2457981 on every public page. */}
+      <AAdsAdaptiveUnit />
     </div>
   )
 }

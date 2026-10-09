@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { LogoFull } from "@/components/icons/logo"
 import { Home, ArrowLeft, Search, HelpCircle } from "lucide-react"
 import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
+import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
 
 export default function NotFound() {
   return (
@@ -62,6 +63,8 @@ export default function NotFound() {
 
       {/* c.cx.ua floating banner — popup disabled on this error surface */}
       <PublicAdsLayer disablePopup />
+      {/* A-ADS adaptive banner unit 2457981. */}
+      <AAdsAdaptiveUnit />
     </div>
   )
 }

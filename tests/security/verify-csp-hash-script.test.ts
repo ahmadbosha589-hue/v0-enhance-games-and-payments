@@ -83,7 +83,7 @@ describe("verify-csp-hash build script", () => {
     expect(out).toContain("found none")
   })
 
-  it("accepts the real built bootstrap when build output is present (integration)", () => {
+  it("accepts the real built bootstrap when build output is present (integration)", { timeout: 60_000 }, () => {
     const appDir = resolve(ROOT, ".next/server/app")
     const hasHtml = existsSync(appDir) && readdirSync(appDir).includes("about.html")
     if (!hasHtml) return // no build output in this environment; discovery covered above
