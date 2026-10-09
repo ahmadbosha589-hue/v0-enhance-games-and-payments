@@ -2,6 +2,9 @@ import type React from "react"
 import type { Metadata } from "next"
 import { PublicAdsLayer } from "@/components/ads/public-ads-layer"
 
+// Login and account-recovery documents need request-scoped CSP nonces.
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "Authentication",
   description: "Sign in or create an account to start earning crypto",

@@ -84,8 +84,21 @@ route handler runs. Signed server-to-server postbacks, webhooks, and cron routes
 exempt because they authenticate with provider-specific signatures/secrets.
 
 Supabase session cookies remain `SameSite=Lax`; state-changing endpoints must not
-be exposed through `GET`. The former unused `lib/security/csrf.ts` module was
-removed rather than leaving an unconfigured token API that no route enforced.
+be exposed through `GET`. `proxy.ts` checks `Origin` and `Sec-Fetch-Site` on
+unsafe browser methods and rejects cross-site requests before route execution.
+
+Sensitive browser mutations add a signed double-submit CSRF token. Authenticated
+`GET /api/csrf` reuses or issues a random HMAC-SHA256 token with a one-hour TTL;
+the same value is returned in JSON and stored in the `__csrf` `httpOnly`
+`SameSite=Strict` cookie (Secure in production). The client echoes the JSON value
+as `x-csrf-token`. The server requires header/cookie equality, a valid timestamp
+and HMAC, and constant-time signature comparison. `CSRF_SECRET` is preferred;
+`SUPABASE_JWT_SECRET` is an allowed fallback. Either must contain at least 32
+UTF-8 bytes; missing or weak configuration fails closed. The token is required
+for withdrawal, coupon redemption, booster purchase, advertising campaign
+create/update, and Telegram link-token regeneration. Provider-signed webhooks,
+postbacks, and cron requests do not use browser CSRF tokens; they must validate
+their own provider signature or secret.
 
 ## Data Protection
 
@@ -104,11 +117,55 @@ All database tables implement RLS:
 
 ### Headers
 
-Recommended security headers (configure in middleware/proxy):
-- Content-Security-Policy
-- X-Frame-Options: DENY
-- X-Content-Type-Options: nosniff
-- Referrer-Policy: strict-origin-when-cross-origin
+Static response headers are configured in `next.config.mjs`. `proxy.ts` also creates
+request-scoped CSP policies for selected dynamic HTML routes and preserves the
+existing proxy response behavior. The existing `lib/security/headers.ts` helper
+is intentionally preserved but is not wired to the active response path; treat
+`next.config.mjs` and the nonce logic in `proxy.ts` as the active sources of
+truth.
+
+- `next.config.mjs` configures an enforcing `Content-Security-Policy`. It
+  allowlists the app's active CAPTCHA, c.cx.ua, AdsGram, Supabase, configured
+  offerwall, and legacy dashboard ad integrations; reports go to
+  `/api/security/csp-report`.
+- `proxy.ts` generates a cryptographic per-request nonce plus `'strict-dynamic'`
+  for dynamic HTML routes (`/`, `/admin/*`, `/dashboard/*`, `/auth/*`,
+  `/blog/[slug]`, and `/l/[id]`). These policies omit `'unsafe-inline'` from
+  `script-src`; one exact SHA-256 hash permits the `next-themes` bootstrap script.
+  The build verifies that hash against generated HTML with
+  `scripts/verify-csp-hash.mjs`.
+- Static/ISR pages retain `'unsafe-inline'` for Next.js bootstrap and data scripts
+  so they can remain cacheable. Their `script-src` deliberately contains no hash
+  or nonce, because browsers ignore `'unsafe-inline'` when either is present.
+  Therefore the static compatibility policy is enforcing but is not a strong
+  XSS-mitigation policy. Neither policy allows `'unsafe-eval'`.
+- `img-src` and `media-src` allow HTTPS sources because ad creative image/video
+  URLs are supplied dynamically by providers; other external resource types
+  remain constrained by their own directives.
+- `worker-src 'self' blob:` supports the existing blob-backed anti-adblock
+  probes.
+- `X-Frame-Options: SAMEORIGIN` and CSP `frame-ancestors 'self'` permit the
+  same-origin c.cx.ua banner document while blocking cross-origin framing.
+- `X-Content-Type-Options: nosniff` and
+  `Referrer-Policy: strict-origin-when-cross-origin` remain enabled.
+- HSTS is `max-age=63072000`; `Permissions-Policy` denies accelerometer,
+  camera, geolocation, gyroscope, magnetometer, microphone, payment, and USB
+  access.
+- Contract tests cover policy sources and nonce forwarding; the production build
+  also verifies the exact `next-themes` bootstrap hash. On 2026-10-09, local
+  production-mode Chromium observed zero CSP violations on `/`, `/auth/login`,
+  `/dashboard`, `/about`, `/blog/example`, and `/l/short-id`. Dynamic responses
+  used a nonce policy without `'unsafe-inline'`; static pages retained the
+  compatibility policy. This is local branch evidence only.
+- These checks do not establish complete provider-origin coverage. The browser
+  run used `https://localhost:8443`, not the registered production origin. The
+  c.cx.ua banner request previously failed with `net::ERR_BLOCKED_BY_ORB` under
+  that local origin; real nested creative destinations, authenticated Supabase
+  flows, and provider rendering remain unverified.
+- A read-only production `HEAD` check at 2026-10-09 00:20 UTC returned HTTP 200
+  with `Content-Security-Policy-Report-Only` and no enforcing CSP. The local
+  branch policy is not live until deployed; recheck the canonical response after
+  deployment.
 
 ## Audit Logging
 

@@ -1,4 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server"
+import { randomBytes } from "node:crypto"
+import { NextRequest, NextResponse, type NextRequest as NextRequestType } from "next/server"
+import { buildCspPolicy } from "@/lib/security/csp-policy.mjs"
 import { updateSession } from "@/lib/supabase/proxy"
 import { checkRateLimit as checkRedisRateLimit } from "@/lib/redis/rate-limiter"
 
@@ -24,7 +26,7 @@ const RATE_LIMITS: Record<string, { windowSeconds: number; limit: number; prefix
 const SECURITY_HEADERS: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Permissions-Policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
   "X-DNS-Prefetch-Control": "on",
 }
 
@@ -134,6 +136,41 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
     response.headers.set(key, value)
   })
+  return response
+}
+
+function isNonceProtectedPath(pathname: string): boolean {
+  if (
+    pathname === "/" ||
+    ["/dashboard", "/admin", "/auth"].some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    )
+  ) {
+    return true
+  }
+
+  // /ref/[code] is a route handler, not an HTML page; nonce only rendered documents.
+  // These dynamic pages keep their static index routes cacheable.
+  return ["/blog", "/l"].some(
+    (path) => pathname.startsWith(`${path}/`) && pathname.length > path.length + 1,
+  )
+}
+
+function createNonceContext(request: NextRequestType) {
+  const nonce = randomBytes(18).toString("base64")
+  const policy = buildCspPolicy(nonce)
+  const headers = new Headers(request.headers)
+  headers.set("Content-Security-Policy", policy)
+  headers.set("x-nonce", nonce)
+
+  return {
+    request: new NextRequest(request, { headers }),
+    policy,
+  }
+}
+
+function appendNoncePolicy(response: NextResponse, policy?: string): NextResponse {
+  if (policy) response.headers.append("Content-Security-Policy", policy)
   return response
 }
 
@@ -252,6 +289,8 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  const nonceContext = isNonceProtectedPath(pathname) ? createNonceContext(request) : undefined
+
   // Public pages that don't need auth
   const publicPaths = [
     "/",
@@ -273,16 +312,18 @@ export default async function proxy(request: NextRequest) {
   ]
 
   if (publicPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-    return addSecurityHeaders(NextResponse.next())
+    const response = NextResponse.next({ request: nonceContext?.request ?? request })
+    return addSecurityHeaders(appendNoncePolicy(response, nonceContext?.policy))
   }
 
   // For all other routes, try to update session
   try {
-    const response = await updateSession(request)
-    return addSecurityHeaders(response)
+    const response = await updateSession(nonceContext?.request ?? request)
+    return addSecurityHeaders(appendNoncePolicy(response, nonceContext?.policy))
   } catch (error) {
     console.warn("[Proxy] Session update failed:", error)
-    return addSecurityHeaders(NextResponse.next())
+    const response = NextResponse.next({ request: nonceContext?.request ?? request })
+    return addSecurityHeaders(appendNoncePolicy(response, nonceContext?.policy))
   }
 }
 

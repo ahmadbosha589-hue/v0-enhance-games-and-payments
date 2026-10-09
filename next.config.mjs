@@ -1,18 +1,9 @@
+import { buildCspPolicy } from "./lib/security/csp-policy.mjs"
+
 /** @type {import('next').NextConfig} */
-const cspReportOnly = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://js.hcaptcha.com",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data: https://fonts.gstatic.com",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.faucetpay.io https://hcaptcha.com",
-  "frame-src 'self' https://challenges.cloudflare.com https://hcaptcha.com",
-  "frame-ancestors 'self'",
-  "form-action 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "report-uri /api/security/csp-report",
-].join("; ")
+// The static policy preserves SSG compatibility. The proxy adds a nonce policy
+// for sensitive routes that are already dynamically rendered.
+const cspEnforcing = buildCspPolicy()
 
 const nextConfig = {
   typescript: {
@@ -34,9 +25,10 @@ const nextConfig = {
           // this policy still sends "https://<our-domain>/" cross-origin,
           // so ad serving keeps working. Do NOT tighten to "no-referrer".
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          // Report-only during rollout; switch to enforcing after reviewing
-          // vendor violations against the canonical ad-network registry.
-          { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
+          // Enforcing policy, constrained to active integrations: CAPTCHA,
+          // c.cx.ua, AdsGram and configured offerwall iframe origins.
+          // Add vendors only after verifying their exact runtime requirements.
+          { key: "Content-Security-Policy", value: cspEnforcing },
           // Force HTTPS for 2 years once seen over HTTPS (production).
           { key: "Strict-Transport-Security", value: "max-age=63072000" },
           // Authenticated app with balances/withdrawals: block other sites
@@ -46,7 +38,7 @@ const nextConfig = {
           // injected third-party scripts can't either.
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+            value: "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
           },
         ],
       },

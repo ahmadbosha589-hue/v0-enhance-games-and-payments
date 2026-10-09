@@ -1,74 +1,60 @@
 # Production Readiness Snapshot
 
-**Snapshot:** 2026-08-20
+**Snapshot date:** 2026-10-09
+
+**Scope:** local repository branch `launch-completion` and read-only checks of the canonical site. This is not a claim that production contains the pending branch changes.
 
 ## Verified
 
-### Application
+### Repository verification
 
-- Public/auth/dashboard/admin routes compile successfully.
-- TypeScript has zero diagnostics.
-- ESLint exits successfully with zero errors; existing warnings remain.
-- 156 automated tests pass across 45 test files.
-- The clean Next.js build generates 196 routes.
-- Public HTTP smoke tests return `200`.
-- Disabled rewarded-payout endpoints return controlled `503` responses rather than issuing unverified rewards.
+- `npm run verify` (2026-10-09) exited 0: 363 tests across 72 files; zero
+  TypeScript errors; zero ESLint errors (209 warnings); successful production
+  build generating 195 static pages. The build also verifies the exact
+  `next-themes` bootstrap hash used by nonce-based CSP responses.
+- `npm audit --omit=dev` (2026-10-08) reported zero production dependency vulnerabilities.
+- `npm audit --audit-level=critical` (2026-10-08) passed with zero critical vulnerabilities; npm reported five high findings, all in development tooling. Its available remediation proposes downgrading `eslint-config-next` to 14.2.35 (a major-version downgrade), so that was not applied to this Next.js 16 project.
+- `npm run verify:launch -- --ci` (2026-10-08) exited 0 and passed code checks: 122 static environment names documented, 14 supported postback-secret providers found, and CSP enforcement configured.
+- The strict local `npm run verify:launch` last checked on 2026-10-08 exited 1 because 25 required environment values were missing from that local process. It does not inspect Vercel settings and never prints values.
+- `npm run smoke -- --base-url https://www.faucero.com` (2026-10-08) passed for all 17 anonymous public routes (HTTP 200).
+- The local production build was served on 2026-10-09. HTTP checks found a single
+  enforcing CSP and retained HSTS, framing, MIME, referrer, and permissions
+  headers on five dynamic HTML routes and two static routes. Dynamic pages used
+  nonce + `'strict-dynamic'` without `'unsafe-inline'`; static pages retained
+  the compatibility policy. Headless Chromium observed no CSP violations on
+  `/`, `/auth/login`, `/dashboard`, `/about`, `/blog/example`, or `/l/short-id`.
+  This verifies only the local branch, not production.
 
-### Supabase
+### Current live response
 
-The configured Supabase database contains the applied migration set through `093`:
+A read-only `HEAD https://www.faucero.com/` at 2026-10-09 00:20 UTC returned HTTP 200 with HSTS, `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. It still returned `Content-Security-Policy-Report-Only` and no enforcing `Content-Security-Policy`; production enforcement remains pending deployment.
 
-- Two-factor hardening.
-- Advertiser contracts and schema fixes.
-- Isolated first-party delivery tables.
-- Atomic serving, click deduplication, campaign creation, and refunds.
-- Postback replay receipt ledger.
-- Atomic signed-watch fulfillment for Shortlinks, PTC, and games.
-- Atomic daily bonus, coupon, achievement, and referral reward fulfillment.
-- Durable direct FaucetPay payout reservation/finalization.
-- Reward table write ACL lockdown and legacy SECURITY DEFINER routine revocation.
-- Server-started PTC watch sessions, schema compatibility, and budget floor enforcement.
-- Browser platform statistics moved behind server routes.
+### Production database and migrations
 
-Rollback-based live tests verified:
+- The current production database migration state was not queried.
+- Migration files `scripts/111_telegram_links.sql` and `scripts/112_ad_ad_completions.sql` exist in the repository; their production application must be verified separately.
+- No current production database snapshot or rollback-based integration test was obtained for this snapshot. Historical counts and migration claims in the previous snapshot are not current evidence.
 
-- One impression per viewer/slot/minute dedupe bucket.
-- One valid click per viewer/campaign/hour dedupe bucket.
-- Atomic campaign balance reservation.
-- Idempotent campaign refund.
-- Daily campaign rollups.
+## Remaining launch blockers and unverified behavior
 
-## Not verified or not configured
+- Commit and deploy the local branch changes, then recheck the canonical response
+  for an enforcing CSP and retained security headers. Static pages still allow
+  `'unsafe-inline'`; they have an enforcing compatibility policy, not a strong
+  XSS-mitigation policy.
 
-- Redis/Upstash distributed rate limiting.
-- FaucetPay production payout flow.
-- CCPayment deposits, swaps, webhooks, and withdrawals.
-- External ad-network publisher tags.
-- AdSense approval, ads.txt production verification, and CMP/TCF compliance.
-- Authenticated browser testing with real user accounts.
-- Supabase-managed `supabase_admin` default privileges: the configured migration role cannot alter that owner’s defaults; newly created objects by that managed owner must be reviewed separately.
-- Lighthouse, load, abuse, and multi-instance deployment testing.
-- Production rollout and rollback drills.
+- The banner-frame run requested `https://c.cx.ua/ad/serve/banner/32` and Chromium reported `net::ERR_BLOCKED_BY_ORB`. That run used `https://localhost:8443`, not the registered production origin, so it neither proves a CSP break nor validates production ad rendering or nested-frame destinations. Repeat browser checks on the deployed canonical origin with valid production configuration.
+- Authenticated Supabase flows, AdsGram/ad-network fill, nested c.cx.ua creative frames, and production CSP violation reports remain unverified.
+- The local process lacks 25 required settings. Configure and validate required values in the hosting environment; the local launch check does not reveal Vercel's current values.
+- Apply and verify migrations 111/112 in the intended Supabase project.
+- Payment-provider test transactions, FaucetPay wallet funding, Telegram callbacks, offerwall postbacks, Redis cross-instance behavior, authenticated browser flows, load/abuse testing, and rollback drills remain unverified.
 
-## Current live-data signal
+## Current production data snapshot
 
-The current Supabase snapshot contains:
-
-- 33 registered profiles.
-- 3 profiles active within the last 30 days.
-- 47 claims.
-- 135 completed transactions.
-- 3 offerwall conversions.
-- 30 PTC views.
-- 184 game sessions.
-- No advertiser campaigns or advertiser transactions.
-- No recorded withdrawals.
-
-These are platform activity counts, not revenue. They should not be presented to buyers as proof of an operating business or recurring income.
+No fresh production database snapshot was taken. Historical profile, claim, transaction, conversion, campaign, and withdrawal counts are not current evidence and must not be represented as current business metrics.
 
 ## Launch policy
 
-Do not enable production withdrawals, swaps, rewarded bonuses, or external ad monetization until the provider-specific gates are complete. A controlled public beta can be considered after Redis, payment test transactions, consent behavior, and authenticated browser checks pass.
+Do not treat the system as production-ready until the enforcing CSP is deployed and verified, operator settings and migrations are confirmed, and provider-specific gates are complete. Do not assert revenue, payout readiness, or external ad fill without read-back evidence. A controlled beta requires Redis, payment test transactions, consent behavior, and authenticated browser checks to pass.
 
 ## Evidence to retain before launch
 
