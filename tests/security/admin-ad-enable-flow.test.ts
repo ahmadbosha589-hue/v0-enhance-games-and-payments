@@ -20,7 +20,6 @@ describe("admin ad-network enable flow is real, not a facade", () => {
       "cointraffic",
       "medianet",
       "hilltopads",
-      "adsterra",
       "propellerads",
       "trafficstars",
       "coinads",

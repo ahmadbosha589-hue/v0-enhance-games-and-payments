@@ -125,14 +125,16 @@ export const AD_NETWORKS: readonly AdNetwork[] = [
   {
     id: "adsterra",
     name: "Adsterra",
-    enabled: false,
-    disabledReason: UNVERIFIED,
+    enabled: true,
     tagKind: "script-inline",
     allowsIncentivized: false,
     fields: [{ key: "slotId", envVar: "ADSTERRA_SLOT_ID", adminLabel: "Placement key", required: true, secret: true }],
     sizes: [{ w: 300, h: 250 }, { w: 728, h: 90 }],
     refreshMs: 0,
-    scriptOrigin: "https://www.adsterra.com",
+    // The operator's real account serves all four placements (popunder,
+    // native, social bar, 728x90) from this CDN host — see
+    // components/ads/adsterra-units.tsx.
+    scriptOrigin: "https://comparativelykindness.com",
   },
   {
     id: "propellerads",
