@@ -13,7 +13,12 @@ describe("Support Us UI contract", () => {
     expect(page).not.toContain("Earn Rewards")
     expect(page).not.toContain("$0.0001")
     expect(content).toContain("MultiNetworkAds")
-    expect(content).toContain("AD_NETWORKS")
+    // Ad-first page: real creative only. The configuration status cards were
+    // removed from this user-facing page (they duplicated admin-panel state
+    // and read as broken placeholders).
+    expect(content).not.toContain("AD_NETWORKS")
+    expect(content).not.toContain("Awaiting verified tag")
+    expect(content).toContain("AAdsAdaptiveUnit")
     expect(content).not.toContain("Google Rewarded")
     expect(content).not.toContain("SUPPORT_REWARDED_ADS_ENABLED = false")
 
