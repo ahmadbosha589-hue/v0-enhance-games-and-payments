@@ -157,11 +157,15 @@ truth.
   `/dashboard`, `/about`, `/blog/example`, and `/l/short-id`. Dynamic responses
   used a nonce policy without `'unsafe-inline'`; static pages retained the
   compatibility policy. This is local branch evidence only.
-- These checks do not establish complete provider-origin coverage. The browser
-  run used `https://localhost:8443`, not the registered production origin. The
-  c.cx.ua banner request previously failed with `net::ERR_BLOCKED_BY_ORB` under
-  that local origin; real nested creative destinations, authenticated Supabase
-  flows, and provider rendering remain unverified.
+- These checks do not establish complete provider-origin coverage. On
+  2026-10-09 a production-origin headless Chromium run observed zero CSP
+  violations across `/`, `/about`, `/blog`, `/dashboard/offerwalls/ccxua`,
+  and the banner-frame document. The c.cx.ua serve request returned HTTP 200
+  with an empty body under the production Referer — the same provider-side
+  no-fill behavior seen before CSP enforcement existed — so absent creative
+  delivery is a c.cx.ua panel/zone condition, not a CSP failure. Nested
+  creative destinations stay unobserved until a creative is actually served;
+  authenticated Supabase flows remain unverified.
 - A read-only production `HEAD` check at 2026-10-09 00:20 UTC preceded the deploy
   and returned report-only CSP. As of the 9e2b8de deploy the same day, the
   canonical root serves the enforcing nonce CSP verified above; watch

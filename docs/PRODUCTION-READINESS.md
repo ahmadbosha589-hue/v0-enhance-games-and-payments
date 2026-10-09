@@ -63,8 +63,16 @@ Verified post-deploy on 2026-10-09:
 - Static pages still allow `'unsafe-inline'`; they have an enforcing
   compatibility policy, not a strong XSS-mitigation policy.
 
-- The banner-frame run requested `https://c.cx.ua/ad/serve/banner/32` and Chromium reported `net::ERR_BLOCKED_BY_ORB`. That run used `https://localhost:8443`, not the registered production origin, so it neither proves a CSP break nor validates production ad rendering or nested-frame destinations. Repeat browser checks on the deployed canonical origin with valid production configuration.
-- Authenticated Supabase flows, AdsGram/ad-network fill, nested c.cx.ua creative frames, and production CSP violation reports remain unverified.
+- Production browser check (2026-10-09, post-deploy, real origin): zero CSP
+  violations or console blocks on `/`, `/about`, `/blog`,
+  `/dashboard/offerwalls/ccxua`, and `/ads/cxua/banner-frame.html`. The
+  c.cx.ua serve request (`https://c.cx.ua/ad/serve/banner/32`) completed with
+  HTTP 200 and an **empty body** under the production Referer — identical to
+  the pre-CSP behavior. The banner not rendering is a provider-side
+  fill/registration condition (zone 32 / registered Referer host in the
+  c.cx.ua publisher panel), **not** a CSP block. Nested creative destinations
+  remain unobserved because no creative is currently delivered; verify after
+  the operator confirms zone fill in the publisher panel.
 - The local process lacks 25 required settings. Configure and validate required values in the hosting environment; the local launch check does not reveal Vercel's current values.
 - Apply and verify migrations 111/112 in the intended Supabase project.
 - Payment-provider test transactions, FaucetPay wallet funding, Telegram callbacks, offerwall postbacks, Redis cross-instance behavior, authenticated browser flows, load/abuse testing, and rollback drills remain unverified.
