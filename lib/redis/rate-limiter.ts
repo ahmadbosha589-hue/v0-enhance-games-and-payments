@@ -51,6 +51,13 @@ export const RATE_LIMITS = {
 // process rather than flooding logs on every request.
 let warnedNoRedis = false
 
+// A failing (but configured) Redis is the circuit breaker's business: log the
+// transition to "broken" ONCE when the breaker arms instead of dumping a full
+// stack trace on every failed call. Per-call dumps flooded CI logs with the
+// same multi-line undici TypeError while tests intentionally exercised the
+// broken-endpoint path.
+let warnedCircuitOpen = false
+
 /**
  * Check and update rate limit for a given identifier
  * Uses sliding window algorithm with Redis sorted sets
@@ -116,7 +123,15 @@ export async function checkRateLimit(
     }
   } catch (error) {
     noteRedisFailure()
-    console.error("[RateLimit] Error:", error)
+    // One concise line when the breaker transitions to open (the actionable
+    // signal), not a full stack dump per failed call. The failure detail is
+    // still observable: the message of the underlying error is included, and
+    // the breaker itself is exercised by tests/security/redis-failfast-behaviour.test.ts.
+    if (isRedisCircuitOpen() && !warnedCircuitOpen) {
+      warnedCircuitOpen = true
+      const reason = error instanceof Error ? error.message : String(error)
+      console.warn(`[RateLimit] Redis unreachable — circuit breaker open; allowing traffic without durable limits (${reason})`)
+    }
     // On error, allow request but log
     return { success: true, remaining: config.limit, resetAt: Date.now() + config.windowSeconds * 1000 }
   }
@@ -150,7 +165,9 @@ export async function getRateLimitStatus(
       resetAt: now + config.windowSeconds * 1000,
     }
   } catch (error) {
-    console.error("[RateLimit] Status check error:", error)
+    // Same policy as checkRateLimit: no per-call stack dumps.
+    const reason = error instanceof Error ? error.message : String(error)
+    console.warn(`[RateLimit] Status check failed (${reason}); reporting empty`)
     return { count: 0, remaining: config.limit, resetAt: Date.now() + config.windowSeconds * 1000 }
   }
 }
