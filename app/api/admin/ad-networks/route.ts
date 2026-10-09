@@ -69,13 +69,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to save configuration" }, { status: 500 })
     }
 
-    // Log admin action
-    await adminSupabase.from("admin_logs").insert({
-      admin_id: user.id,
-      action: "configure_ad_network",
-      details: { network_id: networkId, enabled },
-      ip_address: request.headers.get("x-forwarded-for") || "unknown",
-    })
+    // Log admin action to the REAL audit table (097). The old code wrote to
+    // "admin_logs" — a table no migration ever created — so every save wrote
+    // a phantom row and silently failed. Audit failures are logged but do
+    // not fail the save: the config row already committed above.
+    const { error: auditError } = await adminSupabase
+      .from("admin_audit_logs")
+      .insert({
+        admin_id: user.id,
+        action: "configure_ad_network",
+        resource_type: "ad_network",
+        resource_id: networkId,
+        metadata: { enabled },
+      })
+    if (auditError) {
+      console.error("Ad network config saved but audit write failed:", auditError)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -142,12 +151,18 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Failed to update configuration" }, { status: 500 })
     }
 
-    await adminSupabase.from("admin_logs").insert({
-      admin_id: user.id,
-      action: "toggle_ad_network",
-      details: { network_id: networkId, enabled },
-      ip_address: request.headers.get("x-forwarded-for") || "unknown",
-    })
+    const { error: auditError } = await adminSupabase
+      .from("admin_audit_logs")
+      .insert({
+        admin_id: user.id,
+        action: "toggle_ad_network",
+        resource_type: "ad_network",
+        resource_id: networkId,
+        metadata: { enabled },
+      })
+    if (auditError) {
+      console.error("Ad network toggled but audit write failed:", auditError)
+    }
 
     return NextResponse.json({ success: true, enabled })
   } catch (error) {
@@ -192,12 +207,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Failed to delete configuration" }, { status: 500 })
     }
 
-    // Log admin action
-    await adminSupabase.from("admin_logs").insert({
+    await adminSupabase.from("admin_audit_logs").insert({
       admin_id: user.id,
       action: "delete_ad_network",
-      details: { network_id: networkId },
-      ip_address: request.headers.get("x-forwarded-for") || "unknown",
+      resource_type: "ad_network",
+      resource_id: networkId,
+      metadata: { deleted: true },
     })
 
     return NextResponse.json({ success: true })

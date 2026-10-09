@@ -102,10 +102,12 @@ describe("admin ad-network enable switch actually persists", () => {
   it("API exposes PATCH that flips only the enabled flag and never rewrites credentials", () => {
     const src = read("app/api/admin/ad-networks/route.ts")
     expect(src).toContain("export async function PATCH")
-    const patchBody = src.slice(src.indexOf("export async function PATCH"))
+    const patchStart = src.indexOf("export async function PATCH")
+    const patchEnd = src.indexOf("export async function", patchStart + 10) // next handler or EOF
+    const patchBody = src.slice(patchStart, patchEnd === -1 ? undefined : patchEnd)
     expect(patchBody).toContain("networkId, enabled")
-    expect(patchBody).not.toContain("encryptNetworkConfig")
-    expect(patchBody).toContain("admin_logs")
+    expect(patchBody).not.toContain("encryptNetworkConfig(")
+    expect(patchBody).toContain("admin_audit_logs")
   })
 
   it("card toggle persists through the API instead of only local state", () => {
