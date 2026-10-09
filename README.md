@@ -41,12 +41,15 @@ This is a **pre-revenue software asset**, not a profitable operating business. V
 - The branch has an enforcing compatibility CSP in `next.config.mjs` and
   request-nonce CSP for selected dynamic HTML routes via `proxy.ts`. Static pages
   still allow `'unsafe-inline'`, so that policy is not strong XSS mitigation.
-  The live `HEAD` check at 2026-10-09 00:20 UTC still returned
-  `Content-Security-Policy-Report-Only` and no enforcing CSP; production was not
-  updated by these local changes.
+  **Deployed and verified 2026-10-09** (commit `9e2b8de`): the canonical root
+  now returns the enforcing nonce CSP with `strict-dynamic` and the pinned
+  next-themes hash; no Report-Only header remains. Unauthenticated
+  `POST /api/admin/funds`, `/api/admin/withdrawals/action`, and `/api/withdraw`
+  all returned 401 on live checks.
 - Local production-mode Chromium observed no CSP violations on six routes on
-  2026-10-09. This does not prove production deployment, authenticated flows, or
-  real ad/provider compatibility.
+  2026-10-09. Authenticated flows, real ad/provider rendering, and nested
+  c.cx.ua creative frames remain unverified; monitor
+  `/api/security/csp-report` for real-world violations.
 - Sensitive mutations fail closed when Redis/Upstash is unavailable; configure KV for durable cross-instance rate limiting or money routes will be denied.
 - `npm run verify:launch -- --ci` last checked on 2026-10-08 passed code checks and reports missing operator values as warnings. The local non-CI launch check last checked that day failed on 25 required settings; neither check inspects Vercel's environment.
 - Provider accounts, real ad fill, authenticated browser behavior, payment transactions, and production migrations have not been verified in this snapshot. No revenue or payout claims are implied.
@@ -91,7 +94,7 @@ The most recent local verification on 2026-10-09 completed with:
 - Local headless Chromium: no CSP violations on six sampled routes
 - Live anonymous smoke check on 2026-10-08: 17/17 public routes returned HTTP 200
 
-These checks do not establish provider readiness, authenticated user flows, or live database migration state. The production `HEAD` check at 2026-10-09 00:20 UTC still returned a report-only CSP and no enforcing CSP; deployment is pending.
+These checks do not establish provider readiness, authenticated user flows, or live database migration state. The enforcing CSP was deployed and verified live on 2026-10-09 (commit `9e2b8de`); monitor `/api/security/csp-report` for real-world violations.
 
 Run `npm run verify:launch` in a fully configured deployment environment to check required operator settings. `npm run verify:launch -- --ci` keeps missing secrets as warnings while failing code/documentation checks. Run `npm run smoke -- --base-url https://www.faucero.com` to check public route reachability.
 

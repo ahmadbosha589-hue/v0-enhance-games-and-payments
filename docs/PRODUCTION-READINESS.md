@@ -25,9 +25,32 @@
   `/`, `/auth/login`, `/dashboard`, `/about`, `/blog/example`, or `/l/short-id`.
   This verifies only the local branch, not production.
 
-### Current live response
+### Current live response (2026-10-09, post-deploy of 9e2b8de)
 
-A read-only `HEAD https://www.faucero.com/` at 2026-10-09 00:20 UTC returned HTTP 200 with HSTS, `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. It still returned `Content-Security-Policy-Report-Only` and no enforcing `Content-Security-Policy`; production enforcement remains pending deployment.
+`https://www.faucero.com/` now serves an **enforcing** `Content-Security-Policy`
+with a per-request nonce, `'strict-dynamic'`, the pinned `next-themes` bootstrap
+hash, and allowlists for CAPTCHA, c.cx.ua, AdsGram, legacy ad providers,
+Supabase REST/realtime, and configured offerwall frame origins. It also returns
+HSTS (`max-age=63072000`), `X-Frame-Options: SAMEORIGIN`,
+`X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`, and the expanded
+`Permissions-Policy` (accelerometer, camera, geolocation, gyroscope,
+magnetometer, microphone, payment, usb — all denied). No
+`Content-Security-Policy-Report-Only` header remains on the canonical root.
+
+Verified post-deploy on 2026-10-09:
+
+- Unauthenticated money endpoints refuse: `POST /api/admin/funds` → 401,
+  `POST /api/admin/withdrawals/action` → 401, `POST /api/withdraw` → 401.
+- Production `/` HTML: all executable inline scripts carry the request nonce;
+  the one un-nonced inline script is the `next-themes` bootstrap, whose live
+  body hashes byte-for-byte to the pinned
+  `'sha256-zjP2BXYgSCCnXNMXI2IL1yRydoQdsGR/uCCr6kyKsD0='` allowed by the policy.
+- Static `/about` serves the compatibility policy (`'unsafe-inline'`, no
+  nonce/`strict-dynamic`) so prerendered pages remain cacheable.
+- Live smoke: all 17 public routes returned HTTP 200.
+- CI on `main` at `9e2b8de` completed with `success` (first CI run ever on
+  this repo; the workflow previously targeted a nonexistent `master` branch).
 
 ### Production database and migrations
 
@@ -37,10 +60,8 @@ A read-only `HEAD https://www.faucero.com/` at 2026-10-09 00:20 UTC returned HTT
 
 ## Remaining launch blockers and unverified behavior
 
-- Commit and deploy the local branch changes, then recheck the canonical response
-  for an enforcing CSP and retained security headers. Static pages still allow
-  `'unsafe-inline'`; they have an enforcing compatibility policy, not a strong
-  XSS-mitigation policy.
+- Static pages still allow `'unsafe-inline'`; they have an enforcing
+  compatibility policy, not a strong XSS-mitigation policy.
 
 - The banner-frame run requested `https://c.cx.ua/ad/serve/banner/32` and Chromium reported `net::ERR_BLOCKED_BY_ORB`. That run used `https://localhost:8443`, not the registered production origin, so it neither proves a CSP break nor validates production ad rendering or nested-frame destinations. Repeat browser checks on the deployed canonical origin with valid production configuration.
 - Authenticated Supabase flows, AdsGram/ad-network fill, nested c.cx.ua creative frames, and production CSP violation reports remain unverified.

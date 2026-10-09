@@ -162,10 +162,10 @@ truth.
   c.cx.ua banner request previously failed with `net::ERR_BLOCKED_BY_ORB` under
   that local origin; real nested creative destinations, authenticated Supabase
   flows, and provider rendering remain unverified.
-- A read-only production `HEAD` check at 2026-10-09 00:20 UTC returned HTTP 200
-  with `Content-Security-Policy-Report-Only` and no enforcing CSP. The local
-  branch policy is not live until deployed; recheck the canonical response after
-  deployment.
+- A read-only production `HEAD` check at 2026-10-09 00:20 UTC preceded the deploy
+  and returned report-only CSP. As of the 9e2b8de deploy the same day, the
+  canonical root serves the enforcing nonce CSP verified above; watch
+  `/api/security/csp-report` for real-world violations after any change.
 
 ## Audit Logging
 
