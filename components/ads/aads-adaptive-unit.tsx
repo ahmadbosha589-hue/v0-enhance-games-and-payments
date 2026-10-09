@@ -32,7 +32,7 @@ export function AAdsAdaptiveUnit() {
     <div
       id="frame"
       className="w-full my-2"
-      style={{ margin: "auto", position: "relative", zIndex: 99998 }}
+      style={{ margin: "12px auto", position: "relative", zIndex: 99998 }}
       aria-label="Sponsored partner ad"
       role="complementary"
     >

@@ -111,11 +111,13 @@ export default async function DashboardLayout({
                   shown in the admin panel (which never mounts this). */}
               <PublicAdsLayer disablePopup />
               {/* A-ADS adaptive banner unit 2457981 on every dashboard page. */}
+              <div className="space-y-4 pb-4" aria-label="Sponsored placements">
               <AAdsAdaptiveUnit />
+              <AdsterraUnits />
+              </div>
               {/* A-ADS dismissable sticky/anchor unit at the top of the viewport. */}
               <AAdsStickyUnit />
               {/* Adsterra real placements (popunder on engaged surfaces only). */}
-              <AdsterraUnits />
             </SidebarInset>
           </AdblockProvider>
         </AntiBotProvider>

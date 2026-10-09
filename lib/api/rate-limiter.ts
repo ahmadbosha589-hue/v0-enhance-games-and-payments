@@ -37,6 +37,11 @@ export interface RateLimitResult {
   resetAt: number
   retryAfter?: number
   isWarning?: boolean
+  /** Present when the check was denied because the limiter backend itself
+   *  is unavailable (Redis/KV unconfigured) — as opposed to the caller
+   *  genuinely exceeding the limit. Routes surface this distinctly so the
+   *  operator gets "configure KV" instead of users getting "slow down". */
+  reason?: "limiter-unavailable"
 }
 
 // Generate Redis key for rate limiting
@@ -60,7 +65,7 @@ export async function checkRateLimit(key: string, config: RateLimitConfig): Prom
       return { allowed: true, remaining: config.maxRequests, resetAt: now + config.windowMs, isWarning: true }
     }
     console.warn(`[RateLimiter] Redis unconfigured — DENYING (fail closed): ${key}`)
-    return { allowed: false, remaining: 0, resetAt: now + 60_000, retryAfter: 60 }
+    return { allowed: false, remaining: 0, resetAt: now + 60_000, retryAfter: 60, reason: "limiter-unavailable" }
   }
 
   try {

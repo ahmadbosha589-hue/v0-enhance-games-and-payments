@@ -116,6 +116,9 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
 
+        {/* Coinzilla site verification (publisher onboarding). */}
+        <meta name="coinzilla" content="cb82a2d3ed6346ccdaba2d282d91003d" />
+
         {/* Structured data for SEO. */}
         <script
           type="application/ld+json"

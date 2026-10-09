@@ -180,7 +180,10 @@ const HTTP_ERROR_MESSAGES: Record<number, string> = {
   429: "Too many requests. Please wait a moment and try again.",
   500: "Server error. Please try again later or contact support.",
   502: "Service temporarily unavailable. Please try again.",
-  503: "Service is under maintenance. Please try again later.",
+  // 503 on the claim endpoint means the server's rate-limiter backend is not
+  // configured (not maintenance): the honest message points at the operator,
+  // not at the user "spamming" the button.
+  503: "Claims are temporarily unavailable on the server side. The site operator has been notified — this is not caused by your activity.",
   504: "Request timed out. Please try again.",
 }
 

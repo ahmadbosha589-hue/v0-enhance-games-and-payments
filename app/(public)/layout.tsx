@@ -171,12 +171,18 @@ export default function PublicLayout({
           publisher pages triggering unwanted redirects. */}
       <PublicAdsLayer />
 
-      {/* A-ADS adaptive banner unit 2457981 on every public page. */}
-      <AAdsAdaptiveUnit />
+      {/* In-flow ad units, vertically separated so every banner stays
+          individually visible instead of stacking on top of each other.
+          The sticky units (AAdsStickyUnit, PublicAdsLayer, social bar) are
+          fixed-position overlays and render outside this flow container. */}
+      <div className="space-y-4 pb-4" aria-label="Sponsored placements">
+        {/* A-ADS adaptive banner unit 2457981 on every public page. */}
+        <AAdsAdaptiveUnit />
+        {/* Adsterra real placements (popunder on engaged surfaces only). */}
+        <AdsterraUnits />
+      </div>
       {/* A-ADS dismissable sticky/anchor unit at the top of the viewport. */}
       <AAdsStickyUnit />
-      {/* Adsterra real placements (popunder on engaged surfaces only). */}
-      <AdsterraUnits />
     </div>
   )
 }

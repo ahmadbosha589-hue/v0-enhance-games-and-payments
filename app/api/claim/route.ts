@@ -133,6 +133,21 @@ export async function POST(request: Request) {
     // Rate limiting by user (Redis-backed for distributed consistency)
     const userRateLimit = await checkRateLimit(`claim:user:${user.id}`, RATE_LIMITS.claim)
     if (!userRateLimit.allowed) {
+      // Distinguish the two denial causes. `reason: "limiter-unavailable"` is
+      // set when the limiter backend itself is missing (Upstash/KV not
+      // configured in this deployment) — the fail-closed branch denies every
+      // claim. Blaming the user ("wait and retry") sent the operator chasing
+      // phantom abuse while the real fix is setting two env vars in Vercel.
+      if (userRateLimit.reason === "limiter-unavailable") {
+        log.error("Claim denied: rate limiter backend unavailable (Redis/KV not configured)")
+        return NextResponse.json(
+          {
+            error: "Claims are temporarily unavailable — the rate limiter backend is not configured on this deployment. Contact the site operator.",
+            code: "RATE_LIMITER_UNAVAILABLE",
+          },
+          { status: 503 },
+        )
+      }
       log.warn("Claim rate limited by user", { userId: user.id, retryAfter: userRateLimit.retryAfter })
       return NextResponse.json(
         { error: "Too many requests", retryAfter: userRateLimit.retryAfter },
