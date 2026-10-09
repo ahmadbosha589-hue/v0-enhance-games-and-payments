@@ -47,3 +47,10 @@ describe("Coinzilla site-verification meta tag", () => {
     expect(src).toContain('<meta name="coinzilla" content="cb82a2d3ed6346ccdaba2d282d91003d" />')
   })
 })
+
+describe("Bitmedia site-verification meta tag", () => {
+  it("root layout head carries the exact bitmedia meta", () => {
+    const src = read("app/layout.tsx")
+    expect(src).toContain('<meta name="bitmedia-site-verification" content="51a82ad1d03d2af64b39bcbc5bfbc37b" />')
+  })
+})

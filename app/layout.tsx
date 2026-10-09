@@ -118,6 +118,8 @@ export default function RootLayout({
 
         {/* Coinzilla site verification (publisher onboarding). */}
         <meta name="coinzilla" content="cb82a2d3ed6346ccdaba2d282d91003d" />
+        {/* Bitmedia site verification (publisher onboarding). */}
+        <meta name="bitmedia-site-verification" content="51a82ad1d03d2af64b39bcbc5bfbc37b" />
 
         {/* Structured data for SEO. */}
         <script

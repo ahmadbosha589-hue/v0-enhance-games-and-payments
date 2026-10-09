@@ -2,35 +2,15 @@
 
 import { useRef } from "react"
 import useSWR from "swr"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { MultiNetworkAds } from "@/components/ads/multi-network-ads"
 import { AAdsAdaptiveUnit } from "@/components/ads/aads-adaptive-unit"
-import { isNetworkRenderable } from "@/lib/ads/registry"
-import { AlertCircle, ArrowDown, CheckCircle2, Cookie, Megaphone } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { ArrowDown, Cookie, Megaphone } from "lucide-react"
 
 interface SupportUsContentProps {
   userId: string
 }
-
-// Exactly 11 partner networks; Google AdSense is intentionally excluded from
-// this incentivized/support surface.
-const AD_NETWORKS = [
-  { id: "a-ads", name: "A-ADS" },
-  { id: "coinzilla", name: "CoinZilla" },
-  { id: "bitmedia", name: "BitMedia" },
-  { id: "cointraffic", name: "CoinTraffic" },
-  { id: "medianet", name: "Media.net" },
-  { id: "hilltopads", name: "HilltopAds" },
-  { id: "adsterra", name: "Adsterra" },
-  { id: "propellerads", name: "PropellerAds" },
-  { id: "trafficstars", name: "TrafficStars" },
-  { id: "coinads", name: "CoinAds" },
-  { id: "adskeeper", name: "AdsKeeper" },
-] as const
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then((response) => response.json())
 
@@ -39,7 +19,6 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
     revalidateOnFocus: false,
   })
 
-  const configuredCount = AD_NETWORKS.filter((network) => isNetworkRenderable(network.id)).length
   const inventoryRef = useRef<HTMLDivElement>(null)
 
   const scrollToInventory = () => {
@@ -55,12 +34,9 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
             Partner advertising inventory
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Eleven aligned partner slots are listed below. Only verified, configured networks can render inventory.
+            Watch and support us — every view helps keep the faucet running.
           </p>
         </div>
-        <Badge variant="outline" className="w-fit">
-          {configuredCount} of {AD_NETWORKS.length} verified
-        </Badge>
         <Button type="button" variant="outline" size="sm" className="w-fit gap-2" onClick={scrollToInventory}>
           <ArrowDown className="h-4 w-4" aria-hidden="true" />
           View partner ads
@@ -75,30 +51,17 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
         </AlertDescription>
       </Alert>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {AD_NETWORKS.map((network) => {
-          const verified = isNetworkRenderable(network.id)
-          return (
-            <Card key={network.id} className={cn("border-muted", verified && "border-emerald-500/30")}>
-              <CardContent className="flex min-h-24 items-center gap-3 p-4">
-                {verified ? (
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" aria-hidden="true" />
-                ) : (
-                  <AlertCircle className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{network.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {verified ? "Verified tag enabled" : "Awaiting verified tag/configuration"}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      <div ref={inventoryRef} id="support-partner-inventory" className="scroll-mt-6">
+      {/* The actual ad inventory — real creative from every renderable
+          network, not configuration status cards. Which networks serve a
+          creative at any moment is controlled in the admin panel (Admin →
+          Ads → Networks) and by each visitor's ad-network consent; this
+          page just shows the ads. */}
+      <div ref={inventoryRef} id="support-partner-inventory" className="scroll-mt-6 space-y-4">
+        {/* A-ADS adaptive banner — always renderable. */}
+        <AAdsAdaptiveUnit />
+        {/* The partner grid: real tags from every registry-enabled network
+            that has credentials (A-ADS / Coinzilla / Bitmedia), plus the
+            c.cx.ua partner banner. */}
         <MultiNetworkAds
           position="content"
           layout="grid"
@@ -108,12 +71,6 @@ export function SupportUsContent({ userId }: SupportUsContentProps) {
           showLabels
           className="rounded-xl"
         />
-        {/* A live, always-renderable ad so the page shows real inventory even
-            when no third-party network has been enabled by the operator yet.
-            Previously this section listed only status cards: with zero
-            verified networks it displayed "3 of 11 verified" and no ad at
-            all, which read as broken. */}
-        <AAdsAdaptiveUnit />
       </div>
 
       <p className="text-xs text-muted-foreground">

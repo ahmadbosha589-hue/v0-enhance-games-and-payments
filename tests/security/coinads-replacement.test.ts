@@ -63,6 +63,22 @@ describe("Support Us page shows the real ad inventory", () => {
     expect(src).toMatch(/AAdsAdaptiveUnit|acceptable\.a-ads\.com/)
   })
 
+  it("configuration status cards belong to the admin panel only", () => {
+    const src = read("components/support-us/support-us-content.tsx")
+    // The 11-card 'Verified tag enabled / Awaiting …' grid duplicated admin
+    // state on a user-facing page and read as broken placeholders.
+    expect(src).not.toContain("Awaiting verified tag")
+    expect(src).not.toMatch(/of \{AD_NETWORKS\.length\} verified/)
+    expect(src).not.toMatch(/min-h-24 items-center/)
+  })
+
+  it("the ad inventory section renders before explanatory text, headed as real ads", () => {
+    const src = read("components/support-us/support-us-content.tsx")
+    expect(src).toMatch(/Partner advertising inventory|Watch and support/)
+    const inventoryIdx = src.indexOf('id="support-partner-inventory"')
+    expect(inventoryIdx).toBeGreaterThan(-1)
+  })
+
   it("the support-us grid inventory renders real network tags via MultiNetworkAds", () => {
     const grid = read("components/ads/multi-network-ads.tsx")
     expect(grid).toContain("ad.a-ads.com")
