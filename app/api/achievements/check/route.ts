@@ -43,8 +43,12 @@ export async function POST() {
       (userAchs ?? []).filter(ua => ua.completed).map(ua => ua.achievement_id)
     )
 
-    // Hoist games_won count — avoids an N+1 query if multiple achievements use it
+    // Hoist counts the engine needs beyond the profile row — avoids N+1
+    // queries when multiple achievements share a type.
     let gamesWonCount: number | null = null
+    let ptcViewsCount: number | null = null
+    let offersCompletedCount: number | null = null
+    let withdrawalCount: number | null = null
     const hasGamesWonAch = achievements.some(a => a.requirement_type === "games_won")
     if (hasGamesWonAch) {
       const { count } = await adminSupabase
@@ -53,6 +57,33 @@ export async function POST() {
         .eq("user_id", user.id)
         .eq("status", "completed")
       gamesWonCount = count ?? 0
+    }
+    const hasPtcViewsAch = achievements.some(a => a.requirement_type === "ptc_views")
+    if (hasPtcViewsAch) {
+      const { count } = await adminSupabase
+        .from("ptc_views")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("completed", true)
+      ptcViewsCount = count ?? 0
+    }
+    const hasOffersAch = achievements.some(a => a.requirement_type === "offers_completed")
+    if (hasOffersAch) {
+      const { count } = await adminSupabase
+        .from("offerwall_conversions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .in("status", ["approved", "completed"])
+      offersCompletedCount = count ?? 0
+    }
+    const hasWithdrawalAch = achievements.some(a => a.requirement_type === "withdrawal_count")
+    if (hasWithdrawalAch) {
+      const { count } = await adminSupabase
+        .from("withdrawals")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+      withdrawalCount = count ?? 0
     }
 
     const newlyUnlocked: typeof achievements = []
@@ -77,6 +108,15 @@ export async function POST() {
           break
         case "games_won":
           progress = gamesWonCount ?? 0
+          break
+        case "ptc_views":
+          progress = ptcViewsCount ?? 0
+          break
+        case "offers_completed":
+          progress = offersCompletedCount ?? 0
+          break
+        case "withdrawal_count":
+          progress = withdrawalCount ?? 0
           break
         default:
           continue
