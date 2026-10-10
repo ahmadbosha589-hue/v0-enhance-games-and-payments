@@ -20,13 +20,16 @@ const read = (f: string) =>
 const TRACKED = readdirSync(scriptsDir)
   .filter((f) => /^(?:0(?:7[1-9]|8[0-9]|9[0-9])|[1-9][0-9]{2,})_.*\.sql$/i.test(f))
 
-function trackedSeed(table: string, minStatements: number): string | null {
+function trackedSeed(table: string, minRows: number): string | null {
   for (const f of TRACKED) {
     const src = read(f)
-    const matches = src.match(
-      new RegExp(`INSERT INTO (?:public\\.)?${table}\\b`, "gi"),
-    )
-    if (matches && matches.length >= minStatements) return f
+    if (!new RegExp(`INSERT INTO (?:public\\.)?${table}\\b`, "i").test(src)) continue
+    // Count data rows inside VALUES tuples following the INSERT (a single
+    // multi-row statement is the preferred shape; legacy files may split).
+    const from = src.search(new RegExp(`INSERT INTO (?:public\\.)?${table}\\b`, "i"))
+    const window = src.slice(from, from + 12000)
+    const rows = (window.match(/^\s*\(/gm) || []).length
+    if (rows >= minRows) return f
   }
   return null
 }
