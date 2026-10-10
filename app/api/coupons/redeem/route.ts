@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient, getUser } from "@/lib/supabase/server"
+import { recordTournamentEarning } from "@/lib/rewards/tournament-score"
 import { headers } from "next/headers"
 import { isValidCouponCodeFormat } from "@/lib/utils/secure-coupon-generator"
 import { checkRateLimit } from "@/lib/api/rate-limiter"
@@ -79,6 +80,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result?.message || "Coupon redemption failed" }, { status })
     }
 
+    // Tournament scoring (fire-and-forget, non-fatal): coupon earnings feed
+    // highest_earners daily/weekly/monthly.
+    await recordTournamentEarning(adminSupabase, user.id, "earning", result.reward ?? 0)
+
     return NextResponse.json({
       success: true,
       reward: result.reward,
@@ -86,7 +91,6 @@ export async function POST(req: NextRequest) {
       newBalance: result.new_balance,
       message: `Successfully redeemed ${result.reward} satoshis!`,
     })
-
     /* istanbul ignore next -- legacy non-atomic implementation retained for rollback reference */
     if (false) {
     const normalizedCode = code.trim().toUpperCase()

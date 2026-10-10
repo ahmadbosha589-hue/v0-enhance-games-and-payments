@@ -7,6 +7,7 @@ import {
   MIN_GAME_DURATIONS_MS,
 } from "@/lib/games/game-engine"
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { recordTournamentEarning } from "@/lib/rewards/tournament-score"
 
 const GAME_REWARD_SATOSHIS = 3
 const GAME_COOLDOWN_MINUTES = 3
@@ -244,6 +245,10 @@ export async function POST(req: NextRequest) {
       const status = atomicResult.error === "DAILY_LIMIT" ? 429 : 400
       return NextResponse.json({ error: atomicResult.message || "Unable to finalize game" }, { status })
     }
+
+    // Tournament scoring (fire-and-forget, non-fatal): games wins/earnings
+    // feed highest_earners daily/weekly/monthly.
+    await recordTournamentEarning(adminSupabase, user!.id, "earning", atomicResult.reward ?? 0)
 
     return NextResponse.json({
       success: true,

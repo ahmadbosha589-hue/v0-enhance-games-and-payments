@@ -15,11 +15,11 @@ const read = (p: string) =>
   readFileSync(resolve(process.cwd(), p), "utf8").replace(/\r\n/g, "\n")
 
 const SURFACES: Array<[string, string]> = [
-  ["app/api/games/complete/route.ts", "update_tournament_score"],
-  ["app/api/ptc/complete/route.ts", "update_tournament_score"],
-  ["app/api/shortlinks/complete/route.ts", "update_tournament_score"],
-  ["app/api/manual-faucet/claim/route.ts", "update_tournament_score"],
-  ["app/api/coupons/redeem/route.ts", "update_tournament_score"],
+  ["app/api/games/complete/route.ts", "recordTournamentEarning"],
+  ["app/api/ptc/complete/route.ts", "recordTournamentEarning"],
+  ["app/api/shortlinks/complete/route.ts", "recordTournamentEarning"],
+  ["app/api/manual-faucet/claim/route.ts", "recordTournamentEarning"],
+  ["app/api/coupons/redeem/route.ts", "recordTournamentEarning"],
 ]
 
 describe("every earning surface feeds tournament scoring", () => {

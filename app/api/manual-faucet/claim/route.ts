@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUser, createAdminClient } from "@/lib/supabase/server"
+import { recordTournamentEarning } from "@/lib/rewards/tournament-score"
 import { headers } from "next/headers"
 import { log } from "@/lib/logger"
 import { validateClaimRequest, type ClaimContext } from "@/lib/security/anti-drain-protection"
@@ -755,6 +756,10 @@ export async function POST(request: NextRequest) {
       claimAmount: amountInSmallestUnit,
       claimType: `manual_faucet_${cryptoSymbol}`,
     })
+
+    // Tournament scoring (fire-and-forget, non-fatal): manual-faucet claims
+    // feed faucet_claims (count) + highest_earners (sats equivalent).
+    await recordTournamentEarning(adminSupabase, user.id, "claim", 0)
 
     return NextResponse.json({
       success: true,

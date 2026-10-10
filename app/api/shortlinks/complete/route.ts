@@ -2,6 +2,7 @@ import { createAdminClient, getUser } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { verifyWatchToken } from "@/lib/rewards/watch-session"
+import { recordTournamentEarning } from "@/lib/rewards/tournament-score"
 
 export async function POST(req: NextRequest) {
   try {
@@ -85,6 +86,10 @@ export async function POST(req: NextRequest) {
       const status = result?.error === "ALREADY_COMPLETED" || result?.error === "DAILY_LIMIT" ? 400 : 503
       return NextResponse.json({ error: result?.message || "Unable to complete shortlink" }, { status })
     }
+
+    // Tournament scoring (fire-and-forget, non-fatal): shortlink earnings
+    // feed highest_earners daily/weekly/monthly.
+    await recordTournamentEarning(adminSupabase, user.id, "earning", result.reward ?? 0)
 
     return NextResponse.json({
       success: true,

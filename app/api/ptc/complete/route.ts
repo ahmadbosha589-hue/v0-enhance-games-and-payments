@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getUser, createAdminClient } from "@/lib/supabase/server"
 import { headers } from "next/headers"
 import { verifyWatchToken } from "@/lib/rewards/watch-session"
+import { recordTournamentEarning } from "@/lib/rewards/tournament-score"
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,6 +76,10 @@ export async function POST(request: NextRequest) {
       const status = result?.error === "ALREADY_COMPLETED" || result?.error === "WATCH_TOO_SHORT" ? 400 : 503
       return NextResponse.json({ error: result?.message || "Unable to complete PTC ad" }, { status })
     }
+
+    // Tournament scoring (fire-and-forget, non-fatal): PTC earnings feed
+    // highest_earners daily/weekly/monthly.
+    await recordTournamentEarning(adminSupabase, user.id, "earning", result.reward ?? 0)
 
     return NextResponse.json({
       success: true,
