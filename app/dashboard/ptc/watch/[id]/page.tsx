@@ -422,8 +422,31 @@ export default function PTCWatchPage({ params }: { params: Promise<{ id: string 
                       title={ad.title}
                     />
                   </div>
+                  {/* Many destination sites (exchanges, wallets) send
+                      X-Frame-Options: DENY and can never be iframed by
+                      anyone — the browser shows a gray "refused to connect"
+                      box. The reward is timer-based and unaffected; this
+                      fallback keeps the sponsored page reachable in one
+                      click while the countdown runs. */}
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <Button
+                      asChild
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                    >
+                      <a
+                        href={ad.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Open {ad.title} in a new tab
+                      </a>
+                    </Button>
+                  </div>
                   <p className="text-xs text-muted-foreground mt-2 text-center">
-                    View the content above while the timer counts down. Your reward will be claimed automatically.
+                    If the preview shows a gray box, the sponsor blocks embedding — use “Open {ad.title} in a new tab” above. View the content while the timer counts down; your reward will be claimed automatically.
                   </p>
                 </CardContent>
               </Card>
