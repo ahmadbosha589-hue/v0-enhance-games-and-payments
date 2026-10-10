@@ -41,6 +41,7 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
   const [isLoading, setIsLoading] = useState(true)
   const [status, setStatus] = useState<"loading" | "countdown" | "ready" | "claiming" | "completed">("loading")
   const [countdown, setCountdown] = useState(0)
+  const [popupBlocked, setPopupBlocked] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -135,9 +136,12 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
         sessionStorage.removeItem("mf_cache_time_v1")
       } catch { }
 
-      // Open destination URL after a short delay
+      // Open destination URL after a short delay. window.open returns null
+      // when a popup blocker ate the tab — surface a manual link instead of
+      // leaving the user on a dead "Opening destination..." screen.
       setTimeout(() => {
-        window.open(shortlink.destination_url, "_blank", "noopener,noreferrer")
+        const opened = window.open(shortlink.destination_url, "_blank", "noopener,noreferrer")
+        if (!opened) setPopupBlocked(true)
       }, 1500)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to complete")
@@ -282,6 +286,23 @@ export default function ShortlinkGoPage({ params }: { params: Promise<{ id: stri
                       <p className="text-2xl font-bold text-green-500">+{shortlink.reward_satoshis} sats</p>
                       <p className="text-muted-foreground">Reward claimed! Opening destination...</p>
                     </div>
+
+                    {popupBlocked && (
+                      <Alert className="text-left">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          Your browser blocked the destination tab. Open it manually:
+                          <a
+                            href={shortlink.destination_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block mt-1 font-medium text-primary break-all"
+                          >
+                            {shortlink.destination_url}
+                          </a>
+                        </AlertDescription>
+                      </Alert>
+                    )}
 
                     {/* Watch Ad to Double Shortlink Reward */}
                     <div className="pt-4 pb-2 border-t border-dashed">
