@@ -4699,6 +4699,7 @@ const id: Record<TranslationKey, string> = {
   "userMenu.signingOut": "Sedang keluar...",
   "userMenu.withdrawals": "Penarikan",
   "cta.button": "Mulai gratis",
+  "cta.title": "Siap untuk memulai",
 }
 
 const nl: Record<TranslationKey, string> = {
