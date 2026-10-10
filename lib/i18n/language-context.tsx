@@ -100,6 +100,10 @@ const DEFAULT_NAMESPACES: Namespace[] = [
   "footer",
   "testimonials",
   "auth",
+  // Dashboard pages: the sidebar resolves dashboard.nav.* on every dashboard
+  // route; without this namespace the sidebar falls back to English for
+  // every non-English locale.
+  "dashboard",
 ]
 
 interface LanguageProviderProps {
