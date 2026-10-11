@@ -22,8 +22,8 @@ describe("advertiser campaign → delivery loop is complete", () => {
 
   it("approve activates first-party delivery (serve_ad can serve the campaign)", () => {
     const review = read("app/api/admin/advertise/review/route.ts")
-    expect(review).toContain('"creative_status", "approved"')
-    expect(review).toContain('"status", "active"')
+    expect(review).toContain('creative_status: "approved"')
+    expect(review).toContain('status: "active"')
   })
 
   it("serve_ad only returns active approved campaigns with budget", () => {

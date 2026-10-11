@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { AdSettingsForm } from "@/components/admin/ad-settings-form"
 import { AdNetworkSettings } from "@/components/admin/ad-network-settings"
+import { CampaignReview } from "@/components/admin/campaign-review"
 
 export const metadata: Metadata = {
   title: "Ad Management | Admin",
@@ -388,8 +389,13 @@ export default async function AdminAdsPage() {
       </Suspense>
 
       {/* Tabs for Settings and Overview */}
-      <Tabs defaultValue="networks" className="space-y-4 sm:space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4 h-auto">
+      <Tabs defaultValue="campaigns" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full max-w-2xl grid-cols-5 h-auto">
+          <TabsTrigger value="campaigns" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
+            <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Campaigns</span>
+            <span className="sm:hidden">Rev</span>
+          </TabsTrigger>
           <TabsTrigger value="networks" className="gap-1 sm:gap-2 text-xs sm:text-sm py-2">
             <Megaphone className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Networks</span>
@@ -411,6 +417,22 @@ export default async function AdminAdsPage() {
             <span className="sm:hidden">View</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="campaigns" className="space-y-4 sm:space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg">Advertiser Campaign Review</CardTitle>
+              <CardDescription>
+                Self-serve advertiser campaigns wait here before going live. Approving activates
+                first-party delivery (the campaign starts serving impressions and clicks
+                immediately); rejecting stops it and auto-refunds the advertiser's balance.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CampaignReview />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="networks" className="space-y-4 sm:space-y-6">
           <AdNetworkSettings initialConfigs={networkConfigs} />
