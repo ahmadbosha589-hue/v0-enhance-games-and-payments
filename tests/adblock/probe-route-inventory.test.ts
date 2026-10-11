@@ -53,7 +53,8 @@ describe("adblock probe inventory", () => {
       // Dynamic rotating-route namespaces + templated URLs are covered by
       // the catch-all test above.
       if (url.startsWith("/api/t/") || url.startsWith("/api/p/") || url.includes("{")) continue
-      const rel = resolve(process.cwd(), "app", url)
+      // resolve() treats the leading "/" as absolute — strip it before joining.
+      const rel = resolve(process.cwd(), "app", url.replace(/^\//, ""))
       if (!existsSync(resolve(rel, "route.ts")) && !existsSync(rel)) missing.push(url)
     }
     expect(missing, `missing route handlers: ${missing.join(", ")}`).toEqual([])
