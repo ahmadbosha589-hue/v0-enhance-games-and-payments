@@ -11,4 +11,19 @@ export default {
     "Dependemos de los anuncios para mantener este servicio gratis. Desactivar tu bloqueador nos ayuda a seguir proporcionando Bitcoin gratis.",
   flagged: "Has sido marcado por usar un bloqueador",
   contactSupport: "Contacta soporte si crees que es un error",
-}
+
+  accountFlagged: "Cuenta marcada",
+  flaggedBody: "Tu cuenta ha sido marcada por el uso persistente de un bloqueador de anuncios. Las ganancias, retiros y bonos están pausados mientras esta marca esté activa.",
+  flaggedAppeal: "Si se trata de un error — por ejemplo un navegador estricto, VPN o filtro DNS — toca «Apelar esta decisión» abajo y nuestro equipo revisará tu caso.",
+  detected: "Detectado",
+  serverVerified: "Verificado por el servidor",
+  clientDetection: "Detección del cliente",
+  appealTitle: "Apelar esta decisión",
+  appealProcessing: "Procesando apelación...",
+  appealAccepted: "¡Apelación aceptada! Actualizando...",
+  appealRejected: "Apelación rechazada. Contacta con soporte.",
+  refreshAfterChanges: "Actualiza la página después de hacer cambios",
+  refreshAfterDisabling: "Actualiza la página después de desactivarlo",
+  disableAllBlockers: "Comprueba si hay varios bloqueadores de anuncios: desactívalos todos",
+  routerAdblock: "Revisa la configuración de tu router para funciones de bloqueo de anuncios",
+  dnsWhitelist: "Si usas Pi-hole, AdGuard Home o NextDNS, añade este dominio a la lista blanca",}

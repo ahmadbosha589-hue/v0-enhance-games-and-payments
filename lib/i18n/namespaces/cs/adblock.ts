@@ -10,4 +10,18 @@ export const adblock = {
   step3: "Obnovte stránku",
   continue: "Pokračovat bez vypnutí",
   refresh: "Již jsem vypnul, obnovit",
-}
+
+  accountFlagged: "Účet označen",
+  flaggedBody: "Váš účet byl označen za trvalé používání blokování reklam. Výdělky, výběry a bonusy jsou pozastaveny, dokud je tato značka aktivní.",
+  flaggedAppeal: "Pokud jde o omyl — například přísný prohlížeč, VPN nebo DNS filtr — klepněte na „Odvolat se proti rozhodnutí\" níže a náš tým váš případ přezkoumá.",
+  serverVerified: "Ověřeno serverem",
+  clientDetection: "Detekce na klientovi",
+  appealTitle: "Odvolat se proti rozhodnutí",
+  appealProcessing: "Zpracovávání odvolání...",
+  appealAccepted: "Odvolání přijato! Obnovování...",
+  appealRejected: "Odvolání zamítnuto. Kontaktujte prosím podporu.",
+  refreshAfterChanges: "Po provedení změn stránku obnovte",
+  refreshAfterDisabling: "Po vypnění blokování stránku obnovte",
+  disableAllBlockers: "Zkontrolujte více blokátorů reklam - vypněte je všechny",
+  routerAdblock: "Zkontrolujte nastavení routeru pro funkce blokování reklam",
+  dnsWhitelist: "Pokud používáte Pi-hole, AdGuard Home nebo NextDNS, přidejte tuto doménu na bílou listinu",}

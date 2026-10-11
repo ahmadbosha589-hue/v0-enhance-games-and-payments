@@ -104,6 +104,9 @@ const DEFAULT_NAMESPACES: Namespace[] = [
   // route; without this namespace the sidebar falls back to English for
   // every non-English locale.
   "dashboard",
+  // The adblock warning modal renders on dashboard routes when flagged;
+  // its strings resolve from the adblock namespace.
+  "adblock",
 ]
 
 interface LanguageProviderProps {

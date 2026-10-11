@@ -8,4 +8,18 @@ export default {
   step3: "Làm mới trang",
   refresh: "Làm mới trang",
   continue: "Tiếp tục sau khi tắt",
-}
+
+  accountFlagged: "Tài khoản bị đánh dấu",
+  flaggedBody: "Tài khoản của bạn bị đánh dấu do sử dụng trình chặn quảng cáo liên tục. Thu nhập, rút tiền và phần thưởng bị tạm dừng khi dấu này còn hiệu lực.",
+  flaggedAppeal: "Nếu đây là nhầm lẫn — ví dụ trình duyệt bảo mật cao, VPN hoặc bộ lọc DNS — hãy nhấn \"Kháng cáo quyết định này\" bên dưới và đội ngũ của chúng tôi sẽ xem xét trường hợp của bạn.",
+  serverVerified: "Đã xác minh bởi máy chủ",
+  clientDetection: "Phát hiện phía máy khách",
+  appealTitle: "Kháng cáo quyết định này",
+  appealProcessing: "Đang xử lý kháng cáo...",
+  appealAccepted: "Kháng cáo được chấp nhận! Đang tải lại...",
+  appealRejected: "Kháng cáo bị từ chối. Vui lòng liên hệ bộ phận hỗ trợ.",
+  refreshAfterChanges: "Tải lại trang sau khi thay đổi",
+  refreshAfterDisabling: "Tải lại trang sau khi tắt trình chặn",
+  disableAllBlockers: "Kiểm tra nhiều trình chặn quảng cáo - tắt tất cả",
+  routerAdblock: "Kiểm tra cài đặt bộ định tuyến để tìm tính năng chặn quảng cáo",
+  dnsWhitelist: "Nếu dùng Pi-hole, AdGuard Home hoặc NextDNS, hãy thêm tên miền này vào danh sách cho phép",}

@@ -12,4 +12,19 @@ export default {
   note: "広告ブロッカーを無効にした後、ページを更新してください。",
   whyAds: "なぜ広告があるのですか？",
   whyAdsDescription: "広告収入により、無料でサービスを提供し、すべてのユーザーに暗号通貨報酬を提供することができます。",
-}
+
+  accountFlagged: "アカウントがフラグされました",
+  flaggedBody: "アドブロッカーの継続的な使用により、アカウントにフラグが付けられました。このフラグが有効な間、収益・出金・ボーナスは一時停止されています。",
+  flaggedAppeal: "もし間違いであれば — 例えば厳格なブラウザ設定、VPN、DNSフィルターなど — 下の「この決定に異議を申し立てる」をタップすると、当チームが確認します。",
+  detected: "検出",
+  serverVerified: "サーバー確認済み",
+  clientDetection: "クライアント検出",
+  appealTitle: "この決定に異議を申し立てる",
+  appealProcessing: "異議申し立てを処理中...",
+  appealAccepted: "異議申し立てが承認されました！更新中...",
+  appealRejected: "異議申し立てが拒否されました。サポートにお問い合わせください。",
+  refreshAfterChanges: "変更後、ページを更新してください",
+  refreshAfterDisabling: "無効化後、ページを更新してください",
+  disableAllBlockers: "複数のアドブロッカーがないか確認し、すべて無効にしてください",
+  routerAdblock: "ルーター設定に広告ブロック機能がないか確認してください",
+  dnsWhitelist: "Pi-hole、AdGuard Home、NextDNS を使用している場合は、このドメインをホワイトリストに追加してください",}

@@ -12,4 +12,19 @@ export const adblock = {
   note: "禁用广告拦截器后，请刷新页面。",
   whyAds: "为什么有广告？",
   whyAdsDescription: "广告收入使我们能够提供免费服务并向所有用户提供加密货币奖励。",
-}
+
+  accountFlagged: "账号已被标记",
+  flaggedBody: "您的账号因持续使用广告拦截器而被标记。在此标记生效期间，收益、提现和奖励均被暂停。",
+  flaggedAppeal: "如果这是误判 — 例如过于严格的浏览器、VPN 或 DNS 过滤器 — 请点击下方的“对此决定提出申诉”，我们的团队将审核您的情况。",
+  detected: "已检测到",
+  serverVerified: "服务器已验证",
+  clientDetection: "客户端检测",
+  appealTitle: "对此决定提出申诉",
+  appealProcessing: "正在处理申诉...",
+  appealAccepted: "申诉已通过！正在刷新...",
+  appealRejected: "申诉被驳回。请联系支持团队。",
+  refreshAfterChanges: "更改后请刷新页面",
+  refreshAfterDisabling: "禁用后请刷新页面",
+  disableAllBlockers: "检查是否有多个广告拦截器 - 请全部禁用",
+  routerAdblock: "检查路由器设置中是否有广告拦截功能",
+  dnsWhitelist: "如果您使用 Pi-hole、AdGuard Home 或 NextDNS，请将此域名加入白名单",}

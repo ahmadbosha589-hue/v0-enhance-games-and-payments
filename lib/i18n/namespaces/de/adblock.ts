@@ -9,4 +9,19 @@ export const adblock = {
   step3: "Aktualisieren Sie die Seite",
   refresh: "Seite aktualisieren",
   continue: "Zum Beanspruchen fortfahren",
-}
+
+  accountFlagged: "Konto markiert",
+  flaggedBody: "Ihr Konto wurde wegen dauerhafter Nutzung eines Ad-Blockers markiert. Verdienste, Auszahlungen und Boni sind pausiert, solange diese Markierung aktiv ist.",
+  flaggedAppeal: "Falls dies ein Fehler ist — z. B. ein strenger Browser, VPN oder DNS-Filter — tippen Sie unten auf „Gegen diese Entscheidung Einspruch erheben\" und unser Team prüft Ihren Fall.",
+  detected: "Erkannt",
+  serverVerified: "Serverbestätigt",
+  clientDetection: "Client-Erkennung",
+  appealTitle: "Gegen diese Entscheidung Einspruch erheben",
+  appealProcessing: "Einspruch wird verarbeitet...",
+  appealAccepted: "Einspruch akzeptiert! Wird neu geladen...",
+  appealRejected: "Einspruch abgelehnt. Bitte kontaktieren Sie den Support.",
+  refreshAfterChanges: "Laden Sie die Seite nach den Änderungen neu",
+  refreshAfterDisabling: "Laden Sie die Seite nach dem Deaktivieren neu",
+  disableAllBlockers: "Prüfen Sie, ob mehrere Ad-Blocker aktiv sind - deaktivieren Sie alle",
+  routerAdblock: "Prüfen Sie die Router-Einstellungen auf Werbeblocker-Funktionen",
+  dnsWhitelist: "Wenn Sie Pi-hole, AdGuard Home oder NextDNS verwenden, setzen Sie diese Domain auf die Whitelist",}

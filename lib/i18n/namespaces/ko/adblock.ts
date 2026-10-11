@@ -12,4 +12,19 @@ export const adblock = {
   note: "광고 차단기를 비활성화한 후 페이지를 새로고침해 주세요.",
   whyAds: "왜 광고가 있나요?",
   whyAdsDescription: "광고 수익으로 무료 서비스를 제공하고 모든 사용자에게 암호화폐 보상을 제공할 수 있습니다.",
-}
+
+  accountFlagged: "계정 플래그됨",
+  flaggedBody: "광고 차단기를 지속적으로 사용하여 계정에 플래그가 지정되었습니다. 이 플래그가 활성화된 동안 수익, 출금, 보너스가 일시 중지됩니다.",
+  flaggedAppeal: "실수라면 — 예를 들어 엄격한 브라우저, VPN, DNS 필터 — 아래 \"이 결정에 이의 제기\"를 눌러 주시면 저희 팀이 사례를 검토합니다.",
+  detected: "감지됨",
+  serverVerified: "서버 확인됨",
+  clientDetection: "클라이언트 감지",
+  appealTitle: "이 결정에 이의 제기",
+  appealProcessing: "이의 제기 처리 중...",
+  appealAccepted: "이의 제기 승인됨! 새로고침 중...",
+  appealRejected: "이의 제기 거부됨. 지원팀에 문의해 주세요.",
+  refreshAfterChanges: "변경 후 페이지를 새로고침하세요",
+  refreshAfterDisabling: "비활성화 후 페이지를 새로고침하세요",
+  disableAllBlockers: "여러 광고 차단기가 있는지 확인하고 모두 비활성화하세요",
+  routerAdblock: "라우터 설정에서 광고 차단 기능을 확인하세요",
+  dnsWhitelist: "Pi-hole, AdGuard Home, NextDNS를 사용하는 경우 이 도메인을 화이트리스트에 추가하세요",}

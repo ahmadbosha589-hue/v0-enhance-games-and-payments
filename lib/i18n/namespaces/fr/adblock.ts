@@ -9,4 +9,19 @@ export const adblock = {
   step3: "Actualisez la page",
   refresh: "Actualiser la page",
   continue: "Continuer vers la réclamation",
-}
+
+  accountFlagged: "Compte signalé",
+  flaggedBody: "Votre compte a été signalé pour utilisation persistante d'un bloqueur de publicités. Les gains, retraits et bonus sont suspendus tant que ce signalement est actif.",
+  flaggedAppeal: "S'il s'agit d'une erreur — par exemple un navigateur strict, un VPN ou un filtre DNS — appuyez sur « Faire appel de cette décision » ci-dessous et notre équipe examinera votre cas.",
+  detected: "Détecté",
+  serverVerified: "Vérifié par le serveur",
+  clientDetection: "Détection client",
+  appealTitle: "Faire appel de cette décision",
+  appealProcessing: "Traitement de l'appel...",
+  appealAccepted: "Appel accepté ! Actualisation...",
+  appealRejected: "Appel rejeté. Veuillez contacter l'assistance.",
+  refreshAfterChanges: "Actualisez la page après vos modifications",
+  refreshAfterDisabling: "Actualisez la page après la désactivation",
+  disableAllBlockers: "Vérifiez s'il y a plusieurs bloqueurs de publicités - désactivez-les tous",
+  routerAdblock: "Vérifiez les paramètres de votre routeur pour les fonctions de blocage de publicités",
+  dnsWhitelist: "Si vous utilisez Pi-hole, AdGuard Home ou NextDNS, ajoutez ce domaine à la liste blanche",}

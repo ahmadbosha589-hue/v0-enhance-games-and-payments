@@ -30,4 +30,19 @@ export default {
     benefit3: "Supporta lo sviluppo continuo",
     benefit4: "Ci aiuta ad aggiungere nuove funzionalità",
   },
-}
+
+  accountFlagged: "Account segnalato",
+  flaggedBody: "Il tuo account è stato segnalato per l'uso persistente di un ad-blocker. Guadagni, prelievi e bonus sono sospesi finché questo flag è attivo.",
+  flaggedAppeal: "Se si tratta di un errore — ad esempio un browser restrittivo, una VPN o un filtro DNS — tocca \"Presenta ricorso\" qui sotto e il nostro team esaminerà il tuo caso.",
+  detected: "Rilevato",
+  serverVerified: "Verificato dal server",
+  clientDetection: "Rilevamento client",
+  appealTitle: "Presenta ricorso",
+  appealProcessing: "Elaborazione del ricorso...",
+  appealAccepted: "Ricorso accettato! Aggiornamento...",
+  appealRejected: "Ricorso respinto. Contatta l'assistenza.",
+  refreshAfterChanges: "Ricarica la pagina dopo le modifiche",
+  refreshAfterDisabling: "Ricarica la pagina dopo la disattivazione",
+  disableAllBlockers: "Controlla se ci sono più ad-blocker - disattivali tutti",
+  routerAdblock: "Controlla le impostazioni del router per le funzioni di blocco pubblicità",
+  dnsWhitelist: "Se usi Pi-hole, AdGuard Home o NextDNS, aggiungi questo dominio alla whitelist",}

@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useAdblockDetection } from "@/lib/hooks/use-adblock-detection"
+import { useLanguage } from "@/lib/i18n/language-context"
 import type { DetectionSignal } from "@/lib/adblock/detection-engine"
 
 interface AdblockWarningModalProps {
@@ -37,6 +38,7 @@ interface AdblockWarningModalProps {
 export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFraudFlagged }: AdblockWarningModalProps) {
   const { isDetected, isChecking, forceRecheck, confidence, blockerType, consecutiveDetections, detectionResult } =
     useAdblockDetection()
+  const { t } = useLanguage()
 
   const signals = detectionResult?.signals || []
   const detectionMethods = detectionResult?.signals?.map((s) => s.method) || []
@@ -534,44 +536,37 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
             <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20 ring-4 ring-red-500/30">
               <Ban className="h-10 w-10 text-red-500" />
             </div>
-            <h2 className="mb-3 text-2xl font-bold text-red-500">Account Flagged</h2>
-            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
-              Your account has been flagged for persistent ad-blocker usage. Earnings, withdrawals
-              and bonuses are paused while this flag is active.
-            </p>
-            <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
-              If this is a mistake &mdash; for example a strict browser, VPN or DNS filter &mdash;
-              tap <span className="font-semibold text-red-400">Appeal This Decision</span> below
-              and our team will review your case.
-            </p>
+            <h2 className="mb-3 text-2xl font-bold text-red-500">{t("adblock.accountFlagged")}</h2>
+            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{t("adblock.flaggedBody")}</p>
+            <p className="mb-6 text-sm leading-relaxed text-muted-foreground">{t("adblock.flaggedAppeal")}</p>
 
-            {blockerType && <p className="mb-4 text-sm text-red-400">Detected: {blockerType}</p>}
+            {blockerType && <p className="mb-4 text-sm text-red-400">{t("adblock.detected")}: {blockerType}</p>}
 
             <div className="mb-4 flex items-center justify-center gap-2">
               {serverVerified ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-3 py-1 text-xs font-medium text-red-400">
                   <CheckCircle2 className="h-3 w-3" />
-                  Server Verified
+                  {t("adblock.serverVerified")}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-3 py-1 text-xs font-medium text-amber-400">
                   <XCircle className="h-3 w-3" />
-                  Client Detection
+                  {t("adblock.clientDetection")}
                 </span>
               )}
             </div>
 
             {appealStatus === "none" && (
               <Button variant="outline" onClick={handleAppeal} className="mt-4 bg-transparent">
-                Appeal This Decision
+                {t("adblock.appealTitle")}
               </Button>
             )}
-            {appealStatus === "pending" && <p className="mt-4 text-sm text-muted-foreground">Processing appeal...</p>}
+            {appealStatus === "pending" && <p className="mt-4 text-sm text-muted-foreground">{t("adblock.appealProcessing")}</p>}
             {appealStatus === "accepted" && (
-              <p className="mt-4 text-sm text-green-500">Appeal accepted! Refreshing...</p>
+              <p className="mt-4 text-sm text-green-500">{t("adblock.appealAccepted")}</p>
             )}
             {appealStatus === "rejected" && (
-              <p className="mt-4 text-sm text-red-400">Appeal rejected. Please contact support.</p>
+              <p className="mt-4 text-sm text-red-400">{t("adblock.appealRejected")}</p>
             )}
           </CardContent>
         </Card>
