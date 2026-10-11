@@ -3198,10 +3198,69 @@ export function useAdblockDetection(): UseAdblockDetectionResult {
   const verifyWithServer = useCallback(
     async (signals: DetectionSignal[], blockerType: AdblockType): Promise<boolean> => {
       try {
+        // 1. Fetch the bound PoW challenge for this session
+        //    (GET /api/adblock/verify → { challenge, sessionId }). A missing
+        //    challenge is only +5 serverScore server-side, and a WRONG answer
+        //    is +25 with challenge_manipulation_suspected — so we only
+        //    submit a proof we could compute correctly. The PoW hash binds to
+        //    the session user id (server-fortress:181), which we fetch from
+        //    /api/auth/me. Any failure here skips the challenge (neutral).
+        let sessionId: string | undefined
+        let challengeResponse:
+          | { challengeId: string; nonce: string; proof: string; timestamp: number }
+          | undefined
+        try {
+          const [challengeRes, meRes] = await Promise.all([
+            fetch("/api/adblock/verify", { cache: "no-store" }),
+            fetch("/api/auth/me", { credentials: "include", cache: "no-store" }),
+          ])
+          if (challengeRes.ok && meRes.ok) {
+            const data = await challengeRes.json()
+            const me = await meRes.json()
+            const userId: string | undefined = me?.user?.id
+            sessionId = data.sessionId
+            const challenge = data.challenge as
+              | { challengeId: string; nonce: string; difficulty: number }
+              | undefined
+            if (challenge?.challengeId && userId) {
+              // 2. Solve the PoW: find attempt so
+              //    sha256(`${challengeId}:${serverNonce}:${clientNonce}:${userId}${proof}`)
+              //    starts with `difficulty` zeros (server-fortress:181-186).
+              //    Capped so detection never stalls on this.
+              const t0 = Date.now()
+              const zeros = "0".repeat(Math.min(challenge.difficulty || 4, 6))
+              for (let attempt = 0; attempt < 200_000 && Date.now() - t0 < 1500; attempt++) {
+                const clientNonce = attempt.toString(36)
+                const proofData = `${challenge.challengeId}:${challenge.nonce}:${clientNonce}:${userId}${attempt}`
+                const digest = await crypto.subtle.digest(
+                  "SHA-256",
+                  new TextEncoder().encode(proofData),
+                )
+                const hex = Array.from(new Uint8Array(digest))
+                  .map((b) => b.toString(16).padStart(2, "0"))
+                  .join("")
+                if (hex.startsWith(zeros)) {
+                  challengeResponse = {
+                    challengeId: challenge.challengeId,
+                    nonce: clientNonce,
+                    proof: String(attempt),
+                    timestamp: Date.now(),
+                  }
+                  break
+                }
+              }
+            }
+          }
+        } catch {
+          /* no challenge → server treats as neutral, proceed without it */
+        }
+
         const res = await fetch("/api/adblock/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            sessionId,
+            challengeResponse,
             signals: signals.map((s) => ({
               method: s.method,
               category: s.category,
