@@ -36,6 +36,50 @@ import { nl } from "./dictionaries/nl"
 import { pl } from "./dictionaries/pl"
 import { uk } from "./dictionaries/uk"
 import { cs } from "./dictionaries/cs"
+import itTranslations from "./italian-translations"
+import hiTranslations from "./hindi-translations"
+
+/**
+ * Italian dictionary section, derived from the flat maps: the it block in
+ * ./translations.ts (349-key coverage) merged over the original partial
+ * italian-translations.ts. Flat keys ("dashboard.nav.claim") become nested
+ * paths ({ dashboard: { nav: { claim } } }) so deep-merge treats them as
+ * real translations instead of falling back to English.
+ */
+function buildItalianDictionary(): PartialDictionary {
+  return flatToNested(itTranslations, flatItExtra)
+}
+
+/** Hindi dictionary section — same derivation as Italian (see above). */
+function buildHindiDictionary(): PartialDictionary {
+  return flatToNested(hiTranslations, flatHiExtra)
+}
+
+// Flat overrides for the keys the standalone translation files don't cover.
+// Mirroring the full 349-key maps would duplicate ./translations.ts; the
+// deep-merge over English fills any remaining gaps at module load.
+import { it as flatItExtra } from "./flat-overrides-it"
+import { hi as flatHiExtra } from "./flat-overrides-hi"
+
+function flatToNested(
+  base: Record<string, string>,
+  extra: Record<string, string>,
+): PartialDictionary {
+  const merged: Record<string, string> = { ...base }
+  for (const [k, v] of Object.entries(extra)) merged[k] = v
+  const root: Record<string, unknown> = {}
+  for (const [flatKey, value] of Object.entries(merged)) {
+    const parts = flatKey.split(".")
+    let node: Record<string, unknown> = root
+    for (let i = 0; i < parts.length - 1; i += 1) {
+      const seg = parts[i]
+      if (typeof node[seg] !== "object" || node[seg] === null) node[seg] = {}
+      node = node[seg] as Record<string, unknown>
+    }
+    node[parts[parts.length - 1]] = value
+  }
+  return root as PartialDictionary
+}
 
 /** Recursively optional: any subtree may be omitted at any depth. */
 export type DeepPartial<T> = {
@@ -101,6 +145,10 @@ const rawDictionaries: Record<Locale, PartialDictionary> = {
   pl,
   uk,
   cs,
+  // it/hi: namespace-backed dictionaries built from the full flat maps in
+  // ./translations.ts + the per-locale italian/hindi translation files.
+  it: buildItalianDictionary(),
+  hi: buildHindiDictionary(),
 }
 
 /**

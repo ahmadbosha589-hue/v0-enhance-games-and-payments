@@ -23,6 +23,8 @@ export const locales = [
   "pl",
   "uk",
   "cs",
+  "it",
+  "hi",
 ] as const
 
 export type Locale = (typeof locales)[number]
@@ -46,6 +48,8 @@ export const localeNames: Record<Locale, string> = {
   pl: "Polski",
   uk: "Українська",
   cs: "Čeština",
+  it: "Italiano",
+  hi: "हिन्दी",
 }
 
 export const rtlLocales: Locale[] = ["ar"]
