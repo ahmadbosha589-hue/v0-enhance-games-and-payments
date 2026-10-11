@@ -1,38 +1,39 @@
 import { Suspense } from "react"
 import Link from "next/link"
-import { getUser, getProfile, safeQuery } from "@/lib/supabase/server"
+import { getUser, safeQuery } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target, Gamepad2, Ticket, Link2, HandCoins, Crown, Heart } from "lucide-react"
+import {
+  Coins, Gift, Play, Trophy, Zap, ArrowRight, TrendingUp, Users, Target,
+  Gamepad2, Ticket, Link2, HandCoins, Crown, Heart, AlertCircle, CheckCircle2,
+} from "lucide-react"
 
 import { requireAdminClient } from "@/lib/supabase/admin-client"
+import { earningAvailability, countConfiguredOfferwalls, type EarnOptionAvailability } from "@/lib/earn/availability"
+import { isRewardedAdsEnabled } from "@/lib/rewards/rewarded-ads"
+
 export const metadata = {
   title: "All Earning Options | CryptoFaucet",
-  description: "10+ ways to earn free Bitcoin and crypto - Faucet claims, Direct Crypto Faucet to FaucetPay, Games, Shortlinks, Offerwalls, PTC Ads, Coupons, Achievements, Tournaments, and more!",
+  description:
+    "10+ ways to earn free Bitcoin and crypto - Faucet claims, Direct Crypto Faucet to FaucetPay, Games, Shortlinks, Offerwalls, PTC Ads, Coupons, Achievements, Tournaments, and more!",
 }
 
-function EarnPageSkeleton() {
-  return (
-    <div className="space-y-6 sm:space-y-8">
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-72" />
-      </div>
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-32" />
-        ))}
-      </div>
-      <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-48" />
-        ))}
-      </div>
-    </div>
-  )
+const EARN_ICONS: Record<EarnOptionAvailability["icon"], typeof Zap> = {
+  zap: Zap,
+  coins: HandCoins,
+  gamepad: Gamepad2,
+  ticket: Ticket,
+  link: Link2,
+  gift: Gift,
+  play: Play,
+  target: Target,
+  trophy: Trophy,
+  rocket: Crown,
+  heart: Heart,
+  users: Users,
 }
 
 interface EarnProfile {
@@ -74,7 +75,6 @@ async function EarnStats({ userId }: { userId: string }) {
   ])
 
   const offerwallTotal = (offerwallEarnings || []).reduce((sum: number, c: any) => sum + (c.payout_satoshis || 0), 0)
-  const ptcTotal = (ptcEarnings || []).reduce((sum: number, v: any) => sum + (v.reward_satoshis || 0), 0)
 
   const stats = [
     {
@@ -132,148 +132,21 @@ export default async function EarnPage() {
   const user = await getUser()
   if (!user) redirect("/auth/login?redirect=/dashboard/earn")
 
-  const profile = await getProfile(user.id)
-  if (!profile) redirect("/auth/login?redirect=/dashboard/earn")
+  // Live availability inputs — the same gates the earning routes themselves
+  // check. Cards never invent reward ranges the config can contradict.
+  const redisConfigured = Boolean(
+    process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN,
+  )
+  const rewardedAdsEnabled = isRewardedAdsEnabled()
+  const offerwallsConfigured = countConfiguredOfferwalls()
 
-  const earnMethods = [
-    {
-      title: "Faucet Claims",
-      description: "Claim free satoshis every 5 minutes. Build your streak for bonus rewards!",
-      icon: Zap,
-      color: "text-blue-500",
-      bgColor: "bg-gradient-to-br from-blue-500/20 to-blue-600/10",
-      borderColor: "border-blue-500/30",
-      href: "/dashboard/claim",
-      reward: "4-7+ sats/claim",
-      badge: "Most Popular",
-      badgeColor: "bg-blue-500",
-    },
-    {
-      title: "Direct Crypto Faucet",
-      description: "Claim from 13 different cryptocurrencies every 60 seconds - instant payouts to FaucetPay wallet!",
-      icon: HandCoins,
-      color: "text-orange-500",
-      bgColor: "bg-gradient-to-br from-orange-500/20 to-amber-500/10",
-      borderColor: "border-orange-500/30",
-      href: "/dashboard/manual-faucet",
-      reward: "$0.0009/claim",
-      badge: "13 Cryptos",
-      badgeColor: "bg-orange-500",
-    },
-    {
-      title: "Play Games",
-      description: "Play Tetris, Block Blast, and Car Racing to earn satoshis while having fun!",
-      icon: Gamepad2,
-      color: "text-cyan-500",
-      bgColor: "bg-gradient-to-br from-cyan-500/20 to-cyan-600/10",
-      borderColor: "border-cyan-500/30",
-      href: "/dashboard/games",
-      reward: "3 sats/game",
-      badge: "Fun & Easy",
-      badgeColor: "bg-cyan-500",
-    },
-    {
-      title: "Coupon Codes",
-      description: "Redeem promo codes from our social media for instant satoshi rewards!",
-      icon: Ticket,
-      color: "text-amber-500",
-      bgColor: "bg-gradient-to-br from-amber-500/20 to-orange-500/10",
-      borderColor: "border-amber-500/30",
-      href: "/dashboard/coupons",
-      reward: "10-1000+ sats",
-      badge: "Instant",
-      badgeColor: "bg-amber-500",
-    },
-    {
-      title: "Shortlinks",
-      description: "Visit links for a few seconds to earn quick satoshis. Fast and simple!",
-      icon: Link2,
-      color: "text-indigo-500",
-      bgColor: "bg-gradient-to-br from-indigo-500/20 to-violet-500/10",
-      borderColor: "border-indigo-500/30",
-      href: "/dashboard/shortlinks",
-      reward: "1-5 sats/link",
-      badge: "Quick",
-      badgeColor: "bg-indigo-500",
-    },
-    {
-      title: "Offerwalls",
-      description: "Complete surveys, download apps, and finish tasks from our partner networks.",
-      icon: Gift,
-      color: "text-purple-500",
-      bgColor: "bg-gradient-to-br from-purple-500/20 to-purple-600/10",
-      borderColor: "border-purple-500/30",
-      href: "/dashboard/offerwalls",
-      reward: "100-10,000+ sats",
-      badge: "High Paying",
-      badgeColor: "bg-purple-500",
-    },
-    {
-      title: "PTC Ads",
-      description: "Watch short advertisements and earn satoshis for your time.",
-      icon: Play,
-      color: "text-green-500",
-      bgColor: "bg-gradient-to-br from-green-500/20 to-green-600/10",
-      borderColor: "border-green-500/30",
-      href: "/dashboard/ptc",
-      reward: "1-50 sats/ad",
-      badge: "Easy",
-      badgeColor: "bg-green-500",
-    },
-    {
-      title: "Achievements",
-      description: "Complete challenges and milestones to unlock bonus satoshi rewards.",
-      icon: Trophy,
-      color: "text-amber-500",
-      bgColor: "bg-gradient-to-br from-amber-500/20 to-amber-600/10",
-      borderColor: "border-amber-500/30",
-      href: "/dashboard/achievements",
-      reward: "10-10,000 sats",
-      badge: "Bonus",
-      badgeColor: "bg-amber-500",
-    },
-    {
-      title: "Tournaments",
-      description: "Compete with other users in daily, weekly, and monthly tournaments to win massive prize pools!",
-      icon: Crown,
-      color: "text-yellow-500",
-      bgColor: "bg-gradient-to-br from-yellow-500/20 to-amber-500/10",
-      borderColor: "border-yellow-500/30",
-      href: "/dashboard/tournaments",
-      reward: "Up to 30,000 sats",
-      badge: "Compete & Win",
-      badgeColor: "bg-yellow-500",
-    },
-    {
-      title: "Support Us",
-      description: "View available non-Google partner advertising inventory and help fund Faucero's hosting and development.",
-      icon: Heart,
-      color: "text-red-500",
-      bgColor: "bg-gradient-to-br from-red-500/20 to-pink-500/10",
-      borderColor: "border-red-500/30",
-      href: "/dashboard/support-us",
-      reward: "Partner ads",
-      badge: "Support Faucero",
-      badgeColor: "bg-red-500",
-    },
-  ]
+  const options = earningAvailability({
+    redisConfigured,
+    rewardedAdsEnabled,
+    offerwallsConfigured,
+  })
 
-  const bonusMethods = [
-    {
-      title: "Referral Program",
-      description: "Invite friends and earn 10% of their faucet claims forever!",
-      icon: Users,
-      href: "/dashboard/referrals",
-      reward: "10% commission",
-    },
-    {
-      title: "Daily Bonus",
-      description: "Claim every day to build your streak and multiply rewards.",
-      icon: Target,
-      href: "/dashboard/claim",
-      reward: "Up to 100% bonus",
-    },
-  ]
+  const availableCount = options.filter((o) => o.available).length
 
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-6">
@@ -281,7 +154,8 @@ export default async function EarnPage() {
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">All Earning Options</h1>
         <p className="text-sm sm:text-base text-muted-foreground">
-          10+ ways to earn free Bitcoin and crypto - from instant faucet claims to tournaments and high-paying offerwalls!
+          {availableCount} of {options.length} earning options are live on this deployment — from instant faucet
+          claims to tournaments and high-paying offerwalls!
         </p>
       </div>
 
@@ -298,69 +172,64 @@ export default async function EarnPage() {
         <EarnStats userId={user.id} />
       </Suspense>
 
-      {/* Main Earn Methods */}
+      {/* Earning options — availability + reward text derive from live config
+          (lib/earn/availability.ts), never hardcoded literals. */}
       <div className="space-y-4">
         <h2 className="text-lg sm:text-xl font-semibold">Ways to Earn</h2>
         <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2">
-          {earnMethods.map((method) => (
-            <Link key={method.title} href={method.href}>
-              <Card
-                className={`h-full border-2 ${method.borderColor} ${method.bgColor} hover:shadow-lg transition-all duration-300 hover:scale-[1.02] cursor-pointer group`}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div className={`p-2 sm:p-3 rounded-xl bg-background/80 shadow-sm`}>
-                      <method.icon className={`h-5 w-5 sm:h-6 sm:w-6 ${method.color}`} />
+          {options.map((option) => {
+            const Icon = EARN_ICONS[option.icon]
+            return (
+              <Link key={option.title} href={option.href}>
+                <Card
+                  className={`h-full border-2 cursor-pointer group transition-all duration-300 hover:scale-[1.02] ${
+                    option.available
+                      ? "border-primary/20 bg-gradient-to-br from-primary/10 to-primary/5 hover:shadow-lg"
+                      : "border-amber-500/30 bg-amber-500/5"
+                  }`}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="p-2 sm:p-3 rounded-xl bg-background/80 shadow-sm">
+                        <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${option.color}`} />
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        {option.badge && (
+                          <Badge className="bg-primary text-white text-[10px] sm:text-xs">{option.badge}</Badge>
+                        )}
+                        {option.available ? (
+                          <span className="flex items-center gap-1 text-[10px] sm:text-xs text-green-600">
+                            <CheckCircle2 className="h-3 w-3" /> Available
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[10px] sm:text-xs text-amber-600">
+                            <AlertCircle className="h-3 w-3" /> Setup Required
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <Badge className={`${method.badgeColor} text-white text-[10px] sm:text-xs`}>{method.badge}</Badge>
-                  </div>
-                  <CardTitle className="text-lg sm:text-xl mt-3">{method.title}</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">{method.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-                      <Coins className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500" />
-                      <span className="font-medium">{method.reward}</span>
+                    <CardTitle className="text-lg sm:text-xl mt-3">{option.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-2">
+                    {option.available ? (
+                      <div className="flex items-center gap-1.5 text-xs sm:text-sm">
+                        <Coins className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-yellow-500" />
+                        <span className="font-medium">{option.rewardText}</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs sm:text-sm text-amber-700 dark:text-amber-400">{option.reason}</p>
+                    )}
+                    <div className="flex items-center justify-end">
+                      <Button variant="ghost" size="sm" className="gap-1 group-hover:gap-2 transition-all">
+                        {option.available ? "Start Earning" : "Learn More"}
+                        <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      </Button>
                     </div>
-                    <Button variant="ghost" size="sm" className="gap-1 group-hover:gap-2 transition-all">
-                      Start Earning
-                      <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Bonus Methods */}
-      <div className="space-y-4">
-        <h2 className="text-lg sm:text-xl font-semibold">Bonus Earnings</h2>
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2">
-          {bonusMethods.map((method) => (
-            <Link key={method.title} href={method.href}>
-              <Card className="border-border/50 hover:border-primary/50 hover:shadow-md transition-all duration-300 cursor-pointer group">
-                <CardContent className="p-4 sm:p-5">
-                  <div className="flex items-center gap-3 sm:gap-4">
-                    <div className="p-2 sm:p-3 rounded-xl bg-primary/10">
-                      <method.icon className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm sm:text-base">{method.title}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{method.description}</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="outline" className="text-[10px] sm:text-xs">
-                        {method.reward}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                  </CardContent>
+                </Card>
+              </Link>
+            )
+          })}
         </div>
       </div>
 

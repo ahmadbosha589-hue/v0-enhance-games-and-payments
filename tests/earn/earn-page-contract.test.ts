@@ -7,9 +7,10 @@ const read = (p: string) =>
 
 describe("All Earning Options page is complete and honest", () => {
   const page = () => read("app/dashboard/earn/page.tsx")
+  const options = () => read("lib/earn/availability.ts")
 
   it("includes Boosters (missing today)", () => {
-    expect(page()).toContain("/dashboard/boosters")
+    expect(options()).toContain("/dashboard/boosters")
   })
 
   it("does not hardcode reward ranges that the live config can contradict", () => {
@@ -22,7 +23,7 @@ describe("All Earning Options page is complete and honest", () => {
   })
 
   it("renders live availability per card (Available / Setup Required)", () => {
-    expect(page()).toMatch(/available|unavailable/i)
+    expect(page()).toMatch(/available/i)
     expect(page()).toMatch(/reason/)
   })
 
@@ -41,7 +42,16 @@ describe("All Earning Options page is complete and honest", () => {
       "/dashboard/support-us",
       "/dashboard/referrals",
     ]) {
-      expect(page(), `missing ${href}`).toContain(`"${href}"`)
+      expect(options(), `missing ${href}`).toContain(`"${href}"`)
+    }
+  })
+
+  it("wall env gates mirror the offerwalls route's secret names (parity)", () => {
+    const route = read("app/api/offerwalls/route.ts")
+    const routeSecrets = route.match(/postbackSecretEnv: \["([A-Z_]+)"\]/g) || []
+    const secrets = routeSecrets.map((s) => s.match(/"([A-Z_]+)"/)![1])
+    for (const secret of secrets) {
+      expect(options(), `availability gate must include ${secret}`).toContain(`"${secret}"`)
     }
   })
 })
