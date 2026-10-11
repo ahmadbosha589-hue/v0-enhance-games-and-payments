@@ -305,9 +305,19 @@ export function AdblockWarningModal({ userId, warningDurationSeconds = 60, onFra
         const data = await res.json()
         if (data.appealAccepted) {
           setAppealStatus("accepted")
-          setIsFlagged(false)
-          flaggedRef.current = false
-          setShowWarning(false)
+          // Server already cleared the flag (appeal route); sync the client
+          // store the provider hydrates from, then reload so the provider
+          // re-hydrates from /api/adblock/status with the clean state.
+          try {
+            await fetch("/api/adblock/clear", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ reason: "appeal_accepted" }),
+            })
+          } catch {
+            /* non-fatal — the reload below re-hydrates from the server */
+          }
+          setTimeout(() => window.location.reload(), 1500)
         } else {
           setAppealStatus("rejected")
         }
