@@ -64,6 +64,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Coupon rewards are temporarily unavailable" }, { status: 503 })
     }
 
+    // Adblock enforcement — same gate as /api/claim (line 353).
+    const { data: couponProfile } = await adminSupabase
+      .from("profiles")
+      .select("adblock_flagged")
+      .eq("id", user!.id)
+      .single()
+    if (couponProfile?.adblock_flagged === true) {
+      return NextResponse.json(
+        {
+          error: "Rewards are blocked due to ad blocker usage. Please disable your ad blocker and contact support.",
+          code: "ADBLOCK_FLAGGED",
+        },
+        { status: 403 },
+      )
+    }
+
     const { data: result, error: redemptionError } = await adminSupabase!.rpc("redeem_coupon_atomic", {
       p_user_id: user!.id,
       p_code: code,

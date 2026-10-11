@@ -309,6 +309,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Profile not found. Please contact support." }, { status: 404 })
     }
 
+    // Adblock enforcement — same gate as /api/claim (line 353).
+    if (profile.adblock_flagged === true) {
+      return NextResponse.json(
+        {
+          error: "Rewards are blocked due to ad blocker usage. Please disable your ad blocker and contact support.",
+          code: "ADBLOCK_FLAGGED",
+        },
+        { status: 403 },
+      )
+    }
+
     log.info("Profile loaded for claim", {
       userId: user.id,
       hasFaucetPayEmail: !!profile.faucetpay_email,

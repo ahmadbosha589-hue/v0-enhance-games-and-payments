@@ -73,6 +73,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Game service is temporarily unavailable" }, { status: 503 })
     }
 
+    // Adblock enforcement — same gate as /api/claim (line 353).
+    const { data: gameProfile } = await adminSupabase
+      .from("profiles")
+      .select("adblock_flagged")
+      .eq("id", user!.id)
+      .single()
+    if (gameProfile?.adblock_flagged === true) {
+      return NextResponse.json(
+        {
+          error: "Rewards are blocked due to ad blocker usage. Please disable your ad blocker and contact support.",
+          code: "ADBLOCK_FLAGGED",
+        },
+        { status: 403 },
+      )
+    }
+
     // Fetch the game session
     let gameType = bodyGameType || "unknown"
     let verificationData: { solution: string; startTime: number } | null = null

@@ -25,6 +25,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "PTC rewards are temporarily unavailable" }, { status: 503 })
     }
 
+    // Adblock enforcement — same gate as /api/claim (line 353). PTC pays
+    // specifically for viewing ads; a user blocking those ads must not earn.
+    const { data: ptcProfile } = await adminSupabase
+      .from("profiles")
+      .select("adblock_flagged")
+      .eq("id", user.id)
+      .single()
+    if (ptcProfile?.adblock_flagged === true) {
+      return NextResponse.json(
+        {
+          error: "Rewards are blocked due to ad blocker usage. Please disable your ad blocker and contact support.",
+          code: "ADBLOCK_FLAGGED",
+        },
+        { status: 403 },
+      )
+    }
+
     const now = new Date().toISOString()
     const { data: ad, error: adError } = await adminSupabase
       .from("ptc_ads")

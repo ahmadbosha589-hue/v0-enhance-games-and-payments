@@ -36,6 +36,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Shortlink rewards are temporarily unavailable" }, { status: 503 })
     }
 
+    // Adblock enforcement — same gate as /api/claim (line 353).
+    const { data: slProfile } = await adminSupabase
+      .from("profiles")
+      .select("adblock_flagged")
+      .eq("id", user.id)
+      .single()
+    if (slProfile?.adblock_flagged === true) {
+      return NextResponse.json(
+        {
+          error: "Rewards are blocked due to ad blocker usage. Please disable your ad blocker and contact support.",
+          code: "ADBLOCK_FLAGGED",
+        },
+        { status: 403 },
+      )
+    }
+
     const { data: shortlink, error: shortlinkError } = await adminSupabase
       .from("shortlinks")
       .select("id, view_time_seconds, is_active")
